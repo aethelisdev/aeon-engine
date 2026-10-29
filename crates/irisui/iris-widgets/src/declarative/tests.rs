@@ -744,6 +744,7 @@ mod collapsing_tests;
 mod color_picker_tests;
 mod color_swatch_tests;
 mod context_menu_tests;
+mod drop_target_tests;
 mod hierarchical_seed_tests;
 mod immediate_canvas_tests;
 mod input_box_tests;

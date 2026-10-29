@@ -437,28 +437,53 @@ impl<'a> UiScope<'a> {
                             .and_then(|cid| self.tree.get(cid))
                             .is_some_and(|n| n.tag == tag))));
 
+        let rect = self.tree.get(id).map_or(Rect::ZERO, |n| n.computed_rect);
+
+        let is_file_hovered = self
+            .tree
+            .event_state
+            .hovered_file
+            .as_ref()
+            .is_some_and(|(_, pt)| {
+                rect.contains_point(*pt)
+                    || self.tree.event_state.hovered == Some(id)
+                    || (tag != 0
+                        && self
+                            .tree
+                            .event_state
+                            .hovered
+                            .and_then(|hid| self.tree.get(hid))
+                            .is_some_and(|n| n.tag == tag))
+                    || self
+                        .tree
+                        .event_state
+                        .hovered
+                        .is_some_and(|hid| self.tree.is_direct_interaction_ancestor(hid, id))
+            });
+
+        let is_file_dropped = self
+            .tree
+            .event_state
+            .frame_dropped_files
+            .as_ref()
+            .is_some_and(|(target_id, target_tag, _, pt)| {
+                rect.contains_point(*pt)
+                    || *target_id == Some(id)
+                    || (tag != 0 && *target_tag == tag)
+                    || target_id
+                        .is_some_and(|tid| self.tree.is_direct_interaction_ancestor(tid, id))
+            });
+
         let mut flags = ResponseFlags::empty();
-        if clicked {
-            flags = flags.union(ResponseFlags::CLICKED);
-        }
-        if hovered {
-            flags = flags.union(ResponseFlags::HOVERED);
-        }
-        if double_clicked {
-            flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
-        }
-        if secondary_clicked {
-            flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
-        }
-        if is_dragged {
-            flags = flags.union(ResponseFlags::DRAGGED);
-        }
-        if is_drag_released {
-            flags = flags.union(ResponseFlags::DRAG_RELEASED);
-        }
-        if self.is_pressed(id) {
-            flags = flags.union(ResponseFlags::PRESSED);
-        }
+        flags.set(ResponseFlags::CLICKED, clicked);
+        flags.set(ResponseFlags::HOVERED, hovered);
+        flags.set(ResponseFlags::DOUBLE_CLICKED, double_clicked);
+        flags.set(ResponseFlags::SECONDARY_CLICKED, secondary_clicked);
+        flags.set(ResponseFlags::DRAGGED, is_dragged);
+        flags.set(ResponseFlags::DRAG_RELEASED, is_drag_released);
+        flags.set(ResponseFlags::PRESSED, self.is_pressed(id));
+        flags.set(ResponseFlags::FILE_HOVERED, is_file_hovered);
+        flags.set(ResponseFlags::FILE_DROPPED, is_file_dropped);
 
         let pointer_pos = if is_dragged {
             self.tree
@@ -475,7 +500,6 @@ impl<'a> UiScope<'a> {
         } else {
             None
         };
-        let rect = self.tree.get(id).map_or(Rect::ZERO, |n| n.computed_rect);
         WidgetResponse::from_flags(id, rect, flags)
             .with_pointer_pos(pointer_pos)
             .with_drag_delta(drag_delta)

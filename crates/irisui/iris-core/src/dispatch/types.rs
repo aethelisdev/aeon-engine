@@ -132,6 +132,10 @@ pub struct EventState {
     pub is_pointer_drag_active: bool,
     /// Active or pending tooltip state tracking hover duration and anchor coordinates.
     pub active_tooltip: Option<TooltipState>,
+    /// Active OS file being hovered over the window, if any: `(path, point)`.
+    pub hovered_file: Option<(std::path::PathBuf, Point)>,
+    /// OS files dropped onto a target widget during the current dispatch cycle: `(target_id, target_tag, paths, point)`.
+    pub frame_dropped_files: Option<(Option<WidgetId>, u64, Vec<std::path::PathBuf>, Point)>,
 }
 
 impl EventState {
@@ -172,6 +176,8 @@ impl EventState {
             active_text_edit: None,
             is_pointer_drag_active: false,
             active_tooltip: None,
+            hovered_file: None,
+            frame_dropped_files: None,
         }
     }
 
@@ -205,6 +211,8 @@ impl EventState {
         self.frame_key_pressed = false;
         self.is_pointer_drag_active = false;
         self.active_tooltip = None;
+        self.hovered_file = None;
+        self.frame_dropped_files = None;
     }
 
     /// Clears any confirmed click state recorded for the current frame.

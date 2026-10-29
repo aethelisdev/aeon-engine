@@ -63,9 +63,53 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
             is_pressed,
         } => handle_keyboard(tree, *key, text.clone(), *is_pressed),
         UiEvent::Ime(ime_event) => handle_ime(tree, ime_event.clone()),
-        UiEvent::FileHovered { point, .. } => handle_mouse_move(tree, *point),
-        UiEvent::FileDropped { .. } | UiEvent::FileCancelled => DispatchResult::ignored(),
+        UiEvent::FileHovered { point, path } => handle_file_hovered(tree, *point, path),
+        UiEvent::FileDropped { point, paths } => handle_file_dropped(tree, *point, paths),
+        UiEvent::FileCancelled => handle_file_cancelled(tree),
     }
+}
+
+/// Processes an OS file hovering over the window, updating hover tracking and hover state.
+///
+/// Avoids redundant heap allocations by mutating only the position coordinate when the hovered
+/// path has not changed across consecutive cursor movement events.
+fn handle_file_hovered(tree: &mut UiTree, point: Point, path: &std::path::Path) -> DispatchResult {
+    match &mut tree.event_state.hovered_file {
+        Some((current_path, current_point)) if current_path.as_path() == path => {
+            *current_point = point;
+        }
+        slot => {
+            *slot = Some((path.to_path_buf(), point));
+        }
+    }
+    handle_mouse_move(tree, point)
+}
+
+/// Processes an OS file drop event onto the UI hierarchy.
+fn handle_file_dropped(
+    tree: &mut UiTree,
+    point: Point,
+    paths: &[std::path::PathBuf],
+) -> DispatchResult {
+    tree.event_state.hovered_file = None;
+    let hit_id = tree.hit_test_layered(point);
+    let target_tag = hit_id.and_then(|id| tree.get(id)).map_or(0, |n| n.tag);
+    tree.event_state.frame_dropped_files = Some((hit_id, target_tag, paths.to_vec(), point));
+
+    DispatchResult {
+        consumed: hit_id.is_some(),
+        needs_redraw: true,
+        target: hit_id,
+        target_tag,
+        ..DispatchResult::default()
+    }
+}
+
+/// Cancels an in-progress file drag/hover interaction.
+fn handle_file_cancelled(tree: &mut UiTree) -> DispatchResult {
+    tree.event_state.hovered_file = None;
+    tree.event_state.frame_dropped_files = None;
+    DispatchResult::default()
 }
 
 /// Processes cursor motion inputs, updating hover states and servicing active pointer capture.

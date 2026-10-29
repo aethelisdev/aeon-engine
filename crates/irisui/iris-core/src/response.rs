@@ -45,6 +45,10 @@ bitflags! {
         const DRAG_RELEASED = 1 << 11;
         /// Widget value was explicitly committed/submitted via Enter key confirmation.
         const SUBMITTED = 1 << 12;
+        /// One or more OS files are actively hovered over this widget.
+        const FILE_HOVERED = 1 << 13;
+        /// One or more OS files were dropped onto this widget during this frame.
+        const FILE_DROPPED = 1 << 14;
     }
 }
 
@@ -390,6 +394,40 @@ impl WidgetResponse {
             self.flags = self.flags.union(ResponseFlags::LOST_FOCUS);
         } else {
             self.flags = self.flags.difference(ResponseFlags::LOST_FOCUS);
+        }
+        self
+    }
+
+    /// Returns `true` if an OS file is actively hovered over this widget.
+    #[inline]
+    pub const fn file_hovered(&self) -> bool {
+        self.flags.contains(ResponseFlags::FILE_HOVERED)
+    }
+
+    /// Sets the file_hovered state flag and returns updated response.
+    #[inline]
+    pub const fn with_file_hovered(mut self, hovered: bool) -> Self {
+        if hovered {
+            self.flags = self.flags.union(ResponseFlags::FILE_HOVERED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::FILE_HOVERED);
+        }
+        self
+    }
+
+    /// Returns `true` if one or more OS files were dropped onto this widget during this frame.
+    #[inline]
+    pub const fn file_dropped(&self) -> bool {
+        self.flags.contains(ResponseFlags::FILE_DROPPED)
+    }
+
+    /// Sets the file_dropped state flag and returns updated response.
+    #[inline]
+    pub const fn with_file_dropped(mut self, dropped: bool) -> Self {
+        if dropped {
+            self.flags = self.flags.union(ResponseFlags::FILE_DROPPED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::FILE_DROPPED);
         }
         self
     }

@@ -1323,13 +1323,37 @@ fn test_dispatch_os_file_events() {
     });
     assert_eq!(hover_res.target, Some(root));
     assert_eq!(tree.event_state.hovered, Some(root));
+    assert_eq!(
+        tree.event_state.hovered_file,
+        Some((file_path.clone(), hover_pt))
+    );
 
-    // 2. FileDropped returns valid result
+    // Consecutive FileHovered with same path updates point in-place without reallocating
+    let hover_pt2 = Point::new(120.0, 140.0);
+    tree.dispatch_event(&UiEvent::FileHovered {
+        path: file_path.clone(),
+        point: hover_pt2,
+    });
+    assert_eq!(
+        tree.event_state.hovered_file,
+        Some((file_path.clone(), hover_pt2))
+    );
+
+    // 2. FileDropped onto root widget is consumed
     let drop_res = tree.dispatch_event(&UiEvent::FileDropped {
-        paths: vec![file_path],
+        paths: vec![file_path.clone()],
         point: hover_pt,
     });
-    assert!(!drop_res.consumed);
+    assert!(drop_res.consumed);
+    assert_eq!(drop_res.target, Some(root));
+
+    // Dropped outside is unconsumed
+    let outside_res = tree.dispatch_event(&UiEvent::FileDropped {
+        paths: vec![file_path],
+        point: Point::new(600.0, 600.0),
+    });
+    assert!(!outside_res.consumed);
+    assert_eq!(outside_res.target, None);
 
     // 3. FileCancelled does not panic and returns unconsumed result
     let cancel_res = tree.dispatch_event(&UiEvent::FileCancelled);

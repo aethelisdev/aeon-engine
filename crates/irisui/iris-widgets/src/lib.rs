@@ -31,10 +31,10 @@ pub use declarative::scope::{TabBarResponse, UiScope};
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
 pub use declarative::widget::{
-    Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox, NumericDrag,
-    TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar,
-    ToolbarButton, ToolbarGroup, Widget, title_bar_close_tag, title_bar_maximize_tag,
-    title_bar_minimize_tag,
+    Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DROP_TARGET_SEED, DragVec3,
+    DropTargetId, DropTargetResponse, EmptyBox, NumericDrag, TITLE_BAR_CONTROL_SEED, TitleBar,
+    TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
+    Widget, title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
 };
 pub use floating_panel::{
     DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
@@ -55,10 +55,10 @@ pub mod prelude {
 
     // 2. Primary Showcase Widgets
     pub use crate::declarative::widget::{
-        Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox,
-        NumericDrag, TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder,
-        TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup, title_bar_close_tag,
-        title_bar_maximize_tag, title_bar_minimize_tag,
+        Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DROP_TARGET_SEED, DragVec3,
+        DropTargetId, DropTargetResponse, EmptyBox, NumericDrag, TITLE_BAR_CONTROL_SEED, TitleBar,
+        TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
+        title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
     };
     pub use crate::floating_panel::{
         FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,
