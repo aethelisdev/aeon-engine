@@ -1299,3 +1299,39 @@ fn test_click_on_child_container_bubbles_target_to_ancestor_button() {
     );
     assert_eq!(tree.event_state.frame_clicked_tag, Some(0x9999));
 }
+
+#[test]
+fn test_dispatch_os_file_events() {
+    use std::path::PathBuf;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    {
+        let node = tree.get_mut(root).unwrap();
+        node.visible = true;
+        node.interactive = true;
+        node.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
+    }
+
+    let file_path = PathBuf::from("/project/assets/mesh.gltf");
+    let hover_pt = Point::new(100.0, 100.0);
+
+    // 1. FileHovered updates hover state to root widget
+    let hover_res = tree.dispatch_event(&UiEvent::FileHovered {
+        path: file_path.clone(),
+        point: hover_pt,
+    });
+    assert_eq!(hover_res.target, Some(root));
+    assert_eq!(tree.event_state.hovered, Some(root));
+
+    // 2. FileDropped returns valid result
+    let drop_res = tree.dispatch_event(&UiEvent::FileDropped {
+        paths: vec![file_path],
+        point: hover_pt,
+    });
+    assert!(!drop_res.consumed);
+
+    // 3. FileCancelled does not panic and returns unconsumed result
+    let cancel_res = tree.dispatch_event(&UiEvent::FileCancelled);
+    assert!(!cancel_res.consumed);
+}

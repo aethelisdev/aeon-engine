@@ -155,6 +155,12 @@ impl WinitState {
                 let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
+            WindowEvent::HoveredFile(_)
+            | WindowEvent::DroppedFile(_)
+            | WindowEvent::HoveredFileCancelled => {
+                let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
+                winit_to_ui_event(event, p, self.scale_factor)
+            }
             _ => None,
         }
     }

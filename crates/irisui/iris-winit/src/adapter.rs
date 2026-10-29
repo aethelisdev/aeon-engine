@@ -81,6 +81,15 @@ pub fn winit_to_ui_event(
             })
         }
         WindowEvent::Ime(ime) => Some(UiEvent::Ime(winit_ime_to_iris(ime))),
+        WindowEvent::HoveredFile(path) => Some(UiEvent::FileHovered {
+            path: path.clone(),
+            point: cursor_pos,
+        }),
+        WindowEvent::DroppedFile(path) => Some(UiEvent::FileDropped {
+            paths: vec![path.clone()],
+            point: cursor_pos,
+        }),
+        WindowEvent::HoveredFileCancelled => Some(UiEvent::FileCancelled),
         _ => None,
     }
 }

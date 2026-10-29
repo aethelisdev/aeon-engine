@@ -63,6 +63,8 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
             is_pressed,
         } => handle_keyboard(tree, *key, text.clone(), *is_pressed),
         UiEvent::Ime(ime_event) => handle_ime(tree, ime_event.clone()),
+        UiEvent::FileHovered { point, .. } => handle_mouse_move(tree, *point),
+        UiEvent::FileDropped { .. } | UiEvent::FileCancelled => DispatchResult::ignored(),
     }
 }
 

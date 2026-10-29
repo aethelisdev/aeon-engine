@@ -6,6 +6,7 @@
 use crate::geometry::Point;
 use crate::id::WidgetId;
 use crate::tree::UiTree;
+use std::path::PathBuf;
 
 /// Mouse button identifiers for pointer interaction events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -112,6 +113,22 @@ pub enum UiEvent {
     },
     /// Operating system IME input composition or commit.
     Ime(ImeEvent),
+    /// A file is hovered over the window at a specific coordinate.
+    FileHovered {
+        /// File system path of the file being hovered over the window.
+        path: PathBuf,
+        /// Screen coordinate where the hover occurred in logical pixels.
+        point: Point,
+    },
+    /// One or more files were dropped onto the window at a specific coordinate.
+    FileDropped {
+        /// File system paths of the dropped files.
+        paths: Vec<PathBuf>,
+        /// Screen coordinate where the files were dropped in logical pixels.
+        point: Point,
+    },
+    /// An in-progress file drag/drop operation was cancelled or exited the window.
+    FileCancelled,
 }
 
 /// Operating system Input Method Editor (IME) composition and commit events.
@@ -390,7 +407,10 @@ impl EventDispatcher {
                     }
                 }
             }
-            UiEvent::MouseScroll { .. } => {}
+            UiEvent::MouseScroll { .. }
+            | UiEvent::FileHovered { .. }
+            | UiEvent::FileDropped { .. }
+            | UiEvent::FileCancelled => {}
         }
 
         emitted

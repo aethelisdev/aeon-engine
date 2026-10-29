@@ -268,3 +268,66 @@ fn test_winit_state_dpi_and_cursor_lifecycle() {
     state.set_scale_factor(0.0);
     assert_eq!(state.scale_factor(), 1.0);
 }
+
+#[test]
+fn test_os_file_drag_and_drop_events() {
+    use std::path::PathBuf;
+
+    let p = Point::new(150.0, 220.0);
+    let sample_path = PathBuf::from("/assets/textures/albedo.png");
+
+    // 1. Direct winit_to_ui_event translations
+    let hover_ev = WindowEvent::HoveredFile(sample_path.clone());
+    assert_eq!(
+        winit_to_ui_event(&hover_ev, p, 1.0),
+        Some(UiEvent::FileHovered {
+            path: sample_path.clone(),
+            point: p,
+        })
+    );
+
+    let drop_ev = WindowEvent::DroppedFile(sample_path.clone());
+    assert_eq!(
+        winit_to_ui_event(&drop_ev, p, 1.0),
+        Some(UiEvent::FileDropped {
+            paths: vec![sample_path.clone()],
+            point: p,
+        })
+    );
+
+    let cancel_ev = WindowEvent::HoveredFileCancelled;
+    assert_eq!(
+        winit_to_ui_event(&cancel_ev, p, 1.0),
+        Some(UiEvent::FileCancelled)
+    );
+
+    // 2. Stateful lifecycle with WinitState and HighDPI coordinate transformation
+    let mut state = WinitState::new(2.0);
+    let move_ev = WindowEvent::CursorMoved {
+        device_id: DeviceId::dummy(),
+        position: PhysicalPosition::new(400.0, 300.0), // Logical: (200.0, 150.0)
+    };
+    state.on_window_event(&move_ev);
+    assert_eq!(state.cursor_pos(), Some(Point::new(200.0, 150.0)));
+
+    let state_hover = state.on_window_event(&hover_ev);
+    assert_eq!(
+        state_hover,
+        Some(UiEvent::FileHovered {
+            path: sample_path.clone(),
+            point: Point::new(200.0, 150.0),
+        })
+    );
+
+    let state_drop = state.on_window_event(&drop_ev);
+    assert_eq!(
+        state_drop,
+        Some(UiEvent::FileDropped {
+            paths: vec![sample_path],
+            point: Point::new(200.0, 150.0),
+        })
+    );
+
+    let state_cancel = state.on_window_event(&cancel_ev);
+    assert_eq!(state_cancel, Some(UiEvent::FileCancelled));
+}
