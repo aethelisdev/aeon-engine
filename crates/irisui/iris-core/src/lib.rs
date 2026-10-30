@@ -21,6 +21,7 @@ pub mod geometry;
 pub mod id;
 pub mod measurer;
 pub mod node;
+pub mod platform;
 pub mod response;
 pub mod style;
 pub mod theme;
@@ -39,6 +40,7 @@ pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
 pub use measurer::TextMeasurer;
 pub use node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
+pub use platform::{ClipboardProvider, InMemoryClipboard};
 pub use response::{ResponseFlags, WidgetResponse};
 pub use style::{
     AlignItems, FlexDirection, FlexWrap, JustifyContent, Position, Style, TextAlign, TextWrap,
@@ -51,12 +53,13 @@ pub use tree::{HitTargetInfo, UiTree};
 /// Designed to be imported via wildcard `use iris_core::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     pub use crate::{
-        AlignItems, Border, BoxShadow, CanvasPrimitive, Color, CornerRadii, DirtyFlags,
-        DispatchResult, EventDispatcher, EventState, ExternalTextureId, FlexDirection, FlexWrap,
-        FocusManager, HitTargetInfo, HitTestResult, ImeEvent, Insets, InteractionEvent,
-        IrisCoreError, JustifyContent, KeyCode, MouseButton, Point, PopupMenuState, Position, Rect,
-        ResponseFlags, Size, Style, TextAlign, TextMeasurer, TextWrap, Theme, UiEvent, UiLayer,
-        UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetResponse, WidgetRole, WidgetState,
+        AlignItems, Border, BoxShadow, CanvasPrimitive, ClipboardProvider, Color, CornerRadii,
+        DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId, FlexDirection,
+        FlexWrap, FocusManager, HitTargetInfo, HitTestResult, ImeEvent, InMemoryClipboard, Insets,
+        InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton, Point,
+        PopupMenuState, Position, Rect, ResponseFlags, Size, Style, TextAlign, TextMeasurer,
+        TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId, WidgetNode,
+        WidgetResponse, WidgetRole, WidgetState,
     };
 }
 
