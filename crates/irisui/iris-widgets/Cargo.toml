@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+arboard = { workspace = true }
 iris-core = { workspace = true }
 iris-layout = { workspace = true }
 iris-text = { workspace = true }

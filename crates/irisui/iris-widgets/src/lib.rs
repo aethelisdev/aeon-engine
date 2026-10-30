@@ -12,6 +12,7 @@
 
 pub mod canvas;
 pub mod cascading_menu;
+pub mod clipboard;
 pub mod color_picker;
 pub mod context_menu;
 pub mod controls;
@@ -27,6 +28,7 @@ pub mod settings;
 pub mod tree_view;
 
 // Primary declarative showcase elements re-exported at crate root
+pub use clipboard::SystemClipboard;
 pub use declarative::scope::{TabBarResponse, UiScope};
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};

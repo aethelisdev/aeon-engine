@@ -106,6 +106,7 @@ glyphon = "0.12.0"
 winit = { version = "0.30.9", features = ["rwh_06"] }
 pollster = "1.0.1"
 wgpu = { version = "30.0.1" }
+arboard = "3.7.0"
 
 [patch.crates-io]
 wgpu = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
