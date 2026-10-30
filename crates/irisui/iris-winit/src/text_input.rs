@@ -7,8 +7,9 @@
 //! text selection, and focus management integration for interactive text inputs.
 
 use iris_core::event::FocusManager;
+use iris_core::platform::ClipboardProvider;
 use iris_widgets::controls::focus::{FocusState, FocusTarget};
-use iris_widgets::input::{TextInputState, get_clipboard_text};
+use iris_widgets::input::{TextInputState, copy_to_clipboard, get_clipboard_text};
 use winit::event::{ElementState, Ime, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
@@ -69,13 +70,15 @@ pub fn handle_focused_text_input(
     result
 }
 
-/// Evaluates a key stroke and optional text payload directly against an interactive [`TextInputState`].
-pub fn handle_key_stroke(
+/// Evaluates a key stroke and optional text payload directly against an interactive [`TextInputState`],
+/// routing clipboard operations (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`) through an explicit [`ClipboardProvider`].
+pub fn handle_key_stroke_with_clipboard(
     state: &mut TextInputState,
     logical_key: &Key,
     physical_key: Option<KeyCode>,
     text: Option<&str>,
     ctrl_held: bool,
+    clipboard: &impl ClipboardProvider,
 ) -> TextInputActionResult {
     // 1. Control key shortcuts
     if ctrl_held {
@@ -93,18 +96,18 @@ pub fn handle_key_stroke(
             return TextInputActionResult::Changed;
         }
         if is_key_c {
-            let _ = state.copy_selection();
+            let _ = state.copy_selection_with_provider(clipboard);
             return TextInputActionResult::Changed;
         }
         if is_key_x {
-            if state.cut_selection().is_some() {
+            if state.cut_selection_with_provider(clipboard).is_some() {
                 return TextInputActionResult::Changed;
             }
             return TextInputActionResult::Changed;
         }
         if is_key_v {
-            if let Some(clipboard) = get_clipboard_text() {
-                state.paste(&clipboard);
+            if let Some(content) = clipboard.get_text() {
+                state.paste(&content);
                 return TextInputActionResult::Changed;
             }
             return TextInputActionResult::Changed;
@@ -156,6 +159,35 @@ pub fn handle_key_stroke(
             }
         }
     }
+}
+
+/// Evaluates a key stroke and optional text payload directly against an interactive [`TextInputState`].
+pub fn handle_key_stroke(
+    state: &mut TextInputState,
+    logical_key: &Key,
+    physical_key: Option<KeyCode>,
+    text: Option<&str>,
+    ctrl_held: bool,
+) -> TextInputActionResult {
+    struct SystemFallback;
+    impl ClipboardProvider for SystemFallback {
+        fn get_text(&self) -> Option<String> {
+            get_clipboard_text()
+        }
+        fn set_text(&self, text: &str) -> bool {
+            copy_to_clipboard(text);
+            true
+        }
+    }
+
+    handle_key_stroke_with_clipboard(
+        state,
+        logical_key,
+        physical_key,
+        text,
+        ctrl_held,
+        &SystemFallback,
+    )
 }
 
 /// Dispatches raw keyboard and IME window events into an interactive [`TextInputState`].
@@ -290,6 +322,38 @@ mod tests {
             true,
         );
         assert_eq!(state.buffer, "sample");
+    }
+
+    #[test]
+    fn test_text_input_dispatch_ctrl_cut_with_provider() {
+        use iris_core::platform::InMemoryClipboard;
+
+        let clipboard = InMemoryClipboard::new();
+        let mut state = TextInputState::new("CutTest");
+        state.select_all();
+
+        let res_cut = handle_key_stroke_with_clipboard(
+            &mut state,
+            &Key::Character("x".into()),
+            Some(KeyCode::KeyX),
+            None,
+            true,
+            &clipboard,
+        );
+        assert_eq!(res_cut, TextInputActionResult::Changed);
+        assert_eq!(state.buffer, "");
+        assert_eq!(clipboard.get_text(), Some("CutTest".to_owned()));
+
+        let res_paste = handle_key_stroke_with_clipboard(
+            &mut state,
+            &Key::Character("v".into()),
+            Some(KeyCode::KeyV),
+            None,
+            true,
+            &clipboard,
+        );
+        assert_eq!(res_paste, TextInputActionResult::Changed);
+        assert_eq!(state.buffer, "CutTest");
     }
 
     #[test]

@@ -3,6 +3,14 @@
 
 //! Text input editing buffer, IME composition state, and UTF-8 cursor safety.
 
+use std::sync::LazyLock;
+
+use crate::clipboard::SystemClipboard;
+use iris_core::platform::ClipboardProvider;
+
+/// Global shared platform clipboard instance initialized lazily with operating system bindings.
+static GLOBAL_SYSTEM_CLIPBOARD: LazyLock<SystemClipboard> = LazyLock::new(SystemClipboard::new);
+
 /// Encapsulated state and UTF-8 safe editing buffer for interactive text input widgets.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TextInputState {
@@ -18,20 +26,15 @@ pub struct TextInputState {
     pub selection: Option<(usize, usize)>,
 }
 
-/// Thread-safe in-process text clipboard storage for desktop editing operations.
-static TEXT_CLIPBOARD: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-
-/// Copies a text slice to the global in-process text clipboard.
+/// Copies a text slice to the shared system clipboard.
 pub fn copy_to_clipboard(text: &str) {
-    if let Ok(mut lock) = TEXT_CLIPBOARD.lock() {
-        *lock = Some(text.to_string());
-    }
+    GLOBAL_SYSTEM_CLIPBOARD.set_text(text);
 }
 
-/// Retrieves the active text string from the global in-process text clipboard if present.
+/// Retrieves the active text string from the shared system clipboard if present.
 #[must_use]
 pub fn get_clipboard_text() -> Option<String> {
-    TEXT_CLIPBOARD.lock().ok().and_then(|lock| lock.clone())
+    GLOBAL_SYSTEM_CLIPBOARD.get_text()
 }
 
 impl TextInputState {
@@ -108,7 +111,51 @@ impl TextInputState {
         false
     }
 
-    /// Copies the currently selected text into the global in-process clipboard.
+    /// Copies the currently selected text using the provided clipboard provider.
+    ///
+    /// # Arguments
+    /// * `clipboard` - Provider implementing [`ClipboardProvider`].
+    ///
+    /// # Returns
+    /// The copied text string if a selection was active and successfully extracted.
+    pub fn copy_selection_with_provider(
+        &self,
+        clipboard: &impl ClipboardProvider,
+    ) -> Option<String> {
+        let text = self.selected_text().map(|s| s.to_string());
+        if let Some(ref t) = text {
+            clipboard.set_text(t);
+        }
+        text
+    }
+
+    /// Cuts the currently selected text using the provided clipboard provider and removes it from the buffer.
+    ///
+    /// # Arguments
+    /// * `clipboard` - Provider implementing [`ClipboardProvider`].
+    ///
+    /// # Returns
+    /// The cut text string if a selection was active and successfully deleted.
+    pub fn cut_selection_with_provider(
+        &mut self,
+        clipboard: &impl ClipboardProvider,
+    ) -> Option<String> {
+        let text = self.copy_selection_with_provider(clipboard);
+        self.delete_selection();
+        text
+    }
+
+    /// Pastes text retrieved from the provided clipboard provider at the current cursor position.
+    pub fn paste_from_provider(&mut self, clipboard: &impl ClipboardProvider) -> bool {
+        if let Some(text) = clipboard.get_text() {
+            self.paste(&text);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Copies the currently selected text into the system clipboard.
     pub fn copy_selection(&self) -> Option<String> {
         let text = self.selected_text().map(|s| s.to_string());
         if let Some(ref t) = text {
@@ -117,7 +164,7 @@ impl TextInputState {
         text
     }
 
-    /// Cuts the currently selected text into the global in-process clipboard and deletes it.
+    /// Cuts the currently selected text into the system clipboard and deletes it.
     pub fn cut_selection(&mut self) -> Option<String> {
         let text = self.copy_selection();
         self.delete_selection();
@@ -321,5 +368,25 @@ mod tests {
 
         state.paste(" Engine");
         assert_eq!(state.buffer, "Aeon Engine");
+    }
+
+    #[test]
+    fn test_text_input_state_clipboard_provider_integration() {
+        use iris_core::platform::InMemoryClipboard;
+
+        let clipboard = InMemoryClipboard::new();
+        let mut state = TextInputState::new("Industrial Framework");
+
+        state.select_all();
+        let cut = state.cut_selection_with_provider(&clipboard);
+        assert_eq!(cut, Some("Industrial Framework".to_owned()));
+        assert_eq!(
+            clipboard.get_text(),
+            Some("Industrial Framework".to_owned())
+        );
+        assert_eq!(state.buffer, "");
+
+        assert!(state.paste_from_provider(&clipboard));
+        assert_eq!(state.buffer, "Industrial Framework");
     }
 }
