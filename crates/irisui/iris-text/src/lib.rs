@@ -12,12 +12,16 @@
 #![warn(missing_docs)]
 
 pub mod collector;
+pub mod hit_test;
 pub mod renderer;
 pub mod section;
 pub mod system;
 
 pub use collector::{
     TextCollectionOptions, collect_text_sections, collect_text_sections_with_options,
+};
+pub use hit_test::{
+    hit_test_from_cached_advances, hit_test_from_cached_clusters, index_for_position_in_system,
 };
 pub use iris_core::TextMeasurer;
 pub use renderer::TextRenderer;
@@ -31,6 +35,7 @@ pub mod prelude {
     pub use crate::{
         TextCollectionOptions, TextMeasurer, TextRenderer, TextSection, TextShapeParams,
         TextSystem, collect_text_sections, collect_text_sections_with_options,
+        hit_test_from_cached_advances, hit_test_from_cached_clusters, index_for_position_in_system,
         measure_text_advance, set_default_text_family,
     };
 }

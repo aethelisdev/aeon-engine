@@ -72,7 +72,7 @@ single_match = "deny"
 match_like_matches_macro = "deny"
 
 # Prohibit raw AST node manipulation
-disallowed_methods = "warn"
+disallowed_methods = "deny"
 
 [workspace.dependencies]
 ae-2d-core = { path = "crates/ae_2d/ae-2d-core" }

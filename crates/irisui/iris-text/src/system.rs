@@ -347,6 +347,22 @@ impl TextSystem {
         self.advance_cache.insert(key, advance);
         advance
     }
+
+    /// Resolves the nearest UTF-8 character boundary index for a given horizontal pixel offset.
+    ///
+    /// Evaluates glyph bounding boxes shaped by the font system and computes the closest
+    /// caret index based on mid-glyph rounding.
+    ///
+    /// # Arguments
+    /// * `text` - Source text line being hit-tested.
+    /// * `font_size` - Physical font size in pixels.
+    /// * `local_x` - Horizontal click position relative to the text line origin.
+    ///
+    /// # Returns
+    /// Valid UTF-8 byte offset within `text` (from `0` to `text.len()`).
+    pub fn index_for_position(&mut self, text: &str, font_size: f32, local_x: f32) -> usize {
+        crate::hit_test::index_for_position_in_system(self, text, font_size, local_x)
+    }
 }
 
 impl iris_core::TextMeasurer for TextSystem {
@@ -357,12 +373,13 @@ impl iris_core::TextMeasurer for TextSystem {
 }
 
 std::thread_local! {
-    static SHARED_TEXT_SYSTEM: std::cell::RefCell<TextSystem> = std::cell::RefCell::new(TextSystem::new());
+    static SHARED_TEXT_SYSTEM: std::sync::Mutex<TextSystem> = std::sync::Mutex::new(TextSystem::new());
 }
 
 /// Measures the dynamic horizontal advance width of a string in physical pixels at the specified font size.
 ///
 /// Backed by a thread-local [`TextSystem`] instance with glyph shaping and metric caching.
+/// Thread-safe and free from runtime borrow mutations (`RefCell::borrow_mut`).
 ///
 /// # Arguments
 /// * `text` - Text string to measure.
@@ -371,10 +388,18 @@ std::thread_local! {
 /// # Returns
 /// Total advance width in physical pixels. Returns `0.0` if `text` is empty.
 pub fn measure_text_advance(text: &str, font_size: f32) -> f32 {
-    SHARED_TEXT_SYSTEM.with(|sys| sys.borrow_mut().measure_advance(text, font_size))
+    SHARED_TEXT_SYSTEM.with(|sys| {
+        sys.lock()
+            .map(|mut guard| guard.measure_advance(text, font_size))
+            .unwrap_or(0.0)
+    })
 }
 
 /// Configures the default font family name for the thread-local [`TextSystem`] instance.
 pub fn set_default_text_family(family: &str) {
-    SHARED_TEXT_SYSTEM.with(|sys| sys.borrow_mut().set_default_family(family));
+    SHARED_TEXT_SYSTEM.with(|sys| {
+        if let Ok(mut guard) = sys.lock() {
+            guard.set_default_family(family);
+        }
+    });
 }

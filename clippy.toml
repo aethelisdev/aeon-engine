@@ -1,0 +1,14 @@
+# Clippy configuration for Aeon Engine & Iris UI
+# Universal bans on forbidden methods, types, and hidden global mutations.
+
+disallowed-methods = [
+    { path = "core::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly forbidden; pass explicit &mut references or isolate interior mutability safely." },
+    { path = "std::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly forbidden; pass explicit &mut references or isolate interior mutability safely." },
+    { path = "core::cell::RefCell::try_borrow_mut", reason = "RefCell::try_borrow_mut is forbidden; avoid runtime borrow workarounds." },
+    { path = "std::cell::RefCell::try_borrow_mut", reason = "RefCell::try_borrow_mut is forbidden; avoid runtime borrow workarounds." },
+]
+
+disallowed-types = [
+    { path = "core::cell::RefCell", reason = "RefCell usage is prohibited; design with explicit ownership, arena indices, or decoupled event dispatch." },
+    { path = "std::cell::RefCell", reason = "RefCell usage is prohibited; design with explicit ownership, arena indices, or decoupled event dispatch." },
+]
