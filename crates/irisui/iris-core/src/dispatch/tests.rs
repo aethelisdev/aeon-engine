@@ -184,6 +184,7 @@ fn test_ui_tree_dispatch_event_keyboard_and_ime() {
         key: KeyCode::Character('A'),
         text: Some("A".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     };
     let key_res = tree.dispatch_event(&key_evt);
     assert!(key_res.is_consumed());
@@ -885,6 +886,7 @@ fn test_button_focus_does_not_consume_character_keys_such_as_wasd() {
         key: KeyCode::Character('w'),
         text: Some("w".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     };
     let res_w = tree.dispatch_event(&key_w);
     assert!(
@@ -898,6 +900,7 @@ fn test_button_focus_does_not_consume_character_keys_such_as_wasd() {
             key: KeyCode::Character(k),
             text: Some(k.to_string()),
             is_pressed: true,
+            ctrl_held: false,
         };
         let res_k = tree.dispatch_event(&key_evt);
         assert!(
@@ -911,6 +914,7 @@ fn test_button_focus_does_not_consume_character_keys_such_as_wasd() {
         key: KeyCode::Space,
         text: None,
         is_pressed: true,
+        ctrl_held: false,
     };
     let res_space = tree.dispatch_event(&key_space);
     assert!(
@@ -953,6 +957,7 @@ fn test_text_input_focus_consumes_all_character_keys() {
         key: KeyCode::Character('w'),
         text: Some("w".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     };
     let res_w = tree.dispatch_event(&key_w);
     assert!(
@@ -1050,6 +1055,7 @@ fn test_autonomous_escape_key_dismisses_all_popups() {
         key: KeyCode::Escape,
         text: None,
         is_pressed: true,
+        ctrl_held: false,
     };
     let res = tree.dispatch_event(&esc_ev);
 
@@ -1151,6 +1157,7 @@ fn test_tooltip_dismiss_on_mouse_down_and_escape() {
         key: KeyCode::Escape,
         text: None,
         is_pressed: true,
+        ctrl_held: false,
     };
     let res = tree.dispatch_event(&esc_ev);
     assert!(res.is_consumed());

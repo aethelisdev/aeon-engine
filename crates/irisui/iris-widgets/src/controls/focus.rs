@@ -570,6 +570,7 @@ mod tests {
             key: KeyCode::Tab,
             text: None,
             is_pressed: true,
+            ctrl_held: false,
         };
         let res = handle_focus_event(&mut state, &tab_forward, &areas, &policy);
         assert!(res.consumed);
@@ -621,6 +622,7 @@ mod tests {
             key: KeyCode::Tab,
             text: None,
             is_pressed: true,
+            ctrl_held: false,
         };
 
         handle_focus_event(&mut state, &tab, &areas, &policy);
@@ -646,6 +648,7 @@ mod tests {
             key: KeyCode::Escape,
             text: None,
             is_pressed: true,
+            ctrl_held: false,
         };
 
         let res = handle_focus_event(&mut state, &escape_event, &areas, &policy);

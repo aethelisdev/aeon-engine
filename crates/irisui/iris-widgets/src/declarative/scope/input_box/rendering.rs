@@ -149,9 +149,17 @@ impl<'a> UiScope<'a> {
             let key_pressed = self.tree.event_state.frame_key_pressed;
             let key = self.tree.event_state.frame_key;
             let incoming = self.tree.event_state.frame_text_input.as_deref();
+            let ctrl_held = self.tree.event_state.frame_ctrl_held;
 
-            let res =
-                process_text_input_keys(text, &mut cur, &mut all_sel, key_pressed, key, incoming);
+            let res = process_text_input_keys(
+                text,
+                &mut cur,
+                &mut all_sel,
+                key_pressed,
+                key,
+                incoming,
+                ctrl_held,
+            );
 
             if res.changed {
                 changed = true;
@@ -472,6 +480,7 @@ impl<'a> UiScope<'a> {
                 let key_pressed = self.tree.event_state.frame_key_pressed;
                 let key = self.tree.event_state.frame_key;
                 let incoming = self.tree.event_state.frame_text_input.as_deref();
+                let ctrl_held = self.tree.event_state.frame_ctrl_held;
 
                 let res = process_text_input_keys(
                     &mut buffer,
@@ -480,6 +489,7 @@ impl<'a> UiScope<'a> {
                     key_pressed,
                     key,
                     incoming,
+                    ctrl_held,
                 );
 
                 if res.changed {

@@ -172,7 +172,19 @@ impl WinitState {
                     .unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
-            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => {
+            WindowEvent::KeyboardInput { .. } => {
+                let p = self
+                    .cursor_pos
+                    .or(self.last_valid_cursor_pos)
+                    .unwrap_or(Point::new(0.0, 0.0));
+                crate::adapter::winit_to_ui_event_with_modifiers(
+                    event,
+                    p,
+                    self.scale_factor,
+                    self.modifiers.ctrl(),
+                )
+            }
+            WindowEvent::Ime(_) => {
                 let p = self
                     .cursor_pos
                     .or(self.last_valid_cursor_pos)

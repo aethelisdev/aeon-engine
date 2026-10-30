@@ -110,6 +110,8 @@ pub enum UiEvent {
         text: Option<String>,
         /// Whether the key was pressed (`true`) or released (`false`).
         is_pressed: bool,
+        /// Whether the Control (or Command on macOS) modifier key was held.
+        ctrl_held: bool,
     },
     /// Operating system IME input composition or commit.
     Ime(ImeEvent),
@@ -379,6 +381,7 @@ impl EventDispatcher {
                 key,
                 text,
                 is_pressed,
+                ..
             } => {
                 if is_pressed {
                     if key == KeyCode::Tab {

@@ -121,6 +121,8 @@ pub struct EventState {
     pub frame_text_input: Option<String>,
     /// Whether [`Self::frame_key`] was pressed (`true`) or released (`false`).
     pub frame_key_pressed: bool,
+    /// Whether the Control (or Command on macOS) modifier key was held during the current keyboard interaction.
+    pub frame_ctrl_held: bool,
     /// Active context menu or popup anchor state, if one is currently opened.
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
@@ -171,6 +173,7 @@ impl EventState {
             frame_key: None,
             frame_text_input: None,
             frame_key_pressed: false,
+            frame_ctrl_held: false,
             active_context_menu: None,
             active_numeric_edit: None,
             active_text_edit: None,
@@ -209,6 +212,7 @@ impl EventState {
         self.frame_key = None;
         self.frame_text_input = None;
         self.frame_key_pressed = false;
+        self.frame_ctrl_held = false;
         self.is_pointer_drag_active = false;
         self.active_tooltip = None;
         self.hovered_file = None;
@@ -231,6 +235,7 @@ impl EventState {
         self.frame_key = None;
         self.frame_text_input = None;
         self.frame_key_pressed = false;
+        self.frame_ctrl_held = false;
     }
 
     /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures

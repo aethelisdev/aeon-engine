@@ -403,6 +403,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         key: KeyCode::Character('A'),
         text: Some("A".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     });
     assert!(key_res.is_consumed());
 
@@ -422,6 +423,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         key: KeyCode::Character('e'),
         text: Some("e".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     });
 
     {
@@ -436,6 +438,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         key: KeyCode::Character('e'),
         text: Some("e".to_string()),
         is_pressed: false,
+        ctrl_held: false,
     });
     assert!(release_res.is_consumed());
 
@@ -454,6 +457,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         key: KeyCode::Backspace,
         text: None,
         is_pressed: true,
+        ctrl_held: false,
     });
     assert!(backspace_res.is_consumed());
 
@@ -490,6 +494,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         key: KeyCode::Character('z'),
         text: Some("z".to_string()),
         is_pressed: true,
+        ctrl_held: false,
     });
     assert!(
         !unfocused_res.is_consumed(),

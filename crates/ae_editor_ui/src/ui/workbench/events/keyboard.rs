@@ -17,6 +17,7 @@ impl EngineUi {
             key,
             is_pressed,
             text,
+            ..
         } = event
             && *is_pressed
             && self.iris_overlay.chrome.ctrl_held
@@ -75,12 +76,14 @@ mod tests {
             key: KeyCode::Character('+'),
             text: Some("+".into()),
             is_pressed: true,
+            ctrl_held: false,
         };
 
         if let UiEvent::KeyboardInput {
             key,
             is_pressed,
             text,
+            ..
         } = event_plus
         {
             assert!(is_pressed);

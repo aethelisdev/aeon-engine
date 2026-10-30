@@ -403,3 +403,200 @@ fn test_input_box_tagged_live_typing_and_clear() {
     assert_eq!(tree.event_state.text_edit_buffer(tag), Some(""));
     assert_eq!(tree.event_state.text_edit_cursor(tag), Some(0));
 }
+
+#[test]
+fn test_input_box_autonomous_clipboard_shortcuts() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let mut text_buffer = "Hello Aeon".to_string();
+
+    let input_id;
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Type here...", &mut text_buffer);
+        input_id = resp.id;
+    }
+
+    let input_rect = Rect::new(10.0, 10.0, 200.0, 30.0);
+    if let Some(node) = tree.get_mut(input_id) {
+        node.computed_rect = input_rect;
+    }
+
+    // 1. Click input: MouseDown + MouseUp on input -> Gains keyboard focus
+    let click_pt = iris_core::Point::new(20.0, 20.0);
+    tree.dispatch_event(&iris_core::UiEvent::MouseDown {
+        button: iris_core::MouseButton::Left,
+        point: click_pt,
+    });
+    tree.dispatch_event(&iris_core::UiEvent::MouseUp {
+        button: iris_core::MouseButton::Left,
+        point: click_pt,
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Type here...", &mut text_buffer);
+        assert!(resp.clicked());
+        assert!(resp.focused());
+    }
+
+    // 2. Dispatch Ctrl+A (Select All)
+    let ctrl_a_ev = iris_core::UiEvent::KeyboardInput {
+        key: iris_core::KeyCode::Character('a'),
+        text: Some("a".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+    };
+    let res = tree.dispatch_event(&ctrl_a_ev);
+    assert!(res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input("Type here...", &mut text_buffer);
+        let active_edit = tree.event_state.active_text_edit.as_ref().unwrap();
+        assert!(active_edit.3, "Ctrl+A must set is_all_selected to true");
+    }
+
+    // 3. Dispatch Ctrl+C (Copy)
+    let ctrl_c_ev = iris_core::UiEvent::KeyboardInput {
+        key: iris_core::KeyCode::Character('c'),
+        text: Some("c".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+    };
+    let res_c = tree.dispatch_event(&ctrl_c_ev);
+    assert!(res_c.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input("Type here...", &mut text_buffer);
+    }
+    // Verify clipboard content via crate::input::get_clipboard_text
+    assert_eq!(
+        crate::input::get_clipboard_text().as_deref(),
+        Some("Hello Aeon"),
+        "Ctrl+C must copy full text buffer to SystemClipboard"
+    );
+
+    // 4. Dispatch Ctrl+X (Cut)
+    let ctrl_x_ev = iris_core::UiEvent::KeyboardInput {
+        key: iris_core::KeyCode::Character('x'),
+        text: Some("x".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+    };
+    let res_x = tree.dispatch_event(&ctrl_x_ev);
+    assert!(res_x.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Type here...", &mut text_buffer);
+        assert!(resp.changed(), "Ctrl+X must change text buffer");
+        assert_eq!(
+            text_buffer, "",
+            "Ctrl+X must clear buffer when all selected"
+        );
+    }
+    assert_eq!(
+        crate::input::get_clipboard_text().as_deref(),
+        Some("Hello Aeon"),
+        "Ctrl+X must copy cut content to SystemClipboard"
+    );
+
+    // 5. Dispatch Ctrl+V (Paste)
+    let ctrl_v_ev = iris_core::UiEvent::KeyboardInput {
+        key: iris_core::KeyCode::Character('v'),
+        text: Some("v".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+    };
+    let res_v = tree.dispatch_event(&ctrl_v_ev);
+    assert!(res_v.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Type here...", &mut text_buffer);
+        assert!(resp.changed(), "Ctrl+V must change text buffer");
+        assert_eq!(
+            text_buffer, "Hello Aeon",
+            "Ctrl+V must paste copied text from SystemClipboard into buffer"
+        );
+    }
+}
+
+#[test]
+fn test_process_text_input_keys_edge_cases_and_utf8() {
+    use crate::declarative::scope::input_box::interaction::process_text_input_keys;
+    use iris_core::KeyCode;
+
+    let mut text = "Motor Testi".to_string();
+    let mut cursor = text.len();
+    let mut is_all_selected = false;
+
+    // 1. Submit on Enter
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut is_all_selected,
+        true,
+        Some(KeyCode::Enter),
+        None,
+        false,
+    );
+    assert!(res.submitted);
+    assert!(!res.changed);
+
+    // 2. Clear focus on Escape
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut is_all_selected,
+        true,
+        Some(KeyCode::Escape),
+        None,
+        false,
+    );
+    assert!(res.should_clear_focus);
+    assert!(!res.changed);
+
+    // 3. Arrow left / right navigation within UTF-8 boundaries
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut is_all_selected,
+        true,
+        Some(KeyCode::ArrowLeft),
+        None,
+        false,
+    );
+    assert_eq!(cursor, "Motor Test".len());
+    assert!(!res.changed);
+
+    // 4. Ctrl+A on UTF-8 string -> sets all selected and marks changed for redraw
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut is_all_selected,
+        true,
+        Some(KeyCode::Character('a')),
+        Some("a"),
+        true,
+    );
+    assert!(is_all_selected);
+    assert!(res.changed);
+
+    // 5. Typing while all selected replaces entire text
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut is_all_selected,
+        true,
+        Some(KeyCode::Character('X')),
+        Some("X"),
+        false,
+    );
+    assert_eq!(text, "X");
+    assert_eq!(cursor, 1);
+    assert!(!is_all_selected);
+    assert!(res.changed);
+}

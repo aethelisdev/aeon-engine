@@ -88,7 +88,8 @@ pub struct TextInputEventResult {
     pub should_clear_focus: bool,
 }
 
-/// Processes incoming control keys, navigation arrows, backspace/delete, and character input.
+/// Processes incoming control keys, navigation arrows, backspace/delete, and character input,
+/// including native clipboard integration (Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V).
 ///
 /// Manages selection overwrites, cursor movements, and UTF-8 string mutations in-place.
 ///
@@ -99,6 +100,7 @@ pub struct TextInputEventResult {
 /// * `key_pressed` - Whether a physical keyboard key was pressed this frame.
 /// * `key` - Optional physical key code received from the event loop.
 /// * `incoming_text` - Optional textual characters typed during the current frame.
+/// * `ctrl_held` - Whether the Control modifier was held during the key event.
 ///
 /// # Returns
 /// A [`TextInputEventResult`] indicating changes, submissions, and focus clear requests.
@@ -109,12 +111,72 @@ pub fn process_text_input_keys(
     key_pressed: bool,
     key: Option<KeyCode>,
     incoming_text: Option<&str>,
+    ctrl_held: bool,
 ) -> TextInputEventResult {
     let mut result = TextInputEventResult::default();
 
     *cursor_byte_idx = (*cursor_byte_idx).min(text.len());
     while *cursor_byte_idx > 0 && !text.is_char_boundary(*cursor_byte_idx) {
         *cursor_byte_idx -= 1;
+    }
+
+    // 1. Autonomous Desktop Clipboard Shortcuts (Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V)
+    if key_pressed && ctrl_held {
+        let ch = match key {
+            Some(KeyCode::Character(c)) => Some(c.to_ascii_lowercase()),
+            _ => incoming_text.and_then(|s| s.chars().next().map(|c| c.to_ascii_lowercase())),
+        };
+
+        match ch {
+            Some('a') => {
+                if !text.is_empty() {
+                    *is_all_selected = true;
+                    *cursor_byte_idx = text.len();
+                    result.changed = true;
+                }
+                return result;
+            }
+            Some('c') => {
+                if !text.is_empty() {
+                    crate::input::copy_to_clipboard(text);
+                }
+                return result;
+            }
+            Some('x') => {
+                if !text.is_empty() {
+                    crate::input::copy_to_clipboard(text);
+                    text.clear();
+                    *cursor_byte_idx = 0;
+                    *is_all_selected = false;
+                    result.changed = true;
+                }
+                return result;
+            }
+            Some('v') => {
+                if let Some(pasted) = crate::input::get_clipboard_text() {
+                    let filtered: String = pasted
+                        .chars()
+                        .filter(|c| !c.is_control() || *c == ' ')
+                        .collect();
+                    if !filtered.is_empty() {
+                        if *is_all_selected {
+                            text.clear();
+                            text.push_str(&filtered);
+                            *cursor_byte_idx = text.len();
+                            *is_all_selected = false;
+                            result.changed = true;
+                        } else {
+                            let idx = (*cursor_byte_idx).min(text.len());
+                            text.insert_str(idx, &filtered);
+                            *cursor_byte_idx += filtered.len();
+                            result.changed = true;
+                        }
+                    }
+                }
+                return result;
+            }
+            _ => {}
+        }
     }
 
     let is_control_key = key_pressed

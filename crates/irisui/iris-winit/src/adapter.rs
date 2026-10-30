@@ -13,6 +13,45 @@ use iris_core::geometry::Point;
 use winit::event::{ElementState, Ime as WinitIme, MouseButton as WinitMouseButton, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
+/// Translates a native Winit [`WindowEvent`] into an Iris UI [`UiEvent`] including keyboard modifier state.
+#[must_use]
+pub fn winit_to_ui_event_with_modifiers(
+    event: &WindowEvent,
+    cursor_pos: Point,
+    scale_factor: f64,
+    ctrl_held: bool,
+) -> Option<UiEvent> {
+    match event {
+        WindowEvent::KeyboardInput { event: key_ev, .. } => {
+            let is_pressed = key_ev.state == ElementState::Pressed;
+            let (key, mapped_text) = winit_key_to_iris(&key_ev.logical_key);
+            let text = if is_pressed {
+                if matches!(
+                    key,
+                    IrisKeyCode::Enter
+                        | IrisKeyCode::Escape
+                        | IrisKeyCode::Backspace
+                        | IrisKeyCode::Delete
+                        | IrisKeyCode::Tab
+                ) {
+                    None
+                } else {
+                    key_ev.text.as_ref().map(|t| t.to_string()).or(mapped_text)
+                }
+            } else {
+                None
+            };
+            Some(UiEvent::KeyboardInput {
+                key,
+                text,
+                is_pressed,
+                ctrl_held,
+            })
+        }
+        _ => winit_to_ui_event(event, cursor_pos, scale_factor),
+    }
+}
+
 /// Translates a native Winit [`WindowEvent`] into an Iris UI [`UiEvent`].
 ///
 /// Accepts the current cursor position in logical UI points and window HighDPI scale factor
@@ -78,6 +117,7 @@ pub fn winit_to_ui_event(
                 key,
                 text,
                 is_pressed,
+                ctrl_held: false,
             })
         }
         WindowEvent::Ime(ime) => Some(UiEvent::Ime(winit_ime_to_iris(ime))),
