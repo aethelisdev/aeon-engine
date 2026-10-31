@@ -377,6 +377,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     tree.event_state.frame_drag_released_id = None;
     tree.event_state.frame_drag_released_tag = None;
     tree.event_state.frame_clicked_pos = None;
+    tree.event_state.frame_clicked_rect = None;
     tree.event_state.frame_drag_delta = None;
 
     let hit_id = tree.hit_test_layered(point);
@@ -660,6 +661,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                     tree.event_state.frame_clicked_id = Some(captured_id);
                     tree.event_state.frame_clicked_tag = captured_tag;
                     tree.event_state.frame_clicked_pos = Some(point);
+                    tree.event_state.frame_clicked_rect = Some(rect);
                     tree.event_state.focused = Some(captured_id);
                     tree.event_state.focused_tag = captured_tag;
                 }
@@ -668,6 +670,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                     tree.event_state.frame_secondary_clicked_id = Some(captured_id);
                     tree.event_state.frame_secondary_clicked_tag = captured_tag;
                     tree.event_state.frame_clicked_pos = Some(point);
+                    tree.event_state.frame_clicked_rect = Some(rect);
                 }
                 _ => {}
             }
@@ -676,6 +679,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             tree.event_state.frame_drag_released_id = Some(captured_id);
             tree.event_state.frame_drag_released_tag = captured_tag;
             tree.event_state.frame_clicked_pos = Some(point);
+            tree.event_state.frame_clicked_rect = Some(rect);
         }
 
         return DispatchResult {
@@ -787,6 +791,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             let mut flags = ResponseFlags::HOVERED;
 
             tree.event_state.frame_clicked_pos = Some(point);
+            tree.event_state.frame_clicked_rect = Some(effective_rect);
 
             match button {
                 MouseButton::Left => {

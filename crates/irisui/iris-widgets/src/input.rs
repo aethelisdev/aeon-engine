@@ -224,6 +224,47 @@ impl TextInputState {
         self.ime_cursor = None;
     }
 
+    /// Sets the cursor byte index from precomputed cumulative character advances.
+    ///
+    /// Clears active selection and resolves the caret offset using $O(\log N)$ binary search.
+    ///
+    /// # Arguments
+    /// * `glyph_advances` - Slice of monotonically increasing character right-edge X positions.
+    /// * `local_x` - Horizontal click position relative to text origin.
+    pub fn set_cursor_from_cached_advances(&mut self, glyph_advances: &[f32], local_x: f32) {
+        self.clear_selection();
+        self.cursor_byte_idx = iris_text::hit_test_from_cached_advances(glyph_advances, local_x);
+    }
+
+    /// Sets the cursor byte index from precomputed glyph clusters `(start_byte_idx, right_x)`.
+    ///
+    /// Clears active selection and resolves multi-byte UTF-8 character boundaries.
+    ///
+    /// # Arguments
+    /// * `clusters` - Slice of `(start_byte_idx, right_x)` pairs.
+    /// * `local_x` - Horizontal click position relative to text origin.
+    pub fn set_cursor_from_cached_clusters(&mut self, clusters: &[(usize, f32)], local_x: f32) {
+        self.clear_selection();
+        self.cursor_byte_idx =
+            iris_text::hit_test_from_cached_clusters(clusters, self.buffer.len(), local_x);
+    }
+
+    /// Sets the cursor byte index by querying an explicit mutable typography engine reference.
+    ///
+    /// # Arguments
+    /// * `local_x` - Horizontal click position relative to text origin.
+    /// * `font_size` - Physical font size in pixels.
+    /// * `text_system` - Active typography engine.
+    pub fn set_cursor_at_position(
+        &mut self,
+        local_x: f32,
+        font_size: f32,
+        text_system: &mut iris_text::TextSystem,
+    ) {
+        self.clear_selection();
+        self.cursor_byte_idx = text_system.index_for_position(&self.buffer, font_size, local_x);
+    }
+
     /// Commits finalized IME text into the buffer and clears preedit.
     pub fn commit_ime(&mut self, text: &str) {
         self.clear_ime_preedit();
@@ -388,5 +429,31 @@ mod tests {
 
         assert!(state.paste_from_provider(&clipboard));
         assert_eq!(state.buffer, "Industrial Framework");
+    }
+
+    #[test]
+    fn test_text_input_state_hit_testing() {
+        let mut state = TextInputState::new("Engine");
+        assert_eq!(state.cursor_byte_idx, 6);
+
+        // Advances: 'E' (10), 'n' (20), 'g' (30), 'i' (40), 'n' (50), 'e' (60)
+        let advances = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
+
+        // Click at 0.0 -> start (0)
+        state.set_cursor_from_cached_advances(&advances, 0.0);
+        assert_eq!(state.cursor_byte_idx, 0);
+
+        // Click at 12.0 (near 'n') -> index 1
+        state.set_cursor_from_cached_advances(&advances, 12.0);
+        assert_eq!(state.cursor_byte_idx, 1);
+
+        // Click at 58.0 (near last 'e') -> index 6
+        state.set_cursor_from_cached_advances(&advances, 58.0);
+        assert_eq!(state.cursor_byte_idx, 6);
+
+        // Test with explicit TextSystem
+        let mut text_sys = iris_text::TextSystem::new();
+        state.set_cursor_at_position(0.0, 14.0, &mut text_sys);
+        assert_eq!(state.cursor_byte_idx, 0);
     }
 }

@@ -11,8 +11,8 @@ use iris_text::measure_text_advance;
 
 /// Calculates the target cursor character byte index within `text` closest to `click_rel_x`.
 ///
-/// Iterates across Unicode character boundaries using font advance metrics to place the text
-/// caret precisely between glyphs corresponding to pointer click positions.
+/// Uses precomputed glyph clusters and $O(\log N)$ binary search to resolve
+/// the target caret byte offset accurately without redundant string slicing.
 ///
 /// # Arguments
 /// * `text` - The underlying string content being inspected.
@@ -25,16 +25,13 @@ pub fn find_cursor_idx_at_x(text: &str, click_rel_x: f32, font_size: f32) -> usi
     if click_rel_x <= 0.0 || text.is_empty() {
         return 0;
     }
-    let mut prev_advance = 0.0;
+    let mut clusters: Vec<(usize, f32)> = Vec::with_capacity(text.len().min(64));
+    let mut cum_x = 0.0;
     for (idx, ch) in text.char_indices() {
-        let cur_advance = measure_text_advance(&text[..idx + ch.len_utf8()], font_size);
-        let mid_point = (prev_advance + cur_advance) * 0.5;
-        if click_rel_x < mid_point {
-            return idx;
-        }
-        prev_advance = cur_advance;
+        cum_x += measure_text_advance(ch.encode_utf8(&mut [0; 4]), font_size);
+        clusters.push((idx, cum_x));
     }
-    text.len()
+    iris_text::hit_test_from_cached_clusters(&clusters, text.len(), click_rel_x)
 }
 
 /// Finds the nearest preceding valid UTF-8 character boundary before `cursor_idx`.

@@ -111,6 +111,8 @@ pub struct EventState {
     pub frame_drag_released_tag: Option<u64>,
     /// Absolute screen coordinate where the current frame interaction (click, secondary click, press) occurred.
     pub frame_clicked_pos: Option<Point>,
+    /// Absolute computed layout rectangle of the widget where the current frame interaction occurred.
+    pub frame_clicked_rect: Option<crate::geometry::Rect>,
     /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
     pub frame_drag_delta: Option<Point>,
     /// Previous cursor screen position recorded during dragging to calculate incremental frame deltas.
@@ -168,6 +170,7 @@ impl EventState {
             frame_drag_released_id: None,
             frame_drag_released_tag: None,
             frame_clicked_pos: None,
+            frame_clicked_rect: None,
             frame_drag_delta: None,
             last_pointer_pos: None,
             frame_key: None,
@@ -207,6 +210,7 @@ impl EventState {
         self.frame_drag_released_id = None;
         self.frame_drag_released_tag = None;
         self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
         self.frame_drag_delta = None;
         self.last_pointer_pos = None;
         self.frame_key = None;
@@ -231,6 +235,7 @@ impl EventState {
         self.frame_drag_released_id = None;
         self.frame_drag_released_tag = None;
         self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
         self.frame_drag_delta = None;
         self.frame_key = None;
         self.frame_text_input = None;
@@ -349,6 +354,19 @@ impl EventState {
             && t == tag
         {
             Some(cur)
+        } else {
+            None
+        }
+    }
+
+    /// Returns whether all text is currently selected in the active text edit session for the specified semantic tag.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_all_selected(&self, tag: u64) -> Option<bool> {
+        if let Some((t, _, _, all_sel)) = self.active_text_edit
+            && t == tag
+        {
+            Some(all_sel)
         } else {
             None
         }

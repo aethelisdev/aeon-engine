@@ -600,3 +600,61 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     assert!(!is_all_selected);
     assert!(res.changed);
 }
+
+#[test]
+fn test_input_box_mouse_click_caret_placement_and_double_click_selection() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let tag = 0x5020;
+    let props = crate::declarative::scope::InputBoxProps::new(
+        "Hello World",
+        "Placeholder...",
+        200.0,
+        false,
+        false,
+    );
+
+    // Initial pass to mount the node
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.input_box_tagged(&props, tag);
+        let bounds = Rect::new(0.0, 0.0, 400.0, 100.0);
+        scope.finish_layout(bounds);
+    }
+
+    let box_id = tree.find_node_by_tag(tag).expect("Box node exists");
+    if let Some(node) = tree.get_mut(box_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // 1. Single click targeting character boundary after "Hel"
+    let hel_width = iris_text::measure_text_advance("Hel", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_id = Some(box_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0 + hel_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.clicked());
+    }
+
+    // Caret index must resolve to index 3 ("Hel"), not full length 11
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(3));
+    assert_eq!(tree.event_state.text_edit_all_selected(tag), Some(false));
+
+    // 2. Double click selects the entire buffer
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_id = Some(box_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_double_clicked_tag = Some(tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.text_edit_all_selected(tag), Some(true));
+}
