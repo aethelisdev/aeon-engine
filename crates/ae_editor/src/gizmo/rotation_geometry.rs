@@ -245,25 +245,25 @@ impl GizmoSystem {
         };
 
         let red = if self.is_dragging && self.active_axis == ActiveAxis::X {
-            [1.0, 0.25, 0.25] // Vibrant axis red when actively rotating X
+            [1.0, 0.08, 0.08] // Bold, saturated axis red when actively rotating X
         } else if self.hovered_axis == ActiveAxis::X {
             [1.0, 0.32, 0.32] // Subtle, rich red hover highlight (preserves saturation)
         } else {
-            [0.9, 0.2, 0.2] // Base axis red
+            [0.96, 0.12, 0.12] // Base axis red: pure high-contrast unlit linear sRGB
         };
         let green = if self.is_dragging && self.active_axis == ActiveAxis::Y {
-            [0.25, 1.0, 0.25] // Vibrant axis green when actively rotating Y
+            [0.10, 1.00, 0.10] // Bold, saturated axis green when actively rotating Y
         } else if self.hovered_axis == ActiveAxis::Y {
-            [0.28, 0.98, 0.28] // Subtle, rich green hover highlight (preserves saturation)
+            [0.35, 0.98, 0.35] // Subtle, rich green hover highlight (preserves saturation)
         } else {
-            [0.2, 0.85, 0.2] // Base axis green
+            [0.22, 0.82, 0.22] // Base axis green: pure high-contrast unlit linear sRGB
         };
         let blue = if self.is_dragging && self.active_axis == ActiveAxis::Z {
-            [0.25, 0.5, 1.0] // Vibrant axis blue when actively rotating Z
+            [0.10, 0.50, 1.00] // Bold, saturated axis blue when actively rotating Z
         } else if self.hovered_axis == ActiveAxis::Z {
-            [0.28, 0.55, 1.0] // Subtle, rich blue hover highlight (preserves saturation)
+            [0.30, 0.58, 1.00] // Subtle, rich blue hover highlight (preserves saturation)
         } else {
-            [0.2, 0.45, 1.0] // Base axis blue
+            [0.15, 0.45, 1.00] // Base axis blue: electric blue linear sRGB
         };
 
         if self.is_dragging && self.active_axis != ActiveAxis::None {

@@ -301,8 +301,11 @@ impl AeEngine {
             });
         }
 
-        // Build overlay list (Vec<&dyn OverlayRenderer>)
+        // Build scene overlay list (Vec<&dyn OverlayRenderer>) for main forward pass (depth tested)
         let mut overlays: Vec<&dyn ae_renderer::render::OverlayRenderer> = Vec::new();
+        // Build editor overlay list (Vec<&dyn OverlayRenderer>) for post-tonemap pass (unlit, pure sRGB)
+        let editor_overlays: Vec<&dyn ae_renderer::render::OverlayRenderer> = Vec::new();
+
         if let Some(so) = &sprite_overlay {
             overlays.push(so);
         }
@@ -416,6 +419,7 @@ impl AeEngine {
             scene,
             camera,
             overlays: &overlays,
+            editor_overlays: &editor_overlays,
             asset_manager,
             enabled_modules: &event_bus.enabled_modules,
             options: &render_options,

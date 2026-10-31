@@ -36,6 +36,11 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Exact inverse exposure tonemapping formula:
+    // Tonemapper applies: y = 1.0 - exp(-x)  =>  x = -ln(1.0 - y)
+    // Guarantees mathematically exact sRGB output color after tone mapping while preserving full 4x MSAA hardware anti-aliasing.
+    let unlit_hdr = -log(vec3<f32>(1.0) - clamp(in.color.rgb, vec3<f32>(0.0), vec3<f32>(0.99)));
+
     // Mode 1: Analytical SDF Anti-Aliased Circle for Center O-Ring (in.uv in [-1.0, 1.0])
     let uv_len = length(in.uv);
     if (uv_len > 0.0) {
@@ -51,12 +56,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if (final_alpha <= 0.01) {
             discard;
         }
-        return vec4<f32>(in.color.rgb, final_alpha);
+        return vec4<f32>(unlit_hdr, final_alpha);
     }
 
-    // Mode 2: Standard 3D geometry with per-vertex alpha for edge-on fading
+    // Mode 2: Standard 3D geometry with per-vertex alpha
     if (in.color.a <= 0.01) {
         discard;
     }
-    return in.color;
+    return vec4<f32>(unlit_hdr, in.color.a);
 }

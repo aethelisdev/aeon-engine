@@ -245,14 +245,7 @@ impl GizmoSystem {
                     },
                     depth_slice: None,
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: params.depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
+                depth_stencil_attachment: None,
                 ..Default::default()
             });
 
@@ -398,14 +391,13 @@ impl GizmoSystem {
                                 (sv, orth)
                             };
 
-                        let color = match self.active_axis {
-                            ActiveAxis::X => [1.0, 0.2, 0.2, 0.6],
-                            ActiveAxis::Y => [0.2, 1.0, 0.2, 0.6],
-                            ActiveAxis::Z => [0.2, 0.4, 1.0, 0.6],
-                            ActiveAxis::Screen => [1.0, 0.9, 0.2, 0.6],
-                            _ => [1.0, 1.0, 1.0, 0.6],
+                        let pie_col = match self.active_axis {
+                            ActiveAxis::X => [0.96, 0.12, 0.12, 0.45],
+                            ActiveAxis::Y => [0.22, 0.82, 0.22, 0.45],
+                            ActiveAxis::Z => [0.15, 0.45, 1.00, 0.45],
+                            ActiveAxis::Screen => [1.00, 0.90, 0.20, 0.45],
+                            _ => [1.00, 1.00, 1.00, 0.45],
                         };
-                        let dark_col = [color[0] * 0.4, color[1] * 0.4, color[2] * 0.4, color[3]];
                         let r = 0.95;
 
                         let mut pie_vertices = Vec::new();
@@ -419,17 +411,17 @@ impl GizmoSystem {
                             pie_vertices.extend_from_slice(&[
                                 GizmoVertex {
                                     position: [0.0, 0.0, 0.0],
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p1 * r).into(),
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p2 * r).into(),
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                             ]);
@@ -647,14 +639,13 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                                 (sv, orth)
                             };
 
-                        let color = match self.active_axis {
-                            ActiveAxis::X => [1.0, 0.2, 0.2, 0.6],
-                            ActiveAxis::Y => [0.2, 1.0, 0.2, 0.6],
-                            ActiveAxis::Z => [0.2, 0.4, 1.0, 0.6],
-                            ActiveAxis::Screen => [1.0, 0.9, 0.2, 0.6],
-                            _ => [1.0, 1.0, 1.0, 0.6],
+                        let pie_col = match self.active_axis {
+                            ActiveAxis::X => [0.96, 0.12, 0.12, 0.45],
+                            ActiveAxis::Y => [0.22, 0.82, 0.22, 0.45],
+                            ActiveAxis::Z => [0.15, 0.45, 1.00, 0.45],
+                            ActiveAxis::Screen => [1.00, 0.90, 0.20, 0.45],
+                            _ => [1.00, 1.00, 1.00, 0.45],
                         };
-                        let dark_col = [color[0] * 0.4, color[1] * 0.4, color[2] * 0.4, color[3]];
                         let r = 0.95;
 
                         let mut pie_vertices = Vec::new();
@@ -668,17 +659,17 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                             pie_vertices.extend_from_slice(&[
                                 GizmoVertex {
                                     position: [0.0, 0.0, 0.0],
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p1 * r).into(),
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p2 * r).into(),
-                                    color: dark_col,
+                                    color: pie_col,
                                     uv: [0.0, 0.0],
                                 },
                             ]);

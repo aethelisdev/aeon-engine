@@ -174,27 +174,27 @@ impl GizmoSystem {
         let radius = len * 0.03;
 
         let red = if is_dragging && active_axis == ActiveAxis::X {
-            [1.0, 0.25, 0.25, 1.0]
+            [1.0, 0.08, 0.08, 1.0]
         } else if hovered_axis == ActiveAxis::X {
             [1.0, 0.32, 0.32, 1.0] // Subtle, rich red hover highlight (preserves saturation)
         } else {
-            [0.9, 0.2, 0.2, 1.0]
+            [0.96, 0.12, 0.12, 1.0] // High-contrast, unlit linear sRGB red
         };
 
         let green = if is_dragging && active_axis == ActiveAxis::Y {
-            [0.25, 1.0, 0.25, 1.0]
+            [0.10, 1.00, 0.10, 1.0]
         } else if hovered_axis == ActiveAxis::Y {
-            [0.28, 0.98, 0.28, 1.0] // Subtle, rich green hover highlight (preserves saturation)
+            [0.35, 0.98, 0.35, 1.0] // Subtle, rich green hover highlight (preserves saturation)
         } else {
-            [0.2, 0.85, 0.2, 1.0]
+            [0.22, 0.82, 0.22, 1.0] // High-contrast, unlit linear sRGB green
         };
 
         let blue = if is_dragging && active_axis == ActiveAxis::Z {
-            [0.25, 0.5, 1.0, 1.0]
+            [0.10, 0.50, 1.00, 1.0]
         } else if hovered_axis == ActiveAxis::Z {
-            [0.28, 0.55, 1.0, 1.0] // Subtle, rich blue hover highlight (preserves saturation)
+            [0.30, 0.58, 1.0, 1.0] // Subtle, rich blue hover highlight (preserves saturation)
         } else {
-            [0.2, 0.45, 1.0, 1.0]
+            [0.15, 0.45, 1.00, 1.0] // High-contrast electric blue linear sRGB
         };
 
         let r_x = if hovered_axis == ActiveAxis::X || (is_dragging && active_axis == ActiveAxis::X)
@@ -268,46 +268,49 @@ impl GizmoSystem {
                 p_size
             };
 
-            let p_blue = if is_dragging && active_axis == ActiveAxis::PlaneXY {
-                [0.25, 0.5, 1.0, 0.8]
+            // PlaneXY: High-contrast electric blue handle (Z-normal) with rich opacity
+            let p_xy = if is_dragging && active_axis == ActiveAxis::PlaneXY {
+                [0.30, 0.60, 1.00, 1.0]
             } else if hovered_axis == ActiveAxis::PlaneXY {
-                [0.28, 0.55, 1.0, 0.55] // Subtle blue planar hover highlight
+                [0.30, 0.60, 1.00, 0.90] // Subtle blue planar hover highlight
             } else {
-                [0.2, 0.45, 1.0, 0.4]
+                [0.15, 0.45, 1.00, 0.70]
             };
 
-            let p_green = if is_dragging && active_axis == ActiveAxis::PlaneXZ {
-                [0.2, 1.0, 0.2, 0.8]
+            // PlaneXZ: High-contrast vibrant green handle (Y-normal) with rich opacity
+            let p_xz = if is_dragging && active_axis == ActiveAxis::PlaneXZ {
+                [0.35, 1.00, 0.35, 1.0]
             } else if hovered_axis == ActiveAxis::PlaneXZ {
-                [0.28, 0.98, 0.28, 0.55] // Subtle green planar hover highlight
+                [0.35, 0.98, 0.35, 0.90] // Subtle green planar hover highlight
             } else {
-                [0.2, 0.85, 0.2, 0.4]
+                [0.22, 0.82, 0.22, 0.70]
             };
 
-            let p_red = if is_dragging && active_axis == ActiveAxis::PlaneYZ {
-                [1.0, 0.2, 0.2, 0.8]
+            // PlaneYZ: High-contrast bright red handle (X-normal) with rich opacity
+            let p_yz = if is_dragging && active_axis == ActiveAxis::PlaneYZ {
+                [1.00, 0.30, 0.30, 1.0]
             } else if hovered_axis == ActiveAxis::PlaneYZ {
-                [1.0, 0.32, 0.32, 0.55] // Subtle red planar hover highlight
+                [1.00, 0.35, 0.35, 0.90] // Subtle red planar hover highlight
             } else {
-                [0.9, 0.2, 0.2, 0.4]
+                [0.96, 0.12, 0.12, 0.70]
             };
 
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size_xy,
-                p_blue,
+                p_xy,
                 ActiveAxis::PlaneXY,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size_xz,
-                p_green,
+                p_xz,
                 ActiveAxis::PlaneXZ,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size_yz,
-                p_red,
+                p_yz,
                 ActiveAxis::PlaneYZ,
             ));
         }
@@ -336,7 +339,7 @@ impl GizmoSystem {
 
         // Red Center Point always drawn exactly in the middle of all three gizmo modes!
         let s = 0.015; // Slightly smaller and sleeker (was 0.02)
-        let red = [1.0, 0.2, 0.2, 1.0]; // Bright red center point
+        let red = [0.96, 0.12, 0.12, 1.0]; // Bright high-contrast unlit red center point
         lines.push(GizmoVertex {
             position: [-s, 0.0, 0.0],
             color: red,
@@ -412,12 +415,12 @@ impl GizmoSystem {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
                 let col = match self.active_axis {
-                    ActiveAxis::X => [1.0, 0.2, 0.2, 1.0],
-                    ActiveAxis::Y => [0.2, 1.0, 0.2, 1.0],
-                    ActiveAxis::Z => [0.2, 0.4, 1.0, 1.0],
-                    ActiveAxis::PlaneXY => [0.2, 0.4, 1.0, 1.0],
-                    ActiveAxis::PlaneXZ => [0.2, 1.0, 0.2, 1.0],
-                    ActiveAxis::PlaneYZ => [1.0, 0.2, 0.2, 1.0],
+                    ActiveAxis::X => [0.96, 0.12, 0.12, 1.0],
+                    ActiveAxis::Y => [0.22, 0.82, 0.22, 1.0],
+                    ActiveAxis::Z => [0.15, 0.45, 1.00, 1.0],
+                    ActiveAxis::PlaneXY => [0.15, 0.45, 1.00, 1.0],
+                    ActiveAxis::PlaneXZ => [0.22, 0.82, 0.22, 1.0],
+                    ActiveAxis::PlaneYZ => [0.96, 0.12, 0.12, 1.0],
                     _ => [1.0, 1.0, 1.0, 1.0],
                 };
 
@@ -524,9 +527,9 @@ impl GizmoSystem {
             }
             GizmoMode::Scale => {
                 let col = match self.active_axis {
-                    ActiveAxis::X => [1.0, 0.2, 0.2, 1.0],
-                    ActiveAxis::Y => [0.2, 1.0, 0.2, 1.0],
-                    ActiveAxis::Z => [0.2, 0.4, 1.0, 1.0],
+                    ActiveAxis::X => [0.96, 0.12, 0.12, 1.0],
+                    ActiveAxis::Y => [0.22, 0.82, 0.22, 1.0],
+                    ActiveAxis::Z => [0.15, 0.45, 1.00, 1.0],
                     _ => [0.9, 0.9, 0.9, 1.0],
                 };
 
@@ -681,6 +684,34 @@ mod tests {
         assert!(hovered_x_col[0] >= idle_x_col[0]);
         assert!(hovered_x_col[1] > idle_x_col[1]); // Green channel elevated for luminance highlight
         assert!(hovered_x_col[2] > idle_x_col[2]); // Blue channel elevated for luminance highlight
+    }
+
+    #[test]
+    fn test_high_contrast_unlit_axis_and_plane_colors() {
+        let verts = GizmoSystem::build_axis_vertices_styled(
+            1.0,
+            false,
+            ActiveAxis::None,
+            ActiveAxis::None,
+            false,
+        );
+        // Arrow vertices (first vertex is X axis) must match high-contrast [0.96, 0.12, 0.12, 1.0]
+        let x_col = verts[0].color;
+        assert_eq!(x_col, [0.96, 0.12, 0.12, 1.0]);
+        assert_eq!(
+            x_col[3], 1.0,
+            "Axis arrow alpha must be exactly 1.0 (opaque unlit)"
+        );
+
+        // Plane quads are generated at the end of the vertex buffer in translation mode
+        // Verify that plane quad vertices have base alpha = 0.70
+        let plane_vert = verts
+            .last()
+            .expect("Vertices should contain planar handles");
+        assert_eq!(
+            plane_vert.color[3], 0.70,
+            "Planar quad base alpha must be exactly 0.70"
+        );
     }
 
     #[test]

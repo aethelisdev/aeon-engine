@@ -37,7 +37,10 @@ pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
 pub struct RenderFrameParams<'a> {
     pub scene: crate::render::types::RenderScene,
     pub camera: &'a ae_core::camera::Camera,
+    /// Scene-space overlays rendered inside the main forward pass with depth testing.
     pub overlays: &'a [&'a dyn OverlayRenderer],
+    /// Post-tonemap screen-space overlays (gizmos, editor HUD) rendered directly onto target_view.
+    pub editor_overlays: &'a [&'a dyn OverlayRenderer],
     pub asset_manager: &'a crate::asset::AssetManager,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub options: &'a RenderOptions,
@@ -145,6 +148,7 @@ impl RenderState {
             scene,
             camera,
             overlays,
+            editor_overlays,
             asset_manager,
             enabled_modules,
             options,
@@ -265,7 +269,7 @@ impl RenderState {
         }
 
         if is_2d_mode {
-            return self.render_2d_frame(overlays, ui_renderer);
+            return self.render_2d_frame(overlays, editor_overlays, ui_renderer);
         }
 
         let triangle_instances = scene.triangle_instances;
@@ -534,6 +538,32 @@ impl RenderState {
             &scene.selected_model_instances,
             asset_manager,
         );
+
+        // PASS 3: POST-TONEMAP UNLIT EDITOR OVERLAYS (Gizmo handles & HUD widgets)
+        // Renders directly onto target_view to bypass exposure tonemapping and bloom,
+        // ensuring 100% saturated, crisp, unlit sRGB vector colors on top of silhouettes.
+        if !editor_overlays.is_empty() {
+            let mut overlay_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("3D Editor Overlay Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+
+            for ov in editor_overlays {
+                ov.draw_overlay(&self.queue, &mut overlay_pass);
+            }
+        }
         let post_process_pass_record_ms = post_timer.elapsed().as_secs_f32() * 1000.0;
 
         // Acquire swapchain surface now if it was deferred during decoupled viewport rendering
@@ -589,6 +619,7 @@ impl RenderState {
     fn render_2d_frame(
         &mut self,
         overlays: &[&dyn OverlayRenderer],
+        editor_overlays: &[&dyn OverlayRenderer],
         ui_renderer: Option<UiRenderCallback<'_>>,
     ) -> Result<(), RenderError> {
         let AcquiredFrameSurface {
@@ -646,6 +677,9 @@ impl RenderState {
 
             // Draw all 2D overlays (Sprite2DOverlay, DebugRenderer)
             for ov in overlays {
+                ov.draw_overlay(&self.queue, &mut pass);
+            }
+            for ov in editor_overlays {
                 ov.draw_overlay(&self.queue, &mut pass);
             }
         }

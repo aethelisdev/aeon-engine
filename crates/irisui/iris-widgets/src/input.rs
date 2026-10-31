@@ -589,7 +589,6 @@ mod tests {
         let _guard = CLIPBOARD_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let _guard = CLIPBOARD_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut state = TextInputState::new("Hello World");
         assert!(!state.has_selection());
 
