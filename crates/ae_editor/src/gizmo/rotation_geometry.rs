@@ -141,8 +141,8 @@ impl GizmoSystem {
         segments: usize,
         cross_segments: usize,
     ) -> Vec<GizmoVertex> {
-        let mut right = self.cam_right.get();
-        let mut up = self.cam_up.get();
+        let mut right = self.cam_right;
+        let mut up = self.cam_up;
 
         if self.space == super::space::GizmoSpace::Local {
             let inv_rot = self.entity_rotation.conjugate();
@@ -228,7 +228,7 @@ impl GizmoSystem {
         let mut vertices = Vec::new();
         let thickness = radius * 0.04;
 
-        let cam_fwd = self.cam_forward.get();
+        let cam_fwd = self.cam_forward;
         let view_dir_world = if cam_fwd.magnitude2() > 0.0001 {
             -cam_fwd.normalize()
         } else {

@@ -134,7 +134,7 @@ pub fn format_compact_float(val: f32, max_decimals: usize) -> String {
         } else if trimmed.len() <= dot_idx + 1 {
             format!("{}0", &formatted[..=dot_idx])
         } else {
-            trimmed.to_string()
+            trimmed.to_owned()
         }
     } else {
         format!("{}.0", formatted)

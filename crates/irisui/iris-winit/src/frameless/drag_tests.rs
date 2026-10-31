@@ -199,7 +199,7 @@ fn test_is_double_click_temporal_and_spatial_boundaries() {
 
 #[test]
 fn test_single_click_initiates_drag_window() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let click_point = Point::new(200.0, 15.0);
@@ -220,7 +220,7 @@ fn test_single_click_initiates_drag_window() {
 
 #[test]
 fn test_double_click_within_200ms_toggles_maximize() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let pt1 = Point::new(150.0, 16.0);
@@ -250,7 +250,7 @@ fn test_double_click_within_200ms_toggles_maximize() {
 
 #[test]
 fn test_triple_click_and_quadruple_click_cycle() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let pt = Point::new(250.0, 14.0);
@@ -282,7 +282,7 @@ fn test_triple_click_and_quadruple_click_cycle() {
 
 #[test]
 fn test_slow_clicks_exceeding_300ms_do_not_trigger_maximize() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let pt = Point::new(100.0, 10.0);
@@ -302,7 +302,7 @@ fn test_slow_clicks_exceeding_300ms_do_not_trigger_maximize() {
 
 #[test]
 fn test_clicks_with_spatial_distance_exceeding_4px_do_not_trigger_maximize() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
 
@@ -320,7 +320,7 @@ fn test_clicks_with_spatial_distance_exceeding_4px_do_not_trigger_maximize() {
 
 #[test]
 fn test_disabled_host_ignores_all_interactions() {
-    let host = WindowDragHost::new().with_enabled(false);
+    let mut host = WindowDragHost::new().with_enabled(false);
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let pt = Point::new(100.0, 10.0);
@@ -337,7 +337,7 @@ fn test_disabled_host_ignores_all_interactions() {
 
 #[test]
 fn test_reset_clears_click_history_and_cursor() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
     let pt = Point::new(100.0, 10.0);
@@ -359,7 +359,7 @@ fn test_reset_clears_click_history_and_cursor() {
 
 #[test]
 fn test_winit_window_event_integration_inside_and_outside_drag_rect() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let drag_rect = Rect::new(0.0, 0.0, 800.0, 32.0);
     let t0 = Instant::now();
@@ -404,7 +404,7 @@ fn test_winit_window_event_integration_inside_and_outside_drag_rect() {
 
 #[test]
 fn test_winit_window_event_scale_factor_and_focus_loss() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let drag_rect = Rect::new(0.0, 0.0, 800.0, 32.0);
     let t0 = Instant::now();
@@ -430,7 +430,7 @@ fn test_winit_window_event_scale_factor_and_focus_loss() {
 
 #[test]
 fn test_iris_ui_event_integration() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let drag_rect = Rect::new(0.0, 0.0, 800.0, 32.0);
     let t0 = Instant::now();
@@ -475,7 +475,7 @@ fn test_iris_ui_event_integration() {
 
 #[test]
 fn test_title_bar_response_integration_actions_and_drag() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::new(Size::new(800.0, 600.0));
     let t0 = Instant::now();
 
@@ -550,7 +550,7 @@ fn test_configured_title_bar_height_and_drag_rect() {
 
 #[test]
 fn test_window_drag_host_handle_title_bar_action() {
-    let host = WindowDragHost::new();
+    let mut host = WindowDragHost::new();
     let mut win = MockDragWindow::default();
 
     assert_eq!(

@@ -41,10 +41,10 @@ license = "MPL-2.0"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-# Universal Ban on Linter Suppressions - Zero Escape Hatches!
 allow_attributes = "deny"
 clone_on_ref_ptr = "deny"
 disallowed_types = "deny"
+mem_forget = "deny"
 # unwrap_used = "deny"
 # expect_used = "deny"
 

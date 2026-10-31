@@ -30,7 +30,7 @@ pub enum DropTargetId {
 impl From<&str> for DropTargetId {
     #[inline]
     fn from(s: &str) -> Self {
-        Self::Named(s.to_string())
+        Self::Named(s.to_owned())
     }
 }
 

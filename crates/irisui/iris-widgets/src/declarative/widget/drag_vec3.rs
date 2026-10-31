@@ -312,7 +312,7 @@ mod tests {
             crate::declarative::scope::properties::vectors::property_vec3_axis_tag(base_tag, 1);
 
         // Simulate active editing session on Y axis
-        tree.event_state.active_numeric_edit = Some((y_axis_tag, "45.0".to_string(), 4, false));
+        tree.event_state.active_numeric_edit = Some((y_axis_tag, "45.0".to_owned(), 4, false));
         tree.event_state.focused_tag = Some(y_axis_tag);
         tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
         tree.event_state.frame_key_pressed = true;

@@ -283,7 +283,7 @@ impl Widget for ToolbarButton {
             node.set_style(style);
 
             if self.icon_uv.is_none() {
-                node.set_text(visible_text.to_string());
+                node.set_text(visible_text.to_owned());
                 node.font_size = 11.0;
                 node.line_height = h;
                 node.text_align = TextAlign::Center;
@@ -309,7 +309,7 @@ impl Widget for ToolbarButton {
                 if let Some(node) = scope.tree.get_mut(txt_id) {
                     node.interactive = false;
                     node.set_name("ToolbarButtonText");
-                    node.set_text(visible_text.to_string());
+                    node.set_text(visible_text.to_owned());
                     node.font_size = 11.0;
                     node.line_height = h;
                     node.text_align = TextAlign::Center;

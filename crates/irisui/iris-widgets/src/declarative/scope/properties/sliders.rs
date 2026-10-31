@@ -351,7 +351,7 @@ impl<'a> UiScope<'a> {
                 || active_numeric.as_ref().is_some_and(|(.., sel)| *sel);
 
             let display_str_now = if let Some(edit) = options.inline_edit {
-                edit.to_string()
+                edit.to_owned()
             } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
                 if *is_all_sel {
                     buf.clone()
@@ -368,7 +368,7 @@ impl<'a> UiScope<'a> {
                     }
                 }
             } else if let Some((active_text, _)) = active_in_scope {
-                active_text.to_string()
+                active_text.to_owned()
             } else if let Some(fmt) = options.format {
                 if fmt.contains("Hz") {
                     format!("{:.0} Hz", *value)

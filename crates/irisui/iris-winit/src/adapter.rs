@@ -164,7 +164,7 @@ pub fn winit_key_to_iris(key: &Key) -> (IrisKeyCode, Option<String>) {
                 NamedKey::Home => (IrisKeyCode::Home, None),
                 NamedKey::End => (IrisKeyCode::End, None),
                 NamedKey::Tab => (IrisKeyCode::Tab, None),
-                NamedKey::Space => (IrisKeyCode::Space, Some(" ".to_string())),
+                NamedKey::Space => (IrisKeyCode::Space, Some(" ".to_owned())),
                 _ => (IrisKeyCode::Other, None),
             };
             (code, text)

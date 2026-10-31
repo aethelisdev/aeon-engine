@@ -180,34 +180,34 @@ fn test_keyboard_key_translations() {
 
     let (key_space, space_text) = winit_key_to_iris(&Key::Named(NamedKey::Space));
     assert_eq!(key_space, KeyCode::Space);
-    assert_eq!(space_text, Some(" ".to_string()));
+    assert_eq!(space_text, Some(" ".to_owned()));
 
     let (key_char, text) = winit_key_to_iris(&Key::Character(SmolStr::new("x")));
     assert_eq!(key_char, KeyCode::Character('x'));
-    assert_eq!(text, Some("x".to_string()));
+    assert_eq!(text, Some("x".to_owned()));
 
     let (key_unicode, unicode_text) = winit_key_to_iris(&Key::Character(SmolStr::new("ç")));
     assert_eq!(key_unicode, KeyCode::Character('ç'));
-    assert_eq!(unicode_text, Some("ç".to_string()));
+    assert_eq!(unicode_text, Some("ç".to_owned()));
 }
 
 #[test]
 fn test_ime_events() {
     assert_eq!(winit_ime_to_iris(&Ime::Enabled), ImeEvent::Enabled);
     assert_eq!(
-        winit_ime_to_iris(&Ime::Preedit("composer".to_string(), Some((0, 4)))),
-        ImeEvent::Preedit("composer".to_string(), Some((0, 4)))
+        winit_ime_to_iris(&Ime::Preedit("composer".to_owned(), Some((0, 4)))),
+        ImeEvent::Preedit("composer".to_owned(), Some((0, 4)))
     );
     assert_eq!(
-        winit_ime_to_iris(&Ime::Commit("result".to_string())),
-        ImeEvent::Commit("result".to_string())
+        winit_ime_to_iris(&Ime::Commit("result".to_owned())),
+        ImeEvent::Commit("result".to_owned())
     );
     assert_eq!(winit_ime_to_iris(&Ime::Disabled), ImeEvent::Disabled);
 
-    let ime_ev = WindowEvent::Ime(Ime::Commit("commit_str".to_string()));
+    let ime_ev = WindowEvent::Ime(Ime::Commit("commit_str".to_owned()));
     assert_eq!(
         winit_to_ui_event(&ime_ev, Point::new(0.0, 0.0), 1.0),
-        Some(UiEvent::Ime(ImeEvent::Commit("commit_str".to_string())))
+        Some(UiEvent::Ime(ImeEvent::Commit("commit_str".to_owned())))
     );
 }
 

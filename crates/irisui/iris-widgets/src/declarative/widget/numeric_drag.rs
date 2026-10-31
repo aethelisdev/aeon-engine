@@ -542,11 +542,11 @@ impl<'a> Widget for NumericDrag<'a> {
                 let cursor = s.cursor_idx.min(buf.len());
                 let (left, right) = buf.split_at(cursor);
                 if s.is_all_selected {
-                    buf.to_string()
+                    buf.to_owned()
                 } else if s.blink_caret {
                     format!("{}|{}", left, right)
                 } else {
-                    buf.to_string()
+                    buf.to_owned()
                 }
             } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
                 if *is_all_sel {
@@ -564,9 +564,9 @@ impl<'a> Widget for NumericDrag<'a> {
                     }
                 }
             } else if let Some((active_text, _)) = active_in_scope {
-                active_text.to_string()
+                active_text.to_owned()
             } else if let Some(txt) = self.custom_text {
-                txt.to_string()
+                txt.to_owned()
             } else {
                 crate::declarative::types::format_compact_float(*self.value, self.decimals)
             };
@@ -1006,11 +1006,11 @@ impl<'a> Widget for NumericDrag<'a> {
             let cursor = s.cursor_idx.min(buf.len());
             let (left, right) = buf.split_at(cursor);
             if s.is_all_selected {
-                buf.to_string()
+                buf.to_owned()
             } else if s.blink_caret {
                 format!("{}|{}", left, right)
             } else {
-                buf.to_string()
+                buf.to_owned()
             }
         } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
             if *is_all_sel {
@@ -1028,9 +1028,9 @@ impl<'a> Widget for NumericDrag<'a> {
                 }
             }
         } else if let Some((active_text, _)) = active_in_scope {
-            active_text.to_string()
+            active_text.to_owned()
         } else if let Some(txt) = self.custom_text {
-            txt.to_string()
+            txt.to_owned()
         } else {
             crate::declarative::types::format_compact_float(*self.value, self.decimals)
         };
@@ -1174,7 +1174,7 @@ mod tests {
         let mut val = 10.0;
 
         // Simulate active numeric editing session on tag
-        tree.event_state.active_numeric_edit = Some((tag, "25.5".to_string(), 4, false));
+        tree.event_state.active_numeric_edit = Some((tag, "25.5".to_owned(), 4, false));
         tree.event_state.focused_tag = Some(tag);
         tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
         tree.event_state.frame_key_pressed = true;

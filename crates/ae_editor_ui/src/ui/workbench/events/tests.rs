@@ -85,7 +85,7 @@ impl WindowInterface for MockWindow {
 
 #[test]
 fn test_frameless_window_host_resize_hover_with_window_interface() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut win = MockWindow::default();
 
     // 1. Move to left border (x = 2.0 <= 6.0)
@@ -112,7 +112,7 @@ fn test_frameless_window_host_resize_hover_with_window_interface() {
 
 #[test]
 fn test_frameless_window_host_resize_drag_with_window_interface() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut win = MockWindow::default();
 
     // MouseDown on bottom border triggers drag-resize
@@ -127,7 +127,7 @@ fn test_frameless_window_host_resize_drag_with_window_interface() {
 
 #[test]
 fn test_frameless_window_host_maximized_suppresses_resize() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut win = MockWindow {
         maximized: true,
         ..Default::default()
@@ -180,7 +180,7 @@ fn test_window_interface_methods_on_mock() {
 
 #[test]
 fn test_window_drag_host_single_click_and_double_click_maximize() {
-    let host = iris_winit::frameless::WindowDragHost::new().with_title_bar_height(36.0);
+    let mut host = iris_winit::frameless::WindowDragHost::new().with_title_bar_height(36.0);
     let mut win = MockWindow::default();
     let drag_rect = Rect::new(0.0, 0.0, 1000.0, 36.0);
 
@@ -214,7 +214,7 @@ fn test_window_drag_host_single_click_and_double_click_maximize() {
 fn test_window_drag_host_handle_title_bar_actions_on_mock_window() {
     use irisui::prelude::TitleBarAction;
 
-    let host = iris_winit::frameless::WindowDragHost::new();
+    let mut host = iris_winit::frameless::WindowDragHost::new();
     let mut win = MockWindow::default();
 
     // 1. Minimize action

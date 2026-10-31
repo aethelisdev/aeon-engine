@@ -140,7 +140,7 @@ impl<'a> UiScope<'a> {
                 .event_state
                 .text_edit_buffer(edit_key)
                 .unwrap_or(props.text)
-                .to_string();
+                .to_owned();
             let (cur_idx, all_sel) = if is_double_click {
                 (initial_text.len(), true)
             } else if let Some(click_pos) = self.tree.event_state.frame_clicked_pos {
@@ -239,10 +239,10 @@ impl<'a> UiScope<'a> {
                     (active_buf_clone, cur, all_sel)
                 }
             } else {
-                (props.text.to_string(), props.cursor_byte_idx, false)
+                (props.text.to_owned(), props.cursor_byte_idx, false)
             }
         } else {
-            (props.text.to_string(), props.cursor_byte_idx, false)
+            (props.text.to_owned(), props.cursor_byte_idx, false)
         };
 
         let is_still_focused = self

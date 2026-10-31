@@ -208,10 +208,10 @@ impl GizmoSystem {
             drag_current_hit: Vector3::new(0.0, 0.0, 0.0),
             drag_scale: 1.0,
             drag_scale_factor: 1.0,
-            cam_right: std::cell::Cell::new(Vector3::unit_x()),
-            cam_up: std::cell::Cell::new(Vector3::unit_y()),
-            cam_forward: std::cell::Cell::new(-Vector3::unit_z()),
-            cam_pos: std::cell::Cell::new(Vector3::new(0.0, 0.0, 5.0)),
+            cam_right: Vector3::unit_x(),
+            cam_up: Vector3::unit_y(),
+            cam_forward: -Vector3::unit_z(),
+            cam_pos: Vector3::new(0.0, 0.0, 5.0),
             entity_rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
             vertex_buffer,
             rotate_vertex_buffer,
@@ -224,13 +224,13 @@ impl GizmoSystem {
             line_pipeline,
             num_vertices: vertices.len() as u32,
             num_scale_vertices: scale_vertices.len() as u32,
-            last_translate_state: std::cell::Cell::new((ActiveAxis::None, ActiveAxis::None)),
-            last_scale_state: std::cell::Cell::new((ActiveAxis::None, ActiveAxis::None)),
+            last_translate_state: (ActiveAxis::None, ActiveAxis::None),
+            last_scale_state: (ActiveAxis::None, ActiveAxis::None),
         }
     }
 
     /// Legacy render API — opens its own render pass and calls `draw_in_render_pass`.
-    pub fn render(&self, params: GizmoStandaloneRenderParams<'_>) {
+    pub fn render(&mut self, params: GizmoStandaloneRenderParams<'_>) {
         // Legacy render() API starts a render pass and calls the `draw_in_render_pass` function.
         let mut pass = params
             .encoder
@@ -272,7 +272,7 @@ impl GizmoSystem {
     /// Computes model matrix from gizmo position and screen-compensated scale,
     /// then issues draw calls for the active mode's geometry.
     pub fn draw_in_render_pass<'a>(
-        &'a self,
+        &'a mut self,
         queue: &wgpu::Queue,
         pass: &mut wgpu::RenderPass<'a>,
         gizmo_pos: Vector3<f32>,
@@ -306,10 +306,10 @@ impl GizmoSystem {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
                 let current_state = (self.hovered_axis, self.active_axis);
-                if self.last_translate_state.get() != current_state {
+                if self.last_translate_state != current_state {
                     let verts = self.build_dynamic_axis_vertices(1.0, false);
                     queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
-                    self.last_translate_state.set(current_state);
+                    self.last_translate_state = current_state;
                 }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -471,10 +471,10 @@ impl GizmoSystem {
             }
             GizmoMode::Scale => {
                 let current_state = (self.hovered_axis, self.active_axis);
-                if self.last_scale_state.get() != current_state {
+                if self.last_scale_state != current_state {
                     let verts = self.build_dynamic_axis_vertices(1.0, true);
                     queue.write_buffer(&self.scale_vertex_buffer, 0, bytemuck::cast_slice(&verts));
-                    self.last_scale_state.set(current_state);
+                    self.last_scale_state = current_state;
                 }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.scale_vertex_buffer.slice(..));
@@ -509,11 +509,11 @@ impl GizmoSystem {
     ///
     /// Writes the MVP uniform buffer based on gizmo position, camera distance,
     /// and screen params. Must be called BEFORE `draw_overlay()` in the same frame.
-    pub fn prepare_overlay(&self, params: GizmoOverlayPrepareParams<'_>) {
-        self.cam_right.set(params.cam_right);
-        self.cam_up.set(params.cam_up);
-        self.cam_forward.set(params.cam_forward);
-        self.cam_pos.set(params.cam_pos);
+    pub fn prepare_overlay(&mut self, params: GizmoOverlayPrepareParams<'_>) {
+        self.cam_right = params.cam_right;
+        self.cam_up = params.cam_up;
+        self.cam_forward = params.cam_forward;
+        self.cam_pos = params.cam_pos;
 
         let dist = params.camera_distance.max(1e-6);
         let axis_len_world = params.screen.axis_length_world(dist);
@@ -532,6 +532,21 @@ impl GizmoSystem {
         params
             .queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&mvp));
+
+        let current_state = (self.hovered_axis, self.active_axis);
+        if self.mode == GizmoMode::Translate && self.last_translate_state != current_state {
+            let verts = self.build_dynamic_axis_vertices(1.0, false);
+            params
+                .queue
+                .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
+            self.last_translate_state = current_state;
+        } else if self.mode == GizmoMode::Scale && self.last_scale_state != current_state {
+            let verts = self.build_dynamic_axis_vertices(1.0, true);
+            params
+                .queue
+                .write_buffer(&self.scale_vertex_buffer, 0, bytemuck::cast_slice(&verts));
+            self.last_scale_state = current_state;
+        }
     }
 }
 
@@ -545,12 +560,6 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
         match self.mode {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
-                let current_state = (self.hovered_axis, self.active_axis);
-                if self.last_translate_state.get() != current_state {
-                    let verts = self.build_dynamic_axis_vertices(1.0, false);
-                    queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
-                    self.last_translate_state.set(current_state);
-                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.draw(0..self.num_vertices, 0..1);
@@ -710,12 +719,6 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                 }
             }
             GizmoMode::Scale => {
-                let current_state = (self.hovered_axis, self.active_axis);
-                if self.last_scale_state.get() != current_state {
-                    let verts = self.build_dynamic_axis_vertices(1.0, true);
-                    queue.write_buffer(&self.scale_vertex_buffer, 0, bytemuck::cast_slice(&verts));
-                    self.last_scale_state.set(current_state);
-                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.scale_vertex_buffer.slice(..));
                 pass.draw(0..self.num_scale_vertices, 0..1);

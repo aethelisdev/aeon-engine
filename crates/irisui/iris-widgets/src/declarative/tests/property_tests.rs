@@ -234,7 +234,7 @@ fn test_property_slider_rich_track_and_options() {
     let events = [(
         tag_num_box,
         InteractionEvent::TextInput {
-            text: "144".to_string(),
+            text: "144".to_owned(),
         },
     )];
 

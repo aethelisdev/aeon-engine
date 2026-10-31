@@ -1,14 +1,26 @@
 # Clippy configuration for Aeon Engine & Iris UI
-# Universal bans on forbidden methods, types, and hidden global mutations.
+# Universal architectural guardrails enforcing strict zero-allocation and explicit ownership.
 
 disallowed-methods = [
-    { path = "core::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly forbidden; pass explicit &mut references or isolate interior mutability safely." },
-    { path = "std::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly forbidden; pass explicit &mut references or isolate interior mutability safely." },
-    { path = "core::cell::RefCell::try_borrow_mut", reason = "RefCell::try_borrow_mut is forbidden; avoid runtime borrow workarounds." },
-    { path = "std::cell::RefCell::try_borrow_mut", reason = "RefCell::try_borrow_mut is forbidden; avoid runtime borrow workarounds." },
+    # RefCell runtime mutation bypasses
+    { path = "core::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly prohibited. Pass explicit &mut references or decouple via event context." },
+    { path = "std::cell::RefCell::borrow_mut", reason = "Runtime borrow mutation via RefCell::borrow_mut is strictly prohibited. Pass explicit &mut references or decouple via event context." },
+    { path = "core::cell::RefCell::try_borrow_mut", reason = "Runtime borrow mutation via RefCell::try_borrow_mut is prohibited. Do not use runtime borrow workarounds." },
+    { path = "std::cell::RefCell::try_borrow_mut", reason = "Runtime borrow mutation via RefCell::try_borrow_mut is prohibited. Do not use runtime borrow workarounds." },
+
+    # Lifetime bypass via heap leaks
+    { path = "alloc::boxed::Box::leak", reason = "Fabricating 'static references via Box::leak is strictly prohibited. Manage lifetimes explicitly within resource scopes or arena allocators." },
+    { path = "std::boxed::Box::leak", reason = "Fabricating 'static references via Box::leak is strictly prohibited. Manage lifetimes explicitly within resource scopes or arena allocators." },
 ]
 
 disallowed-types = [
-    { path = "core::cell::RefCell", reason = "RefCell usage is prohibited; design with explicit ownership, arena indices, or decoupled event dispatch." },
-    { path = "std::cell::RefCell", reason = "RefCell usage is prohibited; design with explicit ownership, arena indices, or decoupled event dispatch." },
+    # Interior mutability
+    { path = "core::cell::RefCell", reason = "RefCell introduces runtime panic risks and breaks deterministic ownership. Use arena handles, explicit ownership, or context passing." },
+    { path = "std::cell::RefCell", reason = "RefCell introduces runtime panic risks and breaks deterministic ownership. Use arena handles, explicit ownership, or context passing." },
+    { path = "core::cell::Cell", reason = "Hidden interior mutability via Cell is prohibited. Mutations must be explicit via &mut references." },
+    { path = "std::cell::Cell", reason = "Hidden interior mutability via Cell is prohibited. Mutations must be explicit via &mut references." },
+
+    # Single-threaded reference counting
+    { path = "alloc::rc::Rc", reason = "Rc is prohibited to prevent cyclic leaks and distributed ownership. Retain explicit hierarchical ownership." },
+    { path = "std::rc::Rc", reason = "Rc is prohibited to prevent cyclic leaks and distributed ownership. Retain explicit hierarchical ownership." },
 ]

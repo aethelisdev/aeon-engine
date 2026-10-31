@@ -144,7 +144,7 @@ impl Widget for Checkbox {
                 node.interactive = false;
                 node.role = WidgetRole::Default;
                 node.set_name("CheckboxLabel");
-                node.set_text(visible_text.to_string());
+                node.set_text(visible_text.to_owned());
                 node.font_size = 12.0;
                 node.line_height = 16.0;
                 node.text_color = if hovered {

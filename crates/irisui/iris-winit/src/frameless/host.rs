@@ -10,7 +10,6 @@ use super::geometry::{DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, evaluate_re
 use super::window_trait::WindowInterface;
 use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Size};
-use std::cell::Cell;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::window::CursorIcon;
 
@@ -33,11 +32,11 @@ pub struct FramelessWindowHost {
     /// Master toggle enabling or disabling frameless edge detection and interactive resizing.
     pub enabled: bool,
     /// Active HighDPI scale factor for converting physical cursor coordinates to logical points.
-    scale_factor: Cell<f64>,
+    scale_factor: f64,
     /// Last recorded cursor coordinate in logical points, or `None` if outside the window.
-    cursor_pos: Cell<Option<Point>>,
+    cursor_pos: Option<Point>,
     /// Tracks whether a resize cursor is actively applied on the window by this host.
-    hovering_border: Cell<bool>,
+    hovering_border: bool,
 }
 
 impl Default for FramelessWindowHost {
@@ -59,9 +58,9 @@ impl FramelessWindowHost {
             border_thickness: DEFAULT_BORDER_THICKNESS,
             corner_size: DEFAULT_CORNER_SIZE,
             enabled: true,
-            scale_factor: Cell::new(1.0),
-            cursor_pos: Cell::new(None),
-            hovering_border: Cell::new(false),
+            scale_factor: 1.0,
+            cursor_pos: None,
+            hovering_border: false,
         }
     }
 
@@ -91,62 +90,62 @@ impl FramelessWindowHost {
     /// If `scale_factor <= 0.0` or is non-finite (`f64::NAN`, `f64::INFINITY`), defaults to `1.0`
     /// to guard against zero, negative, or invalid scaling values.
     #[must_use]
-    pub fn with_scale_factor(self, scale_factor: f64) -> Self {
+    pub fn with_scale_factor(mut self, scale_factor: f64) -> Self {
         let factor = if scale_factor > 0.0 && scale_factor.is_finite() {
             scale_factor
         } else {
             1.0
         };
-        self.scale_factor.set(factor);
+        self.scale_factor = factor;
         self
     }
 
     /// Returns the active HighDPI scale factor.
     #[must_use]
     pub fn scale_factor(&self) -> f64 {
-        self.scale_factor.get()
+        self.scale_factor
     }
 
     /// Sets the active HighDPI scale factor.
     ///
     /// If `scale_factor <= 0.0` or is non-finite (`f64::NAN`, `f64::INFINITY`), defaults to `1.0`.
-    pub fn set_scale_factor(&self, scale_factor: f64) {
+    pub fn set_scale_factor(&mut self, scale_factor: f64) {
         let factor = if scale_factor > 0.0 && scale_factor.is_finite() {
             scale_factor
         } else {
             1.0
         };
-        self.scale_factor.set(factor);
+        self.scale_factor = factor;
     }
 
     /// Returns the last recorded cursor coordinate in logical points, if available.
     #[must_use]
     pub fn cursor_pos(&self) -> Option<Point> {
-        self.cursor_pos.get()
+        self.cursor_pos
     }
 
     /// Explicitly updates or clears the cached cursor coordinate in logical points.
-    pub fn set_cursor_pos(&self, pos: Option<Point>) {
+    pub fn set_cursor_pos(&mut self, pos: Option<Point>) {
         if let Some(p) = pos {
             if p.x.is_finite() && p.y.is_finite() {
-                self.cursor_pos.set(Some(p));
+                self.cursor_pos = Some(p);
             } else {
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
             }
         } else {
-            self.cursor_pos.set(None);
+            self.cursor_pos = None;
         }
     }
 
     /// Returns whether the cursor is currently hovering over an interactive resize boundary.
     #[must_use]
     pub fn is_hovering_border(&self) -> bool {
-        self.hovering_border.get()
+        self.hovering_border
     }
 
     /// Resets any active resize hover cursor back to default if this host previously modified it.
-    pub fn reset_hover_cursor<W: WindowInterface>(&self, window: &mut W) {
-        if self.hovering_border.replace(false) {
+    pub fn reset_hover_cursor<W: WindowInterface>(&mut self, window: &mut W) {
+        if std::mem::replace(&mut self.hovering_border, false) {
             window.set_cursor(CursorIcon::Default);
         }
     }
@@ -157,12 +156,12 @@ impl FramelessWindowHost {
     /// if a resize border hover was active, preventing stale hover state across display boundaries.
     /// Clamps invalid or non-finite (`NaN`, `INFINITY`) scale factors to `1.0`.
     pub fn handle_scale_factor_changed<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         scale_factor: f64,
     ) {
         self.set_scale_factor(scale_factor);
-        self.cursor_pos.set(None);
+        self.cursor_pos = None;
         self.reset_hover_cursor(window);
     }
 
@@ -185,7 +184,7 @@ impl FramelessWindowHost {
     ///   and consumes the event (`true`).
     /// - Suppresses resize hover and dragging when `!self.enabled` or `window.is_maximized()`.
     pub fn handle_window_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         logical_size: Size,
@@ -196,23 +195,23 @@ impl FramelessWindowHost {
                 false
             }
             WindowEvent::Focused(false) => {
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
                 self.reset_hover_cursor(window);
                 false
             }
             WindowEvent::CursorLeft { .. } => {
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
                 self.reset_hover_cursor(window);
                 false
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if !position.x.is_finite() || !position.y.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     self.reset_hover_cursor(window);
                     return false;
                 }
 
-                let factor = self.scale_factor.get();
+                let factor = self.scale_factor;
                 let factor = if factor > 0.0 && factor.is_finite() {
                     factor
                 } else {
@@ -221,12 +220,12 @@ impl FramelessWindowHost {
                 let lx = (position.x / factor) as f32;
                 let ly = (position.y / factor) as f32;
                 if !lx.is_finite() || !ly.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     self.reset_hover_cursor(window);
                     return false;
                 }
                 let logical_point = Point::new(lx, ly);
-                self.cursor_pos.set(Some(logical_point));
+                self.cursor_pos = Some(logical_point);
 
                 if !self.enabled || window.is_maximized() {
                     self.reset_hover_cursor(window);
@@ -239,7 +238,7 @@ impl FramelessWindowHost {
                     self.border_thickness,
                     self.corner_size,
                 ) {
-                    self.hovering_border.set(true);
+                    self.hovering_border = true;
                     window.set_cursor(direction.to_winit_cursor());
                     true
                 } else {
@@ -256,14 +255,14 @@ impl FramelessWindowHost {
                     return false;
                 }
 
-                if let Some(pos) = self.cursor_pos.get() {
+                if let Some(pos) = self.cursor_pos {
                     if let Some(direction) = evaluate_resize_direction(
                         pos,
                         logical_size,
                         self.border_thickness,
                         self.corner_size,
                     ) {
-                        self.hovering_border.set(true);
+                        self.hovering_border = true;
                         let _ = window.drag_resize_window(direction);
                         true
                     } else {
@@ -282,7 +281,7 @@ impl FramelessWindowHost {
     /// Accepts pre-normalized logical coordinates directly from the Iris event system,
     /// providing ergonomic compatibility when events have already been translated from raw Winit events.
     pub fn handle_ui_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         logical_size: Size,
@@ -290,12 +289,12 @@ impl FramelessWindowHost {
         match event {
             UiEvent::MouseMove { point } => {
                 if !point.x.is_finite() || !point.y.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     self.reset_hover_cursor(window);
                     return false;
                 }
 
-                self.cursor_pos.set(Some(*point));
+                self.cursor_pos = Some(*point);
 
                 if !self.enabled || window.is_maximized() {
                     self.reset_hover_cursor(window);
@@ -308,7 +307,7 @@ impl FramelessWindowHost {
                     self.border_thickness,
                     self.corner_size,
                 ) {
-                    self.hovering_border.set(true);
+                    self.hovering_border = true;
                     window.set_cursor(direction.to_winit_cursor());
                     true
                 } else {
@@ -321,12 +320,12 @@ impl FramelessWindowHost {
                 button: iris_core::event::MouseButton::Left,
             } => {
                 if !point.x.is_finite() || !point.y.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     self.reset_hover_cursor(window);
                     return false;
                 }
 
-                self.cursor_pos.set(Some(*point));
+                self.cursor_pos = Some(*point);
 
                 if !self.enabled || window.is_maximized() {
                     return false;
@@ -338,7 +337,7 @@ impl FramelessWindowHost {
                     self.border_thickness,
                     self.corner_size,
                 ) {
-                    self.hovering_border.set(true);
+                    self.hovering_border = true;
                     let _ = window.drag_resize_window(direction);
                     true
                 } else {
@@ -355,7 +354,7 @@ impl FramelessWindowHost {
     /// to [`Self::handle_ui_event`].
     #[inline]
     pub fn handle_ui_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
     ) -> bool {
@@ -369,7 +368,7 @@ impl FramelessWindowHost {
     /// to [`Self::handle_window_event`].
     #[inline]
     pub fn handle_window_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
     ) -> bool {

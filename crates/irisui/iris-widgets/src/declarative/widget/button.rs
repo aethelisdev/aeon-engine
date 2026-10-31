@@ -330,7 +330,7 @@ impl Widget for Button {
                 node.layer = l;
             }
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(visible_text.to_string());
+            node.set_text(visible_text.to_owned());
             node.font_size = if self.is_small { 10.0 } else { 11.0 };
             node.line_height = if self.is_small { 12.0 } else { 14.0 };
             node.text_align = TextAlign::Center;

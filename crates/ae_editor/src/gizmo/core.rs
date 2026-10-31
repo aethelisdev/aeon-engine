@@ -104,10 +104,10 @@ pub struct GizmoSystem {
     pub drag_current_hit: Vector3<f32>,
     pub(crate) drag_scale: f32,
     pub(crate) drag_scale_factor: f32,
-    pub(crate) cam_right: std::cell::Cell<Vector3<f32>>,
-    pub(crate) cam_up: std::cell::Cell<Vector3<f32>>,
-    pub(crate) cam_forward: std::cell::Cell<Vector3<f32>>,
-    pub(crate) cam_pos: std::cell::Cell<Vector3<f32>>,
+    pub(crate) cam_right: Vector3<f32>,
+    pub(crate) cam_up: Vector3<f32>,
+    pub(crate) cam_forward: Vector3<f32>,
+    pub(crate) cam_pos: Vector3<f32>,
     /// The selected entity's rotation quaternion, used to orient gizmo axes in Local space.
     /// Updated by the engine each frame before gizmo rendering and input processing.
     pub entity_rotation: Quaternion<f32>,
@@ -124,8 +124,8 @@ pub struct GizmoSystem {
     pub(crate) line_pipeline: wgpu::RenderPipeline,
     pub(crate) num_vertices: u32,
     pub(crate) num_scale_vertices: u32,
-    pub(crate) last_translate_state: std::cell::Cell<(ActiveAxis, ActiveAxis)>,
-    pub(crate) last_scale_state: std::cell::Cell<(ActiveAxis, ActiveAxis)>,
+    pub(crate) last_translate_state: (ActiveAxis, ActiveAxis),
+    pub(crate) last_scale_state: (ActiveAxis, ActiveAxis),
 }
 
 impl GizmoSystem {

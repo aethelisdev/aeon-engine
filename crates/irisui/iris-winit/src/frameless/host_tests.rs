@@ -116,7 +116,7 @@ fn make_mouse_event(state: ElementState, button: MouseButton) -> WindowEvent {
 
 #[test]
 fn test_frameless_host_cursor_movement_all_edges_and_corners() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -165,7 +165,7 @@ fn test_frameless_host_cursor_movement_all_edges_and_corners() {
 
 #[test]
 fn test_frameless_host_interior_cursor_motion_not_consumed() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -177,7 +177,7 @@ fn test_frameless_host_interior_cursor_motion_not_consumed() {
 
 #[test]
 fn test_frameless_host_mouse_click_triggers_drag_resize() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -204,7 +204,7 @@ fn test_frameless_host_mouse_click_triggers_drag_resize() {
 
 #[test]
 fn test_frameless_host_other_mouse_buttons_and_release_ignored() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -230,7 +230,7 @@ fn test_frameless_host_other_mouse_buttons_and_release_ignored() {
 
 #[test]
 fn test_frameless_host_interior_click_not_consumed() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -248,7 +248,7 @@ fn test_frameless_host_disabled_and_maximized_guards() {
     let size = Size::new(800.0, 600.0);
 
     // 1. Host disabled
-    let host = FramelessWindowHost::new().with_enabled(false);
+    let mut host = FramelessWindowHost::new().with_enabled(false);
     let mut win = MockWindow::default();
 
     let move_ev = make_move_event(1.0, 1.0);
@@ -259,7 +259,7 @@ fn test_frameless_host_disabled_and_maximized_guards() {
     assert_eq!(win.resize_call_count, 0);
 
     // 2. Window maximized
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut max_win = MockWindow {
         maximized: true,
         ..Default::default()
@@ -273,7 +273,7 @@ fn test_frameless_host_disabled_and_maximized_guards() {
 #[test]
 fn test_frameless_host_highdpi_scaling() {
     // 2.0x HighDPI scale factor
-    let host = FramelessWindowHost::new().with_scale_factor(2.0);
+    let mut host = FramelessWindowHost::new().with_scale_factor(2.0);
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -293,7 +293,7 @@ fn test_frameless_host_highdpi_scaling() {
 
 #[test]
 fn test_frameless_host_cursor_left_clears_position() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -347,7 +347,7 @@ fn test_frameless_host_builder_and_robustness() {
     assert_eq!(host.scale_factor(), 1.0);
     assert!(host.cursor_pos().is_none());
 
-    let custom = FramelessWindowHost::new()
+    let mut custom = FramelessWindowHost::new()
         .with_border_thickness(8.0)
         .with_corner_size(16.0)
         .with_enabled(false)
@@ -362,7 +362,7 @@ fn test_frameless_host_builder_and_robustness() {
     assert_eq!(custom.scale_factor(), 1.0);
 
     // Non-finite scale factors should default/clamp to 1.0
-    let inf_host = FramelessWindowHost::new().with_scale_factor(f64::INFINITY);
+    let mut inf_host = FramelessWindowHost::new().with_scale_factor(f64::INFINITY);
     assert_eq!(inf_host.scale_factor(), 1.0);
 
     let nan_host = FramelessWindowHost::new().with_scale_factor(f64::NAN);
@@ -387,7 +387,7 @@ fn test_frameless_host_builder_and_robustness() {
 
 #[test]
 fn test_scale_factor_changed_while_window_is_maximized_or_disabled() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut max_win = MockWindow {
         maximized: true,
@@ -403,7 +403,7 @@ fn test_scale_factor_changed_while_window_is_maximized_or_disabled() {
     assert_eq!(host.cursor_pos(), Some(Point::new(100.0, 50.0)));
 
     // Scale factor updates and HighDPI normalization must work even when host is disabled
-    let disabled_host = FramelessWindowHost::new().with_enabled(false);
+    let mut disabled_host = FramelessWindowHost::new().with_enabled(false);
     let mut win = MockWindow::default();
     disabled_host.set_scale_factor(1.5);
     assert_eq!(disabled_host.scale_factor(), 1.5);
@@ -414,7 +414,7 @@ fn test_scale_factor_changed_while_window_is_maximized_or_disabled() {
 
 #[test]
 fn test_cursor_left_while_window_is_maximized_or_disabled() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -437,7 +437,7 @@ fn test_cursor_left_while_window_is_maximized_or_disabled() {
 
 #[test]
 fn test_cursor_restoration_when_moving_border_to_interior() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -464,7 +464,7 @@ fn test_cursor_restoration_when_moving_border_to_interior() {
 
 #[test]
 fn test_cursor_restoration_on_cursor_left() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -484,7 +484,7 @@ fn test_cursor_restoration_on_cursor_left() {
 
 #[test]
 fn test_cursor_restoration_when_maximized_while_hovering() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -505,7 +505,7 @@ fn test_cursor_restoration_when_maximized_while_hovering() {
 
 #[test]
 fn test_non_finite_coordinates_handling() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -531,7 +531,7 @@ fn test_non_finite_coordinates_handling() {
 
 #[test]
 fn test_frameless_host_handle_ui_event() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -584,7 +584,7 @@ fn test_window_interface_arc_and_blanket_mut() {
 
 #[test]
 fn test_cursor_restoration_on_focus_lost() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -610,7 +610,7 @@ fn test_cursor_restoration_on_focus_lost() {
 
 #[test]
 fn test_scale_factor_changed_resets_cursor_and_stale_coordinates() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut win = MockWindow::default();
 
     // Move to border
@@ -643,7 +643,7 @@ fn test_scale_factor_changed_resets_cursor_and_stale_coordinates() {
 
 #[test]
 fn test_handle_ui_event_mouse_down_coordinates_and_finiteness() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let size = Size::new(800.0, 600.0);
     let mut win = MockWindow::default();
 
@@ -696,7 +696,7 @@ fn test_handle_ui_event_mouse_down_coordinates_and_finiteness() {
 
 #[test]
 fn test_handle_ui_event_for_window_and_window_event_for_window() {
-    let host = FramelessWindowHost::new();
+    let mut host = FramelessWindowHost::new();
     let mut win = MockWindow {
         logical_size: Size::new(800.0, 600.0),
         ..Default::default()

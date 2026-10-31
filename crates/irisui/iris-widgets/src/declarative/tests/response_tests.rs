@@ -401,7 +401,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
     // 4. Typing character 'A' while focused -> In-place buffer update and changed flag
     let key_res = tree.dispatch_event(&UiEvent::KeyboardInput {
         key: KeyCode::Character('A'),
-        text: Some("A".to_string()),
+        text: Some("A".to_owned()),
         is_pressed: true,
         ctrl_held: false,
     });
@@ -421,7 +421,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
     // 5. Typing second character 'e'
     tree.dispatch_event(&UiEvent::KeyboardInput {
         key: KeyCode::Character('e'),
-        text: Some("e".to_string()),
+        text: Some("e".to_owned()),
         is_pressed: true,
         ctrl_held: false,
     });
@@ -436,7 +436,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
     // 5b. Key release event for 'e' -> Must NOT duplicate input (prevent double-typing)
     let release_res = tree.dispatch_event(&UiEvent::KeyboardInput {
         key: KeyCode::Character('e'),
-        text: Some("e".to_string()),
+        text: Some("e".to_owned()),
         is_pressed: false,
         ctrl_held: false,
     });
@@ -492,7 +492,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
     // 8. Key press while unfocused -> Must NOT update buffer or report changed
     let unfocused_res = tree.dispatch_event(&UiEvent::KeyboardInput {
         key: KeyCode::Character('z'),
-        text: Some("z".to_string()),
+        text: Some("z".to_owned()),
         is_pressed: true,
         ctrl_held: false,
     });
@@ -900,7 +900,7 @@ fn test_numeric_input_child_node_click_bubbles_capture() {
     let child_id = tree.create_node();
     let _ = tree.add_child(num_id, child_id);
     if let Some(child) = tree.get_mut(child_id) {
-        child.name = Some("InnerNumericLabel".to_string());
+        child.name = Some("InnerNumericLabel".to_owned());
         child.role = WidgetRole::Default;
         child.interactive = false;
         child.computed_rect = Rect::new(20.0, 15.0, 50.0, 20.0);
@@ -1007,7 +1007,7 @@ fn test_numeric_drag_typing_buffering_and_enter_commit() {
     // 2. Typing '5' replaces buffer (all selected), val MUST NOT CHANGE yet
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_key_pressed = true;
-    tree.event_state.frame_text_input = Some("5".to_string());
+    tree.event_state.frame_text_input = Some("5".to_owned());
     {
         let mut scope = UiScope::new(&mut tree, root);
         let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
@@ -1017,7 +1017,7 @@ fn test_numeric_drag_typing_buffering_and_enter_commit() {
 
     // 3. Typing '-10' into the buffer, val MUST STILL NOT CHANGE
     tree.event_state.frame_key_pressed = true;
-    tree.event_state.frame_text_input = Some("-10".to_string());
+    tree.event_state.frame_text_input = Some("-10".to_owned());
     {
         let mut scope = UiScope::new(&mut tree, root);
         let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
@@ -1067,7 +1067,7 @@ fn test_numeric_drag_blur_commit() {
     // 2. Type "20+15"
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_key_pressed = true;
-    tree.event_state.frame_text_input = Some("20+15".to_string());
+    tree.event_state.frame_text_input = Some("20+15".to_owned());
     {
         let mut scope = UiScope::new(&mut tree, root);
         let _ = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));

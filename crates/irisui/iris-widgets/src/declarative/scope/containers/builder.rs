@@ -169,7 +169,7 @@ impl<'a, 'b> RowBuilder<'a, 'b> {
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
         if self.tag != 0 {
-            let name = self.name.unwrap_or_else(|| "Row".to_string());
+            let name = self.name.unwrap_or_else(|| "Row".to_owned());
             self.scope
                 .container_tagged(name, self.style, self.role, self.tag, f)
         } else if let Some(name) = self.name {
@@ -344,7 +344,7 @@ impl<'a, 'b> ColumnBuilder<'a, 'b> {
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
         if self.tag != 0 {
-            let name = self.name.unwrap_or_else(|| "Column".to_string());
+            let name = self.name.unwrap_or_else(|| "Column".to_owned());
             self.scope
                 .container_tagged(name, self.style, self.role, self.tag, f)
         } else if let Some(name) = self.name {

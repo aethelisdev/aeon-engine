@@ -9,7 +9,17 @@ use crate::clipboard::SystemClipboard;
 use iris_core::platform::ClipboardProvider;
 
 /// Global shared platform clipboard instance initialized lazily with operating system bindings.
+#[cfg(not(test))]
 static GLOBAL_SYSTEM_CLIPBOARD: LazyLock<SystemClipboard> = LazyLock::new(SystemClipboard::new);
+
+/// Deterministic in-memory headless clipboard instance for test isolation.
+#[cfg(test)]
+static GLOBAL_SYSTEM_CLIPBOARD: LazyLock<SystemClipboard> =
+    LazyLock::new(SystemClipboard::headless_fallback);
+
+/// Test synchronization lock ensuring concurrent clipboard tests do not collide on shared buffers.
+#[cfg(test)]
+pub(crate) static CLIPBOARD_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Helper function ensuring an arbitrary byte index snaps to a valid UTF-8 boundary within a buffer slice.
 #[inline]
@@ -298,7 +308,7 @@ impl TextInputState {
         &self,
         clipboard: &impl ClipboardProvider,
     ) -> Option<String> {
-        let text = self.selected_text().map(|s| s.to_string());
+        let text = self.selected_text().map(|s| s.to_owned());
         if let Some(ref t) = text {
             clipboard.set_text(t);
         }
@@ -333,7 +343,7 @@ impl TextInputState {
 
     /// Copies the currently selected text into the system clipboard.
     pub fn copy_selection(&self) -> Option<String> {
-        let text = self.selected_text().map(|s| s.to_string());
+        let text = self.selected_text().map(|s| s.to_owned());
         if let Some(ref t) = text {
             copy_to_clipboard(t);
         }
@@ -576,6 +586,10 @@ mod tests {
 
     #[test]
     fn test_text_input_state_selection_and_clipboard() {
+        let _guard = CLIPBOARD_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _guard = CLIPBOARD_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut state = TextInputState::new("Hello World");
         assert!(!state.has_selection());
 
@@ -584,8 +598,8 @@ mod tests {
         assert_eq!(state.selected_text(), Some("Hello World"));
 
         let copied = state.copy_selection();
-        assert_eq!(copied, Some("Hello World".to_string()));
-        assert_eq!(get_clipboard_text(), Some("Hello World".to_string()));
+        assert_eq!(copied, Some("Hello World".to_owned()));
+        assert_eq!(get_clipboard_text(), Some("Hello World".to_owned()));
 
         state.insert_str("Aeon");
         assert_eq!(state.buffer, "Aeon");

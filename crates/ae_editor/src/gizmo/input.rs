@@ -55,9 +55,9 @@ impl GizmoSystem {
             right_dir.normalize()
         };
         let up_dir = right_dir.cross(cam_f).normalize();
-        self.cam_right.set(right_dir);
-        self.cam_up.set(up_dir);
-        self.cam_forward.set(cam_f);
+        self.cam_right = right_dir;
+        self.cam_up = up_dir;
+        self.cam_forward = cam_f;
 
         // 1) Update hover only when not dragging (stabilizes state)
         if !self.is_dragging {
@@ -237,7 +237,7 @@ impl GizmoSystem {
         }
 
         if self.mode == GizmoMode::Rotate {
-            let cam_f = self.cam_forward.get();
+            let cam_f = self.cam_forward;
             let hit_cam = ray_plane(ray_origin, ray_dir, self.drag_gizmo_pos, cam_f)?;
             self.drag_current_hit = hit_cam;
 

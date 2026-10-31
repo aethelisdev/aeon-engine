@@ -153,16 +153,16 @@ impl<'a> UiScope<'a> {
 
             let display_text = if options.is_editing {
                 if options.is_all_selected {
-                    value.to_string()
+                    value.to_owned()
                 } else if options.blink_caret {
                     format!("{}|", value)
                 } else {
-                    value.to_string()
+                    value.to_owned()
                 }
             } else if value.is_empty() {
-                options.placeholder.to_string()
+                options.placeholder.to_owned()
             } else {
-                value.to_string()
+                value.to_owned()
             };
 
             let text_color = if options.is_editing {

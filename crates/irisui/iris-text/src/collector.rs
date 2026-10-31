@@ -561,7 +561,7 @@ mod tests {
         let label = tree.create_node();
         if let Some(node) = tree.get_mut(label) {
             node.computed_rect = Rect::new(10.0, 10.0, 100.0, 24.0);
-            node.text = Some("Hello World".to_string());
+            node.text = Some("Hello World".to_owned());
         }
         tree.add_child(root, label).unwrap();
 
@@ -582,7 +582,7 @@ mod tests {
         let bg_label = tree.create_node();
         if let Some(node) = tree.get_mut(bg_label) {
             node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
-            node.text = Some("Occluded Text".to_string());
+            node.text = Some("Occluded Text".to_owned());
             node.layer = UiLayer::Content;
         }
         tree.add_child(root, bg_label).unwrap();
@@ -600,7 +600,7 @@ mod tests {
         let popup_label = tree.create_node();
         if let Some(node) = tree.get_mut(popup_label) {
             node.computed_rect = Rect::new(50.0, 60.0, 100.0, 20.0);
-            node.text = Some("Popup Text".to_string());
+            node.text = Some("Popup Text".to_owned());
             node.layer = UiLayer::Popup;
         }
         tree.add_child(popup, popup_label).unwrap();
@@ -633,7 +633,7 @@ mod tests {
         let label_inside = tree.create_node();
         if let Some(node) = tree.get_mut(label_inside) {
             node.computed_rect = Rect::new(10.0, 50.0, 100.0, 20.0);
-            node.text = Some("Inside Panel".to_string());
+            node.text = Some("Inside Panel".to_owned());
             node.layer = UiLayer::Content;
         }
         tree.add_child(panel, label_inside).unwrap();
@@ -642,7 +642,7 @@ mod tests {
         let label_overflow = tree.create_node();
         if let Some(node) = tree.get_mut(label_overflow) {
             node.computed_rect = Rect::new(10.0, 250.0, 100.0, 20.0);
-            node.text = Some("Bleeding Text Outside".to_string());
+            node.text = Some("Bleeding Text Outside".to_owned());
             node.layer = UiLayer::Content;
         }
         tree.add_child(panel, label_overflow).unwrap();
@@ -669,7 +669,7 @@ mod tests {
         let label = tree.create_node();
         if let Some(node) = tree.get_mut(label) {
             node.computed_rect = Rect::new(10.0, 5.0, 80.0, 20.0);
-            node.text = Some("Click Me".to_string());
+            node.text = Some("Click Me".to_owned());
             node.text_color = Color::BLACK;
             node.hover_text_color = Some(Color::WHITE);
             node.layer = UiLayer::Content;
@@ -706,7 +706,7 @@ mod tests {
         let text_node = tree.create_node();
         if let Some(node) = tree.get_mut(text_node) {
             node.computed_rect = Rect::new(10.0, 5.0, 100.0, 20.0);
-            node.text = Some("Search query".to_string());
+            node.text = Some("Search query".to_owned());
             node.text_color = Color::rgb(0.5, 0.5, 0.5);
             node.focus_text_color = Some(Color::WHITE);
             node.layer = UiLayer::Content;
@@ -716,7 +716,7 @@ mod tests {
         let caret_node = tree.create_node();
         if let Some(node) = tree.get_mut(caret_node) {
             node.computed_rect = Rect::new(115.0, 5.0, 6.0, 20.0);
-            node.text = Some("|".to_string());
+            node.text = Some("|".to_owned());
             node.text_color = Color::CYAN;
             node.role = WidgetRole::TextInputCaret;
             node.layer = UiLayer::Content;
@@ -759,7 +759,7 @@ mod tests {
         let tooltip_node = tree.create_node();
         if let Some(node) = tree.get_mut(tooltip_node) {
             node.computed_rect = Rect::new(10.0, 10.0, 100.0, 20.0);
-            node.text = Some("Tooltip Text".to_string());
+            node.text = Some("Tooltip Text".to_owned());
             node.layer = UiLayer::Tooltip;
         }
         tree.add_child(root, tooltip_node).unwrap();
@@ -767,7 +767,7 @@ mod tests {
         let modal_node = tree.create_node();
         if let Some(node) = tree.get_mut(modal_node) {
             node.computed_rect = Rect::new(10.0, 40.0, 100.0, 20.0);
-            node.text = Some("Modal Text".to_string());
+            node.text = Some("Modal Text".to_owned());
             node.layer = UiLayer::Modal;
         }
         tree.add_child(root, modal_node).unwrap();
@@ -775,7 +775,7 @@ mod tests {
         let content_node = tree.create_node();
         if let Some(node) = tree.get_mut(content_node) {
             node.computed_rect = Rect::new(10.0, 70.0, 100.0, 20.0);
-            node.text = Some("Content Text".to_string());
+            node.text = Some("Content Text".to_owned());
             node.layer = UiLayer::Content;
         }
         tree.add_child(root, content_node).unwrap();
@@ -783,7 +783,7 @@ mod tests {
         let popup_node = tree.create_node();
         if let Some(node) = tree.get_mut(popup_node) {
             node.computed_rect = Rect::new(10.0, 100.0, 100.0, 20.0);
-            node.text = Some("Popup Text".to_string());
+            node.text = Some("Popup Text".to_owned());
             node.layer = UiLayer::Popup;
         }
         tree.add_child(root, popup_node).unwrap();
@@ -791,7 +791,7 @@ mod tests {
         let bg_node = tree.create_node();
         if let Some(node) = tree.get_mut(bg_node) {
             node.computed_rect = Rect::new(10.0, 130.0, 100.0, 20.0);
-            node.text = Some("Background Text".to_string());
+            node.text = Some("Background Text".to_owned());
             node.layer = UiLayer::Background;
         }
         tree.add_child(root, bg_node).unwrap();
@@ -846,7 +846,7 @@ mod tests {
         let popup_label = tree.create_node();
         if let Some(node) = tree.get_mut(popup_label) {
             node.computed_rect = Rect::new(320.0, 320.0, 100.0, 20.0);
-            node.text = Some("Flyout Label".to_string());
+            node.text = Some("Flyout Label".to_owned());
             node.layer = UiLayer::Popup;
         }
         tree.add_child(popup, popup_label).unwrap();

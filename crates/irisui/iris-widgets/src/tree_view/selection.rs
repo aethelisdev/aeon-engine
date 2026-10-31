@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn test_tree_selection_event_mouse_down() {
         let mut state = TreeState::<String>::new();
-        let target = TreeClickTarget::Row("node_a".to_string());
+        let target = TreeClickTarget::Row("node_a".to_owned());
         let mods = TreeSelectionModifiers::new();
 
         // Left click down consumes and selects
@@ -566,7 +566,7 @@ mod tests {
         let resp = handle_tree_selection_event(&mut state, &left_down, target.clone(), mods, None);
         assert!(resp.consumed);
         assert!(resp.selection_changed);
-        assert!(state.is_selected(&"node_a".to_string()));
+        assert!(state.is_selected(&"node_a".to_owned()));
 
         // Right click down is unhandled by selection handler (reserved for context menus)
         let right_down = UiEvent::MouseDown {

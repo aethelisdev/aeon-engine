@@ -150,7 +150,7 @@ fn test_text_input_first_click_selects_all_and_selection_capsule() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root exists");
     let tag = 0x9001;
-    let mut text = "Dynamic Cube".to_string();
+    let mut text = "Dynamic Cube".to_owned();
 
     // Frame 1: Click on the text input
     tree.event_state.frame_clicked_tag = Some(tag);
@@ -195,7 +195,7 @@ fn test_text_input_arrow_keys_switch_to_caret_mode() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root exists");
     let tag = 0x9002;
-    let mut text = "Dynamic Cube".to_string();
+    let mut text = "Dynamic Cube".to_owned();
 
     // Step 1: Simulate active all-selected state
     tree.event_state.focused_tag = Some(tag);
@@ -242,14 +242,14 @@ fn test_text_input_typing_overwrites_all_selected() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root exists");
     let tag = 0x9003;
-    let mut text = "Dynamic Cube".to_string();
+    let mut text = "Dynamic Cube".to_owned();
 
     // All selected state
     tree.event_state.focused_tag = Some(tag);
     tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), true));
 
     // Type character 'A'
-    tree.event_state.frame_text_input = Some("A".to_string());
+    tree.event_state.frame_text_input = Some("A".to_owned());
     tree.event_state.frame_key_pressed = true;
 
     {
@@ -262,7 +262,7 @@ fn test_text_input_typing_overwrites_all_selected() {
     assert_eq!(text, "A");
     assert_eq!(
         tree.event_state.active_text_edit,
-        Some((tag, "A".to_string(), 1, false))
+        Some((tag, "A".to_owned(), 1, false))
     );
 }
 
@@ -271,7 +271,7 @@ fn test_text_input_enter_submits_and_clears_focus() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root exists");
     let tag = 0x9004;
-    let mut text = "Dynamic Cube".to_string();
+    let mut text = "Dynamic Cube".to_owned();
 
     tree.event_state.focused_tag = Some(tag);
     tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), false));
@@ -361,7 +361,7 @@ fn test_input_box_tagged_live_typing_and_clear() {
 
     // Step 3: Type character 'A'
     tree.clear_frame_clicks();
-    tree.event_state.frame_text_input = Some("A".to_string());
+    tree.event_state.frame_text_input = Some("A".to_owned());
     tree.event_state.frame_key_pressed = true;
 
     {
@@ -375,7 +375,7 @@ fn test_input_box_tagged_live_typing_and_clear() {
 
     // Step 4: Type character 's'
     tree.clear_frame_clicks();
-    tree.event_state.frame_text_input = Some("s".to_string());
+    tree.event_state.frame_text_input = Some("s".to_owned());
     tree.event_state.frame_key_pressed = true;
 
     {
@@ -406,9 +406,12 @@ fn test_input_box_tagged_live_typing_and_clear() {
 
 #[test]
 fn test_input_box_autonomous_clipboard_shortcuts() {
+    let _guard = crate::input::CLIPBOARD_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root exists");
-    let mut text_buffer = "Hello Aeon".to_string();
+    let mut text_buffer = "Hello Aeon".to_owned();
 
     let input_id;
     {
@@ -443,7 +446,7 @@ fn test_input_box_autonomous_clipboard_shortcuts() {
     // 2. Dispatch Ctrl+A (Select All)
     let ctrl_a_ev = iris_core::UiEvent::KeyboardInput {
         key: iris_core::KeyCode::Character('a'),
-        text: Some("a".to_string()),
+        text: Some("a".to_owned()),
         is_pressed: true,
         ctrl_held: true,
     };
@@ -460,7 +463,7 @@ fn test_input_box_autonomous_clipboard_shortcuts() {
     // 3. Dispatch Ctrl+C (Copy)
     let ctrl_c_ev = iris_core::UiEvent::KeyboardInput {
         key: iris_core::KeyCode::Character('c'),
-        text: Some("c".to_string()),
+        text: Some("c".to_owned()),
         is_pressed: true,
         ctrl_held: true,
     };
@@ -481,7 +484,7 @@ fn test_input_box_autonomous_clipboard_shortcuts() {
     // 4. Dispatch Ctrl+X (Cut)
     let ctrl_x_ev = iris_core::UiEvent::KeyboardInput {
         key: iris_core::KeyCode::Character('x'),
-        text: Some("x".to_string()),
+        text: Some("x".to_owned()),
         is_pressed: true,
         ctrl_held: true,
     };
@@ -506,7 +509,7 @@ fn test_input_box_autonomous_clipboard_shortcuts() {
     // 5. Dispatch Ctrl+V (Paste)
     let ctrl_v_ev = iris_core::UiEvent::KeyboardInput {
         key: iris_core::KeyCode::Character('v'),
-        text: Some("v".to_string()),
+        text: Some("v".to_owned()),
         is_pressed: true,
         ctrl_held: true,
     };
@@ -529,7 +532,7 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     use crate::declarative::scope::input_box::interaction::process_text_input_keys;
     use iris_core::KeyCode;
 
-    let mut text = "Motor Testi".to_string();
+    let mut text = "Motor Testi".to_owned();
     let mut cursor = text.len();
     let mut is_all_selected = false;
 

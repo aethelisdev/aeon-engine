@@ -17,7 +17,6 @@ use super::window_trait::WindowInterface;
 use iris_core::event::{MouseButton as UiMouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect, Size};
 use iris_widgets::declarative::widget::{TitleBarAction, TitleBarResponse};
-use std::cell::Cell;
 use std::time::{Duration, Instant};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
@@ -149,15 +148,15 @@ pub struct WindowDragHost {
     /// Maximum spatial distance between two consecutive clicks in logical points to register as a double-click.
     pub double_click_distance_threshold: f32,
     /// Active HighDPI scale factor for converting physical cursor coordinates to logical points.
-    scale_factor: Cell<f64>,
+    scale_factor: f64,
     /// Last recorded cursor coordinate in logical points, or `None` if outside the window.
-    cursor_pos: Cell<Option<Point>>,
+    cursor_pos: Option<Point>,
     /// Timestamp and coordinate of previous primary click for double-click maximize evaluation.
-    last_click: Cell<Option<(Point, Instant)>>,
+    last_click: Option<(Point, Instant)>,
     /// Draggable bounding rectangle in logical points, if statically specified.
-    drag_rect: Cell<Option<Rect>>,
+    drag_rect: Option<Rect>,
     /// Custom title bar height in logical points (from top of window: `0.0..title_bar_height`), if configured.
-    title_bar_height: Cell<Option<f32>>,
+    title_bar_height: Option<f32>,
 }
 
 impl Default for WindowDragHost {
@@ -176,11 +175,11 @@ impl WindowDragHost {
             enabled: true,
             double_click_time_threshold: DEFAULT_DOUBLE_CLICK_TIME_THRESHOLD,
             double_click_distance_threshold: DEFAULT_DOUBLE_CLICK_DISTANCE_THRESHOLD,
-            scale_factor: Cell::new(1.0),
-            cursor_pos: Cell::new(None),
-            last_click: Cell::new(None),
-            drag_rect: Cell::new(None),
-            title_bar_height: Cell::new(None),
+            scale_factor: 1.0,
+            cursor_pos: None,
+            last_click: None,
+            drag_rect: None,
+            title_bar_height: None,
         }
     }
 
@@ -207,18 +206,18 @@ impl WindowDragHost {
 
     /// Sets the static draggable bounding rectangle in logical points.
     #[must_use]
-    pub fn with_drag_rect(self, rect: Rect) -> Self {
-        self.drag_rect.set(Some(rect));
+    pub fn with_drag_rect(mut self, rect: Rect) -> Self {
+        self.drag_rect = Some(rect);
         self
     }
 
     /// Sets the title bar height in logical points extending from the top edge (`0.0..height`).
     #[must_use]
-    pub fn with_title_bar_height(self, height: f32) -> Self {
+    pub fn with_title_bar_height(mut self, height: f32) -> Self {
         if height > 0.0 && height.is_finite() {
-            self.title_bar_height.set(Some(height));
+            self.title_bar_height = Some(height);
         } else {
-            self.title_bar_height.set(None);
+            self.title_bar_height = None;
         }
         self
     }
@@ -227,113 +226,116 @@ impl WindowDragHost {
     ///
     /// Falls back to `1.0` if `scale_factor <= 0.0` or is non-finite (`NaN`, `INFINITY`).
     #[must_use]
-    pub fn with_scale_factor(self, scale_factor: f64) -> Self {
+    pub fn with_scale_factor(mut self, scale_factor: f64) -> Self {
         let factor = if scale_factor > 0.0 && scale_factor.is_finite() {
             scale_factor
         } else {
             1.0
         };
-        self.scale_factor.set(factor);
+        self.scale_factor = factor;
         self
     }
 
     /// Returns the active HighDPI scale factor.
     #[must_use]
     pub fn scale_factor(&self) -> f64 {
-        self.scale_factor.get()
+        self.scale_factor
     }
 
     /// Updates the active HighDPI scale factor.
     ///
     /// Falls back to `1.0` if `scale_factor <= 0.0` or is non-finite.
-    pub fn set_scale_factor(&self, scale_factor: f64) {
+    pub fn set_scale_factor(&mut self, scale_factor: f64) {
         let factor = if scale_factor > 0.0 && scale_factor.is_finite() {
             scale_factor
         } else {
             1.0
         };
-        self.scale_factor.set(factor);
+        self.scale_factor = factor;
     }
 
     /// Returns the last recorded cursor coordinate in logical points, if available.
     #[must_use]
     pub fn cursor_pos(&self) -> Option<Point> {
-        self.cursor_pos.get()
+        self.cursor_pos
     }
 
     /// Explicitly sets or clears the cached cursor coordinate in logical points.
-    pub fn set_cursor_pos(&self, pos: Option<Point>) {
+    pub fn set_cursor_pos(&mut self, pos: Option<Point>) {
         if let Some(p) = pos {
             if p.x.is_finite() && p.y.is_finite() {
-                self.cursor_pos.set(Some(p));
+                self.cursor_pos = Some(p);
             } else {
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
             }
         } else {
-            self.cursor_pos.set(None);
+            self.cursor_pos = None;
         }
     }
 
     /// Returns the timestamp and coordinate of the last recorded primary click, if any.
     #[must_use]
     pub fn last_click(&self) -> Option<(Point, Instant)> {
-        self.last_click.get()
+        self.last_click
     }
 
     /// Returns the configured static draggable bounding rectangle, if any.
     #[must_use]
     pub fn drag_rect(&self) -> Option<Rect> {
-        self.drag_rect.get()
+        self.drag_rect
     }
 
     /// Sets or clears the static draggable bounding rectangle in logical points.
-    pub fn set_drag_rect(&self, rect: Option<Rect>) {
-        self.drag_rect.set(rect);
+    pub fn set_drag_rect(&mut self, rect: Option<Rect>) {
+        self.drag_rect = rect;
     }
 
     /// Returns the configured title bar height, if any.
     #[must_use]
     pub fn title_bar_height(&self) -> Option<f32> {
-        self.title_bar_height.get()
+        self.title_bar_height
     }
 
     /// Sets or clears the title bar height extending from the top edge (`0.0..height`).
-    pub fn set_title_bar_height(&self, height: Option<f32>) {
+    pub fn set_title_bar_height(&mut self, height: Option<f32>) {
         if let Some(h) = height {
             if h > 0.0 && h.is_finite() {
-                self.title_bar_height.set(Some(h));
+                self.title_bar_height = Some(h);
             } else {
-                self.title_bar_height.set(None);
+                self.title_bar_height = None;
             }
         } else {
-            self.title_bar_height.set(None);
+            self.title_bar_height = None;
         }
     }
 
     /// Resets all interaction tracking state, clearing cached cursor position and pending double-click history.
     ///
     /// Recommended to call when window loses focus or cursor leaves the window bounds.
-    pub fn reset(&self) {
-        self.cursor_pos.set(None);
-        self.last_click.set(None);
+    pub fn reset(&mut self) {
+        self.cursor_pos = None;
+        self.last_click = None;
     }
 
-    /// Checks whether a logical point falls within the configured drag area.
-    ///
-    /// Evaluates against [`Self::drag_rect`] first, then against [`Self::title_bar_height`].
-    #[must_use]
-    pub fn is_point_in_drag_area(&self, point: Point, logical_size: Option<Size>) -> bool {
+    /// Checks whether a point falls within the given draggable rectangle or title bar height region.
+    #[inline]
+    fn is_point_in_configured_drag_area(
+        drag_rect: Option<Rect>,
+        title_bar_height: Option<f32>,
+        point: Point,
+        logical_size: Option<Size>,
+    ) -> bool {
         if !point.x.is_finite() || !point.y.is_finite() {
             return false;
         }
 
-        if let Some(rect) = self.drag_rect.get()
+        if let Some(rect) = drag_rect
             && rect.contains_point(point)
         {
             return true;
         }
 
-        if let Some(height) = self.title_bar_height.get()
+        if let Some(height) = title_bar_height
             && point.y >= 0.0
             && point.y <= height
         {
@@ -349,6 +351,19 @@ impl WindowDragHost {
         false
     }
 
+    /// Checks whether a logical point falls within the configured drag area.
+    ///
+    /// Evaluates against [`Self::drag_rect`] first, then against [`Self::title_bar_height`].
+    #[must_use]
+    pub fn is_point_in_drag_area(&self, point: Point, logical_size: Option<Size>) -> bool {
+        Self::is_point_in_configured_drag_area(
+            self.drag_rect,
+            self.title_bar_height,
+            point,
+            logical_size,
+        )
+    }
+
     /// Evaluates an interactive click at the specified point with an explicit timestamp.
     ///
     /// If the click lands within the double-click threshold ($\Delta r < \text{distance\_threshold}$
@@ -361,7 +376,7 @@ impl WindowDragHost {
     /// * `point` - Coordinates of the click in logical points.
     /// * `now` - Explicit timestamp of the click event (enables deterministic headless testing).
     pub fn process_click_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         point: Point,
         now: Instant,
@@ -370,7 +385,7 @@ impl WindowDragHost {
             return WindowDragOutcome::None;
         }
 
-        if let Some((last_point, last_time)) = self.last_click.get()
+        if let Some((last_point, last_time)) = self.last_click
             && is_double_click(
                 last_point,
                 last_time,
@@ -380,12 +395,12 @@ impl WindowDragHost {
                 self.double_click_distance_threshold,
             )
         {
-            self.last_click.set(None);
+            self.last_click = None;
             window.toggle_maximize();
             return WindowDragOutcome::MaximizeToggled;
         }
 
-        self.last_click.set(Some((point, now)));
+        self.last_click = Some((point, now));
         let _ = window.drag_window();
         WindowDragOutcome::DragStarted
     }
@@ -393,7 +408,7 @@ impl WindowDragHost {
     /// Evaluates an interactive click at the specified point using the current system wall-clock time ([`Instant::now`]).
     #[inline]
     pub fn process_click<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         point: Point,
     ) -> WindowDragOutcome {
@@ -403,7 +418,7 @@ impl WindowDragHost {
     /// Evaluates an interactive click at the specified point, returning `true` if consumed.
     #[inline]
     pub fn handle_click_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         point: Point,
         now: Instant,
@@ -413,7 +428,7 @@ impl WindowDragHost {
 
     /// Evaluates an interactive click at the specified point using [`Instant::now`], returning `true` if consumed.
     #[inline]
-    pub fn handle_click<W: WindowInterface>(&self, window: &mut W, point: Point) -> bool {
+    pub fn handle_click<W: WindowInterface>(&mut self, window: &mut W, point: Point) -> bool {
         self.process_click(window, point).is_consumed()
     }
 
@@ -426,7 +441,7 @@ impl WindowDragHost {
     /// * `window` - Target platform window implementation.
     /// * `action` - Title bar control button action to execute.
     pub fn handle_title_bar_action<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         action: TitleBarAction,
     ) -> WindowDragOutcome {
@@ -434,7 +449,7 @@ impl WindowDragHost {
             return WindowDragOutcome::None;
         }
 
-        self.last_click.set(None);
+        self.last_click = None;
         match action {
             TitleBarAction::Minimize => {
                 window.minimize();
@@ -466,7 +481,7 @@ impl WindowDragHost {
     /// * `response` - Evaluated declarative response from a [`TitleBar`] widget.
     /// * `now` - Explicit timestamp of the interaction pass.
     pub fn process_title_bar_response_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         response: &TitleBarResponse,
         now: Instant,
@@ -490,7 +505,7 @@ impl WindowDragHost {
     /// Evaluates an autonomous declarative [`TitleBarResponse`] using current system wall-clock time ([`Instant::now`]).
     #[inline]
     pub fn process_title_bar_response<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         response: &TitleBarResponse,
     ) -> WindowDragOutcome {
@@ -500,7 +515,7 @@ impl WindowDragHost {
     /// Evaluates an autonomous declarative [`TitleBarResponse`], returning `true` if an operation was initiated.
     #[inline]
     pub fn handle_title_bar_response<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         response: &TitleBarResponse,
     ) -> bool {
@@ -519,7 +534,7 @@ impl WindowDragHost {
     /// * `drag_rect` - Explicit draggable bounding rectangle in logical points.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_window_event_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         drag_rect: Rect,
@@ -528,7 +543,7 @@ impl WindowDragHost {
         match event {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.set_scale_factor(*scale_factor);
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
                 WindowDragOutcome::None
             }
             WindowEvent::Focused(false) | WindowEvent::CursorLeft { .. } => {
@@ -537,10 +552,10 @@ impl WindowDragHost {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if !position.x.is_finite() || !position.y.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     return WindowDragOutcome::None;
                 }
-                let factor = self.scale_factor.get();
+                let factor = self.scale_factor;
                 let factor = if factor > 0.0 && factor.is_finite() {
                     factor
                 } else {
@@ -549,9 +564,9 @@ impl WindowDragHost {
                 let lx = (position.x / factor) as f32;
                 let ly = (position.y / factor) as f32;
                 if lx.is_finite() && ly.is_finite() {
-                    self.cursor_pos.set(Some(Point::new(lx, ly)));
+                    self.cursor_pos = Some(Point::new(lx, ly));
                 } else {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                 }
                 WindowDragOutcome::None
             }
@@ -563,7 +578,7 @@ impl WindowDragHost {
                 if !self.enabled {
                     return WindowDragOutcome::None;
                 }
-                if let Some(pos) = self.cursor_pos.get()
+                if let Some(pos) = self.cursor_pos
                     && drag_rect.contains_point(pos)
                 {
                     return self.process_click_at(window, pos, now);
@@ -577,7 +592,7 @@ impl WindowDragHost {
     /// Evaluates a native Winit [`WindowEvent`] against an explicit draggable boundary rectangle using [`Instant::now`].
     #[inline]
     pub fn process_window_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         drag_rect: Rect,
@@ -588,7 +603,7 @@ impl WindowDragHost {
     /// Evaluates a native Winit [`WindowEvent`] against an explicit draggable boundary rectangle, returning `true` if consumed.
     #[inline]
     pub fn handle_window_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         drag_rect: Rect,
@@ -605,7 +620,7 @@ impl WindowDragHost {
     /// * `is_draggable` - Predicate function returning `true` if a given point is in the draggable region.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_window_event_with_area<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         is_draggable: impl Fn(Point) -> bool,
@@ -614,7 +629,7 @@ impl WindowDragHost {
         match event {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.set_scale_factor(*scale_factor);
-                self.cursor_pos.set(None);
+                self.cursor_pos = None;
                 WindowDragOutcome::None
             }
             WindowEvent::Focused(false) | WindowEvent::CursorLeft { .. } => {
@@ -623,10 +638,10 @@ impl WindowDragHost {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if !position.x.is_finite() || !position.y.is_finite() {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                     return WindowDragOutcome::None;
                 }
-                let factor = self.scale_factor.get();
+                let factor = self.scale_factor;
                 let factor = if factor > 0.0 && factor.is_finite() {
                     factor
                 } else {
@@ -635,9 +650,9 @@ impl WindowDragHost {
                 let lx = (position.x / factor) as f32;
                 let ly = (position.y / factor) as f32;
                 if lx.is_finite() && ly.is_finite() {
-                    self.cursor_pos.set(Some(Point::new(lx, ly)));
+                    self.cursor_pos = Some(Point::new(lx, ly));
                 } else {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                 }
                 WindowDragOutcome::None
             }
@@ -649,7 +664,7 @@ impl WindowDragHost {
                 if !self.enabled {
                     return WindowDragOutcome::None;
                 }
-                if let Some(pos) = self.cursor_pos.get()
+                if let Some(pos) = self.cursor_pos
                     && is_draggable(pos)
                 {
                     return self.process_click_at(window, pos, now);
@@ -668,16 +683,20 @@ impl WindowDragHost {
     /// * `event` - Native Winit window event.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_window_event_for_window_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
         now: Instant,
     ) -> WindowDragOutcome {
         let size = window.logical_size();
+        let drag_rect = self.drag_rect;
+        let title_bar_height = self.title_bar_height;
         self.process_window_event_with_area(
             window,
             event,
-            |p| self.is_point_in_drag_area(p, Some(size)),
+            move |p| {
+                Self::is_point_in_configured_drag_area(drag_rect, title_bar_height, p, Some(size))
+            },
             now,
         )
     }
@@ -685,7 +704,7 @@ impl WindowDragHost {
     /// Evaluates a native Winit [`WindowEvent`] for the window using configured drag parameters and [`Instant::now`].
     #[inline]
     pub fn process_window_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
     ) -> WindowDragOutcome {
@@ -695,7 +714,7 @@ impl WindowDragHost {
     /// Evaluates a native Winit [`WindowEvent`] for the window using configured drag parameters, returning `true` if consumed.
     #[inline]
     pub fn handle_window_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &WindowEvent,
     ) -> bool {
@@ -713,7 +732,7 @@ impl WindowDragHost {
     /// * `drag_rect` - Draggable bounding rectangle in logical points.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_ui_event_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         drag_rect: Rect,
@@ -722,9 +741,9 @@ impl WindowDragHost {
         match event {
             UiEvent::MouseMove { point } => {
                 if point.x.is_finite() && point.y.is_finite() {
-                    self.cursor_pos.set(Some(*point));
+                    self.cursor_pos = Some(*point);
                 } else {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                 }
                 WindowDragOutcome::None
             }
@@ -735,7 +754,7 @@ impl WindowDragHost {
                 if !self.enabled || !point.x.is_finite() || !point.y.is_finite() {
                     return WindowDragOutcome::None;
                 }
-                self.cursor_pos.set(Some(*point));
+                self.cursor_pos = Some(*point);
                 if drag_rect.contains_point(*point) {
                     return self.process_click_at(window, *point, now);
                 }
@@ -748,7 +767,7 @@ impl WindowDragHost {
     /// Evaluates an Iris UI [`UiEvent`] against an explicit draggable boundary rectangle using [`Instant::now`].
     #[inline]
     pub fn process_ui_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         drag_rect: Rect,
@@ -759,7 +778,7 @@ impl WindowDragHost {
     /// Evaluates an Iris UI [`UiEvent`] against an explicit draggable boundary rectangle, returning `true` if consumed.
     #[inline]
     pub fn handle_ui_event<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         drag_rect: Rect,
@@ -776,7 +795,7 @@ impl WindowDragHost {
     /// * `is_draggable` - Predicate function returning `true` if a given point is in the draggable region.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_ui_event_with_area<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         is_draggable: impl Fn(Point) -> bool,
@@ -785,9 +804,9 @@ impl WindowDragHost {
         match event {
             UiEvent::MouseMove { point } => {
                 if point.x.is_finite() && point.y.is_finite() {
-                    self.cursor_pos.set(Some(*point));
+                    self.cursor_pos = Some(*point);
                 } else {
-                    self.cursor_pos.set(None);
+                    self.cursor_pos = None;
                 }
                 WindowDragOutcome::None
             }
@@ -798,7 +817,7 @@ impl WindowDragHost {
                 if !self.enabled || !point.x.is_finite() || !point.y.is_finite() {
                     return WindowDragOutcome::None;
                 }
-                self.cursor_pos.set(Some(*point));
+                self.cursor_pos = Some(*point);
                 if is_draggable(*point) {
                     return self.process_click_at(window, *point, now);
                 }
@@ -815,16 +834,20 @@ impl WindowDragHost {
     /// * `event` - Normalized Iris UI interaction event.
     /// * `now` - Explicit timestamp of the event.
     pub fn process_ui_event_for_window_at<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
         now: Instant,
     ) -> WindowDragOutcome {
         let size = window.logical_size();
+        let drag_rect = self.drag_rect;
+        let title_bar_height = self.title_bar_height;
         self.process_ui_event_with_area(
             window,
             event,
-            |p| self.is_point_in_drag_area(p, Some(size)),
+            move |p| {
+                Self::is_point_in_configured_drag_area(drag_rect, title_bar_height, p, Some(size))
+            },
             now,
         )
     }
@@ -832,7 +855,7 @@ impl WindowDragHost {
     /// Evaluates an Iris UI [`UiEvent`] for the window using configured drag parameters and [`Instant::now`].
     #[inline]
     pub fn process_ui_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
     ) -> WindowDragOutcome {
@@ -842,7 +865,7 @@ impl WindowDragHost {
     /// Evaluates an Iris UI [`UiEvent`] for the window using configured drag parameters, returning `true` if consumed.
     #[inline]
     pub fn handle_ui_event_for_window<W: WindowInterface>(
-        &self,
+        &mut self,
         window: &mut W,
         event: &UiEvent,
     ) -> bool {

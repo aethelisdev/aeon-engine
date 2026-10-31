@@ -619,8 +619,8 @@ impl GizmoSystem {
             [0.85, 0.85, 0.85, 1.0] // Light gray otherwise
         };
 
-        let cam_right = self.cam_right.get();
-        let cam_up = self.cam_up.get();
+        let cam_right = self.cam_right;
+        let cam_up = self.cam_up;
 
         let mut p_tl = (-cam_right + cam_up) * radius;
         let mut p_tr = (cam_right + cam_up) * radius;
