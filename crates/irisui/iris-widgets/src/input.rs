@@ -11,6 +11,18 @@ use iris_core::platform::ClipboardProvider;
 /// Global shared platform clipboard instance initialized lazily with operating system bindings.
 static GLOBAL_SYSTEM_CLIPBOARD: LazyLock<SystemClipboard> = LazyLock::new(SystemClipboard::new);
 
+/// Helper function ensuring an arbitrary byte index snaps to a valid UTF-8 boundary within a buffer slice.
+#[inline]
+fn clamp_to_char_boundary(buffer: &str, mut idx: usize) -> usize {
+    if idx >= buffer.len() {
+        return buffer.len();
+    }
+    while idx > 0 && !buffer.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
+}
+
 /// Encapsulated state and UTF-8 safe editing buffer for interactive text input widgets.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TextInputState {
@@ -24,6 +36,10 @@ pub struct TextInputState {
     pub ime_cursor: Option<(usize, usize)>,
     /// Active text selection range: `(start_byte_idx, end_byte_idx)` where `start <= end`.
     pub selection: Option<(usize, usize)>,
+    /// Anchor byte index where a drag-selection gesture originated.
+    pub selection_anchor: Option<usize>,
+    /// Indicates whether a continuous mouse drag-selection gesture is in progress.
+    pub is_drag_selecting: bool,
 }
 
 /// Copies a text slice to the shared system clipboard.
@@ -48,6 +64,8 @@ impl TextInputState {
             ime_preedit: None,
             ime_cursor: None,
             selection: None,
+            selection_anchor: None,
+            is_drag_selecting: false,
         }
     }
 
@@ -62,17 +80,175 @@ impl TextInputState {
     pub fn select_all(&mut self) {
         if !self.buffer.is_empty() {
             self.selection = Some((0, self.buffer.len()));
+            self.selection_anchor = Some(0);
             self.cursor_byte_idx = self.buffer.len();
+            self.is_drag_selecting = false;
         }
     }
 
-    /// Clears any active text selection range.
+    /// Clears any active text selection range and drag gesture metadata.
     pub fn clear_selection(&mut self) {
         self.selection = None;
+        self.selection_anchor = None;
+        self.is_drag_selecting = false;
+    }
+
+    /// Returns the currently active text selection range `(start_byte_idx, end_byte_idx)` if present.
+    ///
+    /// The returned bounds are guaranteed to satisfy `start < end <= buffer.len()` along valid UTF-8
+    /// character boundaries.
+    ///
+    /// # Returns
+    /// An optional tuple `(start_byte_idx, end_byte_idx)` of the active selection.
+    #[must_use]
+    #[inline]
+    pub fn selection_range(&self) -> Option<(usize, usize)> {
+        self.selection
+            .filter(|(s, e)| s < e && *e <= self.buffer.len())
+    }
+
+    /// Initiates a continuous mouse drag-selection gesture anchored at the specified byte offset.
+    ///
+    /// Sets [`Self::cursor_byte_idx`] and [`Self::selection_anchor`] to the clamped character boundary,
+    /// marks [`Self::is_drag_selecting`] as `true`, and clears any previous selection range.
+    ///
+    /// # Arguments
+    /// * `anchor_idx` - Target byte index where the drag gesture begins.
+    pub fn start_drag_selection(&mut self, anchor_idx: usize) {
+        let safe_idx = clamp_to_char_boundary(&self.buffer, anchor_idx);
+        self.cursor_byte_idx = safe_idx;
+        self.selection_anchor = Some(safe_idx);
+        self.selection = None;
+        self.is_drag_selecting = true;
+    }
+
+    /// Updates the continuous drag-selection range as the mouse moves to a new character position.
+    ///
+    /// If a drag gesture is active ([`Self::is_drag_selecting`]), updates [`Self::cursor_byte_idx`]
+    /// to `current_idx` and sets [`Self::selection`] to `(min(anchor, current), max(anchor, current))`.
+    /// If `anchor == current_idx`, the selection range is collapsed to `None`.
+    ///
+    /// # Arguments
+    /// * `current_idx` - Current byte offset under the mouse pointer.
+    pub fn update_drag_selection(&mut self, current_idx: usize) {
+        if !self.is_drag_selecting {
+            return;
+        }
+        let safe_idx = clamp_to_char_boundary(&self.buffer, current_idx);
+        self.cursor_byte_idx = safe_idx;
+
+        if let Some(anchor) = self.selection_anchor {
+            if anchor == safe_idx {
+                self.selection = None;
+            } else {
+                let start = anchor.min(safe_idx);
+                let end = anchor.max(safe_idx);
+                self.selection = Some((start, end));
+            }
+        }
+    }
+
+    /// Updates the drag-selection range using precomputed character advance metrics.
+    ///
+    /// Computes the nearest character boundary using $O(\log N)$ binary search and updates
+    /// the selection range relative to the active anchor.
+    ///
+    /// # Arguments
+    /// * `glyph_advances` - Monotonically increasing horizontal character right-edge offsets.
+    /// * `local_x` - Horizontal cursor coordinate relative to text origin.
+    pub fn update_drag_selection_from_cached_advances(
+        &mut self,
+        glyph_advances: &[f32],
+        local_x: f32,
+    ) {
+        if !self.is_drag_selecting {
+            return;
+        }
+        let current_idx = iris_text::hit_test_from_cached_advances(glyph_advances, local_x);
+        self.update_drag_selection(current_idx);
+    }
+
+    /// Updates the drag-selection range using precomputed glyph clusters for multi-byte UTF-8 and emoji safety.
+    ///
+    /// # Arguments
+    /// * `clusters` - Slice of `(start_byte_idx, right_x)` pairs.
+    /// * `local_x` - Horizontal cursor coordinate relative to text origin.
+    pub fn update_drag_selection_from_cached_clusters(
+        &mut self,
+        clusters: &[(usize, f32)],
+        local_x: f32,
+    ) {
+        if !self.is_drag_selecting {
+            return;
+        }
+        let current_idx =
+            iris_text::hit_test_from_cached_clusters(clusters, self.buffer.len(), local_x);
+        self.update_drag_selection(current_idx);
+    }
+
+    /// Updates the drag-selection range by querying an explicit typography engine reference.
+    ///
+    /// # Arguments
+    /// * `local_x` - Horizontal cursor coordinate relative to text origin.
+    /// * `font_size` - Font size in physical pixels.
+    /// * `text_system` - Active typography system.
+    pub fn update_drag_selection_at_position(
+        &mut self,
+        local_x: f32,
+        font_size: f32,
+        text_system: &mut iris_text::TextSystem,
+    ) {
+        if !self.is_drag_selecting {
+            return;
+        }
+        let current_idx = text_system.index_for_position(&self.buffer, font_size, local_x);
+        self.update_drag_selection(current_idx);
+    }
+
+    /// Concludes an active drag-selection gesture (e.g. upon mouse button release).
+    ///
+    /// Marks [`Self::is_drag_selecting`] as `false`, clears the transient anchor, and normalizes
+    /// any zero-width selection range to `None`.
+    pub fn end_drag_selection(&mut self) {
+        self.is_drag_selecting = false;
+        self.selection_anchor = None;
+        if let Some((s, e)) = self.selection
+            && s >= e
+        {
+            self.selection = None;
+        }
+    }
+
+    /// Cancels an in-progress drag selection gesture without retaining any selected range.
+    pub fn cancel_drag_selection(&mut self) {
+        self.clear_selection();
+    }
+
+    /// Explicitly configures an active selection range between two arbitrary byte boundaries.
+    ///
+    /// Safely clamps both bounds to valid UTF-8 character boundaries and normalizes `start <= end`.
+    /// If `start == end`, the selection is cleared to `None`.
+    ///
+    /// # Arguments
+    /// * `start` - First byte offset boundary.
+    /// * `end` - Second byte offset boundary.
+    pub fn set_selection_range(&mut self, start: usize, end: usize) {
+        let safe_start = clamp_to_char_boundary(&self.buffer, start);
+        let safe_end = clamp_to_char_boundary(&self.buffer, end);
+        if safe_start == safe_end {
+            self.selection = None;
+        } else {
+            let min_idx = safe_start.min(safe_end);
+            let max_idx = safe_start.max(safe_end);
+            self.selection = Some((min_idx, max_idx));
+        }
+        self.selection_anchor = None;
+        self.is_drag_selecting = false;
     }
 
     /// Returns whether a non-empty text selection range is currently active.
     #[must_use]
+    #[inline]
     pub fn has_selection(&self) -> bool {
         self.selection
             .is_some_and(|(s, e)| s < e && e <= self.buffer.len())
@@ -331,7 +507,14 @@ impl TextInputState {
     }
 
     /// Moves cursor one character left safely across multi-byte UTF-8 boundaries and clears selection.
+    ///
+    /// If an active selection is present, collapses the cursor to the selection start boundary.
     pub fn move_left(&mut self) {
+        if let Some((start, _)) = self.selection.take() {
+            self.clear_selection();
+            self.cursor_byte_idx = start;
+            return;
+        }
         self.clear_selection();
         if self.cursor_byte_idx > 0 {
             self.cursor_byte_idx = self.buffer[..self.cursor_byte_idx]
@@ -343,7 +526,14 @@ impl TextInputState {
     }
 
     /// Moves cursor one character right safely across multi-byte UTF-8 boundaries and clears selection.
+    ///
+    /// If an active selection is present, collapses the cursor to the selection end boundary.
     pub fn move_right(&mut self) {
+        if let Some((_, end)) = self.selection.take() {
+            self.clear_selection();
+            self.cursor_byte_idx = end;
+            return;
+        }
         self.clear_selection();
         if self.cursor_byte_idx < self.buffer.len() {
             self.cursor_byte_idx = self.buffer[self.cursor_byte_idx..]
