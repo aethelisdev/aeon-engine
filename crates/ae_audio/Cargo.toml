@@ -2,7 +2,7 @@
 name = "ae_audio"
 version = "0.9.0"
 edition = "2024"
-license = "GPL-3.0-only"
+license = "MPL-2.0"
 description = "Spatial 3D Audio Subsystem for Aeon Engine"
 
 [dependencies]
