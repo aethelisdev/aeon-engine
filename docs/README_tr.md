@@ -72,7 +72,7 @@ cargo run -p ae_engine --release
 
 Aeon Engine'in editörü, Rust ile sıfırdan geliştirilmiş, GPU hızlandırmalı özel bir arayüz kütüphanesi olan IrisUI tarafından desteklenmektedir.
 
-IrisUI; çoklu retained tree mimarisini, ayrıntılı değişiklik takibini (invalidation), Taffy tabanlı Flexbox/Grid yerleşimini ve GPU üzerinde çalışan SDF (Signed Distance Field) tabanlı çizim sistemini bir araya getirir.
+IrisUI; retained tree mimarisini, ayrıntılı değişiklik takibini (invalidation), Taffy tabanlı Flexbox/Grid yerleşimini ve GPU üzerinde çalışan SDF (Signed Distance Field) tabanlı çizim sistemini bir araya getirir.
 
 ### Temel Özellikler
 

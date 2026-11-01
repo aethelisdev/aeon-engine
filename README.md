@@ -71,7 +71,7 @@ cargo run -p ae_engine --release
 
 Aeon Engine's editor is powered by IrisUI, a custom UI framework built from scratch in Rust.
 
-IrisUI combines a multi-retained widget tree architecture with fine-grained invalidation, Taffy-based Flexbox/Grid layout, and GPU-native SDF rendering.
+IrisUI combines a retained widget tree architecture with fine-grained invalidation, Taffy-based Flexbox/Grid layout, and GPU-native SDF rendering.
 
 ### Key Features
 

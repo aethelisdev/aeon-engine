@@ -71,7 +71,7 @@ cargo run -p ae_engine --release
 
 Aeon Engine 的编辑器由 IrisUI 驱动。IrisUI 是一个使用 Rust 从零构建的自定义 GPU 加速 UI 框架。
 
-IrisUI 将多保留式树（Multi-Retained Tree）架构、细粒度失效追踪（Invalidation）、基于 Taffy 的 Flexbox/Grid 布局，以及原生 GPU SDF（有符号距离场）渲染整合在一起。
+IrisUI 将多保留式树（Retained Tree）架构、细粒度失效追踪（Invalidation）、基于 Taffy 的 Flexbox/Grid 布局，以及原生 GPU SDF（有符号距离场）渲染整合在一起。
 
 ### 核心特性
 - **多保留式树架构**： 持久化的 UI 节点树、保留的组件状态，以及细粒度的变更追踪。

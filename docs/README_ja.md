@@ -71,7 +71,7 @@ cargo run -p ae_engine --release
 
 Aeon Engine のエディターは、Rust でゼロから開発された独自の GPU アクセラレーション対応 UI フレームワーク IrisUI によって動作します。
 
-IrisUI は、マルチ・リテインドツリー（Multi-Retained Tree）アーキテクチャ、細粒度の無効化管理（Invalidation）、Taffy ベースの Flexbox/Grid レイアウト、そして GPU ネイティブな SDF（符号付き距離場）レンダリングを組み合わせています。
+IrisUI は、マルチ・リテインドツリー（Retained Tree）アーキテクチャ、細粒度の無効化管理（Invalidation）、Taffy ベースの Flexbox/Grid レイアウト、そして GPU ネイティブな SDF（符号付き距離場）レンダリングを組み合わせています。
 
 ### 主な機能
 - **マルチ・リテインドツリーアーキテクチャ**： 永続的な UI ツリー、保持されるウィジェットの状態、細粒度の変更追跡。
