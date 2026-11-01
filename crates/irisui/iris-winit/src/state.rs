@@ -182,6 +182,7 @@ impl WinitState {
                     p,
                     self.scale_factor,
                     self.modifiers.ctrl(),
+                    self.modifiers.shift(),
                 )
             }
             WindowEvent::Ime(_) => {

@@ -6,7 +6,7 @@
 //! Provides rendering methods for single-line text input fields, selection capsules,
 //! blinking carets, and clear buttons on [`UiScope`].
 
-use super::interaction::{find_cursor_idx_at_x, process_text_input_keys};
+use super::interaction::{TextInputKeyContext, find_cursor_idx_at_x, process_text_input_keys};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{Color, Style, TextAlign, WidgetCursor, WidgetRole};
@@ -227,14 +227,28 @@ impl<'a> UiScope<'a> {
         let mut submitted = false;
 
         let (cursor_idx, active_selection) = if is_focused {
-            let (mut cur, mut sel) = self
-                .tree
-                .event_state
-                .active_text_edit
-                .as_ref()
-                .filter(|s| s.tag == edit_key)
-                .map(|s| (s.cursor_byte_idx, s.selection))
-                .unwrap_or((text.len(), None));
+            let mut session = match self.tree.event_state.active_text_edit.take() {
+                Some(s) if s.tag == edit_key => s,
+                _ => {
+                    let mut stack = iris_core::dispatch::undo::TextUndoStack::new();
+                    let initial_cur = text.len();
+                    stack.checkpoint(iris_core::dispatch::undo::TextSnapshot::new(
+                        text.as_str(),
+                        initial_cur,
+                        None,
+                    ));
+                    iris_core::dispatch::types::ActiveTextEditSession {
+                        tag: edit_key,
+                        buffer: text.clone(),
+                        cursor_byte_idx: initial_cur,
+                        selection: None,
+                        undo_stack: stack,
+                    }
+                }
+            };
+
+            let mut cur = session.cursor_byte_idx;
+            let mut sel = session.selection;
 
             if let Some(rect) = node_rect {
                 let text_start_x = rect.x + 8.0;
@@ -257,16 +271,11 @@ impl<'a> UiScope<'a> {
             let key = self.tree.event_state.frame_key;
             let incoming = self.tree.event_state.frame_text_input.as_deref();
             let ctrl_held = self.tree.event_state.frame_ctrl_held;
+            let shift_held = self.tree.event_state.frame_shift_held;
+            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held);
 
-            let res = process_text_input_keys(
-                text,
-                &mut cur,
-                &mut sel,
-                key_pressed,
-                key,
-                incoming,
-                ctrl_held,
-            );
+            let res =
+                process_text_input_keys(text, &mut cur, &mut sel, ctx, &mut session.undo_stack);
 
             if res.changed {
                 changed = true;
@@ -276,10 +285,12 @@ impl<'a> UiScope<'a> {
             }
             if res.should_clear_focus {
                 self.tree.event_state.clear_focus();
+                self.tree.event_state.clear_text_edit();
             } else {
-                self.tree
-                    .event_state
-                    .start_text_edit(Some(node_id), edit_key, text, cur, sel);
+                session.buffer = text.clone();
+                session.cursor_byte_idx = cur;
+                session.selection = sel;
+                self.tree.event_state.active_text_edit = Some(session);
             }
             (cur, sel)
         } else {

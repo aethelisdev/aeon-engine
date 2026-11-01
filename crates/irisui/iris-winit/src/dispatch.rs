@@ -161,6 +161,7 @@ mod tests {
             text,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
         let res = tree.dispatch_event(&ui_event);
         assert!(

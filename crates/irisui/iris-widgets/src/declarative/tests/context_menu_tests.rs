@@ -196,6 +196,7 @@ fn test_declarative_context_menu_escape_key_dismiss() {
         text: None,
         is_pressed: true,
         ctrl_held: false,
+        shift_held: false,
     });
 
     assert!(res.is_consumed());

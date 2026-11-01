@@ -77,6 +77,7 @@ mod tests {
             text: Some("+".into()),
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
 
         if let UiEvent::KeyboardInput {

@@ -67,7 +67,15 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
             text,
             is_pressed,
             ctrl_held,
-        } => handle_keyboard(tree, *key, text.clone(), *is_pressed, *ctrl_held),
+            shift_held,
+        } => handle_keyboard(
+            tree,
+            *key,
+            text.clone(),
+            *is_pressed,
+            *ctrl_held,
+            *shift_held,
+        ),
         UiEvent::Ime(ime_event) => handle_ime(tree, ime_event.clone()),
         UiEvent::FileHovered { point, path } => handle_file_hovered(tree, *point, path),
         UiEvent::FileDropped { point, paths } => handle_file_dropped(tree, *point, paths),
@@ -1096,6 +1104,7 @@ fn handle_keyboard(
     text: Option<String>,
     is_pressed: bool,
     ctrl_held: bool,
+    shift_held: bool,
 ) -> DispatchResult {
     tree.event_state.frame_clicked_id = None;
     tree.event_state.frame_clicked_tag = None;
@@ -1133,6 +1142,7 @@ fn handle_keyboard(
         tree.event_state.frame_text_input = if is_pressed { text.clone() } else { None };
         tree.event_state.frame_key_pressed = is_pressed;
         tree.event_state.frame_ctrl_held = ctrl_held;
+        tree.event_state.frame_shift_held = shift_held;
 
         let tag = tree
             .event_state

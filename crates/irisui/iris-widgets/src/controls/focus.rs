@@ -571,6 +571,7 @@ mod tests {
             text: None,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
         let res = handle_focus_event(&mut state, &tab_forward, &areas, &policy);
         assert!(res.consumed);
@@ -623,6 +624,7 @@ mod tests {
             text: None,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
 
         handle_focus_event(&mut state, &tab, &areas, &policy);
@@ -649,6 +651,7 @@ mod tests {
             text: None,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
 
         let res = handle_focus_event(&mut state, &escape_event, &areas, &policy);

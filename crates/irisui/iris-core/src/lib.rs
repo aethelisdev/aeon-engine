@@ -30,7 +30,10 @@ pub mod tree;
 pub use canvas::CanvasPrimitive;
 pub use color::Color;
 pub use dirty::DirtyFlags;
-pub use dispatch::{ActiveTextEditSession, DispatchResult, EventState, PopupMenuState};
+pub use dispatch::{
+    ActiveTextEditSession, DispatchResult, EventState, PopupMenuState, TextSnapshot, TextUndoStack,
+    UndoActionKind,
+};
 pub use error::IrisCoreError;
 pub use event::{
     EventDispatcher, FocusManager, HitTestResult, ImeEvent, InteractionEvent, KeyCode, MouseButton,

@@ -20,6 +20,7 @@ pub fn winit_to_ui_event_with_modifiers(
     cursor_pos: Point,
     scale_factor: f64,
     ctrl_held: bool,
+    shift_held: bool,
 ) -> Option<UiEvent> {
     match event {
         WindowEvent::KeyboardInput { event: key_ev, .. } => {
@@ -46,6 +47,7 @@ pub fn winit_to_ui_event_with_modifiers(
                 text,
                 is_pressed,
                 ctrl_held,
+                shift_held,
             })
         }
         _ => winit_to_ui_event(event, cursor_pos, scale_factor),
@@ -118,6 +120,7 @@ pub fn winit_to_ui_event(
                 text,
                 is_pressed,
                 ctrl_held: false,
+                shift_held: false,
             })
         }
         WindowEvent::Ime(ime) => Some(UiEvent::Ime(winit_ime_to_iris(ime))),

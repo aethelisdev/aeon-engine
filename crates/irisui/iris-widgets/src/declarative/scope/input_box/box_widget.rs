@@ -6,7 +6,7 @@
 //! Provides rendering methods for rich search/filter input boxes with optional
 //! search icons, clear buttons, selection capsules, and blinking carets on [`UiScope`].
 
-use super::interaction::{find_cursor_idx_at_x, process_text_input_keys};
+use super::interaction::{TextInputKeyContext, find_cursor_idx_at_x, process_text_input_keys};
 use super::types::{InputBoxProps, calculate_visible_slice_and_caret};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{ResponseFlags, WidgetResponse};
@@ -268,74 +268,92 @@ impl<'a> UiScope<'a> {
         let mut submitted = false;
 
         let (active_text, cursor_idx, active_selection) = if is_focused {
-            let edit_session = self.tree.event_state.active_text_edit.take();
-            if let Some(mut session) = edit_session {
-                if let Some(clear_tag) = props.clear_tag
-                    && self.tree.event_state.frame_clicked_tag == Some(clear_tag)
-                {
-                    session.buffer.clear();
-                    session.cursor_byte_idx = 0;
-                    session.selection = None;
-                    changed = true;
+            let mut session = match self.tree.event_state.active_text_edit.take() {
+                Some(s) if s.tag == edit_key => s,
+                _ => {
+                    let mut stack = iris_core::dispatch::undo::TextUndoStack::new();
+                    stack.checkpoint(iris_core::dispatch::undo::TextSnapshot::new(
+                        props.text,
+                        props.cursor_byte_idx,
+                        props.selection,
+                    ));
+                    iris_core::dispatch::types::ActiveTextEditSession {
+                        tag: edit_key,
+                        buffer: props.text.to_owned(),
+                        cursor_byte_idx: props.cursor_byte_idx,
+                        selection: props.selection,
+                        undo_stack: stack,
+                    }
                 }
+            };
 
-                if let Some(rect) = node_rect {
-                    let text_box_start_x = rect.x + text_start_x;
-                    if is_drag_active
-                        && let Some(pointer_pos) = self.tree.event_state.last_pointer_pos
-                    {
-                        let rel_x = (pointer_pos.x - text_box_start_x).max(0.0);
-                        let target_cur = find_cursor_idx_at_x(&session.buffer, rel_x, font_size);
-                        session.cursor_byte_idx = target_cur;
-                        if let Some(anchor) = self.tree.event_state.text_drag_anchor {
-                            if anchor != target_cur {
-                                session.selection =
-                                    Some((anchor.min(target_cur), anchor.max(target_cur)));
-                            } else {
-                                session.selection = None;
-                            }
+            if let Some(clear_tag) = props.clear_tag
+                && self.tree.event_state.frame_clicked_tag == Some(clear_tag)
+            {
+                session.undo_stack.record_edit(
+                    iris_core::dispatch::undo::TextSnapshot::new(
+                        session.buffer.clone(),
+                        session.cursor_byte_idx,
+                        session.selection,
+                    ),
+                    iris_core::dispatch::undo::UndoActionKind::Atomic,
+                    None,
+                );
+                session.buffer.clear();
+                session.cursor_byte_idx = 0;
+                session.selection = None;
+                changed = true;
+            }
+
+            if let Some(rect) = node_rect {
+                let text_box_start_x = rect.x + text_start_x;
+                if is_drag_active && let Some(pointer_pos) = self.tree.event_state.last_pointer_pos
+                {
+                    let rel_x = (pointer_pos.x - text_box_start_x).max(0.0);
+                    let target_cur = find_cursor_idx_at_x(&session.buffer, rel_x, font_size);
+                    session.cursor_byte_idx = target_cur;
+                    if let Some(anchor) = self.tree.event_state.text_drag_anchor {
+                        if anchor != target_cur {
+                            session.selection =
+                                Some((anchor.min(target_cur), anchor.max(target_cur)));
+                        } else {
+                            session.selection = None;
                         }
                     }
                 }
+            }
 
-                let key_pressed = self.tree.event_state.frame_key_pressed;
-                let key = self.tree.event_state.frame_key;
-                let incoming = self.tree.event_state.frame_text_input.as_deref();
-                let ctrl_held = self.tree.event_state.frame_ctrl_held;
+            let key_pressed = self.tree.event_state.frame_key_pressed;
+            let key = self.tree.event_state.frame_key;
+            let incoming = self.tree.event_state.frame_text_input.as_deref();
+            let ctrl_held = self.tree.event_state.frame_ctrl_held;
+            let shift_held = self.tree.event_state.frame_shift_held;
+            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held);
 
-                let res = process_text_input_keys(
-                    &mut session.buffer,
-                    &mut session.cursor_byte_idx,
-                    &mut session.selection,
-                    key_pressed,
-                    key,
-                    incoming,
-                    ctrl_held,
-                );
+            let res = process_text_input_keys(
+                &mut session.buffer,
+                &mut session.cursor_byte_idx,
+                &mut session.selection,
+                ctx,
+                &mut session.undo_stack,
+            );
 
-                if res.changed {
-                    changed = true;
-                }
-                if res.submitted {
-                    submitted = true;
-                }
+            if res.changed {
+                changed = true;
+            }
+            if res.submitted {
+                submitted = true;
+            }
 
-                if res.should_clear_focus {
-                    self.tree.event_state.clear_text_edit();
-                    (session.buffer, session.cursor_byte_idx, session.selection)
-                } else {
-                    let active_buf_clone = session.buffer.clone();
-                    let cur = session.cursor_byte_idx;
-                    let sel = session.selection;
-                    self.tree.event_state.active_text_edit = Some(session);
-                    (active_buf_clone, cur, sel)
-                }
+            if res.should_clear_focus {
+                self.tree.event_state.clear_text_edit();
+                (session.buffer, session.cursor_byte_idx, session.selection)
             } else {
-                (
-                    props.text.to_owned(),
-                    props.cursor_byte_idx,
-                    props.selection,
-                )
+                let active_buf_clone = session.buffer.clone();
+                let cur = session.cursor_byte_idx;
+                let sel = session.selection;
+                self.tree.event_state.active_text_edit = Some(session);
+                (active_buf_clone, cur, sel)
             }
         } else {
             (

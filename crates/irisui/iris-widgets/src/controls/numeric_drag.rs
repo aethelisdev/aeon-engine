@@ -363,6 +363,7 @@ mod tests {
             text: None,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
         let res_esc = handle_numeric_drag_event(&mut state, &esc_ev, false, false);
         assert!(res_esc.is_some());

@@ -404,6 +404,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         text: Some("A".to_owned()),
         is_pressed: true,
         ctrl_held: false,
+        shift_held: false,
     });
     assert!(key_res.is_consumed());
 
@@ -424,6 +425,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         text: Some("e".to_owned()),
         is_pressed: true,
         ctrl_held: false,
+        shift_held: false,
     });
 
     {
@@ -439,6 +441,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         text: Some("e".to_owned()),
         is_pressed: false,
         ctrl_held: false,
+        shift_held: false,
     });
     assert!(release_res.is_consumed());
 
@@ -458,6 +461,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         text: None,
         is_pressed: true,
         ctrl_held: false,
+        shift_held: false,
     });
     assert!(backspace_res.is_consumed());
 
@@ -495,6 +499,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         text: Some("z".to_owned()),
         is_pressed: true,
         ctrl_held: false,
+        shift_held: false,
     });
     assert!(
         !unfocused_res.is_consumed(),

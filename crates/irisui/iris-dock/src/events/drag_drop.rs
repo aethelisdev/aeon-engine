@@ -539,6 +539,7 @@ mod tests {
             text: None,
             is_pressed: true,
             ctrl_held: false,
+            shift_held: false,
         };
 
         let resp = handle_tab_drag_event(

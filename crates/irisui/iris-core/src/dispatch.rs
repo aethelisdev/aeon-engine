@@ -11,6 +11,7 @@
 
 pub mod engine;
 pub mod types;
+pub mod undo;
 
 #[cfg(test)]
 mod tests;
@@ -19,4 +20,8 @@ pub use engine::dispatch_ui_event;
 pub use types::{
     ActiveTextEditSession, DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, DispatchResult,
     EventState, PopupMenuState, TOOLTIP_DEFAULT_HOVER_DELAY_MS, TooltipState,
+};
+pub use undo::{
+    DEFAULT_MAX_UNDO_DEPTH, TEXT_UNDO_COALESCE_TIMEOUT_MS, TextSnapshot, TextUndoStack,
+    UndoActionKind, is_word_boundary,
 };

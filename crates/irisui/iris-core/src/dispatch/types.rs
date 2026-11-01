@@ -8,6 +8,7 @@
 
 use std::time::Instant;
 
+use crate::dispatch::undo::{TextSnapshot, TextUndoStack};
 use crate::event::{KeyCode, MouseButton};
 use crate::geometry::Point;
 use crate::id::WidgetId;
@@ -70,6 +71,8 @@ pub struct ActiveTextEditSession {
     pub cursor_byte_idx: usize,
     /// Optional active text selection range `(start_byte_idx, end_byte_idx)` where `start < end`.
     pub selection: Option<(usize, usize)>,
+    /// Autonomous bounded history stack for undo and redo operations.
+    pub undo_stack: TextUndoStack,
 }
 
 /// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
@@ -138,6 +141,8 @@ pub struct EventState {
     pub frame_key_pressed: bool,
     /// Whether the Control (or Command on macOS) modifier key was held during the current keyboard interaction.
     pub frame_ctrl_held: bool,
+    /// Whether the Shift modifier key was held during the current keyboard interaction.
+    pub frame_shift_held: bool,
     /// Active context menu or popup anchor state, if one is currently opened.
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
@@ -192,6 +197,7 @@ impl EventState {
             frame_text_input: None,
             frame_key_pressed: false,
             frame_ctrl_held: false,
+            frame_shift_held: false,
             active_context_menu: None,
             active_numeric_edit: None,
             active_text_edit: None,
@@ -233,6 +239,7 @@ impl EventState {
         self.frame_text_input = None;
         self.frame_key_pressed = false;
         self.frame_ctrl_held = false;
+        self.frame_shift_held = false;
         self.is_pointer_drag_active = false;
         self.active_tooltip = None;
         self.hovered_file = None;
@@ -257,6 +264,7 @@ impl EventState {
         self.frame_text_input = None;
         self.frame_key_pressed = false;
         self.frame_ctrl_held = false;
+        self.frame_shift_held = false;
     }
 
     /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures
@@ -353,11 +361,20 @@ impl EventState {
             self.focused_tag = Some(tag);
         }
         let safe_sel = selection.filter(|(s, e)| s < e && *e <= initial_text.len());
+        let undo_stack = match self.active_text_edit.take() {
+            Some(existing) if existing.tag == tag => existing.undo_stack,
+            _ => {
+                let mut stack = TextUndoStack::new();
+                stack.checkpoint(TextSnapshot::new(initial_text, cursor_idx, safe_sel));
+                stack
+            }
+        };
         self.active_text_edit = Some(ActiveTextEditSession {
             tag,
             buffer: initial_text.to_string(),
             cursor_byte_idx: cursor_idx,
             selection: safe_sel,
+            undo_stack,
         });
         self.active_numeric_edit = None;
     }
@@ -403,6 +420,58 @@ impl EventState {
                 s.selection
                     .is_some_and(|(st, en)| st == 0 && en == s.buffer.len() && !s.buffer.is_empty())
             })
+    }
+
+    /// Reverts the active text edit session to its previous undo snapshot, if one is active.
+    ///
+    /// Mutates the buffer, caret offset, and selection in-place.
+    #[inline]
+    pub fn text_edit_undo(&mut self, tag: u64) -> bool {
+        if let Some(session) = self.active_text_edit.as_mut().filter(|s| s.tag == tag) {
+            session.undo_stack.undo_in_place(
+                &mut session.buffer,
+                &mut session.cursor_byte_idx,
+                &mut session.selection,
+            )
+        } else {
+            false
+        }
+    }
+
+    /// Re-applies the next reverted snapshot in the active text edit session, if one is active.
+    ///
+    /// Mutates the buffer, caret offset, and selection in-place.
+    #[inline]
+    pub fn text_edit_redo(&mut self, tag: u64) -> bool {
+        if let Some(session) = self.active_text_edit.as_mut().filter(|s| s.tag == tag) {
+            session.undo_stack.redo_in_place(
+                &mut session.buffer,
+                &mut session.cursor_byte_idx,
+                &mut session.selection,
+            )
+        } else {
+            false
+        }
+    }
+
+    /// Returns whether undo is available for the active text edit session.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_can_undo(&self, tag: u64) -> bool {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .is_some_and(|s| s.undo_stack.can_undo())
+    }
+
+    /// Returns whether redo is available for the active text edit session.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_can_redo(&self, tag: u64) -> bool {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .is_some_and(|s| s.undo_stack.can_redo())
     }
 
     /// Activates an autonomous inline numeric editing session and synchronizes focus to the target widget and tag.

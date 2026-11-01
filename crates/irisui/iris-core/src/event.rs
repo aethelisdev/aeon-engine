@@ -112,6 +112,8 @@ pub enum UiEvent {
         is_pressed: bool,
         /// Whether the Control (or Command on macOS) modifier key was held.
         ctrl_held: bool,
+        /// Whether the Shift modifier key was held.
+        shift_held: bool,
     },
     /// Operating system IME input composition or commit.
     Ime(ImeEvent),
