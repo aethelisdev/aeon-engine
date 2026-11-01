@@ -499,7 +499,6 @@ impl IrisEditorOverlay {
                     let is_inspector_busy = self.inspector.active_number_input.is_some()
                         || self.inspector.active_text_input.is_some()
                         || self.inspector.rename_input.is_some()
-                        || self.tree.event_state.active_numeric_edit.is_some()
                         || self.tree.event_state.active_text_edit.is_some()
                         || self
                             .tree

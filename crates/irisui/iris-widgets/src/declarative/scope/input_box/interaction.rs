@@ -88,6 +88,30 @@ pub struct TextInputEventResult {
     pub should_clear_focus: bool,
 }
 
+/// Rules governing which characters are admitted during keyboard input and clipboard paste operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TextInputFilter {
+    /// Accepts all printable non-control characters and spaces (default for text boxes).
+    #[default]
+    All,
+    /// Strictly limits input to numeric digits and basic arithmetic expression operators (`0-9`, `.`, `-`, `+`, `*`, `/`, `(`, `)`, space).
+    NumericExpression,
+}
+
+impl TextInputFilter {
+    /// Evaluates whether a given character passes the active filter rule.
+    #[inline]
+    #[must_use]
+    pub fn is_allowed(self, c: char) -> bool {
+        match self {
+            Self::All => !c.is_control() || c == ' ',
+            Self::NumericExpression => {
+                c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | '*' | '/' | '(' | ')' | ' ')
+            }
+        }
+    }
+}
+
 /// Contextual payload describing incoming keyboard and text interaction parameters.
 ///
 /// Groups event states into a single descriptor to avoid parameter bloat.
@@ -103,10 +127,12 @@ pub struct TextInputKeyContext<'a> {
     pub ctrl_held: bool,
     /// Whether the Shift modifier key was held.
     pub shift_held: bool,
+    /// Input character filter mode applied to incoming typing and pasted clipboard strings.
+    pub filter: TextInputFilter,
 }
 
 impl<'a> TextInputKeyContext<'a> {
-    /// Creates a new keyboard event context with explicit parameters.
+    /// Creates a new keyboard event context with explicit parameters and default filter.
     #[inline]
     pub const fn new(
         key_pressed: bool,
@@ -121,7 +147,16 @@ impl<'a> TextInputKeyContext<'a> {
             incoming_text,
             ctrl_held,
             shift_held,
+            filter: TextInputFilter::All,
         }
+    }
+
+    /// Sets the character filter applied to typed input and clipboard paste operations.
+    #[inline]
+    #[must_use]
+    pub const fn with_filter(mut self, filter: TextInputFilter) -> Self {
+        self.filter = filter;
+        self
     }
 }
 
@@ -244,7 +279,7 @@ pub fn process_text_input_keys(
                 if let Some(pasted) = crate::input::get_clipboard_text() {
                     let filtered: String = pasted
                         .chars()
-                        .filter(|c| !c.is_control() || *c == ' ')
+                        .filter(|&c| ctx.filter.is_allowed(c))
                         .collect();
                     if !filtered.is_empty() {
                         undo_stack.record_edit(
@@ -368,7 +403,10 @@ pub fn process_text_input_keys(
     } else if ctx.key_pressed
         && let Some(incoming) = ctx.incoming_text
     {
-        let filtered: String = incoming.chars().filter(|c| !c.is_control()).collect();
+        let filtered: String = incoming
+            .chars()
+            .filter(|&c| ctx.filter.is_allowed(c))
+            .collect();
         if !filtered.is_empty() {
             result.consumed = true;
             let boundary_char = filtered.chars().next();

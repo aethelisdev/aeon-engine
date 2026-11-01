@@ -302,3 +302,120 @@ fn test_input_box_undo_event_consumption() {
         "Focused input MUST consume Ctrl+Shift+Z unconditionally to shield editor redo"
     );
 }
+
+#[test]
+fn test_numeric_filter_typing_and_pasting() {
+    use crate::declarative::scope::input_box::interaction::{
+        TextInputFilter, TextInputKeyContext, process_text_input_keys,
+    };
+    use iris_core::dispatch::TextUndoStack;
+
+    let mut text = String::new();
+    let mut cursor = 0;
+    let mut selection = None;
+    let mut undo_stack = TextUndoStack::new();
+
+    // 1. Try typing alphabetic letters into a numeric-filtered input
+    let ctx_alpha =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('a')), Some("a"), false, false)
+            .with_filter(TextInputFilter::NumericExpression);
+
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_alpha,
+        &mut undo_stack,
+    );
+    assert!(
+        !res.changed,
+        "Alphabetic character 'a' MUST NOT mutate text in NumericExpression mode"
+    );
+    assert_eq!(text, "");
+    assert_eq!(cursor, 0);
+
+    // 2. Type valid numeric digits and decimal point
+    let ctx_num1 =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('4')), Some("4"), false, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_num1,
+        &mut undo_stack,
+    );
+    assert!(res.changed);
+    assert_eq!(text, "4");
+    assert_eq!(cursor, 1);
+
+    let ctx_dot =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('.')), Some("."), false, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let _ = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_dot,
+        &mut undo_stack,
+    );
+
+    let ctx_num2 =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('2')), Some("2"), false, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let _ = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_num2,
+        &mut undo_stack,
+    );
+    assert_eq!(text, "4.2");
+
+    // 3. Paste via clipboard: simulate clipboard containing invalid characters
+    crate::input::copy_to_clipboard("letters_only");
+    let ctx_paste_invalid =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('v')), Some("v"), true, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let res_paste = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_paste_invalid,
+        &mut undo_stack,
+    );
+    assert!(
+        !res_paste.changed,
+        "Pasting purely alphabetic string MUST NOT change numeric buffer"
+    );
+    assert_eq!(text, "4.2");
+
+    // 4. Paste valid numeric expression with some letters mixed in
+    crate::input::copy_to_clipboard(" + 5.0kg");
+    let ctx_paste_mixed =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('v')), Some("v"), true, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let res_paste2 = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_paste_mixed,
+        &mut undo_stack,
+    );
+    assert!(res_paste2.changed);
+    assert_eq!(text, "4.2 + 5.0");
+
+    // 5. Test undo in numeric input
+    let ctx_undo =
+        TextInputKeyContext::new(true, Some(KeyCode::Character('z')), Some("z"), true, false)
+            .with_filter(TextInputFilter::NumericExpression);
+    let res_undo = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        ctx_undo,
+        &mut undo_stack,
+    );
+    assert!(res_undo.changed);
+    assert_eq!(text, "4.2");
+}

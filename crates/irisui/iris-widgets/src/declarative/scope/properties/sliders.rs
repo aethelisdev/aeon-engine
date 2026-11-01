@@ -131,186 +131,41 @@ impl<'a> UiScope<'a> {
             let (track_clicked, track_hovered, track_drag) = row.check_interaction(track_id);
             let (box_clicked, box_hovered, _) = row.check_interaction(num_box_id);
 
-            if box_clicked {
-                let is_already_editing = row
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == num_box_tag);
-                if is_already_editing {
-                    if let Some((_, ref buf, ref mut cursor, ref mut is_all_sel)) =
-                        row.tree.event_state.active_numeric_edit
-                    {
-                        *is_all_sel = false;
-                        *cursor = buf.len();
-                    }
-                } else {
-                    let initial_buf = crate::declarative::types::format_compact_float(*value, 2);
-                    let len = initial_buf.len();
-                    row.tree.event_state.active_numeric_edit =
-                        Some((num_box_tag, initial_buf, len, true));
-                    row.tree.event_state.focused = Some(num_box_id);
-                    row.tree.event_state.focused_tag = Some(num_box_tag);
-                }
-            }
+            let edit_res = if options.inline_edit.is_none() {
+                let config =
+                    super::numeric_input::NumericEditConfig::new(options.min, options.max, 2);
+                Some(super::numeric_input::handle_numeric_edit_interaction(
+                    row,
+                    num_box_id,
+                    num_box_tag,
+                    value,
+                    config,
+                    box_clicked,
+                ))
+            } else {
+                None
+            };
 
             let mut changed = false;
-            let mut lost_focus = false;
             let mut submitted = false;
+            if let Some(ref res) = edit_res {
+                if res.value_changed {
+                    changed = true;
+                }
+                if res.submitted {
+                    submitted = true;
+                }
+            }
 
-            let is_editing_this_box = row
-                .tree
-                .event_state
-                .active_numeric_edit
+            let is_editing_now = edit_res
                 .as_ref()
-                .is_some_and(|(t, ..)| *t == num_box_tag);
+                .map_or(options.inline_edit.is_some(), |r| r.is_editing);
+            let is_all_sel_now = edit_res.as_ref().is_some_and(|r| {
+                r.selection
+                    .is_some_and(|(s, e)| s == 0 && e == r.raw_text.len())
+            }) || active_in_scope.is_some_and(|(_, sel)| sel);
 
-            let is_clicked_outside =
-                if let Some(clicked_tag) = row.tree.event_state.frame_clicked_tag {
-                    clicked_tag != num_box_tag
-                } else if let Some(clicked_id) = row.tree.event_state.frame_clicked_id {
-                    clicked_id != num_box_id
-                } else {
-                    false
-                };
-
-            if is_editing_this_box && is_clicked_outside {
-                if let Some((_, ref buf, ..)) = row.tree.event_state.active_numeric_edit
-                    && let Some(parsed) = crate::declarative::types::eval_numeric_expression(buf)
-                {
-                    let next = parsed.clamp(options.min, options.max);
-                    if (next - *value).abs() > f32::EPSILON {
-                        *value = next;
-                        changed = true;
-                    }
-                }
-                row.tree.event_state.active_numeric_edit = None;
-                if row.tree.event_state.focused_tag == Some(num_box_tag) {
-                    row.tree.event_state.clear_focus();
-                }
-                lost_focus = true;
-            }
-
-            let is_num_focused = row.is_focused(num_box_id)
-                || row.tree.event_state.focused_tag == Some(num_box_tag)
-                || row
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == num_box_tag);
-
-            if is_num_focused
-                && let Some((_, ref mut buf, ref mut cursor, ref mut is_all_sel)) =
-                    row.tree.event_state.active_numeric_edit
-            {
-                if row.tree.event_state.frame_key_pressed
-                    && let Some(ref text) = row.tree.event_state.frame_text_input
-                {
-                    let filtered: String = text
-                        .chars()
-                        .filter(|c| {
-                            c.is_ascii_digit()
-                                || *c == '.'
-                                || *c == '-'
-                                || *c == '+'
-                                || *c == '*'
-                                || *c == '/'
-                                || *c == '('
-                                || *c == ')'
-                                || *c == ' '
-                        })
-                        .collect();
-                    if !filtered.is_empty() {
-                        if *is_all_sel {
-                            *buf = filtered;
-                            *cursor = buf.len();
-                            *is_all_sel = false;
-                        } else {
-                            let idx = (*cursor).min(buf.len());
-                            buf.insert_str(idx, &filtered);
-                            *cursor += filtered.len();
-                        }
-                    }
-                } else if let Some(key) = row.tree.event_state.frame_key
-                    && row.tree.event_state.frame_key_pressed
-                {
-                    match key {
-                        iris_core::event::KeyCode::ArrowLeft => {
-                            if *is_all_sel {
-                                *is_all_sel = false;
-                                *cursor = 0;
-                            } else if *cursor > 0 {
-                                *cursor -= 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::ArrowRight => {
-                            if *is_all_sel {
-                                *is_all_sel = false;
-                                *cursor = buf.len();
-                            } else if *cursor < buf.len() {
-                                *cursor += 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::Home => {
-                            *is_all_sel = false;
-                            *cursor = 0;
-                        }
-                        iris_core::event::KeyCode::End => {
-                            *is_all_sel = false;
-                            *cursor = buf.len();
-                        }
-                        iris_core::event::KeyCode::Backspace => {
-                            if *is_all_sel {
-                                buf.clear();
-                                *cursor = 0;
-                                *is_all_sel = false;
-                            } else if *cursor > 0 && *cursor <= buf.len() {
-                                buf.remove(*cursor - 1);
-                                *cursor -= 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::Delete => {
-                            if *is_all_sel {
-                                buf.clear();
-                                *cursor = 0;
-                                *is_all_sel = false;
-                            } else if *cursor < buf.len() {
-                                buf.remove(*cursor);
-                            }
-                        }
-                        iris_core::event::KeyCode::Enter => {
-                            if let Some(parsed) =
-                                crate::declarative::types::eval_numeric_expression(buf)
-                            {
-                                let next = parsed.clamp(options.min, options.max);
-                                *value = next;
-                                changed = true;
-                            }
-                            row.tree.event_state.active_numeric_edit = None;
-                            row.tree.event_state.clear_focus();
-                            lost_focus = true;
-                            submitted = true;
-                        }
-                        iris_core::event::KeyCode::Escape => {
-                            row.tree.event_state.active_numeric_edit = None;
-                            row.tree.event_state.clear_focus();
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            let is_currently_editing = is_editing_this_box
-                || row
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == num_box_tag);
-
-            if !is_currently_editing {
+            if !is_editing_now {
                 let text_input = row
                     .check_interaction_text(num_box_id)
                     .or_else(|| row.check_interaction_text(track_id));
@@ -337,55 +192,29 @@ impl<'a> UiScope<'a> {
                 }
             }
 
-            let active_numeric = row
-                .tree
-                .event_state
-                .active_numeric_edit
-                .as_ref()
-                .filter(|(t, ..)| *t == num_box_tag);
-
-            let is_editing_now = options.inline_edit.is_some()
-                || active_in_scope.is_some()
-                || active_numeric.is_some();
-            let is_all_sel_now = active_in_scope.is_some_and(|(_, sel)| sel)
-                || active_numeric.as_ref().is_some_and(|(.., sel)| *sel);
-
             let display_str_now = if let Some(edit) = options.inline_edit {
                 edit.to_owned()
-            } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
-                if *is_all_sel {
-                    buf.clone()
-                } else {
-                    let c = (*cursor).min(buf.len());
-                    let (left, right) = buf.split_at(c);
-                    let blink_caret = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map_or(true, |d| (d.as_millis() / 500).is_multiple_of(2));
-                    if blink_caret {
-                        format!("{}|{}", left, right)
-                    } else {
-                        buf.clone()
-                    }
-                }
-            } else if let Some((active_text, _)) = active_in_scope {
-                active_text.to_owned()
-            } else if let Some(fmt) = options.format {
-                if fmt.contains("Hz") {
-                    format!("{:.0} Hz", *value)
-                } else if fmt.contains('m') {
-                    format!("{:.0} m", *value)
-                } else if fmt.contains('°') || fmt.contains("deg") {
-                    if fmt.contains(".0") {
-                        format!("{:.0}°", *value)
-                    } else {
+            } else if let Some(ref res) = edit_res {
+                if res.is_editing {
+                    res.display_text.clone()
+                } else if let Some((active_text, _)) = active_in_scope {
+                    active_text.to_owned()
+                } else if let Some(fmt) = options.format {
+                    if fmt.contains("Hz") {
+                        format!("{:.0} Hz", *value)
+                    } else if fmt.contains('m') {
+                        format!("{:.0} m", *value)
+                    } else if fmt.contains("dB") {
+                        format!("{:.1} dB", *value)
+                    } else if fmt.contains('%') {
+                        format!("{:.0}%", *value * 100.0)
+                    } else if fmt.contains("deg") || fmt.contains('°') {
                         format!("{:.1}°", *value)
+                    } else {
+                        crate::declarative::types::format_compact_float(*value, 2)
                     }
-                } else if fmt == "{:.0}" {
-                    format!("{:.0}", *value)
-                } else if fmt == "{:.1}" {
-                    format!("{:.1}", *value)
                 } else {
-                    format!("{:.2}", *value)
+                    crate::declarative::types::format_compact_float(*value, 2)
                 }
             } else {
                 crate::declarative::types::format_compact_float(*value, 2)
@@ -503,14 +332,10 @@ impl<'a> UiScope<'a> {
             if is_drag_released {
                 resp = resp.with_drag_released(true);
             }
-            if lost_focus {
-                resp.flags = resp
-                    .flags
-                    .union(iris_core::response::ResponseFlags::LOST_FOCUS);
-            }
             if submitted {
                 resp.flags = resp
                     .flags
+                    .union(iris_core::response::ResponseFlags::LOST_FOCUS)
                     .union(iris_core::response::ResponseFlags::SUBMITTED);
             }
             response = resp;

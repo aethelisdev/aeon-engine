@@ -11,11 +11,13 @@
 //! All primitives support the `##` label/tag separator and hierarchical [`UiScope::with_id`]
 //! seed isolation without per-frame heap allocations.
 
+pub mod numeric_input;
 pub mod rows;
 pub mod sliders;
 pub mod text;
 pub mod vectors;
 
+pub use numeric_input::{NumericEditConfig, NumericEditResult, handle_numeric_edit_interaction};
 pub use sliders::PropertySliderOptions;
 pub use text::{PropertyTextOptions, PropertyTextResponse};
 pub use vectors::{

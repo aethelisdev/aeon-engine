@@ -239,15 +239,76 @@ impl<'a> UiScope<'a> {
 
             for (prefix, _col, idx) in axes_meta {
                 let axis_tag = property_vec3_axis_tag(base_tag, idx);
-                let edit_state = options.edit_states[idx];
-                let active_numeric_info = slot
-                    .tree
-                    .event_state
-                    .active_numeric_edit
+                let axis_name = axis_names[idx];
+                let box_name = format!("NumBox_{}_{}", visible_label, axis_name);
+                let sel_name = format!("NumSel_{}_{}", visible_label, axis_name);
+                let txt_name = format!("NumText_{}_{}", visible_label, axis_name);
+
+                let axis_box_id = slot.tree.create_node();
+                if let Some(node) = slot.tree.get_mut(axis_box_id) {
+                    node.tag = axis_tag;
+                }
+                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+                axes_out[idx] = axis_box_id;
+
+                let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
+
+                let edit_res = if options.edit_states[idx].is_none() {
+                    let config = super::numeric_input::NumericEditConfig::new(
+                        f32::NEG_INFINITY,
+                        f32::INFINITY,
+                        options.decimals,
+                    );
+                    Some(super::numeric_input::handle_numeric_edit_interaction(
+                        &mut *slot,
+                        axis_box_id,
+                        axis_tag,
+                        &mut values[idx],
+                        config,
+                        clicked,
+                    ))
+                } else {
+                    None
+                };
+
+                let is_editing = edit_res
                     .as_ref()
-                    .filter(|(t, ..)| *t == axis_tag)
-                    .map(|(_, buf, cursor, is_all_sel)| (buf.clone(), *cursor, *is_all_sel));
-                let is_editing = edit_state.is_some() || active_numeric_info.is_some();
+                    .map_or(options.edit_states[idx].is_some(), |r| r.is_editing);
+
+                if let Some(ref res) = edit_res {
+                    if res.value_changed {
+                        any_changed = true;
+                        changed_axis_out = Some(idx);
+                    }
+                    if res.submitted {
+                        committed_axis_out = Some(idx);
+                    }
+                }
+
+                let is_dragging = slot.tree.event_state.is_pointer_drag_active
+                    && (slot.tree.event_state.pointer_capture == Some(axis_box_id)
+                        || (axis_tag != 0
+                            && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
+
+                if !is_editing && let Some(delta) = drag_delta {
+                    let next = values[idx] + delta.x * options.speed;
+                    if (next - values[idx]).abs() > f32::EPSILON {
+                        values[idx] = next;
+                        any_changed = true;
+                        changed_axis_out = Some(idx);
+                    }
+                }
+
+                let is_drag_released = (slot.tree.event_state.frame_drag_released_tag
+                    == Some(axis_tag)
+                    && axis_tag != 0)
+                    || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
+                if is_drag_released {
+                    committed_axis_out = Some(idx);
+                }
+
+                any_clicked |= clicked;
+                any_hovered |= hovered;
 
                 let (bg_col, border_col) = if is_editing {
                     (
@@ -267,47 +328,36 @@ impl<'a> UiScope<'a> {
                     Color::rgba(0.886, 0.894, 0.918, 1.0)
                 };
 
-                let display_str = if let Some(s) = edit_state {
+                let (display_str, is_all_selected) = if let Some(s) = options.edit_states[idx] {
                     let buf = s.buffer;
                     let cursor = s.cursor_idx.min(buf.len());
                     let (left, right) = buf.split_at(cursor);
-                    if s.is_all_selected {
+                    let str = if s.is_all_selected {
                         format!("{}{}", prefix, buf)
                     } else if s.blink_caret {
                         format!("{}{}|{}", prefix, left, right)
                     } else {
                         format!("{}{}{}", prefix, left, right)
-                    }
-                } else if let Some((ref buf, cursor, is_all_sel)) = active_numeric_info {
-                    if is_all_sel {
-                        format!("{}{}", prefix, buf)
-                    } else {
-                        let c = cursor.min(buf.len());
-                        let (left, right) = buf.split_at(c);
-                        let blink_caret = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map_or(true, |d| (d.as_millis() / 500).is_multiple_of(2));
-                        if blink_caret {
-                            format!("{}{}|{}", prefix, left, right)
-                        } else {
-                            format!("{}{}{}", prefix, left, right)
-                        }
-                    }
+                    };
+                    (str, s.is_all_selected)
+                } else if let Some(ref res) = edit_res {
+                    let is_all = res
+                        .selection
+                        .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
+                    (format!("{}{}", prefix, res.display_text), is_all)
                 } else {
-                    format!(
-                        "{}{}",
-                        prefix,
-                        crate::declarative::types::format_compact_float(
-                            values[idx],
-                            options.decimals
-                        )
+                    (
+                        format!(
+                            "{}{}",
+                            prefix,
+                            crate::declarative::types::format_compact_float(
+                                values[idx],
+                                options.decimals
+                            )
+                        ),
+                        false,
                     )
                 };
-
-                let axis_name = axis_names[idx];
-                let box_name = format!("NumBox_{}_{}", visible_label, axis_name);
-                let sel_name = format!("NumSel_{}_{}", visible_label, axis_name);
-                let txt_name = format!("NumText_{}_{}", visible_label, axis_name);
 
                 let pill_style = Style::new()
                     .width(54.0)
@@ -318,11 +368,6 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center);
 
-                let axis_box_id = slot.tree.create_node();
-                let is_dragging = slot.tree.event_state.is_pointer_drag_active
-                    && (slot.tree.event_state.pointer_capture == Some(axis_box_id)
-                        || (axis_tag != 0
-                            && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
                     node.set_name(box_name);
                     node.set_style(pill_style);
@@ -337,25 +382,16 @@ impl<'a> UiScope<'a> {
                         WidgetCursor::Default
                     });
                 }
-                let _ = slot.tree.add_child(slot.parent, axis_box_id);
 
                 {
                     let mut pill_scope = slot.child_scope(axis_box_id);
-                    let active_sel_buf = edit_state
-                        .filter(|s| s.is_all_selected)
-                        .map(|s| s.buffer)
-                        .or_else(|| {
-                            active_numeric_info
-                                .as_ref()
-                                .filter(|(_, _, sel)| *sel)
-                                .map(|(b, ..)| b.as_str())
-                        });
-
-                    if let Some(buf_str) = active_sel_buf {
+                    if is_all_selected {
                         let approx_char_w = 6.2;
-                        let val_w = (buf_str.len() as f32 * approx_char_w).max(12.0);
+                        let val_w = (display_str.len().saturating_sub(prefix.len()) as f32
+                            * approx_char_w)
+                            .max(12.0);
                         let prefix_w = prefix.len() as f32 * approx_char_w;
-                        let tot_w = (prefix.len() + buf_str.len()) as f32 * approx_char_w;
+                        let tot_w = display_str.len() as f32 * approx_char_w;
                         let cx = 54.0 * 0.5;
                         let text_start_x = cx - tot_w * 0.5;
                         let val_start_x = text_start_x + prefix_w;
@@ -382,217 +418,6 @@ impl<'a> UiScope<'a> {
                         Style::new().width(54.0).height(20.0),
                     );
                 }
-
-                axes_out[idx] = axis_box_id;
-
-                let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
-
-                if clicked && options.edit_states[idx].is_none() {
-                    let is_already_editing = slot
-                        .tree
-                        .event_state
-                        .active_numeric_edit
-                        .as_ref()
-                        .is_some_and(|(t, ..)| *t == axis_tag);
-                    if is_already_editing {
-                        if let Some((_, ref buf, ref mut cursor, ref mut is_all_sel)) =
-                            slot.tree.event_state.active_numeric_edit
-                        {
-                            *is_all_sel = false;
-                            *cursor = buf.len();
-                        }
-                    } else {
-                        let initial_buf = crate::declarative::types::format_compact_float(
-                            values[idx],
-                            options.decimals,
-                        );
-                        let len = initial_buf.len();
-                        slot.tree.event_state.active_numeric_edit =
-                            Some((axis_tag, initial_buf, len, true));
-                        slot.tree.event_state.focused = Some(axis_box_id);
-                        slot.tree.event_state.focused_tag = Some(axis_tag);
-                    }
-                }
-
-                let is_editing_this_axis = slot
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == axis_tag);
-
-                let is_clicked_outside =
-                    if let Some(clicked_tag) = slot.tree.event_state.frame_clicked_tag {
-                        clicked_tag != axis_tag
-                    } else if let Some(clicked_id) = slot.tree.event_state.frame_clicked_id {
-                        clicked_id != axis_box_id
-                    } else {
-                        false
-                    };
-
-                if is_editing_this_axis && is_clicked_outside {
-                    if let Some((_, ref buf, ..)) = slot.tree.event_state.active_numeric_edit
-                        && let Some(num) = crate::declarative::types::eval_numeric_expression(buf)
-                        && (num - values[idx]).abs() > f32::EPSILON
-                    {
-                        values[idx] = num;
-                        any_changed = true;
-                        changed_axis_out = Some(idx);
-                    }
-                    committed_axis_out = Some(idx);
-                    slot.tree.event_state.active_numeric_edit = None;
-                    if slot.tree.event_state.focused_tag == Some(axis_tag) {
-                        slot.tree.event_state.clear_focus();
-                    }
-                }
-
-                let is_axis_focused = slot.is_focused(axis_box_id)
-                    || slot.tree.event_state.focused_tag == Some(axis_tag)
-                    || slot
-                        .tree
-                        .event_state
-                        .active_numeric_edit
-                        .as_ref()
-                        .is_some_and(|(t, ..)| *t == axis_tag);
-
-                if is_axis_focused
-                    && let Some((_, ref mut buf, ref mut cursor, ref mut is_all_sel)) =
-                        slot.tree.event_state.active_numeric_edit
-                {
-                    if slot.tree.event_state.frame_key_pressed
-                        && let Some(ref text) = slot.tree.event_state.frame_text_input
-                    {
-                        let filtered: String = text
-                            .chars()
-                            .filter(|c| {
-                                c.is_ascii_digit()
-                                    || *c == '.'
-                                    || *c == '-'
-                                    || *c == '+'
-                                    || *c == '*'
-                                    || *c == '/'
-                                    || *c == '('
-                                    || *c == ')'
-                                    || *c == ' '
-                            })
-                            .collect();
-                        if !filtered.is_empty() {
-                            if *is_all_sel {
-                                *buf = filtered;
-                                *cursor = buf.len();
-                                *is_all_sel = false;
-                            } else {
-                                let idx_c = (*cursor).min(buf.len());
-                                buf.insert_str(idx_c, &filtered);
-                                *cursor += filtered.len();
-                            }
-                        }
-                    } else if let Some(key) = slot.tree.event_state.frame_key
-                        && slot.tree.event_state.frame_key_pressed
-                    {
-                        match key {
-                            iris_core::event::KeyCode::ArrowLeft => {
-                                if *is_all_sel {
-                                    *is_all_sel = false;
-                                    *cursor = 0;
-                                } else if *cursor > 0 {
-                                    *cursor -= 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::ArrowRight => {
-                                if *is_all_sel {
-                                    *is_all_sel = false;
-                                    *cursor = buf.len();
-                                } else if *cursor < buf.len() {
-                                    *cursor += 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::Home => {
-                                *is_all_sel = false;
-                                *cursor = 0;
-                            }
-                            iris_core::event::KeyCode::End => {
-                                *is_all_sel = false;
-                                *cursor = buf.len();
-                            }
-                            iris_core::event::KeyCode::Backspace => {
-                                if *is_all_sel {
-                                    buf.clear();
-                                    *cursor = 0;
-                                    *is_all_sel = false;
-                                } else if *cursor > 0 && *cursor <= buf.len() {
-                                    buf.remove(*cursor - 1);
-                                    *cursor -= 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::Delete => {
-                                if *is_all_sel {
-                                    buf.clear();
-                                    *cursor = 0;
-                                    *is_all_sel = false;
-                                } else if *cursor < buf.len() {
-                                    buf.remove(*cursor);
-                                }
-                            }
-                            iris_core::event::KeyCode::Enter => {
-                                if let Some(num) =
-                                    crate::declarative::types::eval_numeric_expression(buf)
-                                {
-                                    values[idx] = num;
-                                    any_changed = true;
-                                    changed_axis_out = Some(idx);
-                                }
-                                committed_axis_out = Some(idx);
-                                slot.tree.event_state.active_numeric_edit = None;
-                                slot.tree.event_state.clear_focus();
-                            }
-                            iris_core::event::KeyCode::Escape => {
-                                slot.tree.event_state.active_numeric_edit = None;
-                                slot.tree.event_state.clear_focus();
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                let is_currently_editing = is_editing_this_axis
-                    || slot
-                        .tree
-                        .event_state
-                        .active_numeric_edit
-                        .as_ref()
-                        .is_some_and(|(t, ..)| *t == axis_tag);
-
-                if !is_currently_editing {
-                    if let Some(delta) = drag_delta {
-                        let next = values[idx] + delta.x * options.speed;
-                        if (next - values[idx]).abs() > f32::EPSILON {
-                            values[idx] = next;
-                            any_changed = true;
-                            changed_axis_out = Some(idx);
-                        }
-                    }
-                    if let Some(text) = slot.check_interaction_text(axis_box_id) {
-                        let clean = text.trim();
-                        if let Some(num) = crate::declarative::types::eval_numeric_expression(clean)
-                        {
-                            values[idx] = num;
-                            any_changed = true;
-                            changed_axis_out = Some(idx);
-                        }
-                    }
-                }
-
-                let is_drag_released = (slot.tree.event_state.frame_drag_released_tag
-                    == Some(axis_tag)
-                    && axis_tag != 0)
-                    || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
-                if is_drag_released {
-                    committed_axis_out = Some(idx);
-                }
-
-                any_clicked |= clicked;
-                any_hovered |= hovered;
             }
 
             // Optional Reset Button

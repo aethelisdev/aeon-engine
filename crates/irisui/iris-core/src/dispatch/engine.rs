@@ -237,9 +237,9 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
         let is_editing_numeric = role == WidgetRole::NumericInput
             && tree
                 .event_state
-                .active_numeric_edit
+                .active_text_edit
                 .as_ref()
-                .is_some_and(|(t, ..)| *t != 0 && (tag == 0 || *t == tag));
+                .is_some_and(|s| s.tag != 0 && (tag == 0 || s.tag == tag));
 
         let effective_cursor = if is_editing_numeric {
             Some(WidgetCursor::Text)
@@ -1125,9 +1125,6 @@ fn handle_keyboard(
     let target_id = tree.event_state.focused.or_else(|| {
         if let Some(tag) = tree.event_state.focused_tag {
             tree.find_node_by_tag(tag)
-        } else if let Some((tag, ..)) = tree.event_state.active_numeric_edit {
-            tree.event_state.focused_tag = Some(tag);
-            tree.find_node_by_tag(tag)
         } else if let Some(ref edit) = tree.event_state.active_text_edit {
             tree.event_state.focused_tag = Some(edit.tag);
             tree.find_node_by_tag(edit.tag)
@@ -1159,12 +1156,11 @@ fn handle_keyboard(
 
         let node_role = tree.get(focused_id).map(|n| n.role);
         let has_text_edit = tree.event_state.active_text_edit.is_some();
-        let has_numeric_edit = tree.event_state.active_numeric_edit.is_some();
         let is_text_role = matches!(
             node_role,
             Some(WidgetRole::TextInput | WidgetRole::NumericInput)
         );
-        let is_text_input = has_text_edit || has_numeric_edit || is_text_role;
+        let is_text_input = has_text_edit || is_text_role;
 
         let mut flags = ResponseFlags::FOCUSED;
         let consumed;

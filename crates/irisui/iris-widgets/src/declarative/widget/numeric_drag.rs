@@ -263,218 +263,47 @@ impl<'a> Widget for NumericDrag<'a> {
                 scope.tree.event_state.pressed = Some(pill_id);
             }
 
-            if clicked {
-                let is_already_editing = scope
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == tag);
-                if is_already_editing {
-                    if let Some((_, ref buf, ref mut cursor, ref mut is_all_sel)) =
-                        scope.tree.event_state.active_numeric_edit
-                    {
-                        *is_all_sel = false;
-                        *cursor = buf.len();
-                    }
-                    scope.tree.event_state.focused = Some(pill_id);
-                    if tag != 0 {
-                        scope.tree.event_state.focused_tag = Some(tag);
-                    }
-                } else {
-                    let initial_buf =
-                        crate::declarative::types::format_compact_float(*self.value, self.decimals);
-                    let len = initial_buf.len();
-                    scope.tree.event_state.start_numeric_edit(
-                        Some(pill_id),
-                        tag,
-                        initial_buf,
-                        len,
-                        true,
-                    );
-                }
-            }
-
-            let mut changed = false;
-            let mut lost_focus = false;
-            let mut submitted = false;
             let min_val = *self.range.start();
             let max_val = *self.range.end();
 
-            let is_editing_this_pill = scope
-                .tree
-                .event_state
-                .active_numeric_edit
+            let edit_res = if self.edit_state.is_none() {
+                let config =
+                    crate::declarative::scope::properties::numeric_input::NumericEditConfig::new(
+                        min_val,
+                        max_val,
+                        self.decimals,
+                    );
+                Some(
+                    crate::declarative::scope::properties::numeric_input::handle_numeric_edit_interaction(
+                        scope,
+                        pill_id,
+                        tag,
+                        self.value,
+                        config,
+                        clicked,
+                    ),
+                )
+            } else {
+                None
+            };
+
+            let mut changed = false;
+            let mut submitted = false;
+
+            if let Some(ref res) = edit_res {
+                if res.value_changed {
+                    changed = true;
+                }
+                if res.submitted {
+                    submitted = true;
+                }
+            }
+
+            let is_editing = edit_res
                 .as_ref()
-                .is_some_and(|(t, ..)| *t == tag);
+                .map_or(self.edit_state.is_some(), |r| r.is_editing);
 
-            if is_editing_this_pill {
-                scope.tree.event_state.focused = Some(pill_id);
-                if tag != 0 {
-                    scope.tree.event_state.focused_tag = Some(tag);
-                }
-            }
-
-            let is_clicked_outside =
-                if let Some(clicked_tag) = scope.tree.event_state.frame_clicked_tag {
-                    clicked_tag != tag
-                } else if let Some(clicked_id) = scope.tree.event_state.frame_clicked_id {
-                    clicked_id != pill_id
-                } else {
-                    false
-                };
-
-            if is_editing_this_pill && is_clicked_outside {
-                if let Some((_, ref buf, ..)) = scope.tree.event_state.active_numeric_edit
-                    && let Some(parsed) = crate::declarative::types::eval_numeric_expression(buf)
-                {
-                    let next = parsed.clamp(min_val, max_val);
-                    if (next - *self.value).abs() > f32::EPSILON {
-                        *self.value = next;
-                        changed = true;
-                    }
-                }
-                scope.tree.event_state.active_numeric_edit = None;
-                if scope.tree.event_state.focused_tag == Some(tag) {
-                    scope.tree.event_state.clear_focus();
-                }
-                lost_focus = true;
-            }
-
-            let is_numeric_focused = scope.is_focused(pill_id)
-                || (tag != 0 && scope.tree.event_state.focused_tag == Some(tag))
-                || scope
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == tag);
-
-            if is_numeric_focused
-                && let Some((_, ref mut buf, ref mut cursor, ref mut is_all_sel)) =
-                    scope.tree.event_state.active_numeric_edit
-            {
-                let is_ctrl_key = scope.tree.event_state.frame_key_pressed
-                    && scope.tree.event_state.frame_key.is_some_and(|k| {
-                        matches!(
-                            k,
-                            iris_core::event::KeyCode::ArrowLeft
-                                | iris_core::event::KeyCode::ArrowRight
-                                | iris_core::event::KeyCode::Home
-                                | iris_core::event::KeyCode::End
-                                | iris_core::event::KeyCode::Backspace
-                                | iris_core::event::KeyCode::Delete
-                                | iris_core::event::KeyCode::Enter
-                                | iris_core::event::KeyCode::Escape
-                        )
-                    });
-
-                if is_ctrl_key {
-                    if let Some(key) = scope.tree.event_state.frame_key {
-                        match key {
-                            iris_core::event::KeyCode::ArrowLeft => {
-                                if *is_all_sel {
-                                    *is_all_sel = false;
-                                    *cursor = 0;
-                                } else if *cursor > 0 {
-                                    *cursor -= 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::ArrowRight => {
-                                if *is_all_sel {
-                                    *is_all_sel = false;
-                                    *cursor = buf.len();
-                                } else if *cursor < buf.len() {
-                                    *cursor += 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::Home => {
-                                *is_all_sel = false;
-                                *cursor = 0;
-                            }
-                            iris_core::event::KeyCode::End => {
-                                *is_all_sel = false;
-                                *cursor = buf.len();
-                            }
-                            iris_core::event::KeyCode::Backspace => {
-                                if *is_all_sel {
-                                    buf.clear();
-                                    *cursor = 0;
-                                    *is_all_sel = false;
-                                } else if *cursor > 0 && *cursor <= buf.len() {
-                                    buf.remove(*cursor - 1);
-                                    *cursor -= 1;
-                                }
-                            }
-                            iris_core::event::KeyCode::Delete => {
-                                if *is_all_sel {
-                                    buf.clear();
-                                    *cursor = 0;
-                                    *is_all_sel = false;
-                                } else if *cursor < buf.len() {
-                                    buf.remove(*cursor);
-                                }
-                            }
-                            iris_core::event::KeyCode::Enter => {
-                                if let Some(parsed) =
-                                    crate::declarative::types::eval_numeric_expression(buf)
-                                {
-                                    let next = parsed.clamp(min_val, max_val);
-                                    *self.value = next;
-                                    changed = true;
-                                }
-                                scope.tree.event_state.active_numeric_edit = None;
-                                scope.tree.event_state.clear_focus();
-                                lost_focus = true;
-                                submitted = true;
-                            }
-                            iris_core::event::KeyCode::Escape => {
-                                scope.tree.event_state.active_numeric_edit = None;
-                                scope.tree.event_state.clear_focus();
-                            }
-                            _ => {}
-                        }
-                    }
-                } else if scope.tree.event_state.frame_key_pressed
-                    && let Some(ref text) = scope.tree.event_state.frame_text_input
-                {
-                    let filtered: String = text
-                        .chars()
-                        .filter(|c| {
-                            c.is_ascii_digit()
-                                || *c == '.'
-                                || *c == '-'
-                                || *c == '+'
-                                || *c == '*'
-                                || *c == '/'
-                                || *c == '('
-                                || *c == ')'
-                                || *c == ' '
-                        })
-                        .collect();
-                    if !filtered.is_empty() {
-                        if *is_all_sel {
-                            *buf = filtered;
-                            *cursor = buf.len();
-                            *is_all_sel = false;
-                        } else {
-                            let idx = (*cursor).min(buf.len());
-                            buf.insert_str(idx, &filtered);
-                            *cursor += filtered.len();
-                        }
-                    }
-                }
-            }
-
-            let is_currently_editing = is_editing_this_pill
-                || scope
-                    .tree
-                    .event_state
-                    .active_numeric_edit
-                    .as_ref()
-                    .is_some_and(|(t, ..)| *t == tag);
-
-            if !is_currently_editing {
+            if !is_editing {
                 if let Some(text) = scope.check_interaction_text(pill_id) {
                     let clean = text.trim();
                     if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean)
@@ -495,25 +324,35 @@ impl<'a> Widget for NumericDrag<'a> {
             }
             *self.value = self.value.clamp(min_val, max_val);
 
-            let active_in_scope =
-                scope.active_text_input.and_then(
-                    |(t, text, sel)| {
-                        if t == tag { Some((text, sel)) } else { None }
-                    },
-                );
-
-            let active_numeric = scope
-                .tree
-                .event_state
-                .active_numeric_edit
-                .as_ref()
-                .filter(|(t, ..)| *t == tag);
-
-            let is_editing =
-                self.edit_state.is_some() || active_in_scope.is_some() || active_numeric.is_some();
-            let is_all_selected = self.edit_state.as_ref().is_some_and(|s| s.is_all_selected)
-                || active_in_scope.as_ref().is_some_and(|(_, sel)| *sel)
-                || active_numeric.as_ref().is_some_and(|(.., sel)| *sel);
+            let (display_str, is_all_selected) = if is_editing {
+                if let Some(ref res) = edit_res {
+                    let is_all_sel = res
+                        .selection
+                        .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
+                    (res.display_text.clone(), is_all_sel)
+                } else if let Some(s) = self.edit_state {
+                    let buf = s.buffer;
+                    let cursor = s.cursor_idx.min(buf.len());
+                    let (left, right) = buf.split_at(cursor);
+                    let disp = if s.is_all_selected {
+                        buf.to_owned()
+                    } else if s.blink_caret {
+                        format!("{}|{}", left, right)
+                    } else {
+                        buf.to_owned()
+                    };
+                    (disp, s.is_all_selected)
+                } else {
+                    (String::new(), false)
+                }
+            } else if let Some(txt) = self.custom_text {
+                (txt.to_owned(), false)
+            } else {
+                (
+                    crate::declarative::types::format_compact_float(*self.value, self.decimals),
+                    false,
+                )
+            };
 
             let (bg, border_col) = if is_editing {
                 (
@@ -535,40 +374,6 @@ impl<'a> Widget for NumericDrag<'a> {
                     Color::rgba(0.157, 0.165, 0.188, 0.98),
                     Color::rgba(0.212, 0.220, 0.259, 0.85),
                 )
-            };
-
-            let display_str = if let Some(s) = self.edit_state {
-                let buf = s.buffer;
-                let cursor = s.cursor_idx.min(buf.len());
-                let (left, right) = buf.split_at(cursor);
-                if s.is_all_selected {
-                    buf.to_owned()
-                } else if s.blink_caret {
-                    format!("{}|{}", left, right)
-                } else {
-                    buf.to_owned()
-                }
-            } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
-                if *is_all_sel {
-                    buf.clone()
-                } else {
-                    let c = (*cursor).min(buf.len());
-                    let (left, right) = buf.split_at(c);
-                    let blink_caret = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map_or(true, |d| (d.as_millis() / 500).is_multiple_of(2));
-                    if blink_caret {
-                        format!("{}|{}", left, right)
-                    } else {
-                        buf.clone()
-                    }
-                }
-            } else if let Some((active_text, _)) = active_in_scope {
-                active_text.to_owned()
-            } else if let Some(txt) = self.custom_text {
-                txt.to_owned()
-            } else {
-                crate::declarative::types::format_compact_float(*self.value, self.decimals)
             };
 
             let text_len = display_str.len();
@@ -640,14 +445,10 @@ impl<'a> Widget for NumericDrag<'a> {
             if is_drag_released {
                 resp = resp.with_drag_released(true);
             }
-            if lost_focus {
-                resp.flags = resp
-                    .flags
-                    .union(iris_core::response::ResponseFlags::LOST_FOCUS);
-            }
             if submitted {
                 resp.flags = resp
                     .flags
+                    .union(iris_core::response::ResponseFlags::LOST_FOCUS)
                     .union(iris_core::response::ResponseFlags::SUBMITTED);
             }
             return ScalarResponse {
@@ -722,213 +523,47 @@ impl<'a> Widget for NumericDrag<'a> {
             row.tree.event_state.pressed = Some(pill_id);
         }
 
-        if clicked {
-            let is_already_editing = row
-                .tree
-                .event_state
-                .active_numeric_edit
-                .as_ref()
-                .is_some_and(|(t, ..)| *t == tag);
-            if is_already_editing {
-                if let Some((_, ref buf, ref mut cursor, ref mut is_all_sel)) =
-                    row.tree.event_state.active_numeric_edit
-                {
-                    *is_all_sel = false;
-                    *cursor = buf.len();
-                }
-                row.tree.event_state.focused = Some(pill_id);
-                if tag != 0 {
-                    row.tree.event_state.focused_tag = Some(tag);
-                }
-            } else {
-                let initial_buf =
-                    crate::declarative::types::format_compact_float(*self.value, self.decimals);
-                let len = initial_buf.len();
-                row.tree
-                    .event_state
-                    .start_numeric_edit(Some(pill_id), tag, initial_buf, len, true);
-            }
-        }
-
-        let mut changed = false;
-        let mut lost_focus = false;
-        let mut submitted = false;
         let min_val = *self.range.start();
         let max_val = *self.range.end();
 
-        let is_editing_this_pill = row
-            .tree
-            .event_state
-            .active_numeric_edit
-            .as_ref()
-            .is_some_and(|(t, ..)| *t == tag);
-
-        if is_editing_this_pill {
-            row.tree.event_state.focused = Some(pill_id);
-            if tag != 0 {
-                row.tree.event_state.focused_tag = Some(tag);
-            }
-        }
-
-        let is_clicked_outside = if let Some(clicked_tag) = row.tree.event_state.frame_clicked_tag {
-            clicked_tag != tag
-        } else if let Some(clicked_id) = row.tree.event_state.frame_clicked_id {
-            clicked_id != pill_id
+        let edit_res = if self.edit_state.is_none() {
+            let config =
+                crate::declarative::scope::properties::numeric_input::NumericEditConfig::new(
+                    min_val,
+                    max_val,
+                    self.decimals,
+                );
+            Some(
+                crate::declarative::scope::properties::numeric_input::handle_numeric_edit_interaction(
+                    &mut row,
+                    pill_id,
+                    tag,
+                    self.value,
+                    config,
+                    clicked,
+                ),
+            )
         } else {
-            false
+            None
         };
 
-        if is_editing_this_pill && is_clicked_outside {
-            if let Some((_, ref buf, ..)) = row.tree.event_state.active_numeric_edit
-                && let Some(parsed) = crate::declarative::types::eval_numeric_expression(buf)
-            {
-                let next = parsed.clamp(min_val, max_val);
-                if (next - *self.value).abs() > f32::EPSILON {
-                    *self.value = next;
-                    changed = true;
-                }
+        let mut changed = false;
+        let mut submitted = false;
+
+        if let Some(ref res) = edit_res {
+            if res.value_changed {
+                changed = true;
             }
-            row.tree.event_state.active_numeric_edit = None;
-            if row.tree.event_state.focused_tag == Some(tag) {
-                row.tree.event_state.clear_focus();
-            }
-            lost_focus = true;
-        }
-
-        let is_numeric_focused = row.is_focused(pill_id)
-            || (tag != 0 && row.tree.event_state.focused_tag == Some(tag))
-            || row
-                .tree
-                .event_state
-                .active_numeric_edit
-                .as_ref()
-                .is_some_and(|(t, ..)| *t == tag);
-
-        if is_numeric_focused
-            && let Some((_, ref mut buf, ref mut cursor, ref mut is_all_sel)) =
-                row.tree.event_state.active_numeric_edit
-        {
-            let is_ctrl_key = row.tree.event_state.frame_key_pressed
-                && row.tree.event_state.frame_key.is_some_and(|k| {
-                    matches!(
-                        k,
-                        iris_core::event::KeyCode::ArrowLeft
-                            | iris_core::event::KeyCode::ArrowRight
-                            | iris_core::event::KeyCode::Home
-                            | iris_core::event::KeyCode::End
-                            | iris_core::event::KeyCode::Backspace
-                            | iris_core::event::KeyCode::Delete
-                            | iris_core::event::KeyCode::Enter
-                            | iris_core::event::KeyCode::Escape
-                    )
-                });
-
-            if is_ctrl_key {
-                if let Some(key) = row.tree.event_state.frame_key {
-                    match key {
-                        iris_core::event::KeyCode::ArrowLeft => {
-                            if *is_all_sel {
-                                *is_all_sel = false;
-                                *cursor = 0;
-                            } else if *cursor > 0 {
-                                *cursor -= 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::ArrowRight => {
-                            if *is_all_sel {
-                                *is_all_sel = false;
-                                *cursor = buf.len();
-                            } else if *cursor < buf.len() {
-                                *cursor += 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::Home => {
-                            *is_all_sel = false;
-                            *cursor = 0;
-                        }
-                        iris_core::event::KeyCode::End => {
-                            *is_all_sel = false;
-                            *cursor = buf.len();
-                        }
-                        iris_core::event::KeyCode::Backspace => {
-                            if *is_all_sel {
-                                buf.clear();
-                                *cursor = 0;
-                                *is_all_sel = false;
-                            } else if *cursor > 0 && *cursor <= buf.len() {
-                                buf.remove(*cursor - 1);
-                                *cursor -= 1;
-                            }
-                        }
-                        iris_core::event::KeyCode::Delete => {
-                            if *is_all_sel {
-                                buf.clear();
-                                *cursor = 0;
-                                *is_all_sel = false;
-                            } else if *cursor < buf.len() {
-                                buf.remove(*cursor);
-                            }
-                        }
-                        iris_core::event::KeyCode::Enter => {
-                            if let Some(parsed) =
-                                crate::declarative::types::eval_numeric_expression(buf)
-                            {
-                                let next = parsed.clamp(min_val, max_val);
-                                *self.value = next;
-                                changed = true;
-                            }
-                            row.tree.event_state.active_numeric_edit = None;
-                            row.tree.event_state.clear_focus();
-                            lost_focus = true;
-                            submitted = true;
-                        }
-                        iris_core::event::KeyCode::Escape => {
-                            row.tree.event_state.active_numeric_edit = None;
-                            row.tree.event_state.clear_focus();
-                        }
-                        _ => {}
-                    }
-                }
-            } else if row.tree.event_state.frame_key_pressed
-                && let Some(ref text) = row.tree.event_state.frame_text_input
-            {
-                let filtered: String = text
-                    .chars()
-                    .filter(|c| {
-                        c.is_ascii_digit()
-                            || *c == '.'
-                            || *c == '-'
-                            || *c == '+'
-                            || *c == '*'
-                            || *c == '/'
-                            || *c == '('
-                            || *c == ')'
-                            || *c == ' '
-                    })
-                    .collect();
-                if !filtered.is_empty() {
-                    if *is_all_sel {
-                        *buf = filtered;
-                        *cursor = buf.len();
-                        *is_all_sel = false;
-                    } else {
-                        let idx = (*cursor).min(buf.len());
-                        buf.insert_str(idx, &filtered);
-                        *cursor += filtered.len();
-                    }
-                }
+            if res.submitted {
+                submitted = true;
             }
         }
 
-        let is_currently_editing = is_editing_this_pill
-            || row
-                .tree
-                .event_state
-                .active_numeric_edit
-                .as_ref()
-                .is_some_and(|(t, ..)| *t == tag);
+        let is_editing = edit_res
+            .as_ref()
+            .map_or(self.edit_state.is_some(), |r| r.is_editing);
 
-        if !is_currently_editing {
+        if !is_editing {
             if let Some(text) = row.check_interaction_text(pill_id) {
                 let clean = text.trim();
                 if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean) {
@@ -948,25 +583,35 @@ impl<'a> Widget for NumericDrag<'a> {
         }
         *self.value = self.value.clamp(min_val, max_val);
 
-        let active_in_scope =
-            row.active_text_input.and_then(
-                |(t, text, sel)| {
-                    if t == tag { Some((text, sel)) } else { None }
-                },
-            );
-
-        let active_numeric = row
-            .tree
-            .event_state
-            .active_numeric_edit
-            .as_ref()
-            .filter(|(t, ..)| *t == tag);
-
-        let is_editing =
-            self.edit_state.is_some() || active_in_scope.is_some() || active_numeric.is_some();
-        let is_all_selected = self.edit_state.as_ref().is_some_and(|s| s.is_all_selected)
-            || active_in_scope.as_ref().is_some_and(|(_, sel)| *sel)
-            || active_numeric.as_ref().is_some_and(|(.., sel)| *sel);
+        let (display_str, is_all_selected) = if is_editing {
+            if let Some(ref res) = edit_res {
+                let is_all_sel = res
+                    .selection
+                    .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
+                (res.display_text.clone(), is_all_sel)
+            } else if let Some(s) = self.edit_state {
+                let buf = s.buffer;
+                let cursor = s.cursor_idx.min(buf.len());
+                let (left, right) = buf.split_at(cursor);
+                let disp = if s.is_all_selected {
+                    buf.to_owned()
+                } else if s.blink_caret {
+                    format!("{}|{}", left, right)
+                } else {
+                    buf.to_owned()
+                };
+                (disp, s.is_all_selected)
+            } else {
+                (String::new(), false)
+            }
+        } else if let Some(txt) = self.custom_text {
+            (txt.to_owned(), false)
+        } else {
+            (
+                crate::declarative::types::format_compact_float(*self.value, self.decimals),
+                false,
+            )
+        };
 
         let (bg, border_col) = if is_editing {
             (
@@ -990,7 +635,6 @@ impl<'a> Widget for NumericDrag<'a> {
             )
         };
 
-        let box_w = self.box_width.unwrap_or(48.0);
         let pill_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
@@ -1000,40 +644,6 @@ impl<'a> Widget for NumericDrag<'a> {
             .background(bg)
             .border(1.0, border_col)
             .border_radius(4.0);
-
-        let display_str = if let Some(s) = self.edit_state {
-            let buf = s.buffer;
-            let cursor = s.cursor_idx.min(buf.len());
-            let (left, right) = buf.split_at(cursor);
-            if s.is_all_selected {
-                buf.to_owned()
-            } else if s.blink_caret {
-                format!("{}|{}", left, right)
-            } else {
-                buf.to_owned()
-            }
-        } else if let Some((_, buf, cursor, is_all_sel)) = active_numeric {
-            if *is_all_sel {
-                buf.clone()
-            } else {
-                let c = (*cursor).min(buf.len());
-                let (left, right) = buf.split_at(c);
-                let blink_caret = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(true, |d| (d.as_millis() / 500).is_multiple_of(2));
-                if blink_caret {
-                    format!("{}|{}", left, right)
-                } else {
-                    buf.clone()
-                }
-            }
-        } else if let Some((active_text, _)) = active_in_scope {
-            active_text.to_owned()
-        } else if let Some(txt) = self.custom_text {
-            txt.to_owned()
-        } else {
-            crate::declarative::types::format_compact_float(*self.value, self.decimals)
-        };
 
         let text_len = display_str.len();
         if let Some(node) = row.tree.get_mut(pill_id) {
@@ -1104,14 +714,10 @@ impl<'a> Widget for NumericDrag<'a> {
         if is_drag_released {
             resp = resp.with_drag_released(true);
         }
-        if lost_focus {
-            resp.flags = resp
-                .flags
-                .union(iris_core::response::ResponseFlags::LOST_FOCUS);
-        }
         if submitted {
             resp.flags = resp
                 .flags
+                .union(iris_core::response::ResponseFlags::LOST_FOCUS)
                 .union(iris_core::response::ResponseFlags::SUBMITTED);
         }
 
@@ -1123,69 +729,4 @@ impl<'a> Widget for NumericDrag<'a> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use iris_core::UiTree;
-
-    #[test]
-    fn test_numeric_drag_builder_and_response() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
-
-        let mut val = 42.5;
-        let resp = scope.add(
-            NumericDrag::new("Speed", &mut val)
-                .speed(0.2)
-                .range(0.0..=100.0)
-                .decimals(1)
-                .unit("m/s")
-                .label_width(70.0)
-                .box_width(50.0),
-        );
-
-        assert!(!resp.changed());
-        assert!(!resp.clicked());
-        assert_eq!(resp.value(), 42.5);
-        assert_eq!(val, 42.5);
-    }
-
-    #[test]
-    fn test_numeric_drag_clamping() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
-
-        let mut val = 150.0;
-        let _ = scope.add(NumericDrag::new("Clamped", &mut val).range(0.0..=100.0));
-        assert_eq!(val, 100.0);
-
-        let mut under = -50.0;
-        let _ = scope.add(NumericDrag::new("Under", &mut under).range(0.0..=100.0));
-        assert_eq!(under, 0.0);
-    }
-
-    #[test]
-    fn test_numeric_drag_enter_confirmation_and_submitted_response() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("Root node");
-
-        let tag = 0x998877;
-        let mut val = 10.0;
-
-        // Simulate active numeric editing session on tag
-        tree.event_state.active_numeric_edit = Some((tag, "25.5".to_owned(), 4, false));
-        tree.event_state.focused_tag = Some(tag);
-        tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
-        tree.event_state.frame_key_pressed = true;
-
-        let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.add(NumericDrag::new("", &mut val).tag(tag).range(0.0..=100.0));
-
-        assert_eq!(val, 25.5);
-        assert!(resp.changed());
-        assert!(resp.submitted());
-        assert!(resp.committed());
-        assert!(tree.event_state.active_numeric_edit.is_none());
-    }
-}
+mod tests;

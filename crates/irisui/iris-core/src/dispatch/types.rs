@@ -145,9 +145,7 @@ pub struct EventState {
     pub frame_shift_held: bool,
     /// Active context menu or popup anchor state, if one is currently opened.
     pub active_context_menu: Option<PopupMenuState>,
-    /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
-    pub active_numeric_edit: Option<(u64, String, usize, bool)>,
-    /// Active autonomous inline text input editing session tracking tag, buffer, cursor, and selection.
+    /// Active autonomous inline text or numeric input editing session tracking tag, buffer, cursor, and selection.
     pub active_text_edit: Option<ActiveTextEditSession>,
     /// Drag selection anchor byte index during an active mouse drag-select gesture within a text input.
     pub text_drag_anchor: Option<usize>,
@@ -199,7 +197,6 @@ impl EventState {
             frame_ctrl_held: false,
             frame_shift_held: false,
             active_context_menu: None,
-            active_numeric_edit: None,
             active_text_edit: None,
             text_drag_anchor: None,
             is_pointer_drag_active: false,
@@ -288,7 +285,6 @@ impl EventState {
         self.focused_tag = None;
         self.pressed = None;
         self.pressed_tag = None;
-        self.active_numeric_edit = None;
         self.active_text_edit = None;
         self.text_drag_anchor = None;
         self.pointer_capture = None;
@@ -376,7 +372,6 @@ impl EventState {
             selection: safe_sel,
             undo_stack,
         });
-        self.active_numeric_edit = None;
     }
 
     /// Returns the active text edit buffer for the specified semantic tag, if currently editing.
@@ -474,28 +469,6 @@ impl EventState {
             .is_some_and(|s| s.undo_stack.can_redo())
     }
 
-    /// Activates an autonomous inline numeric editing session and synchronizes focus to the target widget and tag.
-    ///
-    /// Sets [`Self::focused`], [`Self::focused_tag`], and [`Self::active_numeric_edit`], while clearing any active text edit.
-    #[inline]
-    pub fn start_numeric_edit(
-        &mut self,
-        node_id: Option<WidgetId>,
-        tag: u64,
-        buffer: String,
-        cursor_idx: usize,
-        is_all_selected: bool,
-    ) {
-        if let Some(id) = node_id {
-            self.focused = Some(id);
-        }
-        if tag != 0 {
-            self.focused_tag = Some(tag);
-        }
-        self.active_numeric_edit = Some((tag, buffer, cursor_idx, is_all_selected));
-        self.active_text_edit = None;
-    }
-
     /// Clears any active text editing session and releases focus if owned by the current edit tag.
     #[inline]
     pub fn clear_text_edit(&mut self) {
@@ -508,35 +481,20 @@ impl EventState {
         self.active_text_edit = None;
     }
 
-    /// Clears any active numeric editing session and releases focus if owned by the current edit tag.
-    #[inline]
-    pub fn clear_numeric_edit(&mut self) {
-        if let Some((tag, ..)) = self.active_numeric_edit
-            && self.focused_tag == Some(tag)
-        {
-            self.focused = None;
-            self.focused_tag = None;
-        }
-        self.active_numeric_edit = None;
-    }
-
-    /// Returns `true` if any widget node, semantic tag, numeric edit, or text edit currently holds keyboard focus.
+    /// Returns `true` if any widget node, semantic tag, or text/numeric edit currently holds keyboard focus.
     #[inline]
     #[must_use]
     pub fn has_focus(&self) -> bool {
-        self.focused.is_some()
-            || self.focused_tag.is_some()
-            || self.active_numeric_edit.is_some()
-            || self.active_text_edit.is_some()
+        self.focused.is_some() || self.focused_tag.is_some() || self.active_text_edit.is_some()
     }
 
-    /// Returns `true` if an active inline text editing buffer or numeric editing buffer currently holds keyboard focus.
+    /// Returns `true` if an active inline text or numeric editing buffer currently holds keyboard focus.
     ///
     /// Distinct from generic widget focus (`has_focus`), which tracks keyboard navigation targets like buttons or tabs.
     #[inline]
     #[must_use]
     pub fn has_text_input_focus(&self) -> bool {
-        self.active_text_edit.is_some() || self.active_numeric_edit.is_some()
+        self.active_text_edit.is_some()
     }
 
     /// Closes the active context menu popup, if one is currently opened.
