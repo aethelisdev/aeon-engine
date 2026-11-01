@@ -163,10 +163,15 @@ fn test_text_input_first_click_selects_all_and_selection_capsule() {
     let box_id = tree.find_node_by_tag(tag).expect("Box node must exist");
     let box_node = tree.get(box_id).expect("Box node must exist");
 
-    // Must be in active text edit mode with is_all_selected = true
+    // Must be in active text edit mode with all selected
     assert_eq!(
         tree.event_state.active_text_edit,
-        Some((tag, text.clone(), text.len(), true))
+        Some(iris_core::ActiveTextEditSession {
+            tag,
+            buffer: text.clone(),
+            cursor_byte_idx: text.len(),
+            selection: Some((0, text.len())),
+        })
     );
 
     // Must contain a SelectionCapsule child
@@ -199,7 +204,12 @@ fn test_text_input_arrow_keys_switch_to_caret_mode() {
 
     // Step 1: Simulate active all-selected state
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), true));
+    tree.event_state.active_text_edit = Some(iris_core::ActiveTextEditSession {
+        tag,
+        buffer: text.clone(),
+        cursor_byte_idx: text.len(),
+        selection: Some((0, text.len())),
+    });
 
     // Step 2: Press ArrowLeft
     tree.event_state.frame_key = Some(iris_core::event::KeyCode::ArrowLeft);
@@ -210,10 +220,15 @@ fn test_text_input_arrow_keys_switch_to_caret_mode() {
         let _resp = scope.text_input_with_width_tagged("Name", tag, 200.0, &mut text);
     }
 
-    // ArrowLeft on all-selected should set is_all_selected = false and cursor = 0
+    // ArrowLeft on all-selected should clear selection and collapse cursor to 0
     assert_eq!(
         tree.event_state.active_text_edit,
-        Some((tag, text.clone(), 0, false))
+        Some(iris_core::ActiveTextEditSession {
+            tag,
+            buffer: text.clone(),
+            cursor_byte_idx: 0,
+            selection: None,
+        })
     );
 
     let box_id = tree.find_node_by_tag(tag).expect("Box node must exist");
@@ -246,7 +261,12 @@ fn test_text_input_typing_overwrites_all_selected() {
 
     // All selected state
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), true));
+    tree.event_state.active_text_edit = Some(iris_core::ActiveTextEditSession {
+        tag,
+        buffer: text.clone(),
+        cursor_byte_idx: text.len(),
+        selection: Some((0, text.len())),
+    });
 
     // Type character 'A'
     tree.event_state.frame_text_input = Some("A".to_owned());
@@ -258,11 +278,16 @@ fn test_text_input_typing_overwrites_all_selected() {
         assert!(resp.changed(), "Typing must emit changed event");
     }
 
-    // Text must now be overwritten to "A", cursor at 1, is_all_selected = false
+    // Text must now be overwritten to "A", cursor at 1, selection = None
     assert_eq!(text, "A");
     assert_eq!(
         tree.event_state.active_text_edit,
-        Some((tag, "A".to_owned(), 1, false))
+        Some(iris_core::ActiveTextEditSession {
+            tag,
+            buffer: "A".to_owned(),
+            cursor_byte_idx: 1,
+            selection: None,
+        })
     );
 }
 
@@ -274,7 +299,12 @@ fn test_text_input_enter_submits_and_clears_focus() {
     let mut text = "Dynamic Cube".to_owned();
 
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), false));
+    tree.event_state.active_text_edit = Some(iris_core::ActiveTextEditSession {
+        tag,
+        buffer: text.clone(),
+        cursor_byte_idx: text.len(),
+        selection: None,
+    });
 
     // Press Enter
     tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
@@ -457,7 +487,10 @@ fn test_input_box_autonomous_clipboard_shortcuts() {
         let mut scope = UiScope::new(&mut tree, root);
         let _ = scope.text_input("Type here...", &mut text_buffer);
         let active_edit = tree.event_state.active_text_edit.as_ref().unwrap();
-        assert!(active_edit.3, "Ctrl+A must set is_all_selected to true");
+        assert!(
+            active_edit.selection.is_some(),
+            "Ctrl+A must set active selection"
+        );
     }
 
     // 3. Dispatch Ctrl+C (Copy)
@@ -534,13 +567,13 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
 
     let mut text = "Motor Testi".to_owned();
     let mut cursor = text.len();
-    let mut is_all_selected = false;
+    let mut selection = None;
 
     // 1. Submit on Enter
     let res = process_text_input_keys(
         &mut text,
         &mut cursor,
-        &mut is_all_selected,
+        &mut selection,
         true,
         Some(KeyCode::Enter),
         None,
@@ -553,7 +586,7 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     let res = process_text_input_keys(
         &mut text,
         &mut cursor,
-        &mut is_all_selected,
+        &mut selection,
         true,
         Some(KeyCode::Escape),
         None,
@@ -566,7 +599,7 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     let res = process_text_input_keys(
         &mut text,
         &mut cursor,
-        &mut is_all_selected,
+        &mut selection,
         true,
         Some(KeyCode::ArrowLeft),
         None,
@@ -575,24 +608,24 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     assert_eq!(cursor, "Motor Test".len());
     assert!(!res.changed);
 
-    // 4. Ctrl+A on UTF-8 string -> sets all selected and marks changed for redraw
+    // 4. Ctrl+A on UTF-8 string -> sets all selected range and marks changed for redraw
     let res = process_text_input_keys(
         &mut text,
         &mut cursor,
-        &mut is_all_selected,
+        &mut selection,
         true,
         Some(KeyCode::Character('a')),
         Some("a"),
         true,
     );
-    assert!(is_all_selected);
+    assert_eq!(selection, Some((0, text.len())));
     assert!(res.changed);
 
     // 5. Typing while all selected replaces entire text
     let res = process_text_input_keys(
         &mut text,
         &mut cursor,
-        &mut is_all_selected,
+        &mut selection,
         true,
         Some(KeyCode::Character('X')),
         Some("X"),
@@ -600,8 +633,120 @@ fn test_process_text_input_keys_edge_cases_and_utf8() {
     );
     assert_eq!(text, "X");
     assert_eq!(cursor, 1);
-    assert!(!is_all_selected);
+    assert_eq!(selection, None);
     assert!(res.changed);
+}
+
+#[test]
+fn test_text_input_selection_replace_delete_and_capsule() {
+    use crate::declarative::scope::input_box::interaction::process_text_input_keys;
+    use iris_core::KeyCode;
+
+    // 1. Partial selection range replacement by typing
+    let mut text = "Hello World Engine".to_owned();
+    let mut cursor = 11; // after "World"
+    let mut selection = Some((6, 11)); // "World"
+
+    let res = process_text_input_keys(
+        &mut text,
+        &mut cursor,
+        &mut selection,
+        true,
+        Some(KeyCode::Character('I')),
+        Some("Iris"),
+        false,
+    );
+    assert!(res.changed);
+    assert_eq!(text, "Hello Iris Engine");
+    assert_eq!(cursor, 6 + "Iris".len());
+    assert_eq!(
+        selection, None,
+        "Selection must be cleared after replacement"
+    );
+
+    // 2. Partial selection deletion via Backspace
+    let mut text2 = "Hello Iris Engine".to_owned();
+    let mut cursor2 = 11;
+    let mut selection2 = Some((6, 11)); // "Iris "
+
+    let res_bs = process_text_input_keys(
+        &mut text2,
+        &mut cursor2,
+        &mut selection2,
+        true,
+        Some(KeyCode::Backspace),
+        None,
+        false,
+    );
+    assert!(res_bs.changed);
+    assert_eq!(text2, "Hello Engine");
+    assert_eq!(cursor2, 6);
+    assert_eq!(
+        selection2, None,
+        "Selection must be cleared after backspace deletion"
+    );
+
+    // 3. Partial selection deletion via Delete key
+    let mut text3 = "Hello Engine".to_owned();
+    let mut cursor3 = 0;
+    let mut selection3 = Some((0, 6)); // "Hello "
+
+    let res_del = process_text_input_keys(
+        &mut text3,
+        &mut cursor3,
+        &mut selection3,
+        true,
+        Some(KeyCode::Delete),
+        None,
+        false,
+    );
+    assert!(res_del.changed);
+    assert_eq!(text3, "Engine");
+    assert_eq!(cursor3, 0);
+    assert_eq!(
+        selection3, None,
+        "Selection must be cleared after Delete key"
+    );
+
+    // 4. Selection collapse on ArrowLeft
+    let mut text4 = "Engine".to_owned();
+    let mut cursor4 = 6;
+    let mut selection4 = Some((2, 5));
+    let res_arr = process_text_input_keys(
+        &mut text4,
+        &mut cursor4,
+        &mut selection4,
+        true,
+        Some(KeyCode::ArrowLeft),
+        None,
+        false,
+    );
+    assert!(!res_arr.changed);
+    assert_eq!(
+        cursor4, 2,
+        "ArrowLeft must collapse cursor to selection start"
+    );
+    assert_eq!(selection4, None);
+
+    // 5. Selection collapse on ArrowRight
+    let mut text5 = "Engine".to_owned();
+    let mut cursor5 = 0;
+    let mut selection5 = Some((1, 4));
+    let res_arr2 = process_text_input_keys(
+        &mut text5,
+        &mut cursor5,
+        &mut selection5,
+        true,
+        Some(KeyCode::ArrowRight),
+        None,
+        false,
+    );
+    assert!(!res_arr2.changed);
+    assert_eq!(
+        cursor5, 4,
+        "ArrowRight must collapse cursor to selection end"
+    );
+    assert_eq!(selection5, None);
 }
 
 #[test]
@@ -660,4 +805,393 @@ fn test_input_box_mouse_click_caret_placement_and_double_click_selection() {
     }
 
     assert_eq!(tree.event_state.text_edit_all_selected(tag), Some(true));
+
+    // 3. Second click at another position repositions the caret (must not reset to 0)
+    let wor_width = iris_text::measure_text_advance("Hello Wor", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_id = Some(box_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0 + wor_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(9));
+    assert_eq!(tree.event_state.text_edit_selection(tag), None);
+}
+
+#[test]
+fn test_input_box_mouse_drag_selection_flow() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let tag = 0x5021;
+    let props = crate::declarative::scope::InputBoxProps::new(
+        "Antigravity Engine",
+        "Placeholder...",
+        200.0,
+        false,
+        false,
+    );
+
+    // Initial pass to mount the node
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.input_box_tagged(&props, tag);
+        let bounds = Rect::new(0.0, 0.0, 400.0, 100.0);
+        scope.finish_layout(bounds);
+    }
+
+    let box_id = tree.find_node_by_tag(tag).expect("Box node exists");
+    if let Some(node) = tree.get_mut(box_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // 1. Mouse down at offset "Anti" (length 4)
+    let anti_width = iris_text::measure_text_advance("Anti", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.pressed = Some(box_id);
+    tree.event_state.pressed_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0 + anti_width, 12.0));
+    tree.event_state.frame_clicked_id = Some(box_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.input_box_tagged(&props, tag);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(4));
+    assert_eq!(tree.event_state.text_drag_anchor, Some(4));
+
+    // 2. Dragging pointer to offset "Antigravity" (length 11)
+    let gravity_width = iris_text::measure_text_advance("Antigravity", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.is_pointer_drag_active = true;
+    tree.event_state.pointer_capture = Some(box_id);
+    tree.event_state.pointer_capture_tag = Some(tag);
+    tree.event_state.last_pointer_pos = Some(iris_core::Point::new(8.0 + gravity_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.input_box_tagged(&props, tag);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(11));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((4, 11)));
+}
+
+#[test]
+fn test_text_input_with_width_tagged_click_drag_and_double_click() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let tag = 0x5022;
+    let mut text = "Dynamic Cube".to_string();
+
+    // Initial pass to mount the node
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        let bounds = Rect::new(0.0, 0.0, 400.0, 100.0);
+        scope.finish_layout(bounds);
+    }
+
+    let input_id = tree.find_node_by_tag(tag).expect("Input node exists");
+    if let Some(node) = tree.get_mut(input_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // 1. Single click targeting character boundary after "Dyn" (length 3)
+    let dyn_width = iris_text::measure_text_advance("Dyn", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_id = Some(input_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0 + dyn_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(3));
+    assert_eq!(tree.event_state.text_edit_selection(tag), None);
+
+    // 2. Second click targeting character boundary after "Dynamic Cu" (length 10) - must not reset to 0!
+    let cu_width = iris_text::measure_text_advance("Dynamic Cu", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_id = Some(input_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0 + cu_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(10));
+    assert_eq!(tree.event_state.text_edit_selection(tag), None);
+
+    // 3. Dragging pointer from 10 backwards to 7 ("Dynamic")
+    let dynamic_width = iris_text::measure_text_advance("Dynamic", 11.0);
+    tree.clear_frame_clicks();
+    tree.event_state.is_pointer_drag_active = true;
+    tree.event_state.pointer_capture = Some(input_id);
+    tree.event_state.pointer_capture_tag = Some(tag);
+    tree.event_state.last_pointer_pos = Some(iris_core::Point::new(8.0 + dynamic_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((7, 10)));
+
+    // 4. Double click selects all text
+    tree.clear_frame_clicks();
+    tree.event_state.is_pointer_drag_active = false;
+    tree.event_state.pointer_capture = None;
+    tree.event_state.last_pointer_pos = None;
+    tree.event_state.frame_clicked_id = Some(input_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+    tree.event_state.frame_double_clicked_tag = Some(tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.text_edit_all_selected(tag), Some(true));
+}
+
+#[test]
+fn test_text_input_drag_to_select_from_unfocused_mouse_down_flow() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root");
+    let mut text = "Dynamic Cube Mesh".to_string();
+    let tag = 998877u64;
+
+    // Build initial tree
+    let input_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        resp.id
+    };
+    if let Some(n) = tree.get_mut(input_id) {
+        n.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // Initially unfocused
+    assert!(!tree.is_text_input_focused());
+    assert_eq!(tree.event_state.active_text_edit, None);
+
+    // Step 1: MouseDown at character index 0 ("D")
+    tree.event_state.pressed = Some(input_id);
+    tree.event_state.pressed_tag = Some(tag);
+    tree.event_state.pointer_capture = Some(input_id);
+    tree.event_state.pointer_capture_tag = Some(tag);
+    tree.event_state.frame_clicked_pos = Some(iris_core::Point::new(8.0, 12.0));
+    tree.event_state.frame_clicked_rect = Some(Rect::new(0.0, 0.0, 200.0, 24.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    // Must immediately focus and anchor at 0
+    assert!(tree.is_text_input_focused());
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(0));
+    assert_eq!(tree.event_state.text_drag_anchor, Some(0));
+    assert_eq!(tree.event_state.text_edit_selection(tag), None);
+
+    // Step 2: MouseMove past drag threshold to index 7 ("Dynamic")
+    let dynamic_width = iris_text::measure_text_advance("Dynamic", 11.0);
+    tree.event_state.is_pointer_drag_active = true;
+    tree.event_state.last_pointer_pos = Some(iris_core::Point::new(8.0 + dynamic_width, 12.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    // Must be selected from 0 to 7
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
+
+    // Verify SelectionCapsule was added to tree
+    let capsule_found = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("SelectionCapsule"));
+    assert!(
+        capsule_found,
+        "SelectionCapsule must be rendered during drag"
+    );
+
+    // Step 3: MouseUp (release after drag)
+    tree.event_state.is_pointer_drag_active = false;
+    tree.event_state.pressed = None;
+    tree.event_state.pressed_tag = None;
+    tree.event_state.pointer_capture = None;
+    tree.event_state.pointer_capture_tag = None;
+    tree.event_state.text_drag_anchor = None;
+    tree.event_state.frame_drag_released_id = Some(input_id);
+    tree.event_state.frame_drag_released_tag = Some(tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    // Selection must persist after mouse release
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
+}
+
+#[test]
+fn test_text_input_drag_to_select_full_dispatch_cycle() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root");
+    let mut text = "Dynamic Cube Mesh".to_string();
+    let tag = 0x8899u64;
+
+    // Initial render & layout pass
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        let bounds = Rect::new(0.0, 0.0, 400.0, 100.0);
+        scope.finish_layout(bounds);
+        if let Some(n) = tree.get_mut(resp.id) {
+            n.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+        }
+    }
+
+    let input_id = tree.find_node_by_tag(tag).expect("Found input");
+    if let Some(n) = tree.get_mut(input_id) {
+        n.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // 1. MouseDown at 8.0, 12.0
+    tree.dispatch_event(&iris_core::UiEvent::MouseDown {
+        button: iris_core::MouseButton::Left,
+        point: iris_core::Point::new(8.0, 12.0),
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(0));
+    assert_eq!(tree.event_state.text_drag_anchor, Some(0));
+
+    // 2. MouseMove to index 7 ("Dynamic")
+    let dynamic_width = iris_text::measure_text_advance("Dynamic", 11.0);
+    tree.dispatch_event(&iris_core::UiEvent::MouseMove {
+        point: iris_core::Point::new(8.0 + dynamic_width, 12.0),
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
+
+    // 3. MouseUp at same position (release after drag)
+    let up_res = tree.dispatch_event(&iris_core::UiEvent::MouseUp {
+        button: iris_core::MouseButton::Left,
+        point: iris_core::Point::new(8.0 + dynamic_width, 12.0),
+    });
+    assert!(up_res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input_with_width_tagged("Entity name...", tag, 200.0, &mut text);
+        assert!(!resp.clicked());
+    }
+
+    // SELECTION MUST NOT DISAPPEAR ON MOUSE UP!
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
+}
+
+#[test]
+fn test_input_box_drag_to_select_full_dispatch_cycle() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root");
+    let tag = 0x99AAu64;
+    let props = crate::declarative::scope::InputBoxProps::new(
+        "Dynamic Cube Mesh",
+        "Search...",
+        200.0,
+        false,
+        false,
+    );
+
+    // Initial render & layout pass
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        let bounds = Rect::new(0.0, 0.0, 400.0, 100.0);
+        scope.finish_layout(bounds);
+        if let Some(n) = tree.get_mut(resp.id) {
+            n.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+        }
+    }
+
+    let box_id = tree.find_node_by_tag(tag).expect("Found box");
+    if let Some(n) = tree.get_mut(box_id) {
+        n.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+
+    // 1. MouseDown at 8.0, 12.0
+    tree.dispatch_event(&iris_core::UiEvent::MouseDown {
+        button: iris_core::MouseButton::Left,
+        point: iris_core::Point::new(8.0, 12.0),
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.input_box_tagged(&props, tag);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(0));
+    assert_eq!(tree.event_state.text_drag_anchor, Some(0));
+
+    // 2. MouseMove to index 7 ("Dynamic")
+    let dynamic_width = iris_text::measure_text_advance("Dynamic", 11.0);
+    tree.dispatch_event(&iris_core::UiEvent::MouseMove {
+        point: iris_core::Point::new(8.0 + dynamic_width, 12.0),
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.input_box_tagged(&props, tag);
+    }
+
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
+
+    // 3. MouseUp at same position (release after drag)
+    let up_res = tree.dispatch_event(&iris_core::UiEvent::MouseUp {
+        button: iris_core::MouseButton::Left,
+        point: iris_core::Point::new(8.0 + dynamic_width, 12.0),
+    });
+    assert!(up_res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(!resp.clicked());
+    }
+
+    // Selection must persist after release
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(7));
+    assert_eq!(tree.event_state.text_edit_selection(tag), Some((0, 7)));
 }

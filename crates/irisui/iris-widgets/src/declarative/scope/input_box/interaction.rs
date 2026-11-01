@@ -86,14 +86,14 @@ pub struct TextInputEventResult {
 }
 
 /// Processes incoming control keys, navigation arrows, backspace/delete, and character input,
-/// including native clipboard integration (Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V).
+/// including native clipboard integration (Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V) and arbitrary selection replacement.
 ///
 /// Manages selection overwrites, cursor movements, and UTF-8 string mutations in-place.
 ///
 /// # Arguments
 /// * `text` - Mutable reference to the underlying text buffer.
 /// * `cursor_byte_idx` - Mutable reference to the current caret byte offset.
-/// * `is_all_selected` - Mutable reference to the all-selected highlight state.
+/// * `selection` - Mutable reference to the optional active selection range `(start, end)` where `start < end`.
 /// * `key_pressed` - Whether a physical keyboard key was pressed this frame.
 /// * `key` - Optional physical key code received from the event loop.
 /// * `incoming_text` - Optional textual characters typed during the current frame.
@@ -104,7 +104,7 @@ pub struct TextInputEventResult {
 pub fn process_text_input_keys(
     text: &mut String,
     cursor_byte_idx: &mut usize,
-    is_all_selected: &mut bool,
+    selection: &mut Option<(usize, usize)>,
     key_pressed: bool,
     key: Option<KeyCode>,
     incoming_text: Option<&str>,
@@ -117,6 +117,20 @@ pub fn process_text_input_keys(
         *cursor_byte_idx -= 1;
     }
 
+    if let Some((s, e)) = selection {
+        *s = (*s).min(text.len());
+        while *s > 0 && !text.is_char_boundary(*s) {
+            *s -= 1;
+        }
+        *e = (*e).min(text.len());
+        while *e > 0 && !text.is_char_boundary(*e) {
+            *e -= 1;
+        }
+        if *s >= *e {
+            *selection = None;
+        }
+    }
+
     // 1. Autonomous Desktop Clipboard Shortcuts (Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V)
     if key_pressed && ctrl_held {
         let ch = match key {
@@ -127,7 +141,7 @@ pub fn process_text_input_keys(
         match ch {
             Some('a') => {
                 if !text.is_empty() {
-                    *is_all_selected = true;
+                    *selection = Some((0, text.len()));
                     *cursor_byte_idx = text.len();
                     result.changed = true;
                 }
@@ -135,17 +149,28 @@ pub fn process_text_input_keys(
             }
             Some('c') => {
                 if !text.is_empty() {
-                    crate::input::copy_to_clipboard(text);
+                    let copied = if let Some((s, e)) = *selection {
+                        &text[s..e]
+                    } else {
+                        text.as_str()
+                    };
+                    crate::input::copy_to_clipboard(copied);
                 }
                 return result;
             }
             Some('x') => {
                 if !text.is_empty() {
-                    crate::input::copy_to_clipboard(text);
-                    text.clear();
-                    *cursor_byte_idx = 0;
-                    *is_all_selected = false;
-                    result.changed = true;
+                    if let Some((s, e)) = selection.take() {
+                        crate::input::copy_to_clipboard(&text[s..e]);
+                        text.drain(s..e);
+                        *cursor_byte_idx = s;
+                        result.changed = true;
+                    } else {
+                        crate::input::copy_to_clipboard(text);
+                        text.clear();
+                        *cursor_byte_idx = 0;
+                        result.changed = true;
+                    }
                 }
                 return result;
             }
@@ -156,11 +181,10 @@ pub fn process_text_input_keys(
                         .filter(|c| !c.is_control() || *c == ' ')
                         .collect();
                     if !filtered.is_empty() {
-                        if *is_all_selected {
-                            text.clear();
-                            text.push_str(&filtered);
-                            *cursor_byte_idx = text.len();
-                            *is_all_selected = false;
+                        if let Some((s, e)) = selection.take() {
+                            text.drain(s..e);
+                            text.insert_str(s, &filtered);
+                            *cursor_byte_idx = s + filtered.len();
                             result.changed = true;
                         } else {
                             let idx = (*cursor_byte_idx).min(text.len());
@@ -194,34 +218,31 @@ pub fn process_text_input_keys(
     if is_control_key && let Some(k) = key {
         match k {
             KeyCode::ArrowLeft => {
-                if *is_all_selected {
-                    *is_all_selected = false;
-                    *cursor_byte_idx = 0;
+                if let Some((s, _)) = selection.take() {
+                    *cursor_byte_idx = s;
                 } else {
                     *cursor_byte_idx = prev_char_boundary(text, *cursor_byte_idx);
                 }
             }
             KeyCode::ArrowRight => {
-                if *is_all_selected {
-                    *is_all_selected = false;
-                    *cursor_byte_idx = text.len();
+                if let Some((_, e)) = selection.take() {
+                    *cursor_byte_idx = e;
                 } else {
                     *cursor_byte_idx = next_char_boundary(text, *cursor_byte_idx);
                 }
             }
             KeyCode::Home => {
-                *is_all_selected = false;
+                *selection = None;
                 *cursor_byte_idx = 0;
             }
             KeyCode::End => {
-                *is_all_selected = false;
+                *selection = None;
                 *cursor_byte_idx = text.len();
             }
             KeyCode::Backspace => {
-                if *is_all_selected {
-                    text.clear();
-                    *cursor_byte_idx = 0;
-                    *is_all_selected = false;
+                if let Some((s, e)) = selection.take() {
+                    text.drain(s..e);
+                    *cursor_byte_idx = s;
                     result.changed = true;
                 } else if *cursor_byte_idx > 0 {
                     let prev = prev_char_boundary(text, *cursor_byte_idx);
@@ -231,10 +252,9 @@ pub fn process_text_input_keys(
                 }
             }
             KeyCode::Delete => {
-                if *is_all_selected {
-                    text.clear();
-                    *cursor_byte_idx = 0;
-                    *is_all_selected = false;
+                if let Some((s, e)) = selection.take() {
+                    text.drain(s..e);
+                    *cursor_byte_idx = s;
                     result.changed = true;
                 } else if *cursor_byte_idx < text.len() {
                     let next = next_char_boundary(text, *cursor_byte_idx);
@@ -254,11 +274,10 @@ pub fn process_text_input_keys(
     } else if key_pressed && let Some(incoming) = incoming_text {
         let filtered: String = incoming.chars().filter(|c| !c.is_control()).collect();
         if !filtered.is_empty() {
-            if *is_all_selected {
-                text.clear();
-                text.push_str(&filtered);
-                *cursor_byte_idx = text.len();
-                *is_all_selected = false;
+            if let Some((s, e)) = selection.take() {
+                text.drain(s..e);
+                text.insert_str(s, &filtered);
+                *cursor_byte_idx = s + filtered.len();
                 result.changed = true;
             } else {
                 let idx = (*cursor_byte_idx).min(text.len());

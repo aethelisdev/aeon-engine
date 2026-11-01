@@ -82,7 +82,7 @@ impl<'a> UiScope<'a> {
             .event_state
             .active_text_edit
             .as_ref()
-            .is_some_and(|(k, ..)| *k == edit_key);
+            .is_some_and(|s| s.tag == edit_key);
 
         let is_clicked_outside = if let Some(clicked_tag) = self.tree.event_state.frame_clicked_tag
         {
@@ -97,7 +97,67 @@ impl<'a> UiScope<'a> {
             self.tree.event_state.clear_focus();
         }
 
-        if clicked {
+        let node_rect = self
+            .tree
+            .get(node_id)
+            .map(|n| n.computed_rect)
+            .filter(|r| r.width > 0.0)
+            .or_else(|| {
+                self.tree
+                    .event_state
+                    .pointer_capture
+                    .and_then(|cid| self.tree.get(cid))
+                    .map(|n| n.computed_rect)
+                    .filter(|r| r.width > 0.0)
+            })
+            .or_else(|| {
+                self.tree
+                    .event_state
+                    .frame_clicked_id
+                    .and_then(|cid| self.tree.get(cid))
+                    .map(|n| n.computed_rect)
+                    .filter(|r| r.width > 0.0)
+            })
+            .or(self.tree.event_state.frame_clicked_rect);
+
+        let is_captured = self.tree.event_state.pointer_capture == Some(node_id)
+            || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag));
+        let is_pressed = self.tree.event_state.pressed == Some(node_id)
+            || (tag != 0 && self.tree.event_state.pressed_tag == Some(tag));
+        let is_drag_active = self.tree.event_state.is_pointer_drag_active && is_captured;
+        let is_drag_released = self.tree.event_state.frame_drag_released_id == Some(node_id)
+            || (tag != 0 && self.tree.event_state.frame_drag_released_tag == Some(tag))
+            || self
+                .tree
+                .event_state
+                .frame_drag_released_id
+                .is_some_and(|did| self.tree.is_descendant_of(did, node_id));
+
+        // Immediate focus and caret positioning on mouse press down (inception)
+        if !is_clicked_outside
+            && !is_drag_released
+            && is_pressed
+            && self.tree.event_state.text_drag_anchor.is_none()
+        {
+            let mut initial_cur = text.len();
+            if let Some(pos) = self
+                .tree
+                .event_state
+                .frame_clicked_pos
+                .or(self.tree.event_state.last_pointer_pos)
+                && let Some(rect) = node_rect
+            {
+                let text_start_x = rect.x + 8.0;
+                let rel_x = (pos.x - text_start_x).max(0.0);
+                initial_cur = find_cursor_idx_at_x(text, rel_x, font_size);
+            }
+            self.tree.event_state.text_drag_anchor = Some(initial_cur);
+            self.tree
+                .event_state
+                .start_text_edit(Some(node_id), edit_key, text, initial_cur, None);
+        }
+
+        if clicked && !is_drag_released {
             let is_double_click = self.tree.event_state.frame_double_clicked_id == Some(node_id)
                 || (edit_key != 0
                     && self.tree.event_state.frame_double_clicked_tag == Some(edit_key))
@@ -107,39 +167,46 @@ impl<'a> UiScope<'a> {
                     .frame_double_clicked_id
                     .is_some_and(|did| self.tree.is_descendant_of(did, node_id));
 
-            let (cur, all_sel) = if is_double_click {
-                (text.len(), true)
+            if is_double_click {
+                let sel = if text.is_empty() {
+                    None
+                } else {
+                    Some((0, text.len()))
+                };
+                self.tree.event_state.start_text_edit(
+                    Some(node_id),
+                    edit_key,
+                    text,
+                    text.len(),
+                    sel,
+                );
+                self.tree.event_state.text_drag_anchor = Some(text.len());
             } else if let Some(click_pos) = self.tree.event_state.frame_clicked_pos {
-                let node_rect = self
-                    .tree
-                    .get(node_id)
-                    .map(|n| n.computed_rect)
-                    .filter(|r| r.width > 0.0)
-                    .or_else(|| {
-                        self.tree
-                            .event_state
-                            .frame_clicked_id
-                            .and_then(|cid| self.tree.get(cid))
-                            .map(|n| n.computed_rect)
-                            .filter(|r| r.width > 0.0)
-                    })
-                    .or(self.tree.event_state.frame_clicked_rect);
                 let mut cur = text.len();
                 if let Some(rect) = node_rect {
                     let text_start_x = rect.x + 8.0;
                     let rel_x = (click_pos.x - text_start_x).max(0.0);
                     cur = find_cursor_idx_at_x(text, rel_x, font_size);
                 }
-                (cur, false)
+                self.tree
+                    .event_state
+                    .start_text_edit(Some(node_id), edit_key, text, cur, None);
+                self.tree.event_state.text_drag_anchor = Some(cur);
             } else if !is_editing_this {
-                (text.len(), true)
-            } else {
-                (text.len(), false)
-            };
-
-            self.tree
-                .event_state
-                .start_text_edit(Some(node_id), edit_key, text, cur, all_sel);
+                let sel = if text.is_empty() {
+                    None
+                } else {
+                    Some((0, text.len()))
+                };
+                self.tree.event_state.start_text_edit(
+                    Some(node_id),
+                    edit_key,
+                    text,
+                    text.len(),
+                    sel,
+                );
+                self.tree.event_state.text_drag_anchor = Some(text.len());
+            }
         }
 
         let is_focused = self
@@ -147,7 +214,7 @@ impl<'a> UiScope<'a> {
             .event_state
             .active_text_edit
             .as_ref()
-            .is_some_and(|(k, ..)| *k == edit_key);
+            .is_some_and(|s| s.tag == edit_key);
 
         if is_focused {
             self.tree.event_state.focused = Some(node_id);
@@ -159,15 +226,32 @@ impl<'a> UiScope<'a> {
         let mut changed = false;
         let mut submitted = false;
 
-        let (cursor_idx, is_all_sel) = if is_focused {
-            let (mut cur, mut all_sel) = self
+        let (cursor_idx, active_selection) = if is_focused {
+            let (mut cur, mut sel) = self
                 .tree
                 .event_state
                 .active_text_edit
                 .as_ref()
-                .filter(|(k, ..)| *k == edit_key)
-                .map(|(_, _, c, s)| (*c, *s))
-                .unwrap_or((text.len(), false));
+                .filter(|s| s.tag == edit_key)
+                .map(|s| (s.cursor_byte_idx, s.selection))
+                .unwrap_or((text.len(), None));
+
+            if let Some(rect) = node_rect {
+                let text_start_x = rect.x + 8.0;
+                if is_drag_active && let Some(pointer_pos) = self.tree.event_state.last_pointer_pos
+                {
+                    let rel_x = (pointer_pos.x - text_start_x).max(0.0);
+                    let target_cur = find_cursor_idx_at_x(text, rel_x, font_size);
+                    cur = target_cur;
+                    if let Some(anchor) = self.tree.event_state.text_drag_anchor {
+                        if anchor != target_cur {
+                            sel = Some((anchor.min(target_cur), anchor.max(target_cur)));
+                        } else {
+                            sel = None;
+                        }
+                    }
+                }
+            }
 
             let key_pressed = self.tree.event_state.frame_key_pressed;
             let key = self.tree.event_state.frame_key;
@@ -177,7 +261,7 @@ impl<'a> UiScope<'a> {
             let res = process_text_input_keys(
                 text,
                 &mut cur,
-                &mut all_sel,
+                &mut sel,
                 key_pressed,
                 key,
                 incoming,
@@ -195,11 +279,11 @@ impl<'a> UiScope<'a> {
             } else {
                 self.tree
                     .event_state
-                    .start_text_edit(Some(node_id), edit_key, text, cur, all_sel);
+                    .start_text_edit(Some(node_id), edit_key, text, cur, sel);
             }
-            (cur, all_sel)
+            (cur, sel)
         } else {
-            (0, false)
+            (0, None)
         };
 
         let is_still_focused = self
@@ -207,7 +291,7 @@ impl<'a> UiScope<'a> {
             .event_state
             .active_text_edit
             .as_ref()
-            .is_some_and(|(k, ..)| *k == edit_key);
+            .is_some_and(|s| s.tag == edit_key);
         let border_color = if is_still_focused {
             Color::rgba(0.0, 0.90, 1.0, 0.95)
         } else if hovered {
@@ -246,30 +330,42 @@ impl<'a> UiScope<'a> {
             node.set_style(box_style);
         }
 
-        if is_still_focused && is_all_sel && !text.is_empty() {
-            let sel_w = measure_text_advance(text, font_size).max(4.0);
-            let sel_id = self.tree.create_node();
-            if let Some(node) = self.tree.get_mut(sel_id) {
-                node.set_name("SelectionCapsule");
-                node.interactive = false;
-                node.set_style(
-                    Style::new()
-                        .position_absolute()
-                        .left(8.0)
-                        .top(3.5)
-                        .width(sel_w + 2.0)
-                        .height(17.0)
-                        .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                        .border_radius(3.0),
-                );
+        if is_still_focused
+            && let Some((s_idx, e_idx)) = active_selection
+            && !text.is_empty()
+        {
+            let s_safe = s_idx.min(text.len());
+            let e_safe = e_idx.min(text.len());
+            let min_b = s_safe.min(e_safe);
+            let max_b = s_safe.max(e_safe);
+            if min_b < max_b {
+                let start_offset = measure_text_advance(&text[..min_b], font_size);
+                let end_offset = measure_text_advance(&text[..max_b], font_size);
+                let sel_w = (end_offset - start_offset).max(2.0);
+                let sel_x = 8.0 + start_offset;
+                let sel_id = self.tree.create_node();
+                let sel_bg = self.theme().selection_background;
+                if let Some(node) = self.tree.get_mut(sel_id) {
+                    node.set_name("SelectionCapsule");
+                    node.interactive = false;
+                    node.set_style(
+                        Style::new()
+                            .position_absolute()
+                            .left(sel_x)
+                            .top(3.5)
+                            .width(sel_w)
+                            .height(17.0)
+                            .background(sel_bg)
+                            .border_radius(3.0),
+                    );
+                }
+                let _ = self.tree.add_child(node_id, sel_id);
             }
-            let _ = self.tree.add_child(node_id, sel_id);
         }
 
         let text_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(text_id) {
             node.role = WidgetRole::Default;
-            node.tag = tag;
             let display_str = if text.is_empty() {
                 placeholder_str.as_str()
             } else {
@@ -281,7 +377,9 @@ impl<'a> UiScope<'a> {
             node.text_align = TextAlign::Left;
             node.text_color = if text.is_empty() {
                 Color::rgba(0.42, 0.45, 0.55, 1.0)
-            } else if is_still_focused && is_all_sel {
+            } else if is_still_focused
+                && active_selection.is_some_and(|(s, e)| s == 0 && e >= text.len())
+            {
                 Color::WHITE
             } else {
                 Color::rgba(0.92, 0.94, 0.98, 1.0)
@@ -305,7 +403,6 @@ impl<'a> UiScope<'a> {
             if let Some(node) = self.tree.get_mut(caret_id) {
                 node.set_name("TextInputCaret");
                 node.role = WidgetRole::TextInputCaret;
-                node.tag = tag;
                 node.interactive = false;
                 node.set_style(
                     Style::new()

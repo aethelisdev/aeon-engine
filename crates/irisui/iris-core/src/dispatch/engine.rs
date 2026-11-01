@@ -13,7 +13,7 @@ use super::types::{
     TOOLTIP_DEFAULT_HOVER_DELAY_MS, TooltipState,
 };
 use crate::event::{ImeEvent, KeyCode, MouseButton, UiEvent};
-use crate::geometry::Point;
+use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetCursor, WidgetRole};
 use crate::response::{ResponseFlags, WidgetResponse};
@@ -46,6 +46,11 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
         tree.event_state.frame_drag_released_id = None;
         tree.event_state.frame_drag_released_tag = None;
         tree.event_state.is_pointer_drag_active = false;
+        tree.event_state.pointer_capture = None;
+        tree.event_state.pointer_capture_tag = None;
+        tree.event_state.pressed_tag = None;
+        tree.event_state.frame_clicked_pos = None;
+        tree.event_state.frame_clicked_rect = None;
     }
 
     match event {
@@ -185,6 +190,10 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             )
         })
     {
+        if rect.width > 0.0 {
+            tree.event_state.frame_clicked_rect = Some(rect);
+        }
+
         // Special case: Autonomous ScrollBarThumb dragging
         if role == WidgetRole::ScrollBarThumb
             && let Some(press_origin) = tree.event_state.press_origin
@@ -254,6 +263,7 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             flags = flags.union(ResponseFlags::DRAGGED);
         } else {
             tree.event_state.frame_drag_delta = None;
+            tree.event_state.last_pointer_pos = Some(point);
         }
 
         return DispatchResult {
@@ -332,7 +342,7 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
         }
 
         DispatchResult {
-            consumed: false, // Normal hover motion does not consume the event
+            consumed: tree.event_state.is_pointer_drag_active,
             needs_redraw,
             target: Some(target_id),
             target_tag: tag,
@@ -543,6 +553,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                     .unwrap_or(0.0);
             }
         } else if (effective_role == WidgetRole::NumericInput
+            || effective_role == WidgetRole::TextInput
             || effective_role == WidgetRole::ModalTitlebar
             || effective_role == WidgetRole::FloatingTitlebar
             || effective_role == WidgetRole::ColorPickerArea)
@@ -563,6 +574,10 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .get(effective_target_id)
             .map(|n| n.computed_rect)
             .unwrap_or(crate::geometry::Rect::ZERO);
+        if effective_role == WidgetRole::TextInput && button == MouseButton::Left {
+            tree.event_state.frame_clicked_pos = Some(point);
+            tree.event_state.frame_clicked_rect = Some(rect);
+        }
         let cursor = resolve_effective_cursor(tree, effective_target_id);
 
         let is_interactive = effective_role.is_interactive()
@@ -598,6 +613,71 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             DispatchResult::ignored()
         }
     }
+}
+
+/// Records a confirmed mouse click and evaluates whether it constitutes a double-click gesture.
+fn record_click_and_check_double(
+    tree: &mut UiTree,
+    target_id: WidgetId,
+    tag: Option<u64>,
+    point: Point,
+    rect: Rect,
+) -> bool {
+    let effective_tag = tag.unwrap_or(0);
+    let is_double_click = if let (Some(last_pos), Some(last_time)) = (
+        tree.event_state.last_click_pos,
+        tree.event_state.last_click_time,
+    ) {
+        let elapsed = last_time.elapsed().as_millis();
+        let dx = point.x - last_pos.x;
+        let dy = point.y - last_pos.y;
+        let dist_sq = dx * dx + dy * dy;
+        let id_or_tag_matches = tree.event_state.last_click_id == Some(target_id)
+            || (effective_tag != 0
+                && tree
+                    .event_state
+                    .last_click_tag
+                    .is_some_and(|lt| lt == effective_tag))
+            || (effective_tag != 0
+                && tree
+                    .event_state
+                    .last_click_id
+                    .and_then(|lid| tree.get(lid))
+                    .map_or(0, |n| n.tag)
+                    == effective_tag)
+            || rect.contains_point(last_pos);
+        id_or_tag_matches
+            && elapsed <= DOUBLE_CLICK_MAX_DELAY_MS
+            && dist_sq <= DOUBLE_CLICK_MAX_DISTANCE_SQ
+    } else {
+        false
+    };
+
+    if is_double_click {
+        tree.event_state.frame_double_clicked_id = Some(target_id);
+        tree.event_state.frame_double_clicked_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
+        };
+        tree.event_state.last_click_id = None;
+        tree.event_state.last_click_tag = None;
+        tree.event_state.last_click_pos = None;
+        tree.event_state.last_click_time = None;
+    } else {
+        tree.event_state.frame_double_clicked_id = None;
+        tree.event_state.frame_double_clicked_tag = None;
+        tree.event_state.last_click_id = Some(target_id);
+        tree.event_state.last_click_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
+        };
+        tree.event_state.last_click_pos = Some(point);
+        tree.event_state.last_click_time = Some(Instant::now());
+    }
+
+    is_double_click
 }
 
 /// Processes mouse button release inputs, detecting click and double-click gestures.
@@ -645,12 +725,14 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         tree.event_state.pointer_capture = None;
         tree.event_state.pointer_capture_tag = None;
         tree.event_state.pressed = None;
+        tree.event_state.pressed_tag = None;
         tree.event_state.pressed_button = None;
         tree.event_state.press_origin = None;
         tree.event_state.last_pointer_pos = None;
         tree.event_state.initial_scroll_y = 0.0;
         tree.event_state.frame_drag_delta = None;
         tree.event_state.is_pointer_drag_active = false;
+        tree.event_state.text_drag_anchor = None;
 
         let mut flags = ResponseFlags::empty();
 
@@ -664,6 +746,10 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                     tree.event_state.frame_clicked_rect = Some(rect);
                     tree.event_state.focused = Some(captured_id);
                     tree.event_state.focused_tag = captured_tag;
+
+                    if record_click_and_check_double(tree, captured_id, captured_tag, point, rect) {
+                        flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
+                    }
                 }
                 MouseButton::Right => {
                     flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
@@ -678,7 +764,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             flags = flags.union(ResponseFlags::DRAG_RELEASED);
             tree.event_state.frame_drag_released_id = Some(captured_id);
             tree.event_state.frame_drag_released_tag = captured_tag;
-            tree.event_state.frame_clicked_pos = Some(point);
+            tree.event_state.frame_clicked_pos = None;
             tree.event_state.frame_clicked_rect = Some(rect);
         }
 
@@ -787,96 +873,69 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             || (original_press_origin.is_some_and(|origin| effective_rect.contains_point(origin))
                 && effective_rect.contains_point(point));
 
+        let is_drag_gesture = tree.event_state.is_pointer_drag_active;
+
         if matches_pressed && original_button == Some(button) {
             let mut flags = ResponseFlags::HOVERED;
 
-            tree.event_state.frame_clicked_pos = Some(point);
-            tree.event_state.frame_clicked_rect = Some(effective_rect);
+            if is_drag_gesture {
+                flags = flags.union(ResponseFlags::DRAG_RELEASED);
+                tree.event_state.frame_drag_released_id = Some(effective_target_id);
+                tree.event_state.frame_drag_released_tag = if effective_tag != 0 {
+                    Some(effective_tag)
+                } else {
+                    None
+                };
+                tree.event_state.frame_clicked_pos = None;
+                tree.event_state.frame_clicked_rect = Some(effective_rect);
+            } else {
+                tree.event_state.frame_clicked_pos = Some(point);
+                tree.event_state.frame_clicked_rect = Some(effective_rect);
 
-            match button {
-                MouseButton::Left => {
-                    flags = flags.union(ResponseFlags::CLICKED);
-                    tree.event_state.frame_clicked_id = Some(effective_target_id);
-                    tree.event_state.frame_clicked_tag = if effective_tag != 0 {
-                        Some(effective_tag)
-                    } else {
-                        None
-                    };
-                    tree.event_state.focused = Some(effective_target_id);
-                    tree.event_state.focused_tag = if effective_tag != 0 {
-                        Some(effective_tag)
-                    } else {
-                        None
-                    };
-
-                    let is_double_click = if let (Some(last_pos), Some(last_time)) = (
-                        tree.event_state.last_click_pos,
-                        tree.event_state.last_click_time,
-                    ) {
-                        let elapsed = last_time.elapsed().as_millis();
-                        let dx = point.x - last_pos.x;
-                        let dy = point.y - last_pos.y;
-                        let dist_sq = dx * dx + dy * dy;
-                        let id_or_tag_matches = tree.event_state.last_click_id == Some(target_id)
-                            || tree.event_state.last_click_id == Some(effective_target_id)
-                            || (effective_tag != 0
-                                && tree
-                                    .event_state
-                                    .last_click_tag
-                                    .is_some_and(|lt| lt == effective_tag))
-                            || (effective_tag != 0
-                                && tree
-                                    .event_state
-                                    .last_click_id
-                                    .and_then(|lid| tree.get(lid))
-                                    .map_or(0, |n| n.tag)
-                                    == effective_tag)
-                            || rect.contains_point(last_pos);
-                        id_or_tag_matches
-                            && elapsed <= DOUBLE_CLICK_MAX_DELAY_MS
-                            && dist_sq <= DOUBLE_CLICK_MAX_DISTANCE_SQ
-                    } else {
-                        false
-                    };
-
-                    if is_double_click {
-                        flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
-                        tree.event_state.frame_double_clicked_id = Some(effective_target_id);
-                        tree.event_state.frame_double_clicked_tag = if effective_tag != 0 {
+                match button {
+                    MouseButton::Left => {
+                        flags = flags.union(ResponseFlags::CLICKED);
+                        tree.event_state.frame_clicked_id = Some(effective_target_id);
+                        tree.event_state.frame_clicked_tag = if effective_tag != 0 {
                             Some(effective_tag)
                         } else {
                             None
                         };
-                        tree.event_state.last_click_id = None;
-                        tree.event_state.last_click_tag = None;
-                        tree.event_state.last_click_pos = None;
-                        tree.event_state.last_click_time = None;
-                    } else {
-                        tree.event_state.frame_double_clicked_id = None;
-                        tree.event_state.frame_double_clicked_tag = None;
-                        tree.event_state.last_click_id = Some(effective_target_id);
-                        tree.event_state.last_click_tag = if effective_tag != 0 {
+                        tree.event_state.focused = Some(effective_target_id);
+                        tree.event_state.focused_tag = if effective_tag != 0 {
                             Some(effective_tag)
                         } else {
                             None
                         };
-                        tree.event_state.last_click_pos = Some(point);
-                        tree.event_state.last_click_time = Some(Instant::now());
+
+                        if record_click_and_check_double(
+                            tree,
+                            effective_target_id,
+                            if effective_tag != 0 {
+                                Some(effective_tag)
+                            } else {
+                                None
+                            },
+                            point,
+                            effective_rect,
+                        ) {
+                            flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
+                        }
                     }
+                    MouseButton::Right => {
+                        flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
+                        tree.event_state.frame_secondary_clicked_id = Some(effective_target_id);
+                        tree.event_state.frame_secondary_clicked_tag = if effective_tag != 0 {
+                            Some(effective_tag)
+                        } else {
+                            None
+                        };
+                    }
+                    MouseButton::Middle => {
+                        flags = flags.union(ResponseFlags::MIDDLE_CLICKED);
+                    }
+                    MouseButton::Other(_) => {}
                 }
-                MouseButton::Right => {
-                    flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
-                    tree.event_state.frame_secondary_clicked_id = Some(effective_target_id);
-                    tree.event_state.frame_secondary_clicked_tag = if effective_tag != 0 {
-                        Some(effective_tag)
-                    } else {
-                        None
-                    };
-                }
-                MouseButton::Middle => {
-                    flags = flags.union(ResponseFlags::MIDDLE_CLICKED);
-                }
-                MouseButton::Other(_) => {}
             }
 
             DispatchResult {
@@ -1060,9 +1119,9 @@ fn handle_keyboard(
         } else if let Some((tag, ..)) = tree.event_state.active_numeric_edit {
             tree.event_state.focused_tag = Some(tag);
             tree.find_node_by_tag(tag)
-        } else if let Some((tag, ..)) = tree.event_state.active_text_edit {
-            tree.event_state.focused_tag = Some(tag);
-            tree.find_node_by_tag(tag)
+        } else if let Some(ref edit) = tree.event_state.active_text_edit {
+            tree.event_state.focused_tag = Some(edit.tag);
+            tree.find_node_by_tag(edit.tag)
         } else {
             None
         }

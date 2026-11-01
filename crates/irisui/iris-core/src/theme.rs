@@ -75,6 +75,9 @@ pub struct Theme {
     /// Hover thumb pill color for scroll area scrollbars.
     pub scrollbar_thumb_hover: Color,
 
+    /// Semi-transparent highlight background fill for active text selection ranges.
+    pub selection_background: Color,
+
     /// Small corner radius for buttons, chips, and pills (default: 3.0px).
     pub corner_radius_sm: f32,
     /// Medium corner radius for cards, sections, and dropdowns (default: 4.0px).
@@ -128,6 +131,7 @@ impl Theme {
             scrollbar_track: Color::rgba(0.035, 0.040, 0.055, 0.60),
             scrollbar_thumb: Color::rgba(0.18, 0.21, 0.28, 0.70),
             scrollbar_thumb_hover: Color::rgba(0.28, 0.33, 0.44, 0.90),
+            selection_background: Color::rgba(0.14, 0.46, 0.88, 0.70),
 
             corner_radius_sm: 3.0,
             corner_radius_md: 4.0,
@@ -172,11 +176,24 @@ impl Theme {
             scrollbar_track: Color::rgba(0.02, 0.02, 0.03, 0.60),
             scrollbar_thumb: Color::rgba(0.14, 0.16, 0.22, 0.70),
             scrollbar_thumb_hover: Color::rgba(0.22, 0.26, 0.35, 0.90),
+            selection_background: Color::rgba(0.14, 0.46, 0.88, 0.70),
 
             corner_radius_sm: 3.0,
             corner_radius_md: 4.0,
             corner_radius_lg: 8.0,
         }
+    }
+
+    /// Sets the text selection highlight background fill color in-place.
+    pub fn set_selection_background(&mut self, color: Color) {
+        self.selection_background = color;
+    }
+
+    /// Builder method to customize the text selection highlight background fill color.
+    #[must_use]
+    pub fn with_selection_background(mut self, color: Color) -> Self {
+        self.selection_background = color;
+        self
     }
 
     /// Sets the vertical blinking text caret color in-place.

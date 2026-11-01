@@ -73,7 +73,7 @@ fn test_live_search_query_filtering_sync() {
 
     let mut tree = UiTree::new();
     tree.event_state
-        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "aadsadsa", 8, false);
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "aadsadsa", 8, None);
 
     // Verify buffer resolution
     let buf = tree
@@ -116,7 +116,7 @@ fn test_search_input_focus_blur_lifecycle() {
 
     // 1. Assets search editing starts
     tree.event_state
-        .start_text_edit(None, ASSETS_TAG_SEARCH_INPUT, "mesh", 4, false);
+        .start_text_edit(None, ASSETS_TAG_SEARCH_INPUT, "mesh", 4, None);
     assert!(tree.is_text_input_focused());
 
     // Blur / click outside clears text edit
@@ -128,7 +128,7 @@ fn test_search_input_focus_blur_lifecycle() {
 
     // 2. Console search editing starts
     tree.event_state
-        .start_text_edit(None, CONSOLE_TAG_SEARCH_INPUT, "warn", 4, false);
+        .start_text_edit(None, CONSOLE_TAG_SEARCH_INPUT, "warn", 4, None);
     assert!(tree.is_text_input_focused());
 
     tree.event_state.clear_text_edit();
@@ -139,7 +139,7 @@ fn test_search_input_focus_blur_lifecycle() {
 
     // 3. Hierarchy search editing starts
     tree.event_state
-        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "cube", 4, false);
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "cube", 4, None);
     assert!(tree.is_text_input_focused());
 
     tree.event_state.clear_text_edit();

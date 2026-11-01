@@ -211,6 +211,7 @@ impl EditorThemeTokens {
             scrollbar_track: self.canvas_bg,
             scrollbar_thumb: self.splitter_idle,
             scrollbar_thumb_hover: self.border_elevated,
+            selection_background: Color::rgba(0.14, 0.46, 0.88, 0.70),
             corner_radius_sm: 3.0,
             corner_radius_md: 4.0,
             corner_radius_lg: 8.0,

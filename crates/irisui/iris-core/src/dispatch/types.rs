@@ -59,6 +59,19 @@ pub struct PopupMenuState {
     pub container_id: Option<WidgetId>,
 }
 
+/// Active autonomous inline text editing session descriptor tracking tag, buffer, cursor, and selection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveTextEditSession {
+    /// Persistent 64-bit semantic tag of the target text input.
+    pub tag: u64,
+    /// Mutable in-progress text string buffer.
+    pub buffer: String,
+    /// Caret position within `buffer` along valid UTF-8 character boundaries.
+    pub cursor_byte_idx: usize,
+    /// Optional active text selection range `(start_byte_idx, end_byte_idx)` where `start < end`.
+    pub selection: Option<(usize, usize)>,
+}
+
 /// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
 ///
 /// Maintained across frames to orchestrate pointer capture during drags,
@@ -129,8 +142,10 @@ pub struct EventState {
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
     pub active_numeric_edit: Option<(u64, String, usize, bool)>,
-    /// Active autonomous inline text input editing session: `(tag, buffer, cursor_byte_idx, is_all_selected)`.
-    pub active_text_edit: Option<(u64, String, usize, bool)>,
+    /// Active autonomous inline text input editing session tracking tag, buffer, cursor, and selection.
+    pub active_text_edit: Option<ActiveTextEditSession>,
+    /// Drag selection anchor byte index during an active mouse drag-select gesture within a text input.
+    pub text_drag_anchor: Option<usize>,
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
     /// and is actively recognized as an ongoing dragging gesture.
     pub is_pointer_drag_active: bool,
@@ -180,6 +195,7 @@ impl EventState {
             active_context_menu: None,
             active_numeric_edit: None,
             active_text_edit: None,
+            text_drag_anchor: None,
             is_pointer_drag_active: false,
             active_tooltip: None,
             hovered_file: None,
@@ -262,8 +278,15 @@ impl EventState {
     pub fn clear_focus(&mut self) {
         self.focused = None;
         self.focused_tag = None;
+        self.pressed = None;
+        self.pressed_tag = None;
         self.active_numeric_edit = None;
         self.active_text_edit = None;
+        self.text_drag_anchor = None;
+        self.pointer_capture = None;
+        self.pointer_capture_tag = None;
+        self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
     }
 
     /// Cleans any direct references to the specified widget ID if active in interaction tracking.
@@ -321,7 +344,7 @@ impl EventState {
         tag: u64,
         initial_text: &str,
         cursor_idx: usize,
-        is_all_selected: bool,
+        selection: Option<(usize, usize)>,
     ) {
         if let Some(id) = node_id {
             self.focused = Some(id);
@@ -329,7 +352,13 @@ impl EventState {
         if tag != 0 {
             self.focused_tag = Some(tag);
         }
-        self.active_text_edit = Some((tag, initial_text.to_string(), cursor_idx, is_all_selected));
+        let safe_sel = selection.filter(|(s, e)| s < e && *e <= initial_text.len());
+        self.active_text_edit = Some(ActiveTextEditSession {
+            tag,
+            buffer: initial_text.to_string(),
+            cursor_byte_idx: cursor_idx,
+            selection: safe_sel,
+        });
         self.active_numeric_edit = None;
     }
 
@@ -337,39 +366,43 @@ impl EventState {
     #[inline]
     #[must_use]
     pub fn text_edit_buffer(&self, tag: u64) -> Option<&str> {
-        if let Some((t, ref buf, ..)) = self.active_text_edit
-            && t == tag
-        {
-            Some(buf.as_str())
-        } else {
-            None
-        }
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| s.buffer.as_str())
     }
 
     /// Returns the active text edit cursor byte index for the specified semantic tag, if currently editing.
     #[inline]
     #[must_use]
     pub fn text_edit_cursor(&self, tag: u64) -> Option<usize> {
-        if let Some((t, _, cur, ..)) = self.active_text_edit
-            && t == tag
-        {
-            Some(cur)
-        } else {
-            None
-        }
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| s.cursor_byte_idx)
+    }
+
+    /// Returns the active text edit selection range `(start_byte_idx, end_byte_idx)` for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_selection(&self, tag: u64) -> Option<(usize, usize)> {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .and_then(|s| s.selection)
     }
 
     /// Returns whether all text is currently selected in the active text edit session for the specified semantic tag.
     #[inline]
     #[must_use]
     pub fn text_edit_all_selected(&self, tag: u64) -> Option<bool> {
-        if let Some((t, _, _, all_sel)) = self.active_text_edit
-            && t == tag
-        {
-            Some(all_sel)
-        } else {
-            None
-        }
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| {
+                s.selection
+                    .is_some_and(|(st, en)| st == 0 && en == s.buffer.len() && !s.buffer.is_empty())
+            })
     }
 
     /// Activates an autonomous inline numeric editing session and synchronizes focus to the target widget and tag.
@@ -397,8 +430,8 @@ impl EventState {
     /// Clears any active text editing session and releases focus if owned by the current edit tag.
     #[inline]
     pub fn clear_text_edit(&mut self) {
-        if let Some((tag, ..)) = self.active_text_edit
-            && self.focused_tag == Some(tag)
+        if let Some(ref edit) = self.active_text_edit
+            && self.focused_tag == Some(edit.tag)
         {
             self.focused = None;
             self.focused_tag = None;

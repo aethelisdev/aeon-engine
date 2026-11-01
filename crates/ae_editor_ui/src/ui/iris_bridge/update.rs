@@ -173,6 +173,25 @@ impl IrisEditorOverlay {
                 routed_to_panel = true;
             }
 
+            if !routed_to_panel {
+                let target_tag = if dispatch.target_tag != 0 {
+                    Some(dispatch.target_tag)
+                } else if self.tree.is_text_input_focused() {
+                    self.tree.event_state.focused_tag
+                } else {
+                    None
+                };
+                if let Some(tag) = target_tag
+                    && let Some(target_id) = self.tree.find_node_by_tag(tag)
+                    && let Some(boundary_id) = self.tree.find_invalidation_boundary(target_id)
+                    && let Some(dock_frame) = &self.chrome.native_dock_frame
+                    && let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
+                {
+                    self.notifier.tag_redraw(panel_id);
+                    routed_to_panel = true;
+                }
+            }
+
             // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal),
             // escalate to global shell invalidation (STRICTLY for discrete structural gestures, never continuous motion)
             let is_continuous_motion = matches!(
