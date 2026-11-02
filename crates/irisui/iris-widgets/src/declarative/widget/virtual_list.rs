@@ -7,7 +7,9 @@
 //! for rendering arbitrarily large collections with constant $O(1)$ memory.
 
 pub mod math;
+pub mod widget;
 
 pub use math::{
     DEFAULT_OVERSCAN, VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
 };
+pub use widget::{VirtualList, VirtualListBuilder, VirtualListResponse};

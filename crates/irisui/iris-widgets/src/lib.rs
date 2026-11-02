@@ -37,8 +37,9 @@ pub use declarative::widget::{
     Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DEFAULT_OVERSCAN, DROP_TARGET_SEED,
     DragVec3, DropTargetId, DropTargetResponse, EmptyBox, NumericDrag, TITLE_BAR_CONTROL_SEED,
     TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton,
-    ToolbarGroup, VirtualSlice, VirtualSliceParams, Widget, compute_slice, compute_virtual_slice,
-    title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+    ToolbarGroup, VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice,
+    VirtualSliceParams, Widget, compute_slice, compute_virtual_slice, title_bar_close_tag,
+    title_bar_maximize_tag, title_bar_minimize_tag,
 };
 pub use floating_panel::{
     DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
@@ -62,8 +63,9 @@ pub mod prelude {
         Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DEFAULT_OVERSCAN,
         DROP_TARGET_SEED, DragVec3, DropTargetId, DropTargetResponse, EmptyBox, NumericDrag,
         TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse,
-        Toolbar, ToolbarButton, ToolbarGroup, VirtualSlice, VirtualSliceParams, compute_slice,
-        compute_virtual_slice, title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+        Toolbar, ToolbarButton, ToolbarGroup, VirtualList, VirtualListBuilder, VirtualListResponse,
+        VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
+        title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
     };
     pub use crate::floating_panel::{
         FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,

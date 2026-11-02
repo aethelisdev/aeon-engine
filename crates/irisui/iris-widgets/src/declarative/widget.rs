@@ -41,7 +41,8 @@ pub use title_bar::{
 pub use toolbar::{Toolbar, ToolbarGroup, ToolbarGroupScope, ToolbarScope};
 pub use toolbar_button::ToolbarButton;
 pub use virtual_list::{
-    DEFAULT_OVERSCAN, VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
+    DEFAULT_OVERSCAN, VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice,
+    VirtualSliceParams, compute_slice, compute_virtual_slice,
 };
 
 use super::scope::core::UiScope;
