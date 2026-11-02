@@ -198,13 +198,13 @@ impl FloatingPanelState {
                 outcome.consumed = true;
                 outcome.action = Some(FloatingPanelAction::Move(new_pos));
             } else if tree.event_state.is_pointer_drag_active {
-                let is_thumb_captured = tree
+                let is_panel_child_captured = tree
                     .event_state
                     .pointer_capture
                     .and_then(|cid| tree.get(cid))
                     .is_some_and(|n| {
-                        n.role == WidgetRole::ScrollBarThumb
-                            && card_rect.contains_point(Point::new(
+                        n.layer == iris_core::UiLayer::Floating
+                            || card_rect.contains_point(Point::new(
                                 n.computed_rect.x + n.computed_rect.width * 0.5,
                                 n.computed_rect.y + n.computed_rect.height * 0.5,
                             ))
@@ -215,13 +215,13 @@ impl FloatingPanelState {
                         .and_then(|tag| tree.find_node_by_tag(tag))
                         .and_then(|id| tree.get(id))
                         .is_some_and(|n| {
-                            n.role == WidgetRole::ScrollBarThumb
-                                && card_rect.contains_point(Point::new(
+                            n.layer == iris_core::UiLayer::Floating
+                                || card_rect.contains_point(Point::new(
                                     n.computed_rect.x + n.computed_rect.width * 0.5,
                                     n.computed_rect.y + n.computed_rect.height * 0.5,
                                 ))
                         });
-                if is_thumb_captured {
+                if is_panel_child_captured {
                     outcome.needs_layout_rebuild = true;
                     outcome.consumed = true;
                 }

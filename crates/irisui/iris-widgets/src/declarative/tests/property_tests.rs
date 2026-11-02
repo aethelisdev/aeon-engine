@@ -8,7 +8,7 @@
 
 use crate::declarative::types::{hash_label, split_label_id};
 use crate::declarative::{UiScope, hash_label_with_seed};
-use iris_core::{InteractionEvent, MouseButton, Point, UiTree};
+use iris_core::{InteractionEvent, MouseButton, Point, Rect, UiTree};
 
 #[test]
 fn test_property_primitives_two_way_binding() {
@@ -276,4 +276,80 @@ fn test_property_slider_rich_track_and_options() {
         sub_node.is_some(),
         "Slider subtitle must be present in tree"
     );
+}
+
+#[test]
+fn test_property_slider_click_and_drag_track_proportional_jump() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+    let bounds = Rect::new(0.0, 0.0, 600.0, 200.0);
+
+    let mut exposure = 1.0_f32; // range 0.0 .. 10.0
+    let label = "Exposure Setting";
+    let tag_track = hash_label(label);
+
+    // 1. Initial build and layout pass to resolve non-zero computed_rect on SliderTrack
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.property_slider(label, &mut exposure, 0.0, 10.0, 0.05);
+    }
+    crate::declarative::layout_subtree(&mut tree, root, bounds);
+
+    let track_id = tree
+        .find_node_by_tag(tag_track)
+        .expect("SliderTrack must exist");
+    let track_rect = tree.get(track_id).unwrap().computed_rect;
+    assert!(
+        track_rect.width >= 200.0,
+        "Track rect must have valid layout width"
+    );
+
+    // 2. Click directly at 50% of the track
+    let mid_x = track_rect.x + 2.0 + (track_rect.width - 4.0) * 0.50;
+    let click_point = Point::new(mid_x, track_rect.y + 5.0);
+
+    let down_evt = iris_core::UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_point,
+    };
+    let disp = tree.dispatch_event(&down_evt);
+    assert!(disp.consumed, "MouseDown on slider track must be consumed");
+    assert_eq!(tree.event_state.pointer_capture, Some(track_id));
+
+    // Rebuild frame with active click/capture
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.property_slider(label, &mut exposure, 0.0, 10.0, 0.05);
+        assert!(resp.changed(), "Clicking track must mutate slider value");
+    }
+    assert!(
+        (exposure - 5.0).abs() < 0.1,
+        "Clicking at 50% must jump exposure to ~5.0, got: {exposure}"
+    );
+
+    // 3. Drag pointer to 80% of the track
+    let target_80_x = track_rect.x + 2.0 + (track_rect.width - 4.0) * 0.80;
+    let drag_evt = iris_core::UiEvent::MouseMove {
+        point: Point::new(target_80_x, track_rect.y + 5.0),
+    };
+    let disp_drag = tree.dispatch_event(&drag_evt);
+    assert!(disp_drag.consumed);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.property_slider(label, &mut exposure, 0.0, 10.0, 0.05);
+        assert!(resp.changed(), "Dragging track must mutate slider value");
+    }
+    assert!(
+        (exposure - 8.0).abs() < 0.1,
+        "Dragging to 80% must update exposure to ~8.0, got: {exposure}"
+    );
+
+    // 4. Release mouse (MouseUp)
+    let up_evt = iris_core::UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(target_80_x, track_rect.y + 5.0),
+    };
+    tree.dispatch_event(&up_evt);
+    assert_eq!(tree.event_state.pointer_capture, None);
 }

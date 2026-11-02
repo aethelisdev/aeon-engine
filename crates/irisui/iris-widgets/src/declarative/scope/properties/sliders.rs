@@ -80,12 +80,6 @@ impl<'a> UiScope<'a> {
         let tag = self.tag_for(label);
         let num_box_tag = crate::declarative::types::hash_label_with_seed(tag, "##num_box");
 
-        let norm = if options.max > options.min {
-            ((*value - options.min) / (options.max - options.min)).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-
         let active_in_scope = self.active_text_input.and_then(|(t, text, sel)| {
             if t == num_box_tag {
                 Some((text, sel))
@@ -95,7 +89,6 @@ impl<'a> UiScope<'a> {
         });
 
         let track_w = 240.0;
-        let fill_w = (norm * (track_w - 4.0)).clamp(0.0, track_w - 4.0);
 
         let mut response = WidgetResponse::default();
 
@@ -165,6 +158,11 @@ impl<'a> UiScope<'a> {
                     .is_some_and(|(s, e)| s == 0 && e == r.raw_text.len())
             }) || active_in_scope.is_some_and(|(_, sel)| sel);
 
+            let is_track_captured = row.tree.event_state.pointer_capture == Some(track_id)
+                || (tag != 0 && row.tree.event_state.pointer_capture_tag == Some(tag));
+            let is_track_pressed = is_track_captured
+                && row.tree.event_state.pressed_button == Some(iris_core::MouseButton::Left);
+
             if !is_editing_now {
                 let text_input = row
                     .check_interaction_text(num_box_id)
@@ -183,6 +181,45 @@ impl<'a> UiScope<'a> {
                             changed = true;
                         }
                     }
+                } else if is_track_pressed || track_clicked {
+                    let track_rect = if tag != 0
+                        && let Some(r) = row.tree.tag_rect(tag)
+                        && r.width > 10.0
+                    {
+                        r
+                    } else if let Some(r) = row.tree.event_state.frame_clicked_rect
+                        && r.width > 10.0
+                    {
+                        r
+                    } else {
+                        row.tree
+                            .get(track_id)
+                            .map(|n| n.computed_rect)
+                            .unwrap_or(iris_core::geometry::Rect::ZERO)
+                    };
+                    if track_rect.width > 10.0 {
+                        let click_pos = row
+                            .tree
+                            .event_state
+                            .last_pointer_pos
+                            .or(row.tree.event_state.press_origin)
+                            .unwrap_or(iris_core::geometry::Point::new(track_rect.x, track_rect.y));
+                        let norm = ((click_pos.x - (track_rect.x + 2.0))
+                            / (track_rect.width - 4.0))
+                            .clamp(0.0, 1.0);
+                        let next = options.min + norm * (options.max - options.min);
+                        if (next - *value).abs() > f32::EPSILON {
+                            *value = next;
+                            changed = true;
+                        }
+                    } else if let Some(delta) = track_drag {
+                        let next =
+                            (*value + delta.x * options.speed).clamp(options.min, options.max);
+                        if (next - *value).abs() > f32::EPSILON {
+                            *value = next;
+                            changed = true;
+                        }
+                    }
                 } else if let Some(delta) = track_drag {
                     let next = (*value + delta.x * options.speed).clamp(options.min, options.max);
                     if (next - *value).abs() > f32::EPSILON {
@@ -191,6 +228,9 @@ impl<'a> UiScope<'a> {
                     }
                 }
             }
+
+            let norm_now = ((*value - options.min) / (options.max - options.min)).clamp(0.0, 1.0);
+            let current_fill_w = (norm_now * (track_w - 4.0)).clamp(0.0, track_w - 4.0);
 
             let display_str_now = if let Some(edit) = options.inline_edit {
                 edit.to_owned()
@@ -255,7 +295,7 @@ impl<'a> UiScope<'a> {
                 node.interactive = false;
                 node.set_style(
                     Style::new()
-                        .width(fill_w)
+                        .width(current_fill_w)
                         .height(12.0)
                         .background(Color::rgba(0.0, 0.65, 0.85, 0.75))
                         .border_radius(2.0),

@@ -473,3 +473,107 @@ fn test_preferences_scrollbar_thumb_drag_triggers_realtime_rebuild() {
     );
     assert!(outcome.consumed);
 }
+
+#[test]
+fn test_preferences_slider_track_drag_triggers_realtime_rebuild() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+
+    let label = "Base Fly Speed";
+    let tag_track = irisui::widgets::declarative::hash_label(label);
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut 3, // Navigation tab
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::ZERO,
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+        current_theme: Default::default(),
+    };
+
+    let (_card_id, card_rect, _content_rect, _max_scroll_y) =
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
+
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, irisui::core::Size::new(1920.0, 1080.0));
+
+    let track_id = tree
+        .find_node_by_tag(tag_track)
+        .expect("Sun Disc Size SliderTrack emitted");
+    let track_rect = tree.get(track_id).unwrap().computed_rect;
+    assert!(track_rect.width >= 100.0);
+
+    // 1. MouseDown at 50% along the slider track
+    let mid_x = track_rect.x + 2.0 + (track_rect.width - 4.0) * 0.50;
+    let click_point = Point::new(mid_x, track_rect.y + 5.0);
+
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_point,
+    };
+    let down_disp = tree.dispatch_event(&down_ev);
+    assert!(down_disp.is_consumed());
+    assert_eq!(tree.event_state.pointer_capture, Some(track_id));
+
+    // Rebuild frame with interaction state to verify value mutation
+    let params2 = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut 3,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: click_point,
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+        current_theme: Default::default(),
+    };
+    let _ = build_preferences_dialog(&mut tree, params2, &mut Vec::new());
+    let mut layout_engine2 = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine2.compute_layout(&mut tree, irisui::core::Size::new(1920.0, 1080.0));
+
+    // Base Fly Speed min=0.5, max=30.0 -> at 50% should be ~15.25
+    assert!(
+        (editor_config.camera_base_speed - 15.25).abs() < 1.0,
+        "Camera base speed must jump to ~15.25 on track click at 50%, actual: {}",
+        editor_config.camera_base_speed
+    );
+
+    // 2. MouseMove drag to 80% along the track
+    let target_80_x = track_rect.x + 2.0 + (track_rect.width - 4.0) * 0.80;
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(target_80_x, track_rect.y + 5.0),
+    };
+    let move_disp = tree.dispatch_event(&move_ev);
+    assert!(move_disp.is_consumed());
+
+    let mut floating = irisui::widgets::FloatingPanelState::new();
+    floating.rect = Some(card_rect);
+
+    let outcome = floating.handle_event(&mut tree, &move_ev, &move_disp, 1920.0, 1080.0);
+    assert!(
+        outcome.needs_layout_rebuild,
+        "Dragging slider track inside floating panel must trigger real-time needs_layout_rebuild"
+    );
+    assert!(outcome.consumed);
+}
