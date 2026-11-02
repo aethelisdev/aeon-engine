@@ -10,6 +10,9 @@ use iris_core::{Point, UiTree, WidgetRole};
 fn test_multiline_editor_declarative_construction_and_hierarchy() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9001;
     let mut state = MultilineTextState::new("fn main() {\n    println!(\"Hello\");\n}");
@@ -52,6 +55,9 @@ fn test_multiline_editor_declarative_construction_and_hierarchy() {
 fn test_multiline_editor_caret_exact_alignment() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9004;
     let mut state = MultilineTextState::new("let speed = 9.81;");
@@ -84,6 +90,9 @@ fn test_multiline_editor_caret_exact_alignment() {
 fn test_multiline_editor_click_caret_placement() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9002;
     let mut state = MultilineTextState::new("Line 0\nLine 1\nLine 2");
@@ -108,6 +117,9 @@ fn test_multiline_editor_click_caret_placement() {
 fn test_multiline_editor_keyboard_typing_and_navigation() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9003;
     let mut state = MultilineTextState::new("abc\ndef");
@@ -145,6 +157,9 @@ fn test_multiline_editor_keyboard_typing_and_navigation() {
 fn test_multiline_editor_scrollbar_emission_when_overflowing() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9005;
     // 50 lines -> content height = 50 * 20.0 = 1000.0px > 200.0px viewport
@@ -180,6 +195,9 @@ fn test_multiline_editor_scrollbar_emission_when_overflowing() {
 fn test_multiline_editor_mouse_wheel_autonomous_scroll() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9006;
     let content = (0..50)
@@ -187,17 +205,15 @@ fn test_multiline_editor_mouse_wheel_autonomous_scroll() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut state = MultilineTextState::new(&content);
+    tree.set_tag_rect(tag, iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0));
 
     // Initial render
     {
         let mut scope = UiScope::new(&mut tree, root);
         let _ = scope.multiline_editor(tag, 200.0, &mut state);
     }
-
-    // Set computed layout rect on editor node so hit test succeeds
-    let editor_id = tree.find_node_by_tag(tag).expect("Editor node");
-    tree.get_mut(editor_id).unwrap().computed_rect =
-        iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0);
+    let mut layout_engine = iris_layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, iris_core::Size::new(800.0, 600.0));
 
     // Simulate mouse wheel scroll down (delta_y = -40.0)
     let scroll_event = UiEvent::MouseScroll {
@@ -221,6 +237,9 @@ fn test_multiline_editor_mouse_wheel_autonomous_scroll() {
 fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9007;
     let content = (0..30)
@@ -228,6 +247,7 @@ fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut state = MultilineTextState::new(&content);
+    tree.set_tag_rect(tag, iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0));
 
     // Move cursor to line 20: Y = 20 * 20.0 = 400.0px (exceeds 200px viewport)
     state.set_cursor(20, 0);
@@ -251,6 +271,9 @@ fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
 fn test_multiline_editor_thumb_drag_scroll() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9008;
     let content = (0..30)
@@ -265,10 +288,9 @@ fn test_multiline_editor_thumb_drag_scroll() {
         let mut scope = UiScope::new(&mut tree, root);
         let _ = scope.multiline_editor(tag, 200.0, &mut state);
     }
-    // Set container computed rect
-    let container_id = tree.find_node_by_tag(tag).unwrap();
-    tree.get_mut(container_id).unwrap().computed_rect =
-        iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0);
+    // Compute layout for the tree
+    let mut layout_engine = iris_layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, iris_core::Size::new(800.0, 600.0));
 
     let thumb_node = tree
         .iter()
@@ -280,14 +302,21 @@ fn test_multiline_editor_thumb_drag_scroll() {
         thumb_rect.y + thumb_rect.height * 0.5,
     );
 
-    // 1. MouseDown on thumb
+    // 1. MouseDown on thumb to initiate drag capture
     let down_res = tree.dispatch_event(&UiEvent::MouseDown {
         button: iris_core::MouseButton::Left,
         point: thumb_center,
     });
     assert!(down_res.consumed);
 
-    // Re-render: simulate a dynamic frame cycle rebuilding the panel tree
+    // 2. MouseMove dragging down by 50px
+    let move_res = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(thumb_center.x, thumb_center.y + 50.0),
+    });
+    assert!(move_res.consumed);
+    assert!(tree.scroll_offset(tag) > 0.0);
+
+    // Re-render next frame with new scroll position!
     let _ = tree.clear_children(root);
     {
         let mut scope = UiScope::new(&mut tree, root);
@@ -296,11 +325,15 @@ fn test_multiline_editor_thumb_drag_scroll() {
     let container_id = tree.find_node_by_tag(tag).unwrap();
     tree.get_mut(container_id).unwrap().computed_rect =
         iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0);
+    let _ = layout_engine.compute_layout(&mut tree, iris_core::Size::new(800.0, 600.0));
 
-    // 2. MouseMove dragging down by 50px
-    let move_res = tree.dispatch_event(&UiEvent::MouseMove {
-        point: Point::new(thumb_center.x, thumb_center.y + 50.0),
-    });
-    assert!(move_res.consumed);
-    assert!(tree.scroll_offset(tag) > 0.0);
+    let thumb_id2 = tree
+        .iter()
+        .find(|(_, n)| n.role == WidgetRole::ScrollBarThumb)
+        .map(|(id, _)| id)
+        .unwrap();
+    let thumb_rect2 = tree.get(thumb_id2).unwrap().computed_rect;
+    assert_eq!(thumb_rect2.x, 293.0);
+    assert!(thumb_rect2.y > thumb_rect.y);
+    assert_eq!(thumb_rect2.y, 53.0);
 }

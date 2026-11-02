@@ -116,8 +116,7 @@ impl<'a> UiScope<'a> {
         state: &mut MultilineTextState,
     ) -> WidgetResponse {
         let mut response = WidgetResponse::default();
-        let container_id = self.tree.create_node();
-        response.id = container_id;
+        let outer_id = self.tree.create_node();
 
         let container_rect = self
             .tree
@@ -136,15 +135,10 @@ impl<'a> UiScope<'a> {
             }
         }
 
-        // 1. Configure Editor Root Node
-        if let Some(node) = self.tree.get_mut(container_id) {
-            node.set_name("MultilineEditor");
-            node.tag = props.tag;
-            node.role = WidgetRole::TextInput;
-            node.interactive = true;
-            node.cursor = Some(WidgetCursor::Text);
-            node.content_size = iris_core::geometry::Size::new(0.0, total_content_h);
-            node.style.scroll_offset_y = state.scroll_y;
+        // 1. Configure Outer Container Node (holds border, background, and fixed scrollbar chrome)
+        if let Some(node) = self.tree.get_mut(outer_id) {
+            node.set_name("MultilineEditorOuter");
+            node.computed_rect = container_rect;
             node.set_style(
                 Style::new()
                     .flex_grow(1.0)
@@ -153,11 +147,33 @@ impl<'a> UiScope<'a> {
                     .background(props.background)
                     .border(1.0, props.border_color)
                     .border_radius(4.0)
+                    .clip_children(true),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, outer_id);
+
+        // 1b. Configure Scrolling Viewport Node (holds lines, text carets, and sub-pixel scroll offset)
+        let container_id = self.tree.create_node();
+        response.id = container_id;
+        if let Some(node) = self.tree.get_mut(container_id) {
+            node.set_name("MultilineEditorViewport");
+            node.tag = props.tag;
+            node.role = WidgetRole::TextInput;
+            node.interactive = true;
+            node.cursor = Some(WidgetCursor::Text);
+            node.content_size = iris_core::geometry::Size::new(0.0, total_content_h);
+            node.computed_rect = container_rect;
+            node.style.scroll_offset_y = state.scroll_y;
+            node.set_style(
+                Style::new()
+                    .flex_grow(1.0)
+                    .height(props.height)
+                    .flex_col()
                     .clip_children(true)
                     .scroll_offset_y(state.scroll_y),
             );
         }
-        let _ = self.tree.add_child(self.parent, container_id);
+        let _ = self.tree.add_child(outer_id, container_id);
 
         let gutter_metrics =
             GutterMetrics::compute(state.line_count(), 7.2, DEFAULT_GUTTER_PADDING);
@@ -560,7 +576,7 @@ impl<'a> UiScope<'a> {
                     .is_some_and(|cid| self.tree.get(cid).is_some_and(|n| n.tag == thumb_tag));
                 let cursor_pos = self.tree.event_state.last_pointer_pos;
 
-                let mut child_scope = self.child_scope(container_id);
+                let mut child_scope = self.child_scope(outer_id);
                 child_scope.scrollbar_vertical(
                     geom,
                     container_rect,

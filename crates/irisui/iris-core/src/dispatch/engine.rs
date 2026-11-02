@@ -1453,7 +1453,9 @@ fn find_associated_viewport_and_track(
     let parent = tree.get(parent_id)?;
 
     // If parent is directly the viewport
-    if parent.role == WidgetRole::ScrollAreaViewport || parent.style.clip_children {
+    if parent.role == WidgetRole::ScrollAreaViewport
+        || (parent.style.clip_children && parent.content_size.height > 0.0)
+    {
         let track_id = parent.children.iter().copied().find(|&c| {
             tree.get(c)
                 .is_some_and(|n| n.role == WidgetRole::ScrollBarTrack)
@@ -1468,7 +1470,8 @@ fn find_associated_viewport_and_track(
         .copied()
         .find(|&c| {
             tree.get(c).is_some_and(|n| {
-                n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != thumb_id)
+                n.role == WidgetRole::ScrollAreaViewport
+                    || (n.style.clip_children && n.content_size.height > 0.0 && c != thumb_id)
             })
         })
         .or_else(|| find_viewport_in_subtree(tree, parent_id, thumb_id))?;
@@ -1489,7 +1492,9 @@ fn find_associated_viewport_and_thumb(
     let parent_id = tree.get(track_id)?.parent?;
     let parent = tree.get(parent_id)?;
 
-    if parent.role == WidgetRole::ScrollAreaViewport || parent.style.clip_children {
+    if parent.role == WidgetRole::ScrollAreaViewport
+        || (parent.style.clip_children && parent.content_size.height > 0.0)
+    {
         let thumb_id = parent.children.iter().copied().find(|&c| {
             tree.get(c)
                 .is_some_and(|n| n.role == WidgetRole::ScrollBarThumb)
@@ -1503,7 +1508,8 @@ fn find_associated_viewport_and_thumb(
         .copied()
         .find(|&c| {
             tree.get(c).is_some_and(|n| {
-                n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != track_id)
+                n.role == WidgetRole::ScrollAreaViewport
+                    || (n.style.clip_children && n.content_size.height > 0.0 && c != track_id)
             })
         })
         .or_else(|| find_viewport_in_subtree(tree, parent_id, track_id))?;
