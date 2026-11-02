@@ -473,8 +473,12 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-button child of a ModalTitlebar, FloatingTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor
-        let (effective_target_id, effective_role) = if role != WidgetRole::Button {
+        // If clicking on non-button child of a ModalTitlebar, FloatingTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor.
+        // ScrollBarThumb and ScrollBarTrack are autonomous interactive controls and must never bubble to ancestors.
+        let (effective_target_id, effective_role) = if role != WidgetRole::Button
+            && role != WidgetRole::ScrollBarThumb
+            && role != WidgetRole::ScrollBarTrack
+        {
             if let Some(tb_id) = tree
                 .find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
                 .or_else(|| tree.find_ancestor_with_role(target_id, WidgetRole::FloatingTitlebar))

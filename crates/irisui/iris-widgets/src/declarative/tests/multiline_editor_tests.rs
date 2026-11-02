@@ -246,3 +246,61 @@ fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
     assert!(state.scroll_y >= 220.0);
     assert_eq!(tree.scroll_offset(tag), state.scroll_y);
 }
+
+#[test]
+fn test_multiline_editor_thumb_drag_scroll() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node created");
+
+    let tag = 0x9008;
+    let content = (0..30)
+        .map(|i| format!("Line {}", i))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut state = MultilineTextState::new(&content);
+    tree.set_tag_rect(tag, iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0));
+
+    // Initial render
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.multiline_editor(tag, 200.0, &mut state);
+    }
+    // Set container computed rect
+    let container_id = tree.find_node_by_tag(tag).unwrap();
+    tree.get_mut(container_id).unwrap().computed_rect =
+        iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0);
+
+    let thumb_node = tree
+        .iter()
+        .find(|(_, n)| n.role == WidgetRole::ScrollBarThumb)
+        .expect("Thumb emitted");
+    let thumb_rect = thumb_node.1.computed_rect;
+    let thumb_center = Point::new(
+        thumb_rect.x + thumb_rect.width * 0.5,
+        thumb_rect.y + thumb_rect.height * 0.5,
+    );
+
+    // 1. MouseDown on thumb
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: iris_core::MouseButton::Left,
+        point: thumb_center,
+    });
+    assert!(down_res.consumed);
+
+    // Re-render: simulate a dynamic frame cycle rebuilding the panel tree
+    let _ = tree.clear_children(root);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.multiline_editor(tag, 200.0, &mut state);
+    }
+    let container_id = tree.find_node_by_tag(tag).unwrap();
+    tree.get_mut(container_id).unwrap().computed_rect =
+        iris_core::geometry::Rect::new(0.0, 0.0, 300.0, 200.0);
+
+    // 2. MouseMove dragging down by 50px
+    let move_res = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(thumb_center.x, thumb_center.y + 50.0),
+    });
+    assert!(move_res.consumed);
+    assert!(tree.scroll_offset(tag) > 0.0);
+}
