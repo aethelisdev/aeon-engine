@@ -20,6 +20,7 @@ pub mod input_box;
 pub mod menu;
 pub mod menu_bar;
 pub mod modal;
+pub mod multiline;
 pub mod panel;
 pub mod progress;
 pub mod properties;
@@ -34,6 +35,7 @@ pub use collapsing::{CollapsingBuilder, CollapsingResponse};
 pub use menu_bar::{
     MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
 };
+pub use multiline::MultilineEditorProps;
 pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;
 pub use tabs::TabBarResponse;

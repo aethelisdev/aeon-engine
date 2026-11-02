@@ -10,8 +10,10 @@ use super::rows::build_console_rows;
 use super::types::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
-    CONSOLE_TAG_TOOLBAR, ConsoleAction, ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams,
+    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SCRATCHPAD_CLEAR, CONSOLE_TAG_SCRATCHPAD_EDITOR,
+    CONSOLE_TAG_SCRATCHPAD_RESET, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
+    CONSOLE_TAG_TAB_LOGS, CONSOLE_TAG_TAB_SCRATCHPAD, CONSOLE_TAG_TOOLBAR, ConsoleAction,
+    ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams, ConsoleTab,
 };
 use irisui::prelude::*;
 use irisui::widgets::declarative::InputBoxProps;
@@ -21,10 +23,11 @@ pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;
 
 /// Constructs the complete Developer Console panel widget hierarchy into the Iris `UiTree`.
 ///
-/// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`).
+/// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`, `multiline_editor`).
 pub fn build_console_panel(
     scope: &mut UiScope<'_>,
     params: &ConsolePanelParams<'_>,
+    scratchpad: &mut MultilineTextState,
     actions: &mut Vec<ConsoleAction>,
 ) {
     // 1. Count metrics for toolbar badges
@@ -61,113 +64,215 @@ pub fn build_console_panel(
                 .tag(CONSOLE_TAG_TOOLBAR)
                 .background(Color::rgba(0.02, 0.02, 0.03, 0.98))
                 .show(panel_scope, |tb| {
+                    let is_logs = params.active_tab == ConsoleTab::Logs;
+                    let is_scratchpad = params.active_tab == ConsoleTab::Scratchpad;
+
                     if tb
-                        .add(
-                            ToolbarButton::new("🧹 Clear")
-                                .width(76.0)
-                                .tag(CONSOLE_TAG_CLEAR),
+                        .filter_pill_tagged(
+                            "📋 Logs",
+                            is_logs,
+                            Color::rgba(0.0, 0.85, 1.0, 0.95),
+                            78.0,
+                            CONSOLE_TAG_TAB_LOGS,
                         )
                         .clicked()
                     {
-                        actions.push(ConsoleAction::ClearLogs);
-                    }
-                    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-
-                    let is_search_focused =
-                        params.focus_state.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT);
-                    let search_props = InputBoxProps::new(
-                        params.search_query,
-                        "Search logs...",
-                        200.0,
-                        is_search_focused,
-                        is_search_focused && params.blink_caret,
-                    )
-                    .with_icon("🔍")
-                    .with_cursor_byte_idx(params.cursor_byte_idx)
-                    .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
-                    let _ = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
-                    if tb.tree().event_state.frame_clicked_tag == Some(CONSOLE_TAG_SEARCH_CLEAR) {
-                        actions.push(ConsoleAction::ClearSearch);
+                        actions.push(ConsoleAction::SelectTab(ConsoleTab::Logs));
                     }
 
-                    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-
-                    let filters = [
-                        (
-                            ConsoleFilterLevel::All,
-                            format!("All ({})", counts.all),
-                            58.0_f32,
-                            Color::rgba(0.0, 0.85, 1.0, 0.95),
-                            CONSOLE_TAG_FILTER_ALL,
-                        ),
-                        (
-                            ConsoleFilterLevel::Error,
-                            format!("Errors ({})", counts.error),
-                            76.0_f32,
-                            Color::rgba(0.95, 0.30, 0.30, 0.95),
-                            CONSOLE_TAG_FILTER_ERROR,
-                        ),
-                        (
-                            ConsoleFilterLevel::Warn,
-                            format!("Warnings ({})", counts.warn),
-                            88.0_f32,
+                    if tb
+                        .filter_pill_tagged(
+                            "📝 Scratchpad",
+                            is_scratchpad,
                             Color::rgba(0.95, 0.70, 0.15, 0.95),
-                            CONSOLE_TAG_FILTER_WARN,
-                        ),
-                        (
-                            ConsoleFilterLevel::Info,
-                            format!("Info ({})", counts.info),
-                            68.0_f32,
-                            Color::rgba(0.20, 0.70, 0.95, 0.95),
-                            CONSOLE_TAG_FILTER_INFO,
-                        ),
-                        (
-                            ConsoleFilterLevel::Debug,
-                            format!("Debug ({})", counts.debug),
-                            76.0_f32,
-                            Color::rgba(0.65, 0.50, 0.95, 0.95),
-                            CONSOLE_TAG_FILTER_DEBUG,
-                        ),
-                    ];
-                    for (filter_lvl, label, width, color, tag) in &filters {
-                        let is_active = params.filter == *filter_lvl;
+                            116.0,
+                            CONSOLE_TAG_TAB_SCRATCHPAD,
+                        )
+                        .clicked()
+                    {
+                        actions.push(ConsoleAction::SelectTab(ConsoleTab::Scratchpad));
+                    }
+
+                    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+                    if is_logs {
                         if tb
-                            .filter_pill_tagged(label, is_active, *color, *width, *tag)
+                            .add(
+                                ToolbarButton::new("🧹 Clear")
+                                    .width(76.0)
+                                    .tag(CONSOLE_TAG_CLEAR),
+                            )
                             .clicked()
                         {
-                            actions.push(ConsoleAction::SetFilter(*filter_lvl));
+                            actions.push(ConsoleAction::ClearLogs);
                         }
-                    }
+                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
-                    // Spacer pushes Auto-Scroll and log count to the right edge
-                    tb.spacer();
-
-                    tb.label_with_width(
-                        format!("{} logs", counts.all),
-                        64.0,
-                        10.5,
-                        Color::rgba(0.45, 0.49, 0.58, 1.0),
-                        TextAlign::Right,
-                    );
-
-                    if tb
-                        .add(
-                            Button::new(if params.auto_scroll {
-                                "✓ Auto-Scroll"
-                            } else {
-                                "⏸ Auto-Scroll"
-                            })
-                            .small()
-                            .active(params.auto_scroll)
-                            .tag(CONSOLE_TAG_AUTOSCROLL),
+                        let is_search_focused =
+                            params.focus_state.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT);
+                        let search_props = InputBoxProps::new(
+                            params.search_query,
+                            "Search logs...",
+                            190.0,
+                            is_search_focused,
+                            is_search_focused && params.blink_caret,
                         )
-                        .clicked()
-                    {
-                        actions.push(ConsoleAction::ToggleAutoScroll);
+                        .with_icon("🔍")
+                        .with_cursor_byte_idx(params.cursor_byte_idx)
+                        .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
+                        let _ = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
+                        if tb.tree().event_state.frame_clicked_tag == Some(CONSOLE_TAG_SEARCH_CLEAR)
+                        {
+                            actions.push(ConsoleAction::ClearSearch);
+                        }
+
+                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+                        let filters = [
+                            (
+                                ConsoleFilterLevel::All,
+                                format!("All ({})", counts.all),
+                                58.0_f32,
+                                Color::rgba(0.0, 0.85, 1.0, 0.95),
+                                CONSOLE_TAG_FILTER_ALL,
+                            ),
+                            (
+                                ConsoleFilterLevel::Error,
+                                format!("Errors ({})", counts.error),
+                                76.0_f32,
+                                Color::rgba(0.95, 0.30, 0.30, 0.95),
+                                CONSOLE_TAG_FILTER_ERROR,
+                            ),
+                            (
+                                ConsoleFilterLevel::Warn,
+                                format!("Warnings ({})", counts.warn),
+                                88.0_f32,
+                                Color::rgba(0.95, 0.70, 0.15, 0.95),
+                                CONSOLE_TAG_FILTER_WARN,
+                            ),
+                            (
+                                ConsoleFilterLevel::Info,
+                                format!("Info ({})", counts.info),
+                                68.0_f32,
+                                Color::rgba(0.20, 0.70, 0.95, 0.95),
+                                CONSOLE_TAG_FILTER_INFO,
+                            ),
+                            (
+                                ConsoleFilterLevel::Debug,
+                                format!("Debug ({})", counts.debug),
+                                76.0_f32,
+                                Color::rgba(0.65, 0.50, 0.95, 0.95),
+                                CONSOLE_TAG_FILTER_DEBUG,
+                            ),
+                        ];
+                        for (filter_lvl, label, width, color, tag) in &filters {
+                            let is_active = params.filter == *filter_lvl;
+                            if tb
+                                .filter_pill_tagged(label, is_active, *color, *width, *tag)
+                                .clicked()
+                            {
+                                actions.push(ConsoleAction::SetFilter(*filter_lvl));
+                            }
+                        }
+
+                        tb.spacer();
+
+                        tb.label_with_width(
+                            format!("{} logs", counts.all),
+                            64.0,
+                            10.5,
+                            Color::rgba(0.45, 0.49, 0.58, 1.0),
+                            TextAlign::Right,
+                        );
+
+                        if tb
+                            .add(
+                                Button::new(if params.auto_scroll {
+                                    "✓ Auto-Scroll"
+                                } else {
+                                    "⏸ Auto-Scroll"
+                                })
+                                .small()
+                                .active(params.auto_scroll)
+                                .tag(CONSOLE_TAG_AUTOSCROLL),
+                            )
+                            .clicked()
+                        {
+                            actions.push(ConsoleAction::ToggleAutoScroll);
+                        }
+                    } else {
+                        if tb
+                            .add(
+                                ToolbarButton::new("🧹 Clear")
+                                    .width(76.0)
+                                    .tag(CONSOLE_TAG_SCRATCHPAD_CLEAR),
+                            )
+                            .clicked()
+                        {
+                            actions.push(ConsoleAction::ClearScratchpad);
+                        }
+
+                        if tb
+                            .add(
+                                ToolbarButton::new("↺ Reset Sample")
+                                    .width(112.0)
+                                    .tag(CONSOLE_TAG_SCRATCHPAD_RESET),
+                            )
+                            .clicked()
+                        {
+                            actions.push(ConsoleAction::ResetScratchpad);
+                        }
+
+                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+                        let line_info = format!(
+                            "Line {}, Col {}",
+                            scratchpad.cursor.0 + 1,
+                            scratchpad.cursor.1 + 1
+                        );
+                        tb.label_with_width(
+                            line_info,
+                            100.0,
+                            11.0,
+                            Color::rgba(0.0, 0.85, 1.0, 0.9),
+                            TextAlign::Left,
+                        );
+
+                        let total_lines = format!("{} lines", scratchpad.line_count());
+                        tb.label_with_width(
+                            total_lines,
+                            60.0,
+                            11.0,
+                            Color::rgba(0.65, 0.70, 0.80, 1.0),
+                            TextAlign::Left,
+                        );
+
+                        tb.spacer();
+
+                        tb.label_with_width(
+                            "Click to focus • Type/Arrow/Enter/Backspace",
+                            270.0,
+                            11.0,
+                            Color::rgba(0.45, 0.49, 0.58, 1.0),
+                            TextAlign::Right,
+                        );
                     }
                 });
 
-            // 4. Scrollable Log Rows Viewport via declarative virtual_scroll_area
-            build_console_rows(panel_scope, params);
+            // 4. Body Viewport: Logs Table or Multi-line Code/Text Editor
+            match params.active_tab {
+                ConsoleTab::Logs => {
+                    build_console_rows(panel_scope, params);
+                }
+                ConsoleTab::Scratchpad => {
+                    let available_height =
+                        (params.panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(40.0);
+                    panel_scope.multiline_editor(
+                        CONSOLE_TAG_SCRATCHPAD_EDITOR,
+                        available_height,
+                        scratchpad,
+                    );
+                }
+            }
         });
 }

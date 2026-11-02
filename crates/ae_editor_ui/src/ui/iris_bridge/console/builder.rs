@@ -54,16 +54,22 @@ impl IrisEditorOverlay {
             panel_rect,
             entries: params.panel_data.console_entries,
             filter: self.console.filter,
-            search_query: self.console.search_input.text(),
+            search_query: self.console.interactions.search_input.text(),
             auto_scroll: self.console.auto_scroll,
             cursor_pos: self.cursor_pos(),
             blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             focus_state: &self.focus_state,
-            cursor_byte_idx: self.console.search_input.cursor_byte_idx,
+            cursor_byte_idx: self.console.interactions.search_input.cursor_byte_idx,
+            active_tab: self.console.active_tab,
         };
 
         let mut actions = Vec::new();
-        build_console_panel(scope, &console_params, &mut actions);
+        build_console_panel(
+            scope,
+            &console_params,
+            &mut self.console.scratchpad_state,
+            &mut actions,
+        );
 
         let has_console_actions = !actions.is_empty();
         for action in actions {
@@ -92,6 +98,17 @@ impl IrisEditorOverlay {
                     scope.tree_mut().event_state.clear_text_edit();
                 }
                 ConsoleAction::CopyLog(_) => {}
+                ConsoleAction::SelectTab(tab) => {
+                    self.console.active_tab = tab;
+                }
+                ConsoleAction::ClearScratchpad => {
+                    self.console.scratchpad_state.clear();
+                }
+                ConsoleAction::ResetScratchpad => {
+                    self.console
+                        .scratchpad_state
+                        .set_text(super::types::DEFAULT_SCRATCHPAD_TEXT);
+                }
             }
         }
         if has_console_actions {

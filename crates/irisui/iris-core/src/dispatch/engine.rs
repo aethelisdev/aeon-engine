@@ -1008,7 +1008,8 @@ fn handle_mouse_scroll(
         if let Some(node) = tree.get(curr_id) {
             let is_explicit_viewport = node.role == WidgetRole::ScrollAreaViewport;
             let is_generic_scrollable = node.role != WidgetRole::Button
-                && node.role != WidgetRole::TextInput
+                && (node.role != WidgetRole::TextInput
+                    || node.content_size.height > node.computed_rect.height + 0.5)
                 && (node.style.clip_children && node.tag != 0);
 
             let is_scroll_container = is_explicit_viewport || is_generic_scrollable;

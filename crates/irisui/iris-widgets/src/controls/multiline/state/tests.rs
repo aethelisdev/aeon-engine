@@ -241,3 +241,53 @@ fn test_multiline_state_clear_and_set_text() {
     assert_eq!(state.line_str(0), Some("foo"));
     assert_eq!(state.line_str(1), Some("bar"));
 }
+
+#[test]
+fn test_multiline_selection_and_deletion() {
+    let mut state = MultilineTextState::new("hello\nbrave\nworld");
+
+    // Select across lines: from line 0 col 3 to line 1 col 2 ("lo\nbr")
+    state.set_selection((0, 3), (1, 2));
+    assert_eq!(state.selected_text(), Some("lo\nbr".to_string()));
+
+    // Delete selection
+    assert!(state.delete_selection());
+    assert_eq!(state.text, "helave\nworld");
+    assert_eq!(state.cursor, (0, 3));
+    assert_eq!(state.selection, None);
+
+    // Select all
+    state.select_all();
+    assert_eq!(state.selected_text(), Some("helave\nworld".to_string()));
+    assert!(state.delete_selection());
+    assert_eq!(state.text, "");
+    assert_eq!(state.cursor, (0, 0));
+}
+
+#[test]
+fn test_multiline_undo_redo_stack() {
+    let mut state = MultilineTextState::new("initial");
+    state.cursor_to_end();
+
+    state.insert_str(" text");
+    assert_eq!(state.text, "initial text");
+
+    state.insert_char('!');
+    assert_eq!(state.text, "initial text!");
+
+    // Undo char '!'
+    assert!(state.undo());
+    assert_eq!(state.text, "initial text");
+
+    // Undo " text"
+    assert!(state.undo());
+    assert_eq!(state.text, "initial");
+
+    // Redo " text"
+    assert!(state.redo());
+    assert_eq!(state.text, "initial text");
+
+    // Redo '!'
+    assert!(state.redo());
+    assert_eq!(state.text, "initial text!");
+}

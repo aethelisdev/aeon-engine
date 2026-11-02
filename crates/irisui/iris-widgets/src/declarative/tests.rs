@@ -749,6 +749,7 @@ mod drop_target_tests;
 mod hierarchical_seed_tests;
 mod immediate_canvas_tests;
 mod input_box_tests;
+mod multiline_editor_tests;
 mod numeric_response_tests;
 mod property_tests;
 mod response_tests;

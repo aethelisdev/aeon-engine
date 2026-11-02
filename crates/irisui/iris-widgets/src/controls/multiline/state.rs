@@ -43,6 +43,17 @@ pub struct MultilineTextState {
     pub line_starts: Vec<usize>,
     /// Vertical scroll offset in logical display pixels/points.
     pub scroll_y: f32,
+    /// Active 2D text selection range: `((start_line, start_col), (end_line, end_col))`
+    /// where start and end are normalized.
+    pub selection: Option<((usize, usize), (usize, usize))>,
+    /// Anchor 2D position where a drag-selection gesture originated.
+    pub selection_anchor: Option<(usize, usize)>,
+    /// Indicates whether a mouse drag-selection gesture is in progress.
+    pub is_drag_selecting: bool,
+    /// Bounded history stack of `(text, cursor)` snapshots for undo operations.
+    pub undo_stack: Vec<(String, (usize, usize))>,
+    /// Bounded history stack of `(text, cursor)` snapshots for redo operations.
+    pub redo_stack: Vec<(String, (usize, usize))>,
 }
 
 impl Default for MultilineTextState {
@@ -63,6 +74,11 @@ impl MultilineTextState {
             preferred_column: None,
             line_starts: Vec::new(),
             scroll_y: 0.0,
+            selection: None,
+            selection_anchor: None,
+            is_drag_selecting: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         };
         state.rebuild_line_starts();
         state
@@ -286,12 +302,183 @@ impl MultilineTextState {
 
     /// Clears the text buffer, resetting cursor and scroll offsets to zero.
     pub fn clear(&mut self) {
+        self.push_undo_snapshot();
         self.text.clear();
         self.cursor = (0, 0);
         self.preferred_column = None;
         self.line_starts.clear();
         self.line_starts.push(0);
         self.scroll_y = 0.0;
+        self.selection = None;
+        self.selection_anchor = None;
+    }
+
+    /// Pushes a snapshot of the current text and cursor to the undo stack, bounding size to 64.
+    pub fn push_undo_snapshot(&mut self) {
+        if self.undo_stack.len() >= 64 {
+            self.undo_stack.remove(0);
+        }
+        self.undo_stack.push((self.text.clone(), self.cursor));
+        self.redo_stack.clear();
+    }
+
+    /// Reverts the text buffer to the preceding undo snapshot.
+    ///
+    /// Returns `true` if an undo operation was executed.
+    pub fn undo(&mut self) -> bool {
+        if let Some((prev_text, prev_cursor)) = self.undo_stack.pop() {
+            if self.redo_stack.len() >= 64 {
+                self.redo_stack.remove(0);
+            }
+            self.redo_stack.push((self.text.clone(), self.cursor));
+            self.text = prev_text;
+            self.rebuild_line_starts();
+            self.set_cursor(prev_cursor.0, prev_cursor.1);
+            self.preferred_column = None;
+            self.selection = None;
+            self.selection_anchor = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Restores a previously undone text buffer snapshot.
+    ///
+    /// Returns `true` if a redo operation was executed.
+    pub fn redo(&mut self) -> bool {
+        if let Some((next_text, next_cursor)) = self.redo_stack.pop() {
+            if self.undo_stack.len() >= 64 {
+                self.undo_stack.remove(0);
+            }
+            self.undo_stack.push((self.text.clone(), self.cursor));
+            self.text = next_text;
+            self.rebuild_line_starts();
+            self.set_cursor(next_cursor.0, next_cursor.1);
+            self.preferred_column = None;
+            self.selection = None;
+            self.selection_anchor = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Selects the entire text buffer from start to finish.
+    pub fn select_all(&mut self) {
+        let max_line = self.line_count().saturating_sub(1);
+        let max_col = self.line_char_count(max_line);
+        self.selection = Some(((0, 0), (max_line, max_col)));
+        self.cursor = (max_line, max_col);
+        self.preferred_column = None;
+    }
+
+    /// Clears any active text selection.
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selection_anchor = None;
+        self.is_drag_selecting = false;
+    }
+
+    /// Sets the active text selection range between two 2D positions, normalizing order.
+    pub fn set_selection(&mut self, a: (usize, usize), b: (usize, usize)) {
+        if a == b {
+            self.selection = None;
+        } else if a < b {
+            self.selection = Some((a, b));
+        } else {
+            self.selection = Some((b, a));
+        }
+    }
+
+    /// Extracts the string slice covered by the active selection, if any.
+    #[must_use]
+    pub fn selected_text(&self) -> Option<String> {
+        let (start, end) = self.selection?;
+        let (s_line, s_col) = start.min(end);
+        let (e_line, e_col) = start.max(end);
+
+        let start_byte = self.char_col_to_byte_offset(s_line, s_col);
+        let end_byte = self.char_col_to_byte_offset(e_line, e_col);
+
+        if start_byte < end_byte && end_byte <= self.text.len() {
+            Some(self.text[start_byte..end_byte].to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Deletes the currently selected text range, updating cursor and line starts.
+    ///
+    /// Returns `true` if text was deleted.
+    pub fn delete_selection(&mut self) -> bool {
+        let Some((start, end)) = self.selection else {
+            return false;
+        };
+        let (s_line, s_col) = start.min(end);
+        let (e_line, e_col) = start.max(end);
+
+        let start_byte = self.char_col_to_byte_offset(s_line, s_col);
+        let end_byte = self.char_col_to_byte_offset(e_line, e_col);
+
+        if start_byte < end_byte && end_byte <= self.text.len() {
+            self.push_undo_snapshot();
+            self.text.drain(start_byte..end_byte);
+            self.rebuild_line_starts();
+            self.cursor = (s_line, s_col);
+            self.preferred_column = None;
+            self.selection = None;
+            self.selection_anchor = None;
+            true
+        } else {
+            self.selection = None;
+            false
+        }
+    }
+
+    /// Copies selected text (or current line if no selection) to the system clipboard.
+    pub fn copy_selection_to_clipboard(&self) -> bool {
+        if let Some(selected) = self.selected_text() {
+            crate::input::copy_to_clipboard(&selected);
+            true
+        } else if let Some(line) = self.line_str(self.cursor.0) {
+            let mut text = line.to_string();
+            text.push('\n');
+            crate::input::copy_to_clipboard(&text);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Copies selected text to the system clipboard and deletes it from the buffer.
+    pub fn cut_selection_to_clipboard(&mut self) -> bool {
+        if self.selection.is_some() {
+            let copied = self.copy_selection_to_clipboard();
+            if copied {
+                self.delete_selection();
+            }
+            copied
+        } else {
+            false
+        }
+    }
+
+    /// Pastes text from the system clipboard at the current cursor position.
+    pub fn paste_from_clipboard(&mut self) -> bool {
+        let Some(clip_text) = crate::input::get_clipboard_text() else {
+            return false;
+        };
+        if clip_text.is_empty() {
+            return false;
+        }
+        if self.selection.is_some() {
+            self.delete_selection();
+        } else {
+            self.push_undo_snapshot();
+        }
+        self.insert_str(&clip_text);
+        true
     }
 
     /// Inserts a single character at the current cursor position.
@@ -299,6 +486,12 @@ impl MultilineTextState {
     /// Automatically advances cursor line and column coordinates, rebuilds `line_starts`,
     /// and resets [`Self::preferred_column`].
     pub fn insert_char(&mut self, c: char) {
+        if self.selection.is_some() {
+            self.delete_selection();
+        } else {
+            self.push_undo_snapshot();
+        }
+
         let byte_offset = self.cursor_byte_offset();
         self.text.insert(byte_offset, c);
 
@@ -321,6 +514,12 @@ impl MultilineTextState {
     pub fn insert_str(&mut self, s: &str) {
         if s.is_empty() {
             return;
+        }
+
+        if self.selection.is_some() {
+            self.delete_selection();
+        } else {
+            self.push_undo_snapshot();
         }
 
         let byte_offset = self.cursor_byte_offset();
@@ -349,9 +548,15 @@ impl MultilineTextState {
     ///
     /// Returns `true` if a character or newline was deleted, or `false` if already at `(0, 0)`.
     pub fn delete_char_before_cursor(&mut self) -> bool {
+        if self.selection.is_some() {
+            return self.delete_selection();
+        }
+
         if self.cursor == (0, 0) {
             return false;
         }
+
+        self.push_undo_snapshot();
 
         if self.cursor.1 == 0 {
             let prev_line = self.cursor.0.saturating_sub(1);
@@ -383,10 +588,16 @@ impl MultilineTextState {
     ///
     /// Returns `true` if a character or newline was deleted, or `false` if at the end of the buffer.
     pub fn delete_char_after_cursor(&mut self) -> bool {
+        if self.selection.is_some() {
+            return self.delete_selection();
+        }
+
         let cur_byte = self.cursor_byte_offset();
         if cur_byte >= self.text.len() {
             return false;
         }
+
+        self.push_undo_snapshot();
 
         let line_chars = self.line_char_count(self.cursor.0);
         if self.cursor.1 >= line_chars {

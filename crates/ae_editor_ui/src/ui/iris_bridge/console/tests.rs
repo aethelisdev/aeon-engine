@@ -46,10 +46,17 @@ fn test_console_click_target_routing() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
 
     // Verify Clear button exists in tree with correct tag
     let mut clear_node_found = false;
@@ -92,6 +99,7 @@ fn test_console_virtualized_empty_and_matching() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut scope = UiScope::new(&mut tree, root);
@@ -119,12 +127,15 @@ fn test_console_panel_clipping_and_clear_action() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, parent_id),
         &params,
+        &mut scratchpad,
         &mut actions,
     );
 
@@ -171,10 +182,17 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
     assert!(
         max_scroll > 0.0,
@@ -218,10 +236,17 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
 
     let (_, clear_node) = tree
         .iter()
@@ -274,10 +299,17 @@ fn test_console_toolbar_action_unification() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
     let mut layout_engine = irisui::layout::LayoutEngine::new();
     let _ = layout_engine.compute_layout(&mut tree, Size::new(1000.0, 400.0));
 
@@ -327,6 +359,14 @@ fn test_console_toolbar_action_unification() {
         Some(ConsoleAction::FocusSearch)
     );
     assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_TAB_LOGS)),
+        Some(ConsoleAction::SelectTab(ConsoleTab::Logs))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_TAB_SCRATCHPAD)),
+        Some(ConsoleAction::SelectTab(ConsoleTab::Scratchpad))
+    );
+    assert_eq!(
         evaluate_console_toolbar_click(&tree, Point::new(9999.0, 9999.0)),
         None
     );
@@ -349,10 +389,17 @@ fn test_console_search_focused_caret_positioning() {
         blink_caret: true,
         focus_state: &focus_state,
         cursor_byte_idx: 5,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
 
     let (_, search_box) = tree
         .iter()
@@ -397,10 +444,17 @@ fn test_console_declarative_action_generation() {
         blink_caret: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
     assert!(actions.is_empty());
 
     tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_CLEAR);
@@ -409,9 +463,78 @@ fn test_console_declarative_action_generation() {
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
+        &mut scratchpad,
         &mut clicked_actions,
     );
 
     assert_eq!(clicked_actions.len(), 1);
     assert_eq!(clicked_actions[0], ConsoleAction::ClearLogs);
+}
+
+#[test]
+fn test_console_scratchpad_tab_rendering_and_interaction() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root creation failed");
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let params = ConsolePanelParams {
+        panel_rect,
+        entries: &[],
+        filter: ConsoleFilterLevel::All,
+        search_query: "",
+        auto_scroll: true,
+        cursor_pos: Point::new(20.0, 20.0),
+        blink_caret: true,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Scratchpad,
+    };
+
+    let mut actions = Vec::new();
+    let mut scratchpad = MultilineTextState::new("let a = 10;\nlet b = 20;\na + b");
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut scratchpad,
+        &mut actions,
+    );
+
+    // 1. Verify Scratchpad editor container exists with correct tag and role
+    let editor_id = tree
+        .find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_EDITOR)
+        .expect("Scratchpad editor container must exist");
+    let editor_node = tree.get(editor_id).expect("Editor node exists");
+    assert_eq!(editor_node.role, WidgetRole::TextInput);
+    assert_eq!(editor_node.children.len(), 3); // 3 lines of code
+
+    // 2. Verify Toolbar elements for scratchpad
+    assert!(
+        tree.find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_CLEAR)
+            .is_some(),
+        "Scratchpad clear button exists"
+    );
+    assert!(
+        tree.find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_RESET)
+            .is_some(),
+        "Scratchpad reset button exists"
+    );
+
+    // 3. Verify logs viewport is NOT rendered when in Scratchpad mode
+    assert!(
+        tree.find_node_by_tag(CONSOLE_TAG_VIEWPORT).is_none(),
+        "Logs viewport must not be rendered when Scratchpad is active"
+    );
+
+    // 4. Test ClearScratchpad and ResetScratchpad actions
+    let clear_rect = tree
+        .get(tree.find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_CLEAR).unwrap())
+        .unwrap()
+        .computed_rect;
+    let clear_center = Point::new(
+        clear_rect.x + clear_rect.width * 0.5,
+        clear_rect.y + clear_rect.height * 0.5,
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, clear_center),
+        Some(ConsoleAction::ClearScratchpad)
+    );
 }

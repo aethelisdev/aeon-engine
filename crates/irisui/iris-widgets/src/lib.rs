@@ -29,8 +29,8 @@ pub mod tree_view;
 
 // Primary declarative showcase elements re-exported at crate root
 pub use clipboard::SystemClipboard;
-pub use controls::MultilineTextState;
-pub use declarative::scope::{TabBarResponse, UiScope};
+pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
+pub use declarative::scope::{MultilineEditorProps, TabBarResponse, UiScope};
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
 pub use declarative::widget::{
@@ -51,7 +51,7 @@ pub use scroll_area::ScrollArea;
 /// Designed to be imported via wildcard `use iris_widgets::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     // 1. Declarative Core & Scope
-    pub use crate::declarative::scope::{TabBarResponse, UiScope};
+    pub use crate::declarative::scope::{MultilineEditorProps, TabBarResponse, UiScope};
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
     pub use crate::declarative::widget::Widget;
@@ -76,7 +76,9 @@ pub mod prelude {
 
     // 4. Primary Persistent State Structures
     pub use crate::color_picker::HsvColorPickerState;
-    pub use crate::controls::MultilineTextState;
+    pub use crate::controls::{
+        GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState,
+    };
     pub use crate::floating_panel::FloatingPanelState as FloatingState;
     pub use crate::input::TextInputState;
     pub use crate::scroll_area::ScrollAreaState;

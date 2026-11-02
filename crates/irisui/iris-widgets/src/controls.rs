@@ -15,7 +15,10 @@ pub use focus::{
     FocusEventResponse, FocusModifiers, FocusPolicy, FocusState, FocusTarget, FocusableArea,
     handle_focus_event, handle_focus_event_with_modifiers,
 };
-pub use multiline::MultilineTextState;
+pub use multiline::{
+    DEFAULT_GUTTER_PADDING, GutterMetrics, GutterStyle, MIN_GUTTER_DIGITS, MultilineNavOutcome,
+    MultilineTextState,
+};
 pub use numeric_drag::{
     NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD,
     NumericDragResponse, NumericDragState, handle_numeric_drag_event,
