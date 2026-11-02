@@ -21,6 +21,7 @@ pub mod scroll_area;
 pub mod title_bar;
 pub mod toolbar;
 pub mod toolbar_button;
+pub mod virtual_list;
 
 pub use button::Button;
 pub use checkbox::Checkbox;
@@ -39,6 +40,9 @@ pub use title_bar::{
 };
 pub use toolbar::{Toolbar, ToolbarGroup, ToolbarGroupScope, ToolbarScope};
 pub use toolbar_button::ToolbarButton;
+pub use virtual_list::{
+    DEFAULT_OVERSCAN, VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
+};
 
 use super::scope::core::UiScope;
 
