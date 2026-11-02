@@ -13,6 +13,9 @@ fn test_multiline_editor_declarative_construction_and_hierarchy() {
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9001;
     let mut state = MultilineTextState::new("fn main() {\n    println!(\"Hello\");\n}");
@@ -58,6 +61,9 @@ fn test_multiline_editor_caret_exact_alignment() {
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9004;
     let mut state = MultilineTextState::new("let speed = 9.81;");
@@ -84,12 +90,22 @@ fn test_multiline_editor_caret_exact_alignment() {
 
     let expected_advance = iris_text::measure_text_advance("let speed = 9.81;", 12.0);
     assert_eq!(caret_node.style.inset_left, Some(expected_advance));
+
+    let mut layout_engine = iris_layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, iris_core::Size::new(800.0, 600.0));
+
+    let text_rect = tree.get(text_cell_id).unwrap().computed_rect;
+    let caret_rect = tree.get(caret_id).unwrap().computed_rect;
+    assert!((caret_rect.x - (text_rect.x + expected_advance)).abs() < 1.0);
 }
 
 #[test]
 fn test_multiline_editor_click_caret_placement() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
@@ -117,6 +133,9 @@ fn test_multiline_editor_click_caret_placement() {
 fn test_multiline_editor_keyboard_typing_and_navigation() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
@@ -160,6 +179,9 @@ fn test_multiline_editor_scrollbar_emission_when_overflowing() {
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9005;
     // 50 lines -> content height = 50 * 20.0 = 1000.0px > 200.0px viewport
@@ -195,6 +217,9 @@ fn test_multiline_editor_scrollbar_emission_when_overflowing() {
 fn test_multiline_editor_mouse_wheel_autonomous_scroll() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
@@ -240,6 +265,9 @@ fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
 
     let tag = 0x9007;
     let content = (0..30)
@@ -271,6 +299,9 @@ fn test_multiline_editor_cursor_auto_scroll_keeps_caret_visible() {
 fn test_multiline_editor_thumb_drag_scroll() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node created");
+    tree.get_mut(root)
+        .unwrap()
+        .set_style(iris_core::Style::new().width(300.0).height(200.0));
     tree.get_mut(root)
         .unwrap()
         .set_style(iris_core::Style::new().width(300.0).height(200.0));

@@ -17,7 +17,7 @@ pub mod submesh_view;
 mod tests;
 pub mod types;
 
-pub use events::{handle_material_click, handle_material_scroll};
+pub use events::handle_material_click;
 pub use header::{MATERIAL_HEADER_HEIGHT, build_material_header};
 pub use panel::build_material_panel;
 pub use types::{

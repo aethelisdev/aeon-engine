@@ -8,14 +8,12 @@
 //! using autonomous `UiTree::dispatch_event` and `build_preferences_dialog`.
 
 use super::builder::build_preferences_dialog;
-use super::types::{
-    PREF_TAG_CONTENT_VIEW, PreferencesDialogState, PreferencesParams, preferences_scroll_style,
-};
+use super::types::{PREF_TAG_CONTENT_VIEW, PreferencesParams, preferences_scroll_style};
 use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
-use irisui::widgets::scroll_area::{ScrollAreaFrame, ScrollbarDragState};
+use irisui::widgets::scroll_area::ScrollAreaFrame;
 use std::collections::HashSet;
 
 #[test]
@@ -43,14 +41,15 @@ fn test_preferences_scroll_style_and_frame_geometry() {
 
 #[test]
 fn test_preferences_scroll_state_reset_and_sync() {
-    let mut state = PreferencesDialogState::default();
-    state.scroll_state.scroll_y = 250.0;
-    state.scroll_state.drag_state = Some(ScrollbarDragState::new(300.0, 250.0));
-    assert!(state.scroll_state.is_dragging());
+    let mut tree = UiTree::new();
+    tree.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 250.0);
+    assert_eq!(
+        tree.scroll_offset(super::types::PREF_TAG_CONTENT_VIEW),
+        250.0
+    );
 
-    state.reset_scroll();
-    assert_eq!(state.scroll_state.scroll_y, 0.0);
-    assert!(!state.scroll_state.is_dragging());
+    tree.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 0.0);
+    assert_eq!(tree.scroll_offset(super::types::PREF_TAG_CONTENT_VIEW), 0.0);
 }
 
 #[test]
@@ -306,13 +305,16 @@ fn test_preferences_titlebar_drag_interaction() {
 
 #[test]
 fn test_preferences_select_tab_resets_scroll() {
-    let mut state = PreferencesDialogState::default();
-    state.scroll_state.scroll_y = 450.0;
-    assert_eq!(state.scroll_state.scroll_y, 450.0);
+    let mut tree = UiTree::new();
+    tree.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 450.0);
+    assert_eq!(
+        tree.scroll_offset(super::types::PREF_TAG_CONTENT_VIEW),
+        450.0
+    );
 
-    // When tab changes, reset_scroll() must reset all scroll offsets to 0.0
-    state.reset_scroll();
-    assert_eq!(state.scroll_state.scroll_y, 0.0);
+    // When tab changes, tree scroll offset must be reset to 0.0
+    tree.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 0.0);
+    assert_eq!(tree.scroll_offset(super::types::PREF_TAG_CONTENT_VIEW), 0.0);
 }
 
 #[test]
@@ -404,4 +406,70 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         tree.event_state.frame_drag_delta.is_some(),
         "frame_drag_delta must be populated on tree"
     );
+}
+
+#[test]
+fn test_preferences_scrollbar_thumb_drag_triggers_realtime_rebuild() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut 1, // Graphics tab has 1800px virtual height > 504px content
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::ZERO,
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+        current_theme: Default::default(),
+    };
+
+    let (_card_id, card_rect, _content_rect, max_scroll_y) =
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
+    assert!(max_scroll_y > 0.0);
+
+    let thumb_node = tree
+        .iter()
+        .find(|(_, n)| n.role == irisui::core::node::WidgetRole::ScrollBarThumb)
+        .expect("Scrollbar thumb emitted");
+    let thumb_rect = thumb_node.1.computed_rect;
+    let thumb_center = Point::new(
+        thumb_rect.x + thumb_rect.width * 0.5,
+        thumb_rect.y + thumb_rect.height * 0.5,
+    );
+
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: thumb_center,
+    };
+    let down_disp = tree.dispatch_event(&down_ev);
+    assert!(down_disp.is_consumed());
+
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(thumb_center.x, thumb_center.y + 40.0),
+    };
+    let move_disp = tree.dispatch_event(&move_ev);
+    assert!(move_disp.is_consumed());
+
+    let mut floating = irisui::widgets::FloatingPanelState::new();
+    floating.rect = Some(card_rect);
+
+    let outcome = floating.handle_event(&mut tree, &move_ev, &move_disp, 1920.0, 1080.0);
+    assert!(
+        outcome.needs_layout_rebuild,
+        "Dragging scrollbar thumb inside floating panel must flag real-time needs_layout_rebuild"
+    );
+    assert!(outcome.consumed);
 }

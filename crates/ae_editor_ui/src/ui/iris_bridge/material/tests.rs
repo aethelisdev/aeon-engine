@@ -155,10 +155,6 @@ fn test_material_panel_click_hit_testing() {
     // Click with unknown / 0 tag
     let act7 = handle_material_click(0, Some(ent), Some(handle));
     assert_eq!(act7, None);
-
-    // Scroll test
-    let new_scroll = handle_material_scroll(1.0, 50.0, 332.0);
-    assert_eq!(new_scroll, 26.0);
 }
 
 #[test]

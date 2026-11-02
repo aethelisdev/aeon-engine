@@ -36,14 +36,3 @@ pub fn handle_material_click(
         }
     }
 }
-
-/// Calculates updated vertical scroll offset given a mouse wheel delta and maximum scroll limit.
-///
-/// # Arguments
-/// * `delta_y` - Vertical mouse wheel scroll delta.
-/// * `cur_scroll_y` - Current vertical scroll offset in physical pixels.
-/// * `max_scroll` - Maximum permitted vertical scroll offset in physical pixels.
-pub fn handle_material_scroll(delta_y: f32, cur_scroll_y: f32, max_scroll: f32) -> f32 {
-    let scroll_step = 24.0;
-    (cur_scroll_y - delta_y * scroll_step).clamp(0.0, max_scroll)
-}

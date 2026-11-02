@@ -86,7 +86,9 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         return;
     }
 
-    if role == WidgetRole::TextInput {
+    if role == WidgetRole::TextInput
+        && tree.get(parent_id).and_then(|n| n.name.as_deref()) != Some("MultilineEditorViewport")
+    {
         let mut text_start = inner.x + 8.0;
         let mut has_icon = false;
         for &cid in &children {
@@ -321,6 +323,7 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         let mut flex_grow_sum = 0.0_f32;
         let mut unconstrained_count = 0;
         for cid in &children {
+            let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
             let pad_h = tree
                 .get(*cid)
                 .map_or(0.0, |n| n.style.padding.left + n.style.padding.right);
@@ -328,16 +331,17 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             if flex_grow > 0.0 {
                 flex_grow_sum += flex_grow;
             } else if let Some(w) = tree.get(*cid).and_then(|n| n.style.width) {
-                fixed_w += w;
+                fixed_w += w + margin.horizontal();
             } else if let Some(content_w) = tree
                 .get(*cid)
                 .map(|n| n.content_size.width)
                 .filter(|&w| w > 0.0)
             {
-                fixed_w += content_w + pad_h;
+                fixed_w += content_w + pad_h + margin.horizontal();
             } else if let Some(text) = tree.get(*cid).and_then(|n| n.text.as_ref()) {
                 let fs = tree.get(*cid).map_or(11.0, |n| n.font_size);
-                let w = iris_text::measure_text_advance(text, fs).ceil() + pad_h;
+                let w =
+                    iris_text::measure_text_advance(text, fs).ceil() + pad_h + margin.horizontal();
                 fixed_w += w;
             } else {
                 unconstrained_count += 1;
@@ -355,7 +359,8 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                 {
                     let measured = measure_width(tree, *cid);
                     if measured > 0.0 {
-                        fixed_w += measured;
+                        let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
+                        fixed_w += measured + margin.horizontal();
                     } else {
                         unconstrained_count += 1;
                     }
@@ -388,6 +393,7 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             (inner.x, 0.0)
         };
         for child_id in &children {
+            let margin = tree.get(*child_id).map_or(Insets::ZERO, |n| n.style.margin);
             let pad_h = tree
                 .get(*child_id)
                 .map_or(0.0, |n| n.style.padding.left + n.style.padding.right);
@@ -425,13 +431,16 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                 },
             );
             let y = match align {
-                AlignItems::Center => inner.y + ((inner.height - child_h) * 0.5).max(0.0),
-                AlignItems::FlexEnd => inner.y + (inner.height - child_h).max(0.0),
-                _ => inner.y,
+                AlignItems::Center => {
+                    inner.y + margin.top + ((inner.height - child_h) * 0.5).max(0.0)
+                }
+                AlignItems::FlexEnd => inner.y + inner.height - child_h - margin.bottom,
+                _ => inner.y + margin.top,
             };
+            x += margin.left;
             let child_rect = Rect::new(x, y, child_w, child_h);
             layout_subtree(tree, *child_id, child_rect);
-            x += child_w + gap + row_space_between;
+            x += child_w + margin.right + gap + row_space_between;
         }
     }
 }

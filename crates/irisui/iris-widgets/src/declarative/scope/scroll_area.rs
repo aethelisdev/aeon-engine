@@ -189,15 +189,34 @@ impl<'a> UiScope<'a> {
             node.style.scroll_offset_y = safe_scroll;
         }
 
-        if let Some((track_tag, thumb_tag)) = scrollbar_tags.filter(|_| max_scroll > 0.0) {
+        let effective_scrollbar_tags = scrollbar_tags.or_else(|| {
+            if tag != 0 {
+                Some((tag.wrapping_add(0x1000), tag.wrapping_add(0x2000)))
+            } else {
+                let derived = crate::declarative::types::hash_label(name);
+                Some((derived.wrapping_add(0x1000), derived.wrapping_add(0x2000)))
+            }
+        });
+
+        if let Some((track_tag, thumb_tag)) = effective_scrollbar_tags.filter(|_| max_scroll > 0.0)
+        {
+            let parent_rect = self
+                .tree
+                .get(self.parent)
+                .map(|n| n.computed_rect)
+                .filter(|r| r.height > 0.0)
+                .unwrap_or_else(|| {
+                    let vp_w = self.tree.viewport_size(tag).map_or(400.0, |s| s.width);
+                    Rect::new(0.0, 0.0, vp_w, vp_h)
+                });
+
             let vp_rect = self
                 .tree
                 .get(vp_id)
                 .map(|n| n.computed_rect)
                 .filter(|r| r.height > 0.0)
                 .unwrap_or_else(|| {
-                    let vp_w = self.tree.viewport_size(tag).map_or(100.0, |s| s.width);
-                    Rect::new(0.0, 0.0, vp_w, vp_h)
+                    Rect::new(parent_rect.x, parent_rect.y, parent_rect.width, vp_h)
                 });
 
             let scroll_style = ScrollAreaStyle::dark_default();
@@ -213,11 +232,6 @@ impl<'a> UiScope<'a> {
                     .pointer_capture
                     .is_some_and(|cid| self.tree.get(cid).is_some_and(|n| n.tag == thumb_tag));
                 let cursor_pos = self.tree.event_state.last_pointer_pos;
-                let parent_rect = self
-                    .tree
-                    .get(self.parent)
-                    .map(|n| n.computed_rect)
-                    .unwrap_or(vp_rect);
 
                 self.scrollbar_vertical(
                     geom,
@@ -360,15 +374,15 @@ impl<'a> UiScope<'a> {
             vp.set_scroll_offset_y(safe_scroll);
             if slice.start_idx > 0 {
                 let top_spacer_h = slice.start_idx as f32 * stride;
-                vp.empty_box(Style::new().height(top_spacer_h));
+                vp.empty_box(
+                    Style::new()
+                        .height(top_spacer_h)
+                        .min_height(top_spacer_h)
+                        .flex_shrink(0.0),
+                );
             }
             for idx in slice.start_idx..slice.end_idx {
                 item_renderer(&mut vp, idx);
-            }
-            let remaining = config.total_items.saturating_sub(slice.end_idx);
-            if remaining > 0 {
-                let bottom_spacer_h = remaining as f32 * stride;
-                vp.empty_box(Style::new().height(bottom_spacer_h));
             }
         }
 
@@ -376,16 +390,40 @@ impl<'a> UiScope<'a> {
             node.content_size = iris_core::geometry::Size::new(0.0, vlist.total_content_height());
         }
 
-        // Autonomous scrollbar indicator emission if configured
-        if let Some((track_tag, thumb_tag)) = config.scrollbar_tags.filter(|_| max_scroll > 0.0) {
+        // Autonomous scrollbar indicator emission if configured or defaulting to derived tags
+        let effective_scrollbar_tags = config.scrollbar_tags.or_else(|| {
+            if tag != 0 {
+                Some((tag.wrapping_add(0x1000), tag.wrapping_add(0x2000)))
+            } else {
+                let derived = crate::declarative::types::hash_label(name);
+                Some((derived.wrapping_add(0x1000), derived.wrapping_add(0x2000)))
+            }
+        });
+
+        if let Some((track_tag, thumb_tag)) = effective_scrollbar_tags.filter(|_| max_scroll > 0.0)
+        {
+            let parent_rect = self
+                .tree
+                .get(self.parent)
+                .map(|n| n.computed_rect)
+                .filter(|r| r.height > 0.0)
+                .unwrap_or_else(|| {
+                    let vp_w = self.tree.viewport_size(tag).map_or(400.0, |s| s.width);
+                    Rect::new(0.0, 0.0, vp_w, viewport_height)
+                });
+
             let vp_rect = self
                 .tree
                 .get(vp_id)
                 .map(|n| n.computed_rect)
                 .filter(|r| r.height > 0.0)
                 .unwrap_or_else(|| {
-                    let vp_w = self.tree.viewport_size(tag).map_or(100.0, |s| s.width);
-                    Rect::new(0.0, 0.0, vp_w, viewport_height)
+                    Rect::new(
+                        parent_rect.x,
+                        parent_rect.y,
+                        parent_rect.width,
+                        viewport_height,
+                    )
                 });
 
             let scroll_style = ScrollAreaStyle::dark_default();
@@ -401,11 +439,6 @@ impl<'a> UiScope<'a> {
                     .pointer_capture
                     .is_some_and(|cid| self.tree.get(cid).is_some_and(|n| n.tag == thumb_tag));
                 let cursor_pos = self.tree.event_state.last_pointer_pos;
-                let parent_rect = self
-                    .tree
-                    .get(self.parent)
-                    .map(|n| n.computed_rect)
-                    .unwrap_or(vp_rect);
 
                 self.scrollbar_vertical(
                     geom,
@@ -582,219 +615,4 @@ impl<'a> UiScope<'a> {
 #[inline]
 fn frame_scrollbar_active(content_height: f32, viewport_height: f32) -> bool {
     content_height > viewport_height && viewport_height > 0.0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use iris_core::tree::UiTree;
-
-    #[test]
-    fn test_scroll_area_virtual_culling_slice() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let vp = Rect::new(0.0, 0.0, 200.0, 400.0);
-        let total_items = 10_000;
-        let item_stride = 20.0; // 10,000 * 20 = 200,000 px content height
-        let scroll_y = 1_000.0; // 50 items scrolled down
-
-        let mut rendered_indices = Vec::new();
-
-        let (_frame, slice) = {
-            let mut scope = UiScope::new(&mut tree, root);
-            scope.virtual_scroll_area_bounded(
-                "TestVirtualOutliner",
-                vp,
-                scroll_y,
-                total_items,
-                item_stride,
-                |_s, idx, rect| {
-                    rendered_indices.push(idx);
-                    assert_eq!(
-                        rect.width,
-                        vp.width
-                            - ScrollAreaStyle::default().thickness
-                            - ScrollAreaStyle::default().inset * 2.0
-                    );
-                },
-            )
-        };
-
-        // 10,000 items in collection, but only ~24 items rendered in UI tree!
-        assert!(slice.visible_count < 30);
-        assert_eq!(rendered_indices.len(), slice.visible_count);
-        assert_eq!(rendered_indices[0], slice.start_idx);
-        assert_eq!(*rendered_indices.last().unwrap(), slice.end_idx - 1);
-    }
-
-    #[test]
-    fn test_declarative_scroll_area_scope() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let vp = Rect::new(10.0, 10.0, 300.0, 400.0);
-        let content_height = 800.0;
-        let scroll_y = 100.0;
-
-        let frame = {
-            let mut scope = UiScope::new(&mut tree, root);
-            scope.scroll_area_bounded("MyScrollContainer", vp, scroll_y, content_height, |s| {
-                s.text("Header item inside scroll");
-                s.text("Second item inside scroll");
-            })
-        };
-
-        // Viewport container was created with clip_children
-        let container_node = tree.get(frame.container_id).unwrap();
-        assert!(container_node.style.clip_children);
-        assert_eq!(container_node.computed_rect, vp);
-        assert!(container_node.children.len() >= 2);
-
-        // Scrollbar was created because content_height 800 > viewport 400
-        assert!(frame.scrollbar.is_some());
-        let geom = frame.scrollbar.unwrap();
-        assert_eq!(geom.track_rect.y, vp.y + ScrollAreaStyle::default().inset);
-    }
-
-    #[test]
-    fn test_declarative_scroll_area_fits_no_scrollbar() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let vp = Rect::new(0.0, 0.0, 200.0, 500.0);
-        let content_height = 300.0; // Content fits in viewport
-
-        let frame = {
-            let mut scope = UiScope::new(&mut tree, root);
-            scope.scroll_area_bounded("FittingContainer", vp, 0.0, content_height, |s| {
-                s.text("Fits completely");
-            })
-        };
-
-        // No scrollbar indicator when content fits
-        assert!(frame.scrollbar.is_none());
-        assert_eq!(frame.max_scroll_y, 0.0);
-    }
-
-    #[test]
-    fn test_autonomous_virtual_scroll_area_height_resolution_and_slicing() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let test_tag = 0x9001;
-        // Mock a previously computed viewport size in the tree
-        tree.set_viewport_size(test_tag, iris_core::Size::new(240.0, 300.0));
-        // Mock a scroll position of 100.0 px (5 items down with 20px item height)
-        tree.set_scroll_offset(test_tag, 100.0);
-
-        let mut rendered_indices = Vec::new();
-        let config = VirtualScrollConfig::fixed(1000, 20.0).with_scrollbar_tags(0x9002, 0x9003);
-
-        let resp = {
-            let mut scope = UiScope::new(&mut tree, root);
-            scope.virtual_scroll_area("AutonomousVirtualList", test_tag, config, |_s, idx| {
-                rendered_indices.push(idx);
-            })
-        };
-
-        assert_eq!(resp.viewport_height, 300.0);
-        assert_eq!(resp.current_scroll_y, 100.0);
-        assert_eq!(resp.content_height, 20_000.0);
-        assert_eq!(resp.max_scroll_y, 20_000.0 - 300.0);
-        assert!(!rendered_indices.is_empty());
-        assert!(rendered_indices.contains(&5)); // item at y=100 is visible
-        assert_eq!(resp.visible_start, rendered_indices[0]);
-        assert_eq!(resp.visible_end, *rendered_indices.last().unwrap() + 1);
-
-        // Verify scrollbar was emitted autonomously
-        let thumb_node = tree.find_node_by_tag(0x9003);
-        assert!(
-            thumb_node.is_some(),
-            "autonomous scrollbar thumb should be emitted"
-        );
-    }
-
-    #[test]
-    fn test_autonomous_height_resolution_parent_minus_siblings() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        // Set root panel rect to 600px height
-        if let Some(r) = tree.get_mut(root) {
-            r.computed_rect = Rect::new(0.0, 0.0, 400.0, 600.0);
-        }
-
-        let resolved_h = {
-            let mut scope = UiScope::new(&mut tree, root);
-            // Add a fixed 40px toolbar sibling
-            scope.container(Style::new().height(40.0), |_s| {});
-            // Add a 10px spacing sibling
-            scope.container(Style::new().height(10.0), |_s| {});
-            // Resolve available height for next child with unrecorded tag
-            scope.resolve_available_height(0x9999)
-        };
-
-        // 600 - 40 - 10 = 550.0
-        assert_eq!(resolved_h, 550.0);
-    }
-
-    #[test]
-    fn test_autonomous_scroll_area_measures_content_and_emits_scrollbar() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let test_tag = 0x9010;
-        let track_tag = 0x9011;
-        let thumb_tag = 0x9012;
-
-        tree.set_viewport_size(test_tag, iris_core::Size::new(300.0, 200.0));
-
-        let resp = {
-            let mut scope = UiScope::new(&mut tree, root);
-            scope.scroll_area(
-                "AutonomousContentScroll",
-                test_tag,
-                Some((track_tag, thumb_tag)),
-                |vp| {
-                    // 5 children of 80px each = 400px content
-                    for _ in 0..5 {
-                        vp.container(Style::new().height(80.0), |_s| {});
-                    }
-                },
-            )
-        };
-
-        assert_eq!(resp.viewport_height, 200.0);
-        assert_eq!(resp.content_height, 400.0);
-        assert_eq!(resp.max_scroll_y, 200.0);
-
-        let thumb_node = tree.find_node_by_tag(thumb_tag);
-        assert!(
-            thumb_node.is_some(),
-            "autonomous scrollbar thumb should be emitted for overflowing content"
-        );
-    }
-
-    #[test]
-    fn test_autonomous_visible_range() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root must exist");
-
-        let test_tag = 0x9020;
-        tree.set_viewport_size(test_tag, iris_core::Size::new(200.0, 300.0));
-        tree.set_scroll_offset(test_tag, 100.0);
-
-        let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.scroll_area("Container", test_tag, None, |s| {
-            // 20px item height, 100 items
-            let range = s.visible_range(20.0, 100);
-            assert!(range.start > 0);
-            assert!(range.end <= 100);
-            assert!(range.contains(&5)); // 5 * 20 = 100px
-            range
-        });
-
-        assert_eq!(resp.viewport_height, 300.0);
-    }
 }

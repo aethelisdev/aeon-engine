@@ -27,9 +27,9 @@ pub fn find_cursor_idx_at_x(text: &str, click_rel_x: f32, font_size: f32) -> usi
         return 0;
     }
     let mut clusters: Vec<(usize, f32)> = Vec::with_capacity(text.len().min(64));
-    let mut cum_x = 0.0;
     for (idx, ch) in text.char_indices() {
-        cum_x += measure_text_advance(ch.encode_utf8(&mut [0; 4]), font_size);
+        let prefix_len = idx + ch.len_utf8();
+        let cum_x = measure_text_advance(&text[..prefix_len], font_size);
         clusters.push((idx, cum_x));
     }
     iris_text::hit_test_from_cached_clusters(&clusters, text.len(), click_rel_x)

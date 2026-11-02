@@ -262,8 +262,6 @@ pub struct PreferencesDialogState {
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>,
     /// First-class autonomous floating panel controller from Iris UI.
     pub floating: irisui::widgets::FloatingPanelState,
-    /// Virtual maximum scrollable distance (total_content_height - content_height).
-    pub max_scroll_y: f32,
     /// Bounding rectangle of the scrollable content view.
     pub content_rect: Option<Rect>,
     /// Currently selected tab index in the Preferences dialog (0..=9).
@@ -272,8 +270,6 @@ pub struct PreferencesDialogState {
     pub last_tab: u8,
     /// Currently active continuous slider or float drag semantic tag.
     pub active_drag_tag: Option<u64>,
-    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
-    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Currently active inline numeric text editing state: `(target_tag, current_string_buffer, is_all_selected)`.
     pub active_number_input: Option<(u64, String, bool)>,
     /// Whether the text caret is currently visible during inline editing.
@@ -287,10 +283,10 @@ pub struct PreferencesDialogState {
 }
 
 impl PreferencesDialogState {
-    /// Resets scroll position and ongoing drag gesture to initial zero offset.
+    /// Resets transient drag state and pending interactions.
     #[inline]
     pub fn reset_scroll(&mut self) {
-        self.scroll_state.reset();
+        self.active_drag_tag = None;
     }
 }
 

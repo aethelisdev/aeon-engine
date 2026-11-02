@@ -282,3 +282,103 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
     assert!(tree_state.is_selected(&ent2));
     assert_eq!(tree_state.selected_count(), 2);
 }
+
+#[test]
+fn test_hierarchy_10k_entities_virtual_scroll() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must be created");
+
+    let mut world = World::new();
+    for i in 0..10_000 {
+        world.spawn((ae_core::ecs::Name(format!("Cube_{}", i)),));
+    }
+
+    let mut tree_state = TreeState::expanded_by_default();
+    let mut rows_cache = Vec::new();
+
+    let panel_rect = Rect::new(0.0, 0.0, 300.0, 800.0);
+    let params = HierarchyPanelParams {
+        panel_rect,
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: false,
+        active_context_menu: None,
+        cursor_pos: Point::new(100.0, 45.0),
+        blink_caret: false,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        ctrl_held: false,
+        shift_held: false,
+    };
+
+    let mut actions = Vec::new();
+
+    // 1. Initial build: verifies initial top slice (Cube_0..Cube_30) is collected
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
+    );
+
+    let sections_initial =
+        crate::ui::IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &[], &[]);
+    let texts_initial: Vec<&str> = sections_initial.iter().map(|s| s.text.as_ref()).collect();
+    assert!(texts_initial.contains(&"Cube_0"));
+    assert!(texts_initial.contains(&"Cube_1"));
+
+    // 2. Scrolled state: simulate scrolling down to item 78 (78 * 26.0 = 2028.0px)
+    let mut tree2 = UiTree::new();
+    let root2 = tree2.create_root().expect("Root node must be created");
+    tree2.set_viewport_size(
+        super::types::HIERARCHY_TAG_VIEWPORT,
+        Size::new(300.0, 748.0),
+    );
+    tree2.set_scroll_offset(super::types::HIERARCHY_TAG_VIEWPORT, 2028.0);
+
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree2, root2),
+        &params,
+        &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
+    );
+
+    let sections =
+        crate::ui::IrisEditorOverlay::collect_text_sections_from_tree(&tree2, &[], &[], &[]);
+    let texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
+    assert!(texts.contains(&"Cube_78"));
+    assert!(texts.contains(&"Cube_79"));
+    assert!(texts.contains(&"Cube_100"));
+
+    // 3. Verify Taffy boundary layout does NOT flex-shrink virtual rows or spacers
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let mut text_system = irisui::text::TextSystem::new();
+    text_system.measure_subtree_text(&mut tree2, root2);
+    let taffy_res = layout_engine.compute_layout(&mut tree2, Size::new(300.0, 800.0));
+    assert!(taffy_res.is_ok(), "Taffy layout computation must succeed");
+
+    let vp_id = tree2
+        .find_node_by_tag(super::types::HIERARCHY_TAG_VIEWPORT)
+        .expect("Viewport exists");
+    let vp_node = tree2.get(vp_id).unwrap();
+
+    // Verify top spacer preserved its full 1976.0px height
+    let top_spacer = tree2.get(vp_node.children[0]).unwrap();
+    assert_eq!(top_spacer.computed_rect.height, 1976.0);
+
+    // Verify all row children maintain full row height without shrinkage
+    for &cid in &vp_node.children[1..] {
+        let child = tree2.get(cid).unwrap();
+        assert_eq!(
+            child.computed_rect.height, 24.0,
+            "Row height must remain exactly 24px and not collapse under Taffy flexbox"
+        );
+    }
+}

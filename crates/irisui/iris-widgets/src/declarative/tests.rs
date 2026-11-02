@@ -753,6 +753,7 @@ mod multiline_editor_tests;
 mod numeric_response_tests;
 mod property_tests;
 mod response_tests;
+mod scroll_area_tests;
 mod spacing_and_child_event_tests;
 mod title_bar_tests;
 mod tooltip_tests;

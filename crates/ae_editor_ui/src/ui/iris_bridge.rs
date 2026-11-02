@@ -54,7 +54,6 @@ pub use hierarchy::{
 pub use icons::*;
 pub use material::{
     MaterialAction, MaterialPanelParams, build_material_panel, handle_material_click,
-    handle_material_scroll,
 };
 pub use modals::*;
 pub use preferences::{

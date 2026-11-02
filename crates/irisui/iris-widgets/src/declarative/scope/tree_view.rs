@@ -357,6 +357,8 @@ impl<'a> UiScope<'a> {
             .flex_row()
             .align_items(AlignItems::Center)
             .height(config.row_height)
+            .min_height(config.row_height)
+            .flex_shrink(0.0)
             .padding_insets(Insets::new(0.0, 6.0, 0.0, padding_left))
             .gap(4.0);
 

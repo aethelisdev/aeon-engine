@@ -238,8 +238,6 @@ pub struct IrisChromeState {
     pub last_has_drag_payload: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
-    /// Explicit flag requesting in-place scroll offset synchronization without tree rebuilding.
-    pub needs_scroll_sync: bool,
     /// Explicit flag requesting full GPU instanced quad buffer upload bypassing boundary slicing cache.
     ///
     /// When `true`, instructs [`irisui_wgpu::BoundaryLayerCache`] to upload all compiled draw quads
@@ -310,7 +308,6 @@ impl Default for IrisChromeState {
             last_has_viewport_texture: false,
             last_has_drag_payload: false,
             needs_layout_rebuild: false,
-            needs_scroll_sync: false,
             needs_full_quad_upload: true,
             active_dock_overflow: None,
             hovered_tag: None,

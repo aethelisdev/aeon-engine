@@ -71,7 +71,7 @@ impl IrisEditorOverlay {
                     None
                 };
 
-            let (_pref_id, card_rect, content_rect, max_scroll_y) = build_preferences_dialog(
+            let (_pref_id, card_rect, content_rect, _max_scroll_y) = build_preferences_dialog(
                 &mut self.tree,
                 preferences::PreferencesParams {
                     screen_width,
@@ -96,7 +96,6 @@ impl IrisEditorOverlay {
             self.preferences.pending_interaction_events.clear();
             self.preferences.floating.rect = Some(card_rect);
             self.preferences.content_rect = Some(content_rect);
-            self.preferences.max_scroll_y = max_scroll_y;
         }
 
         // 2. About Modal Dialog
