@@ -136,3 +136,68 @@ fn test_numeric_drag_clipboard_and_letter_filter() {
     assert_eq!(val, 7.5);
     assert!(tree.event_state.active_text_edit.is_none());
 }
+
+#[test]
+fn test_numeric_drag_exponential_and_logarithmic_curves() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node");
+    let tag = 0x556677;
+
+    // 1. Exponential curve scrubbing test
+    let mut val = 10.0;
+    tree.event_state.is_pointer_drag_active = true;
+    tree.event_state.pointer_capture_tag = Some(tag);
+    tree.event_state.frame_drag_delta = Some(iris_core::Point::new(10.0, 0.0));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("Scrub", &mut val)
+                .tag(tag)
+                .speed(0.1)
+                .pixels_per_step(10.0)
+                .curve(DragCurve::quadratic())
+                .range(0.0..=100.0),
+        );
+        assert!(resp.changed());
+        assert!(resp.dragged());
+    }
+
+    // At delta_x = 10.0 and pixels_per_step = 10.0, ratio is 1.0, so delta = 1.0^2 * 0.1 * 10 = 1.0
+    assert!((val - 11.0).abs() < 1e-4);
+
+    // 2. Micro-precision at delta_x = 1.0 (sub-linear fine control)
+    tree.event_state.frame_drag_delta = Some(iris_core::Point::new(1.0, 0.0));
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("Scrub", &mut val)
+                .tag(tag)
+                .speed(0.1)
+                .pixels_per_step(10.0)
+                .curve(DragCurve::quadratic())
+                .range(0.0..=100.0),
+        );
+        assert!(resp.changed());
+    }
+    // ratio = 0.1, ratio^2 = 0.01, delta = 0.01 * 1.0 = 0.01
+    assert!((val - 11.01).abs() < 1e-4);
+
+    // 3. Logarithmic compression curve scrubbing test
+    let mut log_val = 50.0;
+    tree.event_state.frame_drag_delta = Some(iris_core::Point::new(20.0, 0.0));
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("LogScrub", &mut log_val)
+                .tag(tag)
+                .speed(0.1)
+                .pixels_per_step(10.0)
+                .curve(DragCurve::Logarithmic)
+                .range(0.0..=100.0),
+        );
+        assert!(resp.changed());
+    }
+    // ratio = 2.0, ln(3)/ln(2) ~ 1.5849625, delta = 1.5849625 * 1.0 ~ 1.5849625
+    assert!((log_val - 51.58496).abs() < 1e-3);
+}

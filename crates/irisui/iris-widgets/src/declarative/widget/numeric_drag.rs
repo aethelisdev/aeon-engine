@@ -10,9 +10,14 @@
 use std::ops::{Deref, RangeInclusive};
 
 use iris_core::{
-    AlignItems, Color, JustifyContent, Style, TextAlign, WidgetCursor, WidgetResponse, WidgetRole,
+    AlignItems, Color, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetResponse,
+    WidgetRole,
 };
 
+pub use crate::controls::numeric_drag::DragCurve;
+use crate::controls::numeric_drag::{
+    DEFAULT_PIXELS_PER_STEP, NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER,
+};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::widget::Widget;
 use crate::numeric_input::NumericInputEditState;
@@ -103,6 +108,8 @@ pub struct NumericDrag<'a> {
     custom_text: Option<&'a str>,
     tag: Option<u64>,
     name: Option<&'a str>,
+    curve: DragCurve,
+    pixels_per_step: f32,
 }
 
 impl<'a> NumericDrag<'a> {
@@ -125,7 +132,25 @@ impl<'a> NumericDrag<'a> {
             custom_text: None,
             tag: None,
             name: None,
+            curve: DragCurve::Linear,
+            pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
         }
+    }
+
+    /// Sets the non-linear response curve for pointer drag scrubbing.
+    #[inline]
+    #[must_use]
+    pub fn curve(mut self, curve: DragCurve) -> Self {
+        self.curve = curve;
+        self
+    }
+
+    /// Sets the reference pixel displacement per step unit for non-linear curve evaluation.
+    #[inline]
+    #[must_use]
+    pub fn pixels_per_step(mut self, pixels: f32) -> Self {
+        self.pixels_per_step = pixels;
+        self
     }
 
     /// Sets an explicit debug node name for the interactive drag pill in the UI tree.
@@ -223,280 +248,26 @@ impl<'a> NumericDrag<'a> {
         self.tag = Some(tag);
         self
     }
-}
 
-impl<'a> Widget for NumericDrag<'a> {
-    type Response = ScalarResponse;
-
-    fn ui(self, scope: &mut UiScope<'_>) -> Self::Response {
-        let (visible_label, _) = crate::declarative::types::split_label_id(self.label);
-        let tag = self.tag.unwrap_or_else(|| scope.tag_for(self.label));
-
-        // When label is empty, render just the numeric pill directly without an outer row container
-        if visible_label.is_empty() {
-            let pill_id = scope.tree.create_node();
-            let _ = scope.tree.add_child(scope.parent, pill_id);
-            if let Some(node) = scope.tree.get_mut(pill_id) {
-                node.set_name(self.name.unwrap_or("NumericDrag"));
-                node.tag = tag;
-                node.interactive = true;
-                node.role = WidgetRole::NumericInput;
-                node.cursor = Some(WidgetCursor::Default);
-            }
-
-            let (clicked, hovered, drag_delta) = scope.check_interaction(pill_id);
-            let is_pressed = scope.is_pressed(pill_id);
-            let is_dragging = drag_delta.is_some()
-                || (scope.tree.event_state.is_pointer_drag_active
-                    && (scope.tree.event_state.pointer_capture == Some(pill_id)
-                        || (tag != 0 && scope.tree.event_state.pointer_capture_tag == Some(tag))
-                        || (tag != 0
-                            && scope
-                                .tree
-                                .event_state
-                                .pointer_capture
-                                .and_then(|cid| scope.tree.get(cid))
-                                .is_some_and(|n| n.tag == tag))));
-
-            if is_dragging && tag != 0 && scope.tree.event_state.pointer_capture_tag == Some(tag) {
-                scope.tree.event_state.pointer_capture = Some(pill_id);
-                scope.tree.event_state.pressed = Some(pill_id);
-            }
-
-            let min_val = *self.range.start();
-            let max_val = *self.range.end();
-
-            let edit_res = if self.edit_state.is_none() {
-                let config =
-                    crate::declarative::scope::properties::numeric_input::NumericEditConfig::new(
-                        min_val,
-                        max_val,
-                        self.decimals,
-                    );
-                Some(
-                    crate::declarative::scope::properties::numeric_input::handle_numeric_edit_interaction(
-                        scope,
-                        pill_id,
-                        tag,
-                        self.value,
-                        config,
-                        clicked,
-                    ),
-                )
-            } else {
-                None
-            };
-
-            let mut changed = false;
-            let mut submitted = false;
-
-            if let Some(ref res) = edit_res {
-                if res.value_changed {
-                    changed = true;
-                }
-                if res.submitted {
-                    submitted = true;
-                }
-            }
-
-            let is_editing = edit_res
-                .as_ref()
-                .map_or(self.edit_state.is_some(), |r| r.is_editing);
-
-            if !is_editing {
-                if let Some(text) = scope.check_interaction_text(pill_id) {
-                    let clean = text.trim();
-                    if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean)
-                    {
-                        let next = parsed.clamp(min_val, max_val);
-                        if (next - *self.value).abs() > f32::EPSILON {
-                            *self.value = next;
-                            changed = true;
-                        }
-                    }
-                } else if let Some(delta) = drag_delta {
-                    let next = (*self.value + delta.x * self.speed).clamp(min_val, max_val);
-                    if (next - *self.value).abs() > f32::EPSILON {
-                        *self.value = next;
-                        changed = true;
-                    }
-                }
-            }
-            *self.value = self.value.clamp(min_val, max_val);
-
-            let (display_str, is_all_selected) = if is_editing {
-                if let Some(ref res) = edit_res {
-                    let is_all_sel = res
-                        .selection
-                        .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
-                    (res.display_text.clone(), is_all_sel)
-                } else if let Some(s) = self.edit_state {
-                    let buf = s.buffer;
-                    let cursor = s.cursor_idx.min(buf.len());
-                    let (left, right) = buf.split_at(cursor);
-                    let disp = if s.is_all_selected {
-                        buf.to_owned()
-                    } else if s.blink_caret {
-                        format!("{}|{}", left, right)
-                    } else {
-                        buf.to_owned()
-                    };
-                    (disp, s.is_all_selected)
-                } else {
-                    (String::new(), false)
-                }
-            } else if let Some(txt) = self.custom_text {
-                (txt.to_owned(), false)
-            } else {
-                (
-                    crate::declarative::types::format_compact_float(*self.value, self.decimals),
-                    false,
-                )
-            };
-
-            let (bg, border_col) = if is_editing {
-                (
-                    Color::rgba(0.180, 0.190, 0.220, 1.0),
-                    Color::rgba(0.85, 0.88, 0.98, 0.95),
-                )
-            } else if is_dragging {
-                (
-                    Color::rgba(0.20, 0.28, 0.38, 0.98),
-                    Color::rgba(0.35, 0.75, 0.95, 0.90),
-                )
-            } else if hovered {
-                (
-                    Color::rgba(0.200, 0.208, 0.235, 1.0),
-                    Color::rgba(0.271, 0.282, 0.329, 0.95),
-                )
-            } else {
-                (
-                    Color::rgba(0.157, 0.165, 0.188, 0.98),
-                    Color::rgba(0.212, 0.220, 0.259, 0.85),
-                )
-            };
-
-            let text_len = display_str.len();
-            if let Some(node) = scope.tree.get_mut(pill_id) {
-                node.set_name("NumericDrag");
-                node.interactive = true;
-                node.role = WidgetRole::NumericInput;
-                node.tag = tag;
-                node.cursor = Some(if is_dragging {
-                    WidgetCursor::EwResize
-                } else if is_editing {
-                    WidgetCursor::Text
-                } else {
-                    WidgetCursor::Default
-                });
-                node.set_text(display_str);
-                node.font_size = 10.5;
-                node.line_height = 14.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = if is_editing || hovered {
-                    Color::WHITE
-                } else {
-                    Color::rgba(0.85, 0.88, 0.94, 1.0)
-                };
-
-                let mut style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .height(22.0)
-                    .background(bg)
-                    .border(1.0, border_col)
-                    .border_radius(4.0);
-                if let Some(w) = self.box_width {
-                    style.width = Some(w);
-                }
-                node.set_style(style);
-            }
-
-            if is_all_selected {
-                let approx_char_w = 6.2;
-                let val_w = (text_len as f32 * approx_char_w).max(12.0);
-                let w = self.box_width.unwrap_or(48.0);
-                let sel_x = ((w - val_w) * 0.5 - 2.0).clamp(2.0, w - 6.0);
-                let sel_w = (val_w + 4.0).min(w - 2.0 - sel_x);
-                let sel_style = Style::new()
-                    .position_absolute()
-                    .left(sel_x)
-                    .top(3.0)
-                    .width(sel_w)
-                    .height(16.0)
-                    .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                    .border_radius(3.0);
-                let mut pill_scope = scope.child_scope(pill_id);
-                pill_scope.empty_box_passive_named("Numeric_Sel", sel_style);
-            }
-
-            let is_drag_released = (scope.tree.event_state.frame_drag_released_tag == Some(tag)
-                && tag != 0)
-                || scope.tree.event_state.frame_drag_released_id == Some(pill_id);
-
-            let mut resp = WidgetResponse::new(pill_id, clicked, hovered, changed);
-            if is_pressed {
-                resp = resp.with_pressed(true);
-            }
-            if is_dragging {
-                resp = resp.with_dragged(true);
-            }
-            if is_drag_released {
-                resp = resp.with_drag_released(true);
-            }
-            if submitted {
-                resp.flags = resp
-                    .flags
-                    .union(iris_core::response::ResponseFlags::LOST_FOCUS)
-                    .union(iris_core::response::ResponseFlags::SUBMITTED);
-            }
-            return ScalarResponse {
-                response: resp,
-                value: *self.value,
-            };
-        }
-
-        // When label is not empty, build standard property row with label + pill (+ optional unit)
-        let label_w = self.label_width.unwrap_or(55.0);
-        let box_w = self.box_width.unwrap_or(48.0);
-        let gap_w = 4.0;
-        let mut row_w = label_w + gap_w + box_w;
-        if self.unit.is_some() {
-            row_w += gap_w + 35.0;
-        }
-
-        let row_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .width(row_w)
-            .height(22.0)
-            .gap(gap_w);
-
-        let row_id = scope.tree.create_node();
-        if let Some(node) = scope.tree.get_mut(row_id) {
-            node.set_name("NumericRow");
-            node.set_style(row_style);
-        }
-        let _ = scope.tree.add_child(scope.parent, row_id);
-
-        let mut row = scope.child_scope(row_id);
-
-        // 1. Left Label
-        let label_style = Style::new().width(label_w).height(22.0).flex_shrink(0.0);
-        row.label_styled_passive(
-            "NumLbl",
-            visible_label,
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            label_style,
-        );
-
-        // 2. Pill Node
-        let pill_id = row.tree.create_node();
-        let _ = row.tree.add_child(row.parent, pill_id);
-        if let Some(node) = row.tree.get_mut(pill_id) {
+    /// Internal helper that renders and processes pointer scrubbing interactions for a numeric pill node.
+    ///
+    /// # Parameters
+    /// - `scope`: UI tree scope hosting the pill node.
+    /// - `pill_id`: Allocated node identifier for the interactive pill.
+    /// - `tag`: Persistent 64-bit tag for interaction tracking and pointer capture.
+    /// - `min_val`: Lower inclusive scalar constraint bound.
+    /// - `max_val`: Upper inclusive scalar constraint bound.
+    /// - `box_w`: Effective width of the pill input box in logical pixels.
+    fn render_pill(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        pill_id: WidgetId,
+        tag: u64,
+        min_val: f32,
+        max_val: f32,
+        box_w: f32,
+    ) -> WidgetResponse {
+        if let Some(node) = scope.tree.get_mut(pill_id) {
             node.set_name(self.name.unwrap_or("NumericDrag"));
             node.tag = tag;
             node.interactive = true;
@@ -504,27 +275,24 @@ impl<'a> Widget for NumericDrag<'a> {
             node.cursor = Some(WidgetCursor::Default);
         }
 
-        let (clicked, hovered, drag_delta) = row.check_interaction(pill_id);
-        let is_pressed = row.is_pressed(pill_id);
+        let (clicked, hovered, drag_delta) = scope.check_interaction(pill_id);
+        let is_pressed = scope.is_pressed(pill_id);
         let is_dragging = drag_delta.is_some()
-            || (row.tree.event_state.is_pointer_drag_active
-                && (row.tree.event_state.pointer_capture == Some(pill_id)
-                    || (tag != 0 && row.tree.event_state.pointer_capture_tag == Some(tag))
+            || (scope.tree.event_state.is_pointer_drag_active
+                && (scope.tree.event_state.pointer_capture == Some(pill_id)
+                    || (tag != 0 && scope.tree.event_state.pointer_capture_tag == Some(tag))
                     || (tag != 0
-                        && row
+                        && scope
                             .tree
                             .event_state
                             .pointer_capture
-                            .and_then(|cid| row.tree.get(cid))
+                            .and_then(|cid| scope.tree.get(cid))
                             .is_some_and(|n| n.tag == tag))));
 
-        if is_dragging && tag != 0 && row.tree.event_state.pointer_capture_tag == Some(tag) {
-            row.tree.event_state.pointer_capture = Some(pill_id);
-            row.tree.event_state.pressed = Some(pill_id);
+        if is_dragging && tag != 0 && scope.tree.event_state.pointer_capture_tag == Some(tag) {
+            scope.tree.event_state.pointer_capture = Some(pill_id);
+            scope.tree.event_state.pressed = Some(pill_id);
         }
-
-        let min_val = *self.range.start();
-        let max_val = *self.range.end();
 
         let edit_res = if self.edit_state.is_none() {
             let config =
@@ -535,7 +303,7 @@ impl<'a> Widget for NumericDrag<'a> {
                 );
             Some(
                 crate::declarative::scope::properties::numeric_input::handle_numeric_edit_interaction(
-                    &mut row,
+                    scope,
                     pill_id,
                     tag,
                     self.value,
@@ -564,7 +332,7 @@ impl<'a> Widget for NumericDrag<'a> {
             .map_or(self.edit_state.is_some(), |r| r.is_editing);
 
         if !is_editing {
-            if let Some(text) = row.check_interaction_text(pill_id) {
+            if let Some(text) = scope.check_interaction_text(pill_id) {
                 let clean = text.trim();
                 if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean) {
                     let next = parsed.clamp(min_val, max_val);
@@ -574,7 +342,20 @@ impl<'a> Widget for NumericDrag<'a> {
                     }
                 }
             } else if let Some(delta) = drag_delta {
-                let next = (*self.value + delta.x * self.speed).clamp(min_val, max_val);
+                let multiplier = if scope.tree.event_state.frame_shift_held {
+                    NUMERIC_DRAG_FINE_MULTIPLIER
+                } else if scope.tree.event_state.frame_ctrl_held {
+                    NUMERIC_DRAG_COARSE_MULTIPLIER
+                } else {
+                    1.0
+                };
+                let delta_val = self.curve.compute_delta(
+                    delta.x as f64,
+                    self.speed as f64,
+                    self.pixels_per_step as f64,
+                    multiplier,
+                ) as f32;
+                let next = (*self.value + delta_val).clamp(min_val, max_val);
                 if (next - *self.value).abs() > f32::EPSILON {
                     *self.value = next;
                     changed = true;
@@ -635,18 +416,8 @@ impl<'a> Widget for NumericDrag<'a> {
             )
         };
 
-        let pill_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .width(box_w)
-            .height(22.0)
-            .background(bg)
-            .border(1.0, border_col)
-            .border_radius(4.0);
-
         let text_len = display_str.len();
-        if let Some(node) = row.tree.get_mut(pill_id) {
+        if let Some(node) = scope.tree.get_mut(pill_id) {
             node.set_name(self.name.unwrap_or("NumericDrag"));
             node.interactive = true;
             node.role = WidgetRole::NumericInput;
@@ -667,7 +438,19 @@ impl<'a> Widget for NumericDrag<'a> {
             } else {
                 Color::rgba(0.85, 0.88, 0.94, 1.0)
             };
-            node.set_style(pill_style);
+
+            let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .height(22.0)
+                .background(bg)
+                .border(1.0, border_col)
+                .border_radius(4.0);
+            if let Some(w) = self.box_width {
+                style.width = Some(w);
+            }
+            node.set_style(style);
         }
 
         if is_all_selected {
@@ -684,25 +467,13 @@ impl<'a> Widget for NumericDrag<'a> {
                 .height(16.0)
                 .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
                 .border_radius(3.0);
-            let mut pill_scope = row.child_scope(pill_id);
+            let mut pill_scope = scope.child_scope(pill_id);
             pill_scope.empty_box_passive_named("Numeric_Sel", sel_style);
         }
 
-        // 3. Optional Unit Suffix
-        if let Some(unit_str) = self.unit {
-            row.label_styled_passive(
-                "NumUnit",
-                unit_str,
-                11.0,
-                row.theme().text_muted,
-                TextAlign::Left,
-                Style::new().width(35.0).height(22.0),
-            );
-        }
-
-        let is_drag_released = (row.tree.event_state.frame_drag_released_tag == Some(tag)
+        let is_drag_released = (scope.tree.event_state.frame_drag_released_tag == Some(tag)
             && tag != 0)
-            || row.tree.event_state.frame_drag_released_id == Some(pill_id);
+            || scope.tree.event_state.frame_drag_released_id == Some(pill_id);
 
         let mut resp = WidgetResponse::new(pill_id, clicked, hovered, changed);
         if is_pressed {
@@ -719,6 +490,83 @@ impl<'a> Widget for NumericDrag<'a> {
                 .flags
                 .union(iris_core::response::ResponseFlags::LOST_FOCUS)
                 .union(iris_core::response::ResponseFlags::SUBMITTED);
+        }
+
+        resp
+    }
+}
+
+impl<'a> Widget for NumericDrag<'a> {
+    type Response = ScalarResponse;
+
+    fn ui(mut self, scope: &mut UiScope<'_>) -> Self::Response {
+        let (visible_label, _) = crate::declarative::types::split_label_id(self.label);
+        let tag = self.tag.unwrap_or_else(|| scope.tag_for(self.label));
+        let min_val = *self.range.start();
+        let max_val = *self.range.end();
+        let box_w = self.box_width.unwrap_or(48.0);
+
+        // When label is empty, render just the numeric pill directly without an outer row container
+        if visible_label.is_empty() {
+            let pill_id = scope.tree.create_node();
+            let _ = scope.tree.add_child(scope.parent, pill_id);
+            let resp = self.render_pill(scope, pill_id, tag, min_val, max_val, box_w);
+            return ScalarResponse {
+                response: resp,
+                value: *self.value,
+            };
+        }
+
+        // When label is not empty, build standard property row with label + pill (+ optional unit)
+        let label_w = self.label_width.unwrap_or(55.0);
+        let gap_w = 4.0;
+        let mut row_w = label_w + gap_w + box_w;
+        if self.unit.is_some() {
+            row_w += gap_w + 35.0;
+        }
+
+        let row_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .width(row_w)
+            .height(22.0)
+            .gap(gap_w);
+
+        let row_id = scope.tree.create_node();
+        if let Some(node) = scope.tree.get_mut(row_id) {
+            node.set_name("NumericRow");
+            node.set_style(row_style);
+        }
+        let _ = scope.tree.add_child(scope.parent, row_id);
+
+        let mut row = scope.child_scope(row_id);
+
+        // 1. Left Label
+        let label_style = Style::new().width(label_w).height(22.0).flex_shrink(0.0);
+        row.label_styled_passive(
+            "NumLbl",
+            visible_label,
+            11.0,
+            row.theme().text_muted,
+            TextAlign::Left,
+            label_style,
+        );
+
+        // 2. Pill Node
+        let pill_id = row.tree.create_node();
+        let _ = row.tree.add_child(row.parent, pill_id);
+        let resp = self.render_pill(&mut row, pill_id, tag, min_val, max_val, box_w);
+
+        // 3. Optional Unit Suffix
+        if let Some(unit_str) = self.unit {
+            row.label_styled_passive(
+                "NumUnit",
+                unit_str,
+                11.0,
+                row.theme().text_muted,
+                TextAlign::Left,
+                Style::new().width(35.0).height(22.0),
+            );
         }
 
         ScalarResponse {

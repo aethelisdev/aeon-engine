@@ -20,8 +20,9 @@ pub use multiline::{
     MultilineTextState,
 };
 pub use numeric_drag::{
-    NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD,
-    NumericDragResponse, NumericDragState, handle_numeric_drag_event,
+    DEFAULT_EXPONENTIAL_POWER, DEFAULT_PIXELS_PER_STEP, DragCurve, NUMERIC_DRAG_COARSE_MULTIPLIER,
+    NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD, NumericDragResponse, NumericDragState,
+    handle_numeric_drag_event,
 };
 pub use text_input::{
     DEFAULT_MAX_UNDO_DEPTH, TEXT_UNDO_COALESCE_TIMEOUT_MS, TextSnapshot, TextUndoStack,
