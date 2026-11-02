@@ -5,7 +5,7 @@
 //!
 //! Flattens the ECS hierarchy tree into a deterministic DFS pre-order row list and
 //! renders interactive tree rows with 1:1 selection styling, semantic hardware tagging,
-//! and eye visibility toggles using pure declarative [`UiScope::virtual_scroll_area`]
+//! and eye visibility toggles using pure declarative [`UiScope::virtual_list`]
 //! with $O(1)$ UI frustum culling.
 
 use super::types::{
@@ -16,7 +16,6 @@ use super::types::{
 use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
 use irisui::widgets::declarative::{TreeRowProps, TreeViewConfig};
-use irisui::widgets::scroll_area::VirtualScrollConfig;
 use irisui::widgets::tree_view::{
     TreeIndentConfig, TreeRowStyle, TreeSelectionModifiers, handle_tree_row_click,
 };
@@ -239,7 +238,7 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
     }
 }
 
-/// Renders the virtualized, frustum-culled tree list of ECS entity rows using pure declarative [`UiScope::virtual_scroll_area`].
+/// Renders the virtualized, frustum-culled tree list of ECS entity rows using pure declarative [`UiScope::virtual_list`].
 ///
 /// Automatically prunes off-screen entity rows from the UI tree, keeping node generation and layout cost
 /// strictly $O(1)$ regardless of whether the scene contains 10 or 100,000 entities.
@@ -298,13 +297,8 @@ pub fn build_hierarchy_rows(
         return;
     }
 
-    // 3. Delegate frustum culling, overscan buffers, and sub-pixel scrolling to virtual_scroll_area
+    // 3. Delegate frustum culling, overscan buffers, and sub-pixel scrolling to virtual_list
     let total_filtered = matching_indices.len();
-
-    let config = VirtualScrollConfig::fixed(total_filtered, HIERARCHY_ROW_STRIDE)
-        .with_overscan(2)
-        .with_bg(Color::TRANSPARENT)
-        .with_scrollbar_tags(HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_SCROLLBAR_THUMB);
 
     let tree_config = TreeViewConfig::default()
         .with_name("HierarchyEntityRow")
@@ -327,11 +321,14 @@ pub fn build_hierarchy_rows(
                 .with_border_radius(4.0),
         );
 
-    scope.virtual_scroll_area(
-        "HierarchyRowsViewport",
-        HIERARCHY_TAG_VIEWPORT,
-        config,
-        |row_scope, filtered_idx| {
+    scope
+        .virtual_list(total_filtered, HIERARCHY_ROW_STRIDE)
+        .name("HierarchyRowsViewport")
+        .tag(HIERARCHY_TAG_VIEWPORT)
+        .background(Color::TRANSPARENT)
+        .scrollbar_tags(HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_SCROLLBAR_THUMB)
+        .overscan(2)
+        .render_item(|row_scope, filtered_idx| {
             let master_idx = matching_indices[filtered_idx];
             let row = &rows[master_idx];
 
@@ -463,8 +460,7 @@ pub fn build_hierarchy_rows(
                     params.cursor_pos,
                 ));
             }
-        },
-    );
+        });
 }
 
 #[cfg(test)]

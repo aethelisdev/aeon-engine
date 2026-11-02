@@ -10,7 +10,9 @@
 
 use super::math::{DEFAULT_OVERSCAN, VirtualSlice, VirtualSliceParams, compute_virtual_slice};
 use crate::declarative::scope::core::UiScope;
-use iris_core::geometry::Size;
+use crate::scroll_area::ScrollBarGeometry;
+use crate::scroll_area::style::ScrollAreaStyle;
+use iris_core::geometry::{Insets, Rect, Size};
 use iris_core::node::WidgetRole;
 use iris_core::{Color, Style, WidgetId};
 
@@ -89,6 +91,10 @@ pub struct VirtualListBuilder<'s, 't> {
     tag: u64,
     name: &'static str,
     background: Option<Color>,
+    scrollbar_tags: Option<(u64, u64)>,
+    width: Option<f32>,
+    margin: Option<Insets>,
+    gap: Option<f32>,
 }
 
 /// Type alias aligning with idiomatic widget naming conventions.
@@ -114,7 +120,41 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
             tag: 0,
             name: "VirtualList",
             background: None,
+            scrollbar_tags: None,
+            width: None,
+            margin: None,
+            gap: None,
         }
+    }
+
+    /// Sets explicit width for the virtual list viewport container.
+    #[inline]
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
+    /// Sets margin insets around the virtual list viewport container.
+    #[inline]
+    pub fn margin_insets(mut self, insets: Insets) -> Self {
+        self.margin = Some(insets);
+        self
+    }
+
+    /// Sets the gap in pixels between consecutive rendered child items in the viewport container.
+    #[inline]
+    pub fn gap(mut self, gap: f32) -> Self {
+        self.gap = Some(gap);
+        self
+    }
+
+    /// Assigns explicit hit-testing tags to the vertical scrollbar track and thumb nodes.
+    ///
+    /// Enables interactive mouse-drag and click-to-jump on the vertical scrollbar indicator.
+    #[inline]
+    pub fn scrollbar_tags(mut self, track_tag: u64, thumb_tag: u64) -> Self {
+        self.scrollbar_tags = Some((track_tag, thumb_tag));
+        self
     }
 
     /// Explicitly sets the visible viewport height in logical pixels ($V$).
@@ -201,10 +241,10 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
             overscan: self.overscan,
         });
 
+        let safe_scroll = current_scroll.clamp(0.0, max_scroll);
+
         if self.tag != 0 {
-            self.scope
-                .tree
-                .set_scroll_offset(self.tag, current_scroll.clamp(0.0, max_scroll));
+            self.scope.tree.set_scroll_offset(self.tag, safe_scroll);
             self.scope.tree.set_max_scroll(self.tag, max_scroll);
         }
 
@@ -221,8 +261,18 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
                 .flex_grow(1.0)
                 .min_height(0.0)
                 .flex_shrink(1.0)
-                .clip_children(true);
+                .clip_children(true)
+                .scroll_offset_y(safe_scroll);
 
+            if let Some(w) = self.width {
+                style = style.width(w);
+            }
+            if let Some(m) = self.margin {
+                style = style.margin_insets(m);
+            }
+            if let Some(g) = self.gap {
+                style = style.gap(g);
+            }
             if let Some(vh) = self.visible_height {
                 style = style.height(vh).max_height(vh);
             }
@@ -235,6 +285,7 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
 
         {
             let mut child = self.scope.child_scope(vp_id);
+            child.set_scroll_offset_y(safe_scroll);
 
             // 1. Top Spacer: emitted only when first_index > 0
             if slice.top_spacer > 0.0 {
@@ -260,6 +311,53 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
                         .height(slice.bottom_spacer)
                         .min_height(slice.bottom_spacer)
                         .flex_shrink(0.0),
+                );
+            }
+        }
+
+        // 4. Autonomous vertical scrollbar emission
+        let effective_scrollbar = self.scrollbar_tags.or_else(|| {
+            if self.tag != 0 {
+                Some((self.tag.wrapping_add(0x1000), self.tag.wrapping_add(0x2000)))
+            } else {
+                None
+            }
+        });
+
+        if let Some((track_tag, thumb_tag)) = effective_scrollbar
+            && slice.total_height > viewport_height
+        {
+            let scroll_style = ScrollAreaStyle::dark_default();
+            let vp_rect = self.scope.tree.tag_rect(self.tag).unwrap_or(Rect::new(
+                0.0,
+                0.0,
+                400.0,
+                viewport_height,
+            ));
+
+            if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                vp_rect,
+                slice.total_height,
+                safe_scroll,
+                &scroll_style,
+            ) {
+                let is_dragging = self
+                    .scope
+                    .tree
+                    .event_state
+                    .pointer_capture
+                    .is_some_and(|cid| {
+                        self.scope.tree.get(cid).is_some_and(|n| n.tag == thumb_tag)
+                    });
+                let cursor_pos = self.scope.tree.event_state.last_pointer_pos;
+
+                self.scope.scrollbar_vertical(
+                    geom,
+                    vp_rect,
+                    is_dragging,
+                    cursor_pos,
+                    track_tag,
+                    thumb_tag,
                 );
             }
         }

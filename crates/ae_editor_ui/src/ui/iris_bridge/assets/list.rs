@@ -13,7 +13,6 @@
 use super::components::{ASSET_LIST_ROW_HEIGHT, asset_list_row};
 use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};
 use irisui::prelude::*;
-use irisui::widgets::scroll_area::VirtualList;
 
 /// Height of an individual table row in pixels.
 pub const LIST_ROW_HEIGHT: f32 = ASSET_LIST_ROW_HEIGHT;
@@ -106,62 +105,37 @@ pub fn build_asset_list_table_scope(
         },
     );
 
-    // 2. Table Data Rows via iris-widgets VirtualList
+    // 2. Table Data Rows via declarative VirtualList
     let available_table_h = (vp_rect.height - (LIST_HEADER_HEIGHT + 8.0)).max(10.0);
-    let vlist = VirtualList::new(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0);
     let scroll_y = scope.tree().scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
-    let slice = vlist.compute_slice(available_table_h, scroll_y);
 
-    let total_content_h = vlist.total_content_height();
     scope
-        .container_tagged_resp(
-            "AssetListRowsContainer",
-            Style::new()
-                .flex_col()
-                .width(total_w)
-                .clip_children(true)
-                .margin_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                .gap(2.0)
-                .scroll_offset_y(scroll_y),
-            WidgetRole::ScrollAreaViewport,
-            ASSETS_TAG_CONTENT_VIEWPORT,
-            |rows_scope| {
-                let row_stride = LIST_ROW_HEIGHT + 2.0;
-                if slice.start_idx > 0 {
-                    let top_spacer = slice.start_idx as f32 * row_stride;
-                    rows_scope.empty_box(Style::new().height(top_spacer));
-                }
-                for (offset, item) in params.filtered_items[slice.start_idx..slice.end_idx]
-                    .iter()
-                    .enumerate()
-                {
-                    let item_idx = (slice.start_idx + offset) as u32;
-                    let item_tag = super::types::encode_item_tag(item_idx);
-                    let is_clicked_this_frame =
-                        rows_scope.tree().event_state.frame_clicked_tag == Some(item_tag);
-                    let is_pressed_this_frame =
-                        rows_scope.tree().event_state.pressed_tag == Some(item_tag);
-                    let is_selected = is_clicked_this_frame
-                        || is_pressed_this_frame
-                        || params.selected_asset == Some(&item.path);
+        .virtual_list(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0)
+        .name("AssetListRowsContainer")
+        .tag(ASSETS_TAG_CONTENT_VIEWPORT)
+        .width(total_w)
+        .margin_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+        .gap(2.0)
+        .visible_height(available_table_h)
+        .scroll_y(scroll_y)
+        .render_item(|rows_scope, idx| {
+            let item = &params.filtered_items[idx];
+            let item_idx = idx as u32;
+            let item_tag = super::types::encode_item_tag(item_idx);
+            let is_clicked_this_frame =
+                rows_scope.tree().event_state.frame_clicked_tag == Some(item_tag);
+            let is_pressed_this_frame = rows_scope.tree().event_state.pressed_tag == Some(item_tag);
+            let is_selected = is_clicked_this_frame
+                || is_pressed_this_frame
+                || params.selected_asset == Some(&item.path);
 
-                    asset_list_row(rows_scope, item_idx, item, is_selected, actions).context_menu(
-                        rows_scope,
-                        |menu| {
-                            super::context_menu::render_asset_context_menu_items(
-                                menu, item, actions,
-                            );
-                        },
-                    );
-                }
-                let remaining = params.filtered_items.len().saturating_sub(slice.end_idx);
-                if remaining > 0 {
-                    let bottom_spacer = remaining as f32 * row_stride;
-                    rows_scope.empty_box(Style::new().height(bottom_spacer));
-                }
-            },
-        )
-        .content_size(scope, Size::new(total_w, total_content_h))
+            asset_list_row(rows_scope, item_idx, item, is_selected, actions).context_menu(
+                rows_scope,
+                |menu| {
+                    super::context_menu::render_asset_context_menu_items(menu, item, actions);
+                },
+            );
+        })
         .context_menu(scope, |menu| {
             super::context_menu::render_folder_context_menu_items(
                 menu,

@@ -12,7 +12,6 @@ use super::types::{
 };
 use irisui::prelude::*;
 use irisui::widgets::declarative::ScrollAreaView;
-use irisui::widgets::scroll_area::VirtualScrollConfig;
 
 /// Standard height in physical pixels for a single console log row.
 pub const CONSOLE_ROW_HEIGHT: f32 = 26.0;
@@ -20,7 +19,7 @@ pub const CONSOLE_ROW_HEIGHT: f32 = 26.0;
 /// Standard line height for text elements within a log row.
 pub const CONSOLE_ROW_LINE_HEIGHT: f32 = 18.0;
 
-/// Renders the virtualized slice of filtered log rows into the widget tree via declarative [`UiScope::virtual_scroll_area`].
+/// Renders the virtualized slice of filtered log rows into the widget tree via declarative [`UiScope::virtual_list`].
 ///
 /// Automatically manages frustum culling, overscan buffer margins, and sub-pixel scroll offset.
 pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelParams<'_>) {
@@ -65,36 +64,34 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
         return;
     }
 
-    // 2. Delegate windowing, overscan, and sub-pixel scrolling to pure declarative virtual_scroll_area
-    let mut config = VirtualScrollConfig::fixed(total_filtered, CONSOLE_ROW_HEIGHT)
-        .with_overscan(2)
-        .with_bg(Color::rgba(0.05, 0.06, 0.08, 0.98))
-        .with_scrollbar_tags(CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SCROLLBAR_THUMB);
+    // 2. Delegate windowing, overscan, and sub-pixel scrolling to pure declarative virtual_list
+    let mut vlist = panel_scope
+        .virtual_list(total_filtered, CONSOLE_ROW_HEIGHT)
+        .name("ConsoleViewport")
+        .tag(CONSOLE_TAG_VIEWPORT)
+        .background(Color::rgba(0.05, 0.06, 0.08, 0.98))
+        .scrollbar_tags(CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SCROLLBAR_THUMB)
+        .overscan(2);
 
     if params.auto_scroll {
-        config = config.with_scroll_y(f32::MAX);
+        vlist = vlist.scroll_y(f32::MAX);
     }
 
-    panel_scope.virtual_scroll_area(
-        "ConsoleViewport",
-        CONSOLE_TAG_VIEWPORT,
-        config,
-        |row_scope, filtered_idx| {
-            let entry_idx = matching_indices[filtered_idx];
-            let entry = &params.entries[entry_idx];
-            let is_striped = !filtered_idx.is_multiple_of(2);
+    vlist.render_item(|row_scope, filtered_idx| {
+        let entry_idx = matching_indices[filtered_idx];
+        let entry = &params.entries[entry_idx];
+        let is_striped = !filtered_idx.is_multiple_of(2);
 
-            render_console_row(
-                row_scope,
-                convert_log_level(entry.level),
-                &entry.timestamp,
-                &entry.target,
-                &entry.msg,
-                false,
-                is_striped,
-            );
-        },
-    );
+        render_console_row(
+            row_scope,
+            convert_log_level(entry.level),
+            &entry.timestamp,
+            &entry.target,
+            &entry.msg,
+            false,
+            is_striped,
+        );
+    });
 }
 
 /// Renders a single console log row inside the virtualized scroll viewport.

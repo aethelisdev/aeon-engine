@@ -204,12 +204,12 @@ pub fn compute_virtual_slice(params: VirtualSliceParams) -> VirtualSlice {
 
     // first_idx = max(0, floor(Sy / H) - overscan)
     let raw_first = (sy / h).floor() as i64;
-    let first_idx_i64 = (raw_first - overscan).clamp(0, n);
+    let first_idx_i64 = raw_first.saturating_sub(overscan).clamp(0, n);
     let first_index = first_idx_i64 as usize;
 
     // last_idx = min(N, ceil((Sy + V) / H) + overscan)
     let raw_last = ((sy + v) / h).ceil() as i64;
-    let last_idx_i64 = (raw_last + overscan).clamp(0, n);
+    let last_idx_i64 = raw_last.saturating_add(overscan).clamp(0, n);
     let last_index = (last_idx_i64 as usize).max(first_index);
 
     let top_spacer = (first_index as f64 * h) as f32;
@@ -436,6 +436,23 @@ mod tests {
             slice.top_spacer + slice.rendered_height(20.0) + slice.bottom_spacer,
             slice.total_height
         );
+    }
+
+    /// Verifies extreme finite values (`f32::MAX` and `f32::MIN`) do not overflow or panic.
+    #[test]
+    fn test_virtual_slice_finite_extrema() {
+        // Extreme positive scroll (e.g. auto-scroll flag set to f32::MAX)
+        let max_params = VirtualSliceParams::new(100, 20.0, 300.0, f32::MAX);
+        let max_slice = compute_virtual_slice(max_params);
+        assert_eq!(max_slice.first_index, 100);
+        assert_eq!(max_slice.last_index, 100);
+        assert_eq!(max_slice.visible_count(), 0);
+
+        // Extreme negative scroll
+        let min_params = VirtualSliceParams::new(100, 20.0, 300.0, f32::MIN);
+        let min_slice = compute_virtual_slice(min_params);
+        assert_eq!(min_slice.first_index, 0);
+        assert_eq!(min_slice.last_index, 0);
     }
 
     /// Verifies overscan parameter tuning (0 vs 2 vs 5).

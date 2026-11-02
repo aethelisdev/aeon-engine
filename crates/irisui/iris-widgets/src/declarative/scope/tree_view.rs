@@ -13,7 +13,6 @@
 //!   without visual overlap or manual coordinate math in host panels.
 
 use super::core::UiScope;
-use crate::scroll_area::types::VirtualScrollConfig;
 use crate::tree_view::model::{TreeIndentConfig, TreeState, for_each_tree_connector_line};
 use crate::tree_view::navigation::TreeItemInfo;
 use crate::tree_view::selection::{TreeRowStyle, tree_chevron_arrow_glyph};
@@ -573,39 +572,37 @@ impl<'a> UiScope<'a> {
         }
 
         let stride = config.row_stride();
-        let mut scroll_config = VirtualScrollConfig::fixed(items.len(), stride)
-            .with_overscan(2)
-            .with_bg(Color::TRANSPARENT)
-            .with_scroll_y(props.scroll_y);
+        let mut builder = self
+            .virtual_list(items.len(), stride)
+            .name(config.name)
+            .tag(props.tag)
+            .background(Color::TRANSPARENT)
+            .overscan(2)
+            .scroll_y(props.scroll_y);
 
         if props.viewport_height > 0.0 {
-            scroll_config = scroll_config.with_viewport_height(props.viewport_height);
+            builder = builder.visible_height(props.viewport_height);
         }
 
-        let resp = self.virtual_scroll_area(
-            config.name,
-            props.tag,
-            scroll_config,
-            |row_scope, item_idx| {
-                let item = &items[item_idx];
-                let is_selected = state.is_selected(&item.id);
-                let is_expanded = state.is_expanded(&item.id);
-                let (row_tag, foldout_tag) = make_tags(&item.id, item_idx);
+        let resp = builder.render_item(|row_scope, item_idx| {
+            let item = &items[item_idx];
+            let is_selected = state.is_selected(&item.id);
+            let is_expanded = state.is_expanded(&item.id);
+            let (row_tag, foldout_tag) = make_tags(&item.id, item_idx);
 
-                let row_props = TreeRowProps::new(
-                    item.depth,
-                    item.has_children,
-                    is_expanded,
-                    is_selected,
-                    row_tag,
-                    foldout_tag,
-                );
+            let row_props = TreeRowProps::new(
+                item.depth,
+                item.has_children,
+                is_expanded,
+                is_selected,
+                row_tag,
+                foldout_tag,
+            );
 
-                row_scope.tree_row("TreeItemRow", row_props, config, |content_s| {
-                    row_content(content_s, item, item_idx, is_selected);
-                });
-            },
-        );
+            row_scope.tree_row("TreeItemRow", row_props, config, |content_s| {
+                row_content(content_s, item, item_idx, is_selected);
+            });
+        });
 
         resp.max_scroll_y
     }

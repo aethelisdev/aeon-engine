@@ -351,3 +351,20 @@ impl ContextMenuExt for TreeRowResponse {
         self
     }
 }
+
+impl ContextMenuExt for crate::declarative::widget::virtual_list::VirtualListResponse {
+    #[inline]
+    fn context_menu<F>(self, scope: &mut UiScope<'_>, add_contents: F) -> Self
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let resp = scope.response(self.container_id);
+        scope.context_menu_for(
+            self.container_id,
+            resp.secondary_clicked(),
+            resp.pointer_pos,
+            add_contents,
+        );
+        self
+    }
+}

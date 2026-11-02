@@ -373,8 +373,12 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
     let top_spacer = tree2.get(vp_node.children[0]).unwrap();
     assert_eq!(top_spacer.computed_rect.height, 1976.0);
 
+    // Verify bottom spacer preserved its full height
+    let bottom_spacer = tree2.get(*vp_node.children.last().unwrap()).unwrap();
+    assert_eq!(bottom_spacer.computed_rect.height, 257_166.0);
+
     // Verify all row children maintain full row height without shrinkage
-    for &cid in &vp_node.children[1..] {
+    for &cid in &vp_node.children[1..vp_node.children.len() - 1] {
         let child = tree2.get(cid).unwrap();
         assert_eq!(
             child.computed_rect.height, 24.0,
