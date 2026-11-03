@@ -7,7 +7,10 @@
 //! adjustments (Shift for fine-tuning, Ctrl for coarse increments), non-linear drag response
 //! curves, and pointer capture management for numeric input fields.
 
-use super::curve::{DEFAULT_PIXELS_PER_STEP, DragCurve};
+pub use super::curve::{
+    DEFAULT_PIXELS_PER_STEP, DragCurve, NUMERIC_DRAG_COARSE_MULTIPLIER,
+    NUMERIC_DRAG_FINE_MULTIPLIER,
+};
 use iris_core::event::{KeyCode, UiEvent};
 use iris_core::node::WidgetCursor;
 
@@ -16,12 +19,6 @@ use iris_core::node::WidgetCursor;
 /// Displacements below this threshold are treated as stationary clicks, allowing controls
 /// to switch into direct keyboard text entry without unintentionally modifying values.
 pub const NUMERIC_DRAG_THRESHOLD: f32 = 2.0;
-
-/// Default fine-tuning sensitivity multiplier applied when Shift is held.
-pub const NUMERIC_DRAG_FINE_MULTIPLIER: f64 = 0.1;
-
-/// Default coarse-tuning sensitivity multiplier applied when Control / Command is held.
-pub const NUMERIC_DRAG_COARSE_MULTIPLIER: f64 = 10.0;
 
 /// Active horizontal mouse drag state for interactive numeric scrubbers and property sliders.
 ///

@@ -43,12 +43,15 @@ pub struct LifecycleInputs {
 
     /// Whether any drag-and-drop operation is currently active in the workbench.
     pub is_drag_active: bool,
+
+    /// Monotonic domain revision counter reflecting external entity / model mutations (Undo/Redo commands, etc.).
+    pub domain_revision: u64,
 }
 
 impl LifecycleInputs {
     /// Creates a new lifecycle input descriptor with mandatory geometric parameters.
     ///
-    /// Optional flags (floating count, menu/modal state, dock interaction, volatile updates)
+    /// Optional flags (floating count, menu/modal state, dock interaction, volatile updates, domain revision)
     /// default to zero / false and can be chained fluently.
     ///
     /// # Parameters
@@ -68,6 +71,7 @@ impl LifecycleInputs {
             is_dock_interacting: false,
             has_volatile_updates: false,
             is_drag_active: false,
+            domain_revision: 0,
         }
     }
 
@@ -116,6 +120,14 @@ impl LifecycleInputs {
     #[must_use]
     pub const fn with_drag_active(mut self, active: bool) -> Self {
         self.is_drag_active = active;
+        self
+    }
+
+    /// Sets the external domain data transaction revision counter.
+    #[inline]
+    #[must_use]
+    pub const fn with_domain_revision(mut self, revision: u64) -> Self {
+        self.domain_revision = revision;
         self
     }
 }

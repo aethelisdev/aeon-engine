@@ -13,6 +13,12 @@ const LN_2: f64 = std::f64::consts::LN_2;
 /// Default reference pixel displacement required to advance one standard step unit (`10.0 px`).
 pub const DEFAULT_PIXELS_PER_STEP: f64 = 10.0;
 
+/// Default fine-tuning sensitivity multiplier applied when Shift is held (`0.1`).
+pub const NUMERIC_DRAG_FINE_MULTIPLIER: f64 = 0.1;
+
+/// Default coarse-tuning sensitivity multiplier applied when Control / Command is held (`10.0`).
+pub const NUMERIC_DRAG_COARSE_MULTIPLIER: f64 = 10.0;
+
 /// Default exponential polynomial power exponent for non-linear scrubbers (`2.0`).
 pub const DEFAULT_EXPONENTIAL_POWER: f32 = 2.0;
 
@@ -151,6 +157,48 @@ impl DragCurve {
 
         sign * scaled * multiplier
     }
+
+    /// Evaluates the scalar value delta directly in single-precision [`f32`], resolving
+    /// Shift ($0.1\times$) and Ctrl ($10.0\times$) multipliers from explicit modifier booleans.
+    #[must_use]
+    #[inline]
+    pub fn compute_delta_from_modifiers(
+        &self,
+        delta_x: f32,
+        speed: f32,
+        pixels_per_step: f32,
+        shift: bool,
+        ctrl: bool,
+    ) -> f32 {
+        let mult = if shift {
+            NUMERIC_DRAG_FINE_MULTIPLIER
+        } else if ctrl {
+            NUMERIC_DRAG_COARSE_MULTIPLIER
+        } else {
+            1.0
+        };
+        self.compute_delta(delta_x as f64, speed as f64, pixels_per_step as f64, mult) as f32
+    }
+
+    /// Evaluates the scalar value delta directly in single-precision [`f32`], resolving
+    /// modifier sensitivity multipliers automatically from the active [`iris_core::EventState`].
+    #[must_use]
+    #[inline]
+    pub fn compute_delta_f32(
+        &self,
+        delta_x: f32,
+        speed: f32,
+        pixels_per_step: f32,
+        event_state: &iris_core::EventState,
+    ) -> f32 {
+        self.compute_delta_from_modifiers(
+            delta_x,
+            speed,
+            pixels_per_step,
+            event_state.frame_shift_held,
+            event_state.frame_ctrl_held,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -281,5 +329,35 @@ mod tests {
         assert_eq!(quad.compute_delta(10.0, 1.0, 10.0, f64::NAN), 0.0);
         assert_eq!(quad.compute_delta(f64::INFINITY, 1.0, 10.0, 1.0), 0.0);
         assert_eq!(quad.compute_delta(10.0, f64::INFINITY, 10.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn test_compute_delta_f32_and_event_state_modifiers() {
+        let quad = DragCurve::quadratic();
+        let speed = 1.0;
+        let pps = 10.0;
+
+        // Normal modifier: 1.0x
+        let d_normal = quad.compute_delta_from_modifiers(10.0, speed, pps, false, false);
+        assert!((d_normal - 10.0).abs() < 1e-5);
+
+        // Shift modifier: 0.1x
+        let d_shift = quad.compute_delta_from_modifiers(10.0, speed, pps, true, false);
+        assert!((d_shift - 1.0).abs() < 1e-5);
+
+        // Ctrl modifier: 10.0x
+        let d_ctrl = quad.compute_delta_from_modifiers(10.0, speed, pps, false, true);
+        assert!((d_ctrl - 100.0).abs() < 1e-5);
+
+        // EventState integration
+        let mut event_state = iris_core::EventState::default();
+        assert!((quad.compute_delta_f32(10.0, speed, pps, &event_state) - 10.0).abs() < 1e-5);
+
+        event_state.frame_shift_held = true;
+        assert!((quad.compute_delta_f32(10.0, speed, pps, &event_state) - 1.0).abs() < 1e-5);
+
+        event_state.frame_shift_held = false;
+        event_state.frame_ctrl_held = true;
+        assert!((quad.compute_delta_f32(10.0, speed, pps, &event_state) - 100.0).abs() < 1e-5);
     }
 }

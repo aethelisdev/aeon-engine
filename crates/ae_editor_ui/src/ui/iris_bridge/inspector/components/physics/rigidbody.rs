@@ -98,6 +98,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
                     .tag(encode_inspector_number_input_tag(mass_id))
                     .label_width(55.0)
                     .box_width(44.0)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(mass_id)),
             );
             if resp_mass.changed() {
@@ -113,6 +114,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
                     .tag(encode_inspector_number_input_tag(grav_id))
                     .label_width(55.0)
                     .box_width(44.0)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(grav_id)),
             );
             if resp_grav.changed() {

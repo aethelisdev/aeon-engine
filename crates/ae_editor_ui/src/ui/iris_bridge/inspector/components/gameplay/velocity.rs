@@ -76,6 +76,7 @@ impl ComponentInspectorHandler for VelocityHandler {
                         .tag(tag)
                         .label_width(20.0)
                         .box_width(44.0)
+                        .curve(DragCurve::quadratic())
                         .edit_state(edit),
                 );
                 if resp.changed() {

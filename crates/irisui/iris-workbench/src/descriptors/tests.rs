@@ -135,6 +135,42 @@ fn test_panel_registry_registration_and_drawing() {
     assert_eq!(registry.len(), 0);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum TestCopyTab {
+    Hierarchy,
+    Inspector,
+    Console,
+}
+
+#[test]
+fn test_panel_registry_domain_panel_subscription_and_notifier_sync() {
+    let mut registry = WorkbenchPanelRegistry::<TestCopyTab, MockContext>::new();
+
+    registry.register_domain_panel(TestCopyTab::Inspector, |_scope, _ctx| {});
+    registry.register_panel(TestCopyTab::Console, |_scope, _ctx| {});
+    registry.mark_domain_panel(TestCopyTab::Hierarchy);
+
+    assert!(registry.is_domain_panel(&TestCopyTab::Inspector));
+    assert!(registry.is_domain_panel(&TestCopyTab::Hierarchy));
+    assert!(!registry.is_domain_panel(&TestCopyTab::Console));
+    assert_eq!(registry.domain_panels().len(), 2);
+
+    let mut notifier = iris_dock::UiNotifier::<TestCopyTab>::clean();
+    registry.sync_domain_panels_to_notifier(&mut notifier);
+
+    assert!(notifier.is_domain_panel(&TestCopyTab::Inspector));
+    assert!(notifier.is_domain_panel(&TestCopyTab::Hierarchy));
+    assert!(!notifier.is_domain_panel(&TestCopyTab::Console));
+
+    // Verify unmarking domain panel
+    assert!(registry.unmark_domain_panel(&TestCopyTab::Hierarchy));
+    assert!(!registry.is_domain_panel(&TestCopyTab::Hierarchy));
+
+    // Verify unregistering panel removes from domain set
+    assert!(registry.unregister_panel(&TestCopyTab::Inspector));
+    assert!(!registry.is_domain_panel(&TestCopyTab::Inspector));
+}
+
 #[test]
 fn test_workbench_descriptor_shell_composition() {
     let mut tree = DockTree::new();

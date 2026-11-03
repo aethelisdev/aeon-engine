@@ -23,6 +23,7 @@ pub struct IrisPassParams<'a> {
     pub is_editing: bool,
     pub undo_stack: &'a [ae_editor::undo_redo::Command],
     pub redo_stack: &'a [ae_editor::undo_redo::Command],
+    pub history_revision: u64,
     pub graphics_settings: &'a mut ae_renderer::graphics_settings::GraphicsSettings,
     pub snapping_settings: &'a mut ae_editor::snapping::SnapSettings,
     pub editor_config: &'a mut ae_editor::editor_state::EditorConfig,
@@ -158,6 +159,7 @@ impl EngineUi {
                     can_redo: !params.redo_stack.is_empty(),
                     enable_live_updates: params.enable_live_updates,
                     status_spans,
+                    history_revision: params.history_revision,
                 },
                 viewport: iris_bridge::ViewportParams {
                     has_viewport_texture: params.viewport_texture_view.is_some(),

@@ -11,6 +11,7 @@ use std::ops::{Deref, RangeInclusive};
 
 use iris_core::{WidgetId, WidgetResponse};
 
+use crate::controls::numeric_drag::{DEFAULT_PIXELS_PER_STEP, DragCurve};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::scope::properties::PropertyVec3Options;
 use crate::declarative::widget::Widget;
@@ -121,6 +122,8 @@ pub struct DragVec3<'a> {
     reset_value: Option<[f32; 3]>,
     label_width: f32,
     edit_states: [Option<NumericInputEditState<'a>>; 3],
+    curve: DragCurve,
+    pixels_per_step: f32,
 }
 
 impl<'a> DragVec3<'a> {
@@ -138,7 +141,25 @@ impl<'a> DragVec3<'a> {
             reset_value: None,
             label_width: 52.0,
             edit_states: [None, None, None],
+            curve: DragCurve::Linear,
+            pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
         }
+    }
+
+    /// Sets the response curve for pointer drag scrubbing.
+    #[inline]
+    #[must_use]
+    pub fn curve(mut self, curve: DragCurve) -> Self {
+        self.curve = curve;
+        self
+    }
+
+    /// Sets the reference pixel displacement per step unit for non-linear curve evaluation.
+    #[inline]
+    #[must_use]
+    pub fn pixels_per_step(mut self, pixels: f32) -> Self {
+        self.pixels_per_step = pixels;
+        self
     }
 
     /// Sets the continuous drag sensitivity multiplier applied per horizontal delta pixel.
@@ -214,7 +235,9 @@ impl<'a> Widget for DragVec3<'a> {
         let mut opts = PropertyVec3Options::new(self.speed)
             .with_decimals(self.decimals)
             .with_label_width(self.label_width)
-            .with_edit_states(self.edit_states);
+            .with_edit_states(self.edit_states)
+            .with_curve(self.curve)
+            .with_pixels_per_step(self.pixels_per_step);
 
         if let Some(rv) = self.reset_value {
             opts = opts.with_reset(rv);

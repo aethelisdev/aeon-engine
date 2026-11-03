@@ -653,6 +653,7 @@ fn test_overlay_params_accessors_and_invariants() {
             can_redo: false,
             enable_live_updates: true,
             status_spans: None,
+            history_revision: 0,
         },
         viewport: ViewportParams {
             has_viewport_texture: true,
@@ -708,4 +709,39 @@ fn test_overlay_params_accessors_and_invariants() {
     assert_eq!(params.world().len(), 2);
     assert_eq!(params.selected_entity(), Some(entity_a));
     assert!(!params.is_modal_active());
+}
+
+#[test]
+fn test_domain_revision_sync_invalidates_inspector_and_hierarchy() {
+    use crate::ui::panel_layout::PanelId;
+    use irisui::prelude::UiNotifier;
+
+    let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+    notifier.register_domain_panel(PanelId::Inspector);
+    notifier.register_domain_panel(PanelId::Hierarchy);
+    notifier.register_domain_panel(PanelId::MaterialEditor);
+
+    assert_eq!(notifier.domain_revision(), 0);
+    assert!(!notifier.is_dirty(PanelId::Inspector));
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+
+    // Identical revision does not dirty panels
+    assert!(!notifier.sync_domain_revision(0));
+    assert!(!notifier.is_dirty(PanelId::Inspector));
+
+    // Undo or Redo changes history revision to 1
+    assert!(notifier.sync_domain_revision(1));
+    assert_eq!(notifier.domain_revision(), 1);
+    assert!(notifier.is_dirty(PanelId::Inspector));
+    assert!(notifier.is_dirty(PanelId::Hierarchy));
+    assert!(notifier.is_dirty(PanelId::MaterialEditor));
+    assert!(!notifier.is_dirty(PanelId::Console));
+
+    // Clear after branch 2 rebuild
+    notifier.clear_all();
+    assert!(!notifier.is_dirty(PanelId::Inspector));
+
+    // Same revision does not re-dirty
+    assert!(!notifier.sync_domain_revision(1));
+    assert!(!notifier.is_dirty(PanelId::Inspector));
 }

@@ -293,6 +293,7 @@ impl EngineUi {
             is_editing: *params.mode == ae_core::modules::EngineMode::Edit,
             undo_stack: params.undo_stack,
             redo_stack: params.redo_stack,
+            history_revision: params.editor_state.history_revision,
             graphics_settings: &mut cur_gs,
             snapping_settings: &mut cur_snap,
             editor_config: &mut cur_cfg,

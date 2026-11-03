@@ -973,6 +973,67 @@ fn test_text_input_focus_consumes_all_character_keys() {
 }
 
 #[test]
+fn test_numeric_input_focus_does_not_swallow_keyboard_unless_editing() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let num_node = tree.create_node();
+    tree.add_child(root, num_node).unwrap();
+
+    {
+        let node = tree.get_mut(num_node).unwrap();
+        node.visible = true;
+        node.interactive = true;
+        node.role = WidgetRole::NumericInput;
+        node.computed_rect = Rect::new(10.0, 10.0, 100.0, 24.0);
+        node.tag = 300;
+    }
+
+    // 1. Mouse down / dragging on numeric input sets focus to the node
+    let click = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let res = tree.dispatch_event(&click);
+    assert!(res.is_consumed());
+    assert_eq!(tree.event_state.focused, Some(num_node));
+
+    // 2. Crucial Invariant: Scrubber dragging must NOT report text input focus!
+    assert!(
+        !tree.is_text_input_focused(),
+        "Numeric input scrubber must NOT report text input focus when not in active inline text edit mode"
+    );
+
+    // 3. Ctrl+Z shortcut dispatched must NOT be consumed
+    let key_ctrl_z = UiEvent::KeyboardInput {
+        key: KeyCode::Character('z'),
+        text: Some("z".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+        shift_held: false,
+    };
+    let res_z = tree.dispatch_event(&key_ctrl_z);
+    assert!(
+        !res_z.is_consumed(),
+        "Global shortcuts (Ctrl+Z) must NOT be swallowed when scrubbing numeric inputs"
+    );
+
+    // 4. Activating inline text editing mode MUST enable text input focus
+    tree.event_state
+        .start_text_edit(Some(num_node), 300, "12.5", 4, None);
+    assert!(
+        tree.is_text_input_focused(),
+        "Active inline text editing session on numeric field must report text input focus"
+    );
+
+    // 5. Blurring / clearing text edit must immediately release text input focus
+    tree.event_state.clear_text_edit();
+    assert!(
+        !tree.is_text_input_focused(),
+        "Clearing text edit on numeric field must immediately release text input focus"
+    );
+}
+
+#[test]
 fn test_autonomous_outside_click_dismisses_popups() {
     let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();

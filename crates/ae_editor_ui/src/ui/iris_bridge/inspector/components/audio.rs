@@ -200,6 +200,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                     .tag(encode_inspector_number_input_tag(vol_id))
                     .label_width(55.0)
                     .box_width(48.0)
+                    .curve(DragCurve::Logarithmic)
                     .edit_state(ctx.edit_state(vol_id)),
             );
             if resp_vol.changed() {
@@ -217,6 +218,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                     .tag(encode_inspector_number_input_tag(pitch_id))
                     .label_width(55.0)
                     .box_width(48.0)
+                    .curve(DragCurve::Logarithmic)
                     .edit_state(ctx.edit_state(pitch_id)),
             );
             if resp_pitch.changed() {

@@ -111,6 +111,11 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
                     .tag(tag)
                     .label_width(110.0)
                     .box_width(44.0)
+                    .curve(if *is_angle {
+                        DragCurve::Linear
+                    } else {
+                        DragCurve::quadratic()
+                    })
                     .edit_state(edit);
                 let formatted;
                 if *is_angle {

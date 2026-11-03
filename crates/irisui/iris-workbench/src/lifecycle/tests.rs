@@ -206,3 +206,40 @@ fn test_in_place_volatile_update_refresh() {
     let branch = lifecycle.evaluate(inputs_volatile);
     assert_eq!(branch, LifecycleBranch::InPlaceRefresh);
 }
+
+#[test]
+fn test_domain_revision_delta_triggers_granular_panel_invalidation() {
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let inputs_base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 0);
+    let _ = lifecycle.evaluate(inputs_base);
+
+    // Register Inspector and Hierarchy as domain data subscribers
+    lifecycle.register_domain_panel(TestPanel::Inspector);
+    lifecycle.register_domain_panel(TestPanel::Hierarchy);
+
+    assert_eq!(lifecycle.domain_panels().len(), 2);
+
+    // Identical revision keeps lifecycle dormant
+    let branch_idle = lifecycle.evaluate(inputs_base);
+    assert_eq!(branch_idle, LifecycleBranch::Dormant);
+
+    // External domain mutation (e.g. Undo/Redo increments revision to 1)
+    let inputs_mutation = inputs_base.with_domain_revision(1);
+    let peeked = lifecycle.peek_branch(&inputs_mutation);
+    assert!(matches!(peeked, LifecycleBranch::GranularPanels(_)));
+
+    let branch = lifecycle.evaluate(inputs_mutation);
+    match branch {
+        LifecycleBranch::GranularPanels(panels) => {
+            assert_eq!(panels.len(), 2);
+            assert!(panels.contains(&TestPanel::Inspector));
+            assert!(panels.contains(&TestPanel::Hierarchy));
+            assert!(!panels.contains(&TestPanel::Console));
+        }
+        other => panic!("Expected GranularPanels, got: {other:?}"),
+    }
+
+    // Subsequent frame with same domain revision (1) returns to dormant
+    let branch_next = lifecycle.evaluate(inputs_mutation);
+    assert_eq!(branch_next, LifecycleBranch::Dormant);
+}

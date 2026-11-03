@@ -82,6 +82,7 @@ impl ComponentInspectorHandler for RotatorHandler {
                         .tag(tag)
                         .label_width(95.0)
                         .box_width(44.0)
+                        .curve(DragCurve::quadratic())
                         .edit_state(edit),
                 );
                 if resp.changed() {

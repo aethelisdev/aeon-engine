@@ -26,6 +26,8 @@ pub struct Vec3NumericRowConfig<'a> {
     pub edit_states: [Option<NumericInputEditState<'a>>; 3],
     /// Semantic Inspector number input IDs for each axis channel.
     pub ids: [InspectorNumberInputId; 3],
+    /// Response curve for pointer drag scrubbing.
+    pub curve: DragCurve,
 }
 
 /// Renders a 3-channel vector row using autonomous [`NumericDrag`] widgets and a reset button.
@@ -95,6 +97,7 @@ fn render_vec3_numeric_row(
                     .tag(tag)
                     .speed(config.speed)
                     .decimals(config.decimals)
+                    .curve(config.curve)
                     .label_width(12.0)
                     .box_width(52.0);
                 if let Some(es) = config.edit_states[i] {
@@ -187,6 +190,7 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
                     InspectorNumberInputId::PosY,
                     InspectorNumberInputId::PosZ,
                 ],
+                curve: DragCurve::quadratic(),
             },
         );
         if pos_reset {
@@ -233,6 +237,7 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
                     InspectorNumberInputId::RotY,
                     InspectorNumberInputId::RotZ,
                 ],
+                curve: DragCurve::Linear,
             },
         );
         if rot_reset {
@@ -279,6 +284,7 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
                     InspectorNumberInputId::ScaleY,
                     InspectorNumberInputId::ScaleZ,
                 ],
+                curve: DragCurve::quadratic(),
             },
         );
         if scale_reset {

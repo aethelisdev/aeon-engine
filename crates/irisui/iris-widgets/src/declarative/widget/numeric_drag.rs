@@ -14,10 +14,8 @@ use iris_core::{
     WidgetRole,
 };
 
+use crate::controls::numeric_drag::DEFAULT_PIXELS_PER_STEP;
 pub use crate::controls::numeric_drag::DragCurve;
-use crate::controls::numeric_drag::{
-    DEFAULT_PIXELS_PER_STEP, NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER,
-};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::widget::Widget;
 use crate::numeric_input::NumericInputEditState;
@@ -342,19 +340,12 @@ impl<'a> NumericDrag<'a> {
                     }
                 }
             } else if let Some(delta) = drag_delta {
-                let multiplier = if scope.tree.event_state.frame_shift_held {
-                    NUMERIC_DRAG_FINE_MULTIPLIER
-                } else if scope.tree.event_state.frame_ctrl_held {
-                    NUMERIC_DRAG_COARSE_MULTIPLIER
-                } else {
-                    1.0
-                };
-                let delta_val = self.curve.compute_delta(
-                    delta.x as f64,
-                    self.speed as f64,
-                    self.pixels_per_step as f64,
-                    multiplier,
-                ) as f32;
+                let delta_val = self.curve.compute_delta_f32(
+                    delta.x,
+                    self.speed,
+                    self.pixels_per_step,
+                    &scope.tree.event_state,
+                );
                 let next = (*self.value + delta_val).clamp(min_val, max_val);
                 if (next - *self.value).abs() > f32::EPSILON {
                     *self.value = next;
@@ -484,6 +475,14 @@ impl<'a> NumericDrag<'a> {
         }
         if is_drag_released {
             resp = resp.with_drag_released(true);
+            if !is_editing {
+                if scope.tree.event_state.focused == Some(pill_id) {
+                    scope.tree.event_state.focused = None;
+                }
+                if tag != 0 && scope.tree.event_state.focused_tag == Some(tag) {
+                    scope.tree.event_state.focused_tag = None;
+                }
+            }
         }
         if submitted {
             resp.flags = resp

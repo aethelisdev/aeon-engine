@@ -136,6 +136,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                     .tag(encode_inspector_number_input_tag(fric_id))
                     .label_width(85.0)
                     .box_width(44.0)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(fric_id)),
             );
             if resp_fric.changed() {
@@ -152,6 +153,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                     .tag(encode_inspector_number_input_tag(rest_id))
                     .label_width(155.0)
                     .box_width(44.0)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(rest_id)),
             );
             if resp_rest.changed() {

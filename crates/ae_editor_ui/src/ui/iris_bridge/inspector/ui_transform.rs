@@ -226,6 +226,7 @@ fn render_declarative_dual_number_row(
             let mut drag = NumericDrag::new("", val)
                 .tag(tag)
                 .decimals(desc.decimals)
+                .curve(DragCurve::quadratic())
                 .edit_state(edit);
 
             if edit.is_none() {

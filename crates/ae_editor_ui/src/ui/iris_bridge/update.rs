@@ -25,6 +25,12 @@ impl IrisEditorOverlay {
     pub fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let mut tree = UiTree::new();
         tree.set_theme(super::theme::EditorThemeTokens::default().to_iris_theme());
+        let mut notifier = UiNotifier::new();
+        notifier.register_domain_panel(crate::ui::panel_layout::PanelId::Inspector);
+        notifier.register_domain_panel(crate::ui::panel_layout::PanelId::Hierarchy);
+        notifier.register_domain_panel(crate::ui::panel_layout::PanelId::MaterialEditor);
+        notifier.register_domain_panel(crate::ui::panel_layout::PanelId::AnimationTimeline);
+
         Self {
             tree,
             layout_engine: LayoutEngine::new(),
@@ -32,7 +38,7 @@ impl IrisEditorOverlay {
             text_system: TextSystem::new(),
             text_renderer: None,
             command_list: DrawCommandList::new(),
-            notifier: UiNotifier::new(),
+            notifier,
             screen_width: 1920.0,
             screen_height: 1080.0,
             is_visible: true,
@@ -499,6 +505,10 @@ impl IrisEditorOverlay {
             self.notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
+
+        // Synchronize external domain/history revision (Undo/Redo commands, external entity transactions)
+        self.notifier
+            .sync_domain_revision(params.context.history_revision);
 
         let selection_changed = self.chrome.last_selected_entity != params.scene.selected_entity;
         if selection_changed {

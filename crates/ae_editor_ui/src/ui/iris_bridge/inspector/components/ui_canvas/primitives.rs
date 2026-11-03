@@ -121,6 +121,7 @@ impl ComponentInspectorHandler for UiPanelHandler {
                     .label_width(80.0)
                     .box_width(60.0)
                     .unit("px")
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(bw_id)),
             );
             if resp_bw.changed() {
@@ -138,6 +139,7 @@ impl ComponentInspectorHandler for UiPanelHandler {
                     .label_width(80.0)
                     .box_width(60.0)
                     .unit("px")
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(cr_id)),
             );
             if resp_cr.changed() {
@@ -304,6 +306,7 @@ impl ComponentInspectorHandler for UiTextHandler {
                     .label_width(80.0)
                     .box_width(60.0)
                     .unit("pt")
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(fs_id)),
             );
             if resp_fs.changed() {

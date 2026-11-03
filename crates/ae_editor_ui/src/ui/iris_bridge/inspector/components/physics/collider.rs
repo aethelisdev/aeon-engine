@@ -133,6 +133,7 @@ impl ComponentInspectorHandler for ColliderHandler {
                                 .tag(tag)
                                 .label_width(label_w)
                                 .box_width(box_w)
+                                .curve(DragCurve::quadratic())
                                 .edit_state(edit),
                         );
                         if resp.changed() {
@@ -150,6 +151,7 @@ impl ComponentInspectorHandler for ColliderHandler {
                             .tag(encode_inspector_number_input_tag(id_r))
                             .label_width(label_w)
                             .box_width(box_w)
+                            .curve(DragCurve::quadratic())
                             .edit_state(ctx.edit_state(id_r)),
                     );
                     if resp.changed() {
@@ -189,6 +191,7 @@ impl ComponentInspectorHandler for ColliderHandler {
                                 .tag(tag)
                                 .label_width(label_w)
                                 .box_width(box_w)
+                                .curve(DragCurve::quadratic())
                                 .edit_state(edit),
                         );
                         if resp.changed() {
@@ -208,6 +211,7 @@ impl ComponentInspectorHandler for ColliderHandler {
                     .tag(encode_inspector_number_input_tag(id_f))
                     .label_width(label_w)
                     .box_width(box_w)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(id_f)),
             );
             if resp_f.changed() {
@@ -223,6 +227,7 @@ impl ComponentInspectorHandler for ColliderHandler {
                     .tag(encode_inspector_number_input_tag(id_re))
                     .label_width(label_w)
                     .box_width(box_w)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(id_re)),
             );
             if resp_re.changed() {

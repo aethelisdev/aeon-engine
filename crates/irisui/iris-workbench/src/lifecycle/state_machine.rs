@@ -57,6 +57,12 @@ pub struct WorkbenchLifecycle<TabId: Eq + Hash + Clone> {
 
     /// Set of panel identifiers that have been explicitly marked dirty for partial rebuild.
     dirty_tabs: HashSet<TabId>,
+
+    /// Set of panel identifiers registered as domain data subscribers.
+    domain_panels: HashSet<TabId>,
+
+    /// Domain transaction revision counter from the previous evaluation pass.
+    last_domain_revision: u64,
 }
 
 impl<TabId: Eq + Hash + Clone> Default for WorkbenchLifecycle<TabId> {
@@ -84,6 +90,8 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             force_shell_rebuild: true,
             always_rebuild_shell: false,
             dirty_tabs: HashSet::new(),
+            domain_panels: HashSet::new(),
+            last_domain_revision: 0,
         }
     }
 
@@ -135,6 +143,30 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
     #[must_use]
     pub const fn dirty_tabs(&self) -> &HashSet<TabId> {
         &self.dirty_tabs
+    }
+
+    /// Registers a panel tab identifier as a domain data subscriber.
+    ///
+    /// Domain-bound panels are automatically added to the dirty set whenever
+    /// [`LifecycleInputs::domain_revision`] changes (e.g. during Undo/Redo or entity transactions).
+    #[inline]
+    pub fn register_domain_panel(&mut self, tab: TabId) {
+        self.domain_panels.insert(tab);
+    }
+
+    /// Registers multiple panel tab identifiers as domain data subscribers.
+    #[inline]
+    pub fn register_domain_panels(&mut self, tabs: impl IntoIterator<Item = TabId>) {
+        for tab in tabs {
+            self.domain_panels.insert(tab);
+        }
+    }
+
+    /// Returns a reference to the set of registered domain data subscriber panel tabs.
+    #[inline]
+    #[must_use]
+    pub const fn domain_panels(&self) -> &HashSet<TabId> {
+        &self.domain_panels
     }
 
     /// Sets whether the shell must unconditionally rebuild on every frame (debug mode).
@@ -197,10 +229,17 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
     /// Useful for telemetry, profiling pre-passes, or diagnostic logging.
     #[must_use]
     pub fn peek_branch(&self, inputs: &LifecycleInputs) -> LifecycleBranch<TabId> {
+        let mut dirty = self.dirty_tabs.clone();
+        if inputs.domain_revision != self.last_domain_revision {
+            for tab in &self.domain_panels {
+                dirty.insert(tab.clone());
+            }
+        }
+
         if self.is_shell_dirty(inputs) {
             LifecycleBranch::FullShellRebuild
-        } else if !self.dirty_tabs.is_empty() {
-            let mut list: Vec<TabId> = self.dirty_tabs.iter().cloned().collect();
+        } else if !dirty.is_empty() {
+            let mut list: Vec<TabId> = dirty.into_iter().collect();
             list.shrink_to_fit();
             LifecycleBranch::GranularPanels(list)
         } else if inputs.has_volatile_updates {
@@ -232,6 +271,14 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_modal_active = inputs.is_modal_active;
         self.last_drag_active = inputs.is_drag_active;
         self.force_shell_rebuild = false;
+
+        let domain_changed = inputs.domain_revision != self.last_domain_revision;
+        self.last_domain_revision = inputs.domain_revision;
+        if domain_changed {
+            for tab in &self.domain_panels {
+                self.dirty_tabs.insert(tab.clone());
+            }
+        }
 
         if shell_dirty {
             // Full shell rebuild automatically reconstructs all leaf panels

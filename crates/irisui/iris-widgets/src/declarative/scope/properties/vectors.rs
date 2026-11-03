@@ -5,6 +5,7 @@
 //!
 //! Provides color-coded axis inputs for 3D coordinates, 2D offsets/tilings, and RGB multipliers on [`UiScope`].
 
+use crate::controls::numeric_drag::{DEFAULT_PIXELS_PER_STEP, DragCurve};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
@@ -24,6 +25,10 @@ pub struct PropertyVec3Options<'a> {
     pub edit_states: [Option<crate::numeric_input::NumericInputEditState<'a>>; 3],
     /// Fixed column width in pixels for the left-aligned property label.
     pub label_width: f32,
+    /// Response curve for pointer drag scrubbing.
+    pub curve: DragCurve,
+    /// Reference pixel displacement per step unit for non-linear curve evaluation.
+    pub pixels_per_step: f32,
 }
 
 impl<'a> Default for PropertyVec3Options<'a> {
@@ -34,6 +39,8 @@ impl<'a> Default for PropertyVec3Options<'a> {
             reset_value: None,
             edit_states: [None, None, None],
             label_width: 52.0,
+            curve: DragCurve::Linear,
+            pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
         }
     }
 }
@@ -47,7 +54,23 @@ impl<'a> PropertyVec3Options<'a> {
             reset_value: None,
             edit_states: [None, None, None],
             label_width: 52.0,
+            curve: DragCurve::Linear,
+            pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
         }
+    }
+
+    /// Sets the response curve for pointer drag scrubbing.
+    #[must_use]
+    pub const fn with_curve(mut self, curve: DragCurve) -> Self {
+        self.curve = curve;
+        self
+    }
+
+    /// Sets the reference pixel displacement per step unit for non-linear curve evaluation.
+    #[must_use]
+    pub const fn with_pixels_per_step(mut self, pixels: f32) -> Self {
+        self.pixels_per_step = pixels;
+        self
     }
 
     /// Sets the displayed decimal precision.
@@ -291,7 +314,13 @@ impl<'a> UiScope<'a> {
                             && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
 
                 if !is_editing && let Some(delta) = drag_delta {
-                    let next = values[idx] + delta.x * options.speed;
+                    let next = values[idx]
+                        + options.curve.compute_delta_f32(
+                            delta.x,
+                            options.speed,
+                            options.pixels_per_step,
+                            &slot.tree.event_state,
+                        );
                     if (next - values[idx]).abs() > f32::EPSILON {
                         values[idx] = next;
                         any_changed = true;
@@ -305,6 +334,14 @@ impl<'a> UiScope<'a> {
                     || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
                 if is_drag_released {
                     committed_axis_out = Some(idx);
+                    if !is_editing {
+                        if slot.tree.event_state.focused == Some(axis_box_id) {
+                            slot.tree.event_state.focused = None;
+                        }
+                        if axis_tag != 0 && slot.tree.event_state.focused_tag == Some(axis_tag) {
+                            slot.tree.event_state.focused_tag = None;
+                        }
+                    }
                 }
 
                 any_clicked |= clicked;

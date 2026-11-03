@@ -23,6 +23,10 @@ pub struct UiNotifier<P: Eq + Hash + Copy + Send + Sync + 'static> {
     dirty_panels: HashSet<P>,
     /// Global invalidation flag indicating that the entire UI shell, window size, or dock layout changed.
     global_dirty: bool,
+    /// Registered domain-bound panel identifiers that consume external model or entity data.
+    domain_panels: HashSet<P>,
+    /// Monotonic revision counter of domain transactions, enabling $O(1)$ synchronization.
+    domain_revision: u64,
 }
 
 impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
@@ -30,6 +34,8 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
         Self {
             dirty_panels: HashSet::new(),
             global_dirty: true,
+            domain_panels: HashSet::new(),
+            domain_revision: 0,
         }
     }
 }
@@ -41,6 +47,8 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
         Self {
             dirty_panels: HashSet::new(),
             global_dirty: true,
+            domain_panels: HashSet::new(),
+            domain_revision: 0,
         }
     }
 
@@ -51,6 +59,8 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
         Self {
             dirty_panels: HashSet::new(),
             global_dirty: false,
+            domain_panels: HashSet::new(),
+            domain_revision: 0,
         }
     }
 
@@ -106,6 +116,84 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
     /// Returns an immutable reference to the set of currently dirty panel identifiers.
     pub fn dirty_panels(&self) -> &HashSet<P> {
         &self.dirty_panels
+    }
+
+    /// Polls all panels registered in a [`crate::panel::PanelRegistry`] and marks any panel
+    /// reporting [`crate::panel::DockPanel::is_dirty`] as requiring a redraw.
+    ///
+    /// The `mapper` closure resolves each panel's string identifier to the strongly-typed panel key `P`.
+    /// Registers a panel identifier as a domain data subscriber.
+    ///
+    /// Domain-bound panels automatically receive selective redraw invalidations whenever
+    /// [`Self::notify_domain_mutation`] is invoked or [`Self::sync_domain_revision`] detects
+    /// an external transaction revision delta (such as Undo/Redo operations).
+    pub fn register_domain_panel(&mut self, panel_id: P) {
+        self.domain_panels.insert(panel_id);
+    }
+
+    /// Registers multiple panel identifiers as domain data subscribers in a single call.
+    pub fn register_domain_panels(&mut self, panels: impl IntoIterator<Item = P>) {
+        for panel in panels {
+            self.domain_panels.insert(panel);
+        }
+    }
+
+    /// Unregisters a panel identifier from domain data subscription.
+    ///
+    /// Returns `true` if the panel was previously registered as a domain panel.
+    pub fn unregister_domain_panel(&mut self, panel_id: &P) -> bool {
+        self.domain_panels.remove(panel_id)
+    }
+
+    /// Returns `true` if the specified panel is registered as a domain data subscriber.
+    #[must_use]
+    pub fn is_domain_panel(&self, panel_id: &P) -> bool {
+        self.domain_panels.contains(panel_id)
+    }
+
+    /// Returns an immutable reference to the set of registered domain data subscriber panels.
+    #[must_use]
+    pub fn domain_panels(&self) -> &HashSet<P> {
+        &self.domain_panels
+    }
+
+    /// Returns the current monotonic domain revision counter tracked by this notifier.
+    #[must_use]
+    pub const fn domain_revision(&self) -> u64 {
+        self.domain_revision
+    }
+
+    /// Flags all registered domain-bound panels for selective redraw on the next frame.
+    ///
+    /// Also increments the internal domain transaction revision counter via wrapping arithmetic.
+    /// Desktop IDEs call this method directly whenever an Undo/Redo command or external entity
+    /// transaction executes, guaranteeing that retained property inputs immediately refresh.
+    pub fn notify_domain_mutation(&mut self) {
+        self.domain_revision = self.domain_revision.wrapping_add(1);
+        for &panel in &self.domain_panels {
+            self.dirty_panels.insert(panel);
+        }
+    }
+
+    /// Synchronizes this notifier with an external monotonic transaction revision counter.
+    ///
+    /// If `current_revision` differs from the tracked [`Self::domain_revision`], updates the internal
+    /// revision and automatically marks all registered [`Self::domain_panels`] for selective redraw.
+    /// Returns `true` if a revision mismatch triggered invalidations, or `false` if unchanged ($O(1)$ fast path).
+    ///
+    /// # Performance
+    /// When idle or during consecutive un-mutated frames, this performs a single scalar comparison
+    /// without heap allocation or collection iteration.
+    pub fn sync_domain_revision(&mut self, current_revision: u64) -> bool {
+        if self.domain_revision != current_revision {
+            self.domain_revision = current_revision;
+            for &panel in &self.domain_panels {
+                self.dirty_panels.insert(panel);
+            }
+            true
+        } else {
+            false
+        }
     }
 
     /// Polls all panels registered in a [`crate::panel::PanelRegistry`] and marks any panel
@@ -232,5 +320,68 @@ mod tests {
         assert!(!notifier.is_dirty("clean_panel"));
         assert!(notifier.is_dirty("active_panel"));
         assert!(notifier.is_any_dirty());
+    }
+
+    #[test]
+    fn test_notifier_domain_panel_registration_and_mutation() {
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
+        notifier.register_domain_panel("inspector");
+        notifier.register_domain_panels(["hierarchy", "materials"]);
+
+        assert!(notifier.is_domain_panel(&"inspector"));
+        assert!(notifier.is_domain_panel(&"hierarchy"));
+        assert!(notifier.is_domain_panel(&"materials"));
+        assert!(!notifier.is_domain_panel(&"console"));
+        assert_eq!(notifier.domain_panels().len(), 3);
+
+        // Initially clean
+        assert!(!notifier.is_dirty("inspector"));
+        assert!(!notifier.is_dirty("hierarchy"));
+        assert_eq!(notifier.domain_revision(), 0);
+
+        // Fire domain mutation (simulating Undo/Redo or transaction)
+        notifier.notify_domain_mutation();
+        assert_eq!(notifier.domain_revision(), 1);
+        assert!(notifier.is_dirty("inspector"));
+        assert!(notifier.is_dirty("hierarchy"));
+        assert!(notifier.is_dirty("materials"));
+        assert!(!notifier.is_dirty("console"));
+
+        // Clear after frame
+        notifier.clear_all();
+        assert!(!notifier.is_dirty("inspector"));
+
+        // Unregister one panel
+        assert!(notifier.unregister_domain_panel(&"materials"));
+        assert!(!notifier.is_domain_panel(&"materials"));
+
+        // Second mutation only invalidates registered remaining panels
+        notifier.notify_domain_mutation();
+        assert_eq!(notifier.domain_revision(), 2);
+        assert!(notifier.is_dirty("inspector"));
+        assert!(notifier.is_dirty("hierarchy"));
+        assert!(!notifier.is_dirty("materials"));
+    }
+
+    #[test]
+    fn test_notifier_domain_revision_synchronization() {
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
+        notifier.register_domain_panel("inspector");
+
+        // Sync with identical revision returns false (0.0% overhead, zero dirty)
+        assert!(!notifier.sync_domain_revision(0));
+        assert!(!notifier.is_dirty("inspector"));
+
+        // Sync with incremented revision (e.g. Undo stack changed)
+        assert!(notifier.sync_domain_revision(42));
+        assert_eq!(notifier.domain_revision(), 42);
+        assert!(notifier.is_dirty("inspector"));
+
+        notifier.clear_panel("inspector");
+        assert!(!notifier.is_dirty("inspector"));
+
+        // Syncing with same revision again does not dirty
+        assert!(!notifier.sync_domain_revision(42));
+        assert!(!notifier.is_dirty("inspector"));
     }
 }

@@ -8,7 +8,7 @@
 
 use crate::error::{WorkbenchError, WorkbenchResult};
 use iris_widgets::UiScope;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -25,6 +25,7 @@ pub type PanelDrawFn<Context> = Box<dyn Fn(&mut UiScope<'_>, &mut Context) + Sen
 /// or detached floating windows without knowing the internal ECS or engine architecture.
 pub struct WorkbenchPanelRegistry<TabId, Context> {
     draw_callbacks: HashMap<TabId, PanelDrawFn<Context>>,
+    domain_panels: HashSet<TabId>,
 }
 
 /// Type alias for [`WorkbenchPanelRegistry`] providing standard workbench ergonomics.
@@ -34,6 +35,7 @@ impl<TabId, Context> Default for WorkbenchPanelRegistry<TabId, Context> {
     fn default() -> Self {
         Self {
             draw_callbacks: HashMap::new(),
+            domain_panels: HashSet::new(),
         }
     }
 }
@@ -64,10 +66,66 @@ where
         self.draw_callbacks.insert(tab, Box::new(draw_fn));
     }
 
+    /// Registers a declarative drawing closure for a domain data-bound panel tab identifier.
+    ///
+    /// Domain-bound panels automatically subscribe to model transaction updates (e.g. Undo/Redo commands
+    /// or entity property mutations), guaranteeing that retained inputs and property inspectors refresh
+    /// on external state changes.
+    ///
+    /// # Arguments
+    /// * `tab` - The panel tab identifier.
+    /// * `draw_fn` - Thread-safe closure executing declarative UI calls within [`UiScope`].
+    pub fn register_domain_panel(
+        &mut self,
+        tab: TabId,
+        draw_fn: impl Fn(&mut UiScope<'_>, &mut Context) + Send + Sync + 'static,
+    ) {
+        self.domain_panels.insert(tab.clone());
+        self.register_panel(tab, draw_fn);
+    }
+
+    /// Marks an already-registered panel as a domain data-bound subscriber.
+    pub fn mark_domain_panel(&mut self, tab: TabId) {
+        self.domain_panels.insert(tab);
+    }
+
+    /// Unmarks a panel from domain data subscription without removing its drawing callback.
+    ///
+    /// Returns `true` if the panel was previously registered as a domain panel.
+    pub fn unmark_domain_panel(&mut self, tab: &TabId) -> bool {
+        self.domain_panels.remove(tab)
+    }
+
+    /// Returns `true` if the specified panel is registered as a domain data-bound subscriber.
+    #[inline]
+    #[must_use]
+    pub fn is_domain_panel(&self, tab: &TabId) -> bool {
+        self.domain_panels.contains(tab)
+    }
+
+    /// Returns an immutable reference to the set of registered domain data subscriber panels.
+    #[inline]
+    #[must_use]
+    pub fn domain_panels(&self) -> &HashSet<TabId> {
+        &self.domain_panels
+    }
+
+    /// Synchronizes all registered domain panels into an active [`iris_dock::UiNotifier`].
+    pub fn sync_domain_panels_to_notifier(&self, notifier: &mut iris_dock::UiNotifier<TabId>)
+    where
+        TabId: Copy + Send + Sync + 'static,
+    {
+        for &tab in &self.domain_panels {
+            notifier.register_domain_panel(tab);
+        }
+    }
+
     /// Unregisters the drawing closure for the specified panel tab identifier.
     ///
+    /// Also unregisters the panel from domain data subscription if present.
     /// Returns `true` if a panel callback was removed, or `false` if it was not present.
     pub fn unregister_panel(&mut self, tab: &TabId) -> bool {
+        self.domain_panels.remove(tab);
         self.draw_callbacks.remove(tab).is_some()
     }
 

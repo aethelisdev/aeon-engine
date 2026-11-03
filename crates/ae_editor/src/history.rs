@@ -6,6 +6,7 @@ use ae_core::ecs::{Position, Rotation, Scale};
 
 /// Pushes a new command to the undo stack, dropping the oldest if the limit is exceeded.
 pub fn push_undo(editor: &mut EditorState, cmd: Command) {
+    editor.history_revision = editor.history_revision.wrapping_add(1);
     editor.undo_stack.push(cmd);
     let limit = editor.config.max_undo_history;
     if editor.undo_stack.len() > limit {
@@ -20,6 +21,7 @@ pub fn push_undo(editor: &mut EditorState, cmd: Command) {
 /// all remaining stack commands and the current selection are remapped to the new ID.
 pub fn undo(editor: &mut EditorState, world: &mut hecs::World) {
     if let Some(mut cmd) = editor.undo_stack.pop() {
+        editor.history_revision = editor.history_revision.wrapping_add(1);
         let remap = cmd.undo(world);
         editor.redo_stack.push(cmd);
 

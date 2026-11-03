@@ -76,6 +76,7 @@ impl ComponentInspectorHandler for CharacterActionHandler {
                     .box_width(box_w)
                     .unit("m/s")
                     .custom_text(&custom_speed)
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(speed_id)),
             );
             if resp_speed.changed() {
@@ -93,6 +94,7 @@ impl ComponentInspectorHandler for CharacterActionHandler {
                     .label_width(label_w)
                     .box_width(box_w)
                     .unit("s")
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(cd_id)),
             );
             if resp_cd.changed() {

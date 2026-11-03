@@ -74,6 +74,7 @@ impl ComponentInspectorHandler for LightHandler {
                     .label_width(95.0)
                     .box_width(44.0)
                     .tag(encode_inspector_number_input_tag(id_offset))
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(id_offset)),
             );
             if resp_offset.changed() {
@@ -92,6 +93,7 @@ impl ComponentInspectorHandler for LightHandler {
                     .range(0.0..=1.0)
                     .speed(0.01)
                     .tag(encode_inspector_number_input_tag(id_r))
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(id_r)),
             );
             if resp_r.changed() {
@@ -110,6 +112,7 @@ impl ComponentInspectorHandler for LightHandler {
                     .range(0.0..=1.0)
                     .speed(0.01)
                     .tag(encode_inspector_number_input_tag(id_g))
+                    .curve(DragCurve::quadratic())
                     .edit_state(ctx.edit_state(id_g)),
             );
             if resp_g.changed() {

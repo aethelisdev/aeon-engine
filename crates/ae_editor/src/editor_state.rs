@@ -85,6 +85,8 @@ pub struct EditorState {
     pub active_scene_path: Option<std::path::PathBuf>,
     /// Whether the editor is currently running in 2D mode.
     pub is_2d: bool,
+    /// Monotonic transaction revision counter incremented on every undo/redo or command execution.
+    pub history_revision: u64,
 }
 
 impl Default for EditorState {
@@ -112,6 +114,7 @@ impl Default for EditorState {
             focus_rename: false,
             active_scene_path: None,
             is_2d: false,
+            history_revision: 0,
         }
     }
 }

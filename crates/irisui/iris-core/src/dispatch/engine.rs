@@ -1161,11 +1161,7 @@ fn handle_keyboard(
 
         let node_role = tree.get(focused_id).map(|n| n.role);
         let has_text_edit = tree.event_state.active_text_edit.is_some();
-        let is_text_role = matches!(
-            node_role,
-            Some(WidgetRole::TextInput | WidgetRole::NumericInput)
-        );
-        let is_text_input = has_text_edit || is_text_role;
+        let is_text_input = has_text_edit || matches!(node_role, Some(WidgetRole::TextInput));
 
         let mut flags = ResponseFlags::FOCUSED;
         let consumed;

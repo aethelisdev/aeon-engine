@@ -35,6 +35,8 @@ pub struct EditorContextParams<'a> {
     pub enable_live_updates: bool,
     /// Optional status notification message spans with text color.
     pub status_spans: Option<&'a [(String, Color)]>,
+    /// Monotonic transaction history revision counter (Undo/Redo command revision).
+    pub history_revision: u64,
 }
 
 /// 3D Viewport canvas bounds, camera, and navigation state.

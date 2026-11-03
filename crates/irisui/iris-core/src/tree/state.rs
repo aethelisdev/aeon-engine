@@ -351,7 +351,10 @@ impl UiTree {
     /// Evaluates whether an active text or numeric input widget currently possesses keyboard focus.
     ///
     /// Checks autonomous editing buffers ([`crate::dispatch::EventState::has_text_input_focus`])
-    /// and whether the currently focused node possesses a [`WidgetRole::TextInput`] or [`WidgetRole::NumericInput`] role.
+    /// and whether the currently focused node possesses a [`WidgetRole::TextInput`] role.
+    /// Note: [`WidgetRole::NumericInput`] scrubbers only capture keyboard focus when actively
+    /// running an inline text editing session ([`crate::dispatch::EventState::has_text_input_focus`]);
+    /// pointer dragging or hovering on numeric fields must never swallow global shortcuts.
     #[must_use]
     pub fn is_text_input_focused(&self) -> bool {
         if self.event_state.has_text_input_focus() {
@@ -360,13 +363,13 @@ impl UiTree {
         if let Some(id) = self.event_state.focused
             && let Some(node) = self.nodes.get(id)
         {
-            return node.role == WidgetRole::TextInput || node.role == WidgetRole::NumericInput;
+            return node.role == WidgetRole::TextInput;
         }
         if let Some(tag) = self.event_state.focused_tag
             && let Some(id) = self.find_node_by_tag(tag)
             && let Some(node) = self.nodes.get(id)
         {
-            return node.role == WidgetRole::TextInput || node.role == WidgetRole::NumericInput;
+            return node.role == WidgetRole::TextInput;
         }
         false
     }
