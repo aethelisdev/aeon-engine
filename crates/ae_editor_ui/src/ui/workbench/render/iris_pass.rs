@@ -40,14 +40,10 @@ pub struct IrisPassParams<'a> {
 impl EngineUi {
     /// Updates Iris UI overlays (Menubar, Toolbar, Inspector, Hierarchy, Modals) and renders them to WGPU.
     pub fn execute_iris_pass(&mut self, params: IrisPassParams<'_>) {
-        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
-        self.iris_overlay.chrome.floating_window_rects = self
-            .layout_state
+        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing (zero allocation)
+        self.layout_state
             .dock_state
-            .floating_windows
-            .iter()
-            .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
-            .collect();
+            .sync_floating_window_rects(&mut self.iris_overlay.chrome.floating_window_rects);
 
         // Resolve active window cursor icon
         let active_widget_cursor = self.iris_overlay.active_cursor();

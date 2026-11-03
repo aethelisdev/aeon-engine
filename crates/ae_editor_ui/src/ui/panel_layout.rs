@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Modular panel identification, tree docking state (`iris_dock`),
 /// and layout persistence for the Aeon Engine editor interface.
-use irisui::dock::{DockState, DockTree, FloatingWindowClampBounds, clamp_floating_windows};
+use irisui::dock::{DockState, DockTree, FloatingWindowClampBounds};
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for each editor tool panel.
@@ -282,19 +282,11 @@ impl PanelLayoutState {
     /// Constrains vertical coordinates so floating panel title bars never get pushed underneath
     /// Constrains all detached floating windows to stay within user-accessible viewport boundaries.
     ///
-    /// Delegates directly to the core Iris UI docking framework (`clamp_floating_windows`),
+    /// Delegates directly to the core Iris UI docking framework (`self.dock_state.clamp_floating_windows`),
     /// ensuring that title bars remain accessible below the top menubar and grab handles remain visible.
-    pub fn clamp_floating_windows(
-        &mut self,
-        screen_w: f32,
-        screen_h: f32,
-        min_y: f32,
-        status_bar_h: f32,
-    ) {
-        let bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
-            .with_min_y(min_y)
-            .with_bottom_inset(status_bar_h);
-        clamp_floating_windows(&mut self.dock_state.floating_windows, &bounds);
+    #[inline]
+    pub fn clamp_floating_windows(&mut self, bounds: &FloatingWindowClampBounds) {
+        self.dock_state.clamp_floating_windows(bounds);
     }
 
     /// Docks a floating window back to its canonical home leaf in the tree.
@@ -532,7 +524,11 @@ pub mod tests {
         let min_y = 34.0; // Menubar height
         let status_bar_h = 24.0;
 
-        layout.clamp_floating_windows(screen_w, screen_h, min_y, status_bar_h);
+        let bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
+            .with_min_y(min_y)
+            .with_bottom_inset(status_bar_h);
+
+        layout.clamp_floating_windows(&bounds);
 
         let win1 = layout
             .dock_state

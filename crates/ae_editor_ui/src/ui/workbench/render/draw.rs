@@ -29,12 +29,10 @@ impl EngineUi {
         let screen_w = win_size.width as f32 / zoom;
         let screen_h = win_size.height as f32 / zoom;
 
-        self.layout_state.clamp_floating_windows(
-            screen_w,
-            screen_h,
-            IrisEditorOverlay::MENUBAR_HEIGHT,
-            IrisEditorOverlay::STATUS_BAR_HEIGHT,
+        let clamp_bounds = crate::ui::iris_bridge::floating_layer::editor_floating_clamp_bounds(
+            screen_w, screen_h,
         );
+        self.layout_state.clamp_floating_windows(&clamp_bounds);
 
         let workspace_rect = Rect::new(
             0.0,

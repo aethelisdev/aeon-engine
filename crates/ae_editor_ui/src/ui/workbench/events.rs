@@ -13,9 +13,10 @@ pub mod keyboard;
 mod tests;
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
+use crate::ui::iris_bridge::floating_layer::editor_floating_clamp_bounds;
 use crate::ui::workbench::state::EngineUi;
 use iris_winit::frameless::WindowInterface;
-use irisui::dock::{DockArea, DockInteractionConfig, FloatingWindowClampBounds};
+use irisui::dock::{DockArea, DockInteractionConfig};
 use irisui::prelude::{Rect, UiEvent, WidgetCursor};
 
 impl EngineUi {
@@ -41,14 +42,10 @@ impl EngineUi {
             return true;
         }
 
-        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
-        self.iris_overlay.chrome.floating_window_rects = self
-            .layout_state
+        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing (zero allocation)
+        self.layout_state
             .dock_state
-            .floating_windows
-            .iter()
-            .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
-            .collect();
+            .sync_floating_window_rects(&mut self.iris_overlay.chrome.floating_window_rects);
 
         let iris_res = self.iris_overlay.handle_event(event);
         if let Some(act) = iris_res.ui_action {
@@ -162,14 +159,6 @@ impl EngineUi {
                 .max(0.0),
         );
 
-        // Enforce workspace boundary clamping on all floating windows
-        self.layout_state.clamp_floating_windows(
-            screen_w,
-            screen_h,
-            IrisEditorOverlay::MENUBAR_HEIGHT,
-            IrisEditorOverlay::STATUS_BAR_HEIGHT,
-        );
-
         // Process autonomous dock events (splitters, tabs, drag-and-drop, and floating windows)
         let (dock_consumed, dock_cursor) =
             self.handle_dock_event(event, workspace_rect, screen_w, screen_h);
@@ -263,19 +252,8 @@ impl EngineUi {
             return (false, None);
         }
 
-        let clamp_bounds = FloatingWindowClampBounds {
-            min_width: 220.0,
-            min_height: 140.0,
-            screen_width: screen_w,
-            screen_height: screen_h,
-            min_y: IrisEditorOverlay::MENUBAR_HEIGHT,
-            bottom_inset: IrisEditorOverlay::STATUS_BAR_HEIGHT,
-            min_visible_margin: 60.0,
-            title_bar_height: irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
-        };
-
         let config = DockInteractionConfig {
-            clamp_bounds,
+            clamp_bounds: editor_floating_clamp_bounds(screen_w, screen_h),
             ..Default::default()
         };
 
