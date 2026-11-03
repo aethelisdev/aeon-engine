@@ -20,6 +20,7 @@ impl EngineUi {
         params: EditorUiRenderParams<'_>,
     ) -> ae_renderer::render::ViewportRect {
         params.ui_actions.append(&mut self.pending_actions);
+        params.ui_actions.extend(self.action_bus.drain());
 
         // Track live engine frames per second (FPS) directly from timing parameters
         self.fps = params.fps;

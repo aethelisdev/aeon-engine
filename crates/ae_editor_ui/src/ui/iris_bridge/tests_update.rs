@@ -702,6 +702,8 @@ fn test_overlay_params_accessors_and_invariants() {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
         },
+        dialog_host: None,
+        action_bus: None,
     };
 
     assert_eq!(params.dimensions(), (1920.0, 1080.0));

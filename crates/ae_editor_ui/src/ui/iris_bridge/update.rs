@@ -321,7 +321,9 @@ impl IrisEditorOverlay {
 
         self.modals.sync_from_dialogs(&params.dialogs);
 
-        let modal_active = self.modals.is_any_active() || params.dialogs.show_preferences;
+        let modal_active = self.modals.is_any_active()
+            || params.dialogs.show_preferences
+            || params.dialog_host.as_ref().is_some_and(|h| h.is_active());
 
         let floating_count = params
             .context

@@ -34,6 +34,7 @@ impl EngineUi {
 
         // 1. Top menubar & active modal dialogs / preferences / popups (always highest z-order)
         if pos[1] <= IrisEditorOverlay::MENUBAR_HEIGHT
+            || self.dialog_host.is_active()
             || self.iris_overlay.modals.is_any_active()
             || self.iris_overlay.assets.preview_modal.is_some()
             || self.ui_rects.iter().any(|rect| in_rect(*rect))

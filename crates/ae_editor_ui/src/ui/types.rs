@@ -94,6 +94,22 @@ pub enum EngineUiAction {
         /// Logical screen cursor coordinates where the drop occurred, or `None` if unpositioned.
         screen_pos: Option<[f32; 2]>,
     },
+    /// Deletes a file or directory from the host file system.
+    DeleteAssetOrFolder(std::path::PathBuf),
+    /// Creates a new subfolder under the specified parent directory.
+    CreateSubfolder {
+        /// Parent directory path where the new folder will be created.
+        parent: std::path::PathBuf,
+        /// Name of the new folder.
+        name: String,
+    },
+    /// Renames a file or directory on disk to a new name.
+    RenameAssetOrFolder {
+        /// Target file or directory path to be renamed.
+        target: std::path::PathBuf,
+        /// New name for the target asset.
+        new_name: String,
+    },
 
     // --- SETTINGS ACTIONS ---
     UpdateGraphicsSettings(ae_renderer::graphics_settings::GraphicsSettings),

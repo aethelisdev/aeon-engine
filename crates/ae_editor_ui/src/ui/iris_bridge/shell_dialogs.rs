@@ -13,9 +13,7 @@
 use super::about::build_about_dialog;
 use super::hierarchy;
 use super::inspector;
-use super::modals::{
-    self, build_delete_modal, build_loading_overlay, build_new_folder_modal, build_rename_modal,
-};
+use super::modals::{self, build_loading_overlay};
 use super::preferences::{self, build_preferences_dialog};
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
 use crate::ui::PanelId;
@@ -112,47 +110,18 @@ impl IrisEditorOverlay {
             );
         }
 
-        // 3. Delete Confirmation Modal
-        if let Some(target_path) = params.dialogs.delete_target {
-            build_delete_modal(
-                &mut self.tree,
-                target_path,
-                screen_width,
-                screen_height,
-                cursor,
-            );
+        // 3. Framework Autonomous Dialog Host (Confirmations, Inputs, Custom Modals)
+        if let (Some(dialog_host), Some(action_bus)) = (
+            params.dialog_host.as_deref_mut(),
+            params.action_bus.as_deref_mut(),
+        ) && dialog_host.is_active()
+        {
+            let mut scope = UiScope::new(&mut self.tree, root);
+            let viewport = Rect::new(0.0, 0.0, screen_width, screen_height);
+            dialog_host.render(&mut scope, viewport, false, action_bus);
         }
 
-        // 4. New Folder Modal
-        if let Some(parent_path) = params.dialogs.new_folder_parent {
-            build_new_folder_modal(
-                &mut self.tree,
-                modals::FolderModalParams {
-                    parent_path,
-                    input_text: &mut self.modals.new_folder_input.buffer,
-                    screen_width,
-                    screen_height,
-                    cursor_pos: cursor,
-                },
-            );
-        }
-
-        // 5. Rename Modal
-        if let Some((target_path, is_folder)) = params.dialogs.rename_target {
-            build_rename_modal(
-                &mut self.tree,
-                modals::RenameModalParams {
-                    target_path,
-                    input_text: &mut self.modals.rename_input.buffer,
-                    is_folder,
-                    screen_width,
-                    screen_height,
-                    cursor_pos: cursor,
-                },
-            );
-        }
-
-        // 6. Asset Loading Splash
+        // 4. Asset Loading Splash
         if params.dialogs.is_loading_assets {
             build_loading_overlay(
                 &mut self.tree,

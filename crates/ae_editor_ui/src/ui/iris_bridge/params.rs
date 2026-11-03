@@ -169,6 +169,11 @@ pub struct OverlayUpdateParams<'a> {
     pub telemetry: TelemetryParams<'a>,
     /// Subsystem data repositories and caches consumed by panel builders.
     pub panel_data: OverlayPanelData<'a>,
+    /// Framework modal dialog host managing confirmations, textual inputs, and custom modals.
+    pub dialog_host:
+        Option<&'a mut irisui::workbench::DialogHost<crate::ui::types::EngineUiAction>>,
+    /// Decoupled action bus collecting actions emitted by framework modal dialogs.
+    pub action_bus: Option<&'a mut irisui::workbench::ActionBus<crate::ui::types::EngineUiAction>>,
 }
 
 impl<'a> OverlayUpdateParams<'a> {

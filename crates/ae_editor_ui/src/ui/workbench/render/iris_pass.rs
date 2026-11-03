@@ -69,32 +69,6 @@ impl EngineUi {
         let logical_w = win_size.width as f32 / zoom;
         let logical_h = win_size.height as f32 / zoom;
 
-        let delete_target = self.asset_browser.delete_confirmation.as_deref();
-
-        if self.asset_browser.new_folder_parent.is_some()
-            && self.iris_overlay.modals.new_folder_input.text().is_empty()
-            && !self.asset_browser.new_folder_name.is_empty()
-        {
-            self.iris_overlay
-                .modals
-                .set_new_folder_text(&self.asset_browser.new_folder_name);
-        }
-
-        let new_folder_parent = self.asset_browser.new_folder_parent.as_deref();
-
-        if let Some(ref ren) = self.asset_browser.rename_state
-            && self.iris_overlay.modals.rename_input.text().is_empty()
-            && !ren.current_name.is_empty()
-        {
-            self.iris_overlay.modals.set_rename_text(&ren.current_name);
-        }
-
-        let rename_target = self
-            .asset_browser
-            .rename_state
-            .as_ref()
-            .map(|r| (r.target_path.as_path(), r.is_folder));
-
         self.iris_overlay
             .ensure_tools_texture(params.device, params.queue);
         self.iris_overlay
@@ -174,9 +148,9 @@ impl EngineUi {
                 dialogs: iris_bridge::DialogParams {
                     show_about: self.show_about,
                     show_preferences: self.show_preferences,
-                    delete_target,
-                    new_folder_parent,
-                    rename_target,
+                    delete_target: None,
+                    new_folder_parent: None,
+                    rename_target: None,
                     is_loading_assets: self.is_loading_assets,
                 },
                 preferences: iris_bridge::OverlayPreferencesParams {
@@ -208,6 +182,8 @@ impl EngineUi {
                     inspector_color_hex: &self.inspector_color_hex,
                     saved_swatches: &self.saved_swatches,
                 },
+                dialog_host: Some(&mut self.dialog_host),
+                action_bus: Some(&mut self.action_bus),
             });
 
         self.iris_overlay.render(

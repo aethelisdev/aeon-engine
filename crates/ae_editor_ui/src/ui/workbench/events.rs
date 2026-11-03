@@ -96,51 +96,8 @@ impl EngineUi {
         if iris_res.close_about {
             self.show_about = false;
         }
-        if iris_res.confirm_delete
-            && let Some(target) = self.asset_browser.delete_confirmation.take()
-        {
-            let _ = crate::assets::file_ops::delete_asset_or_folder(&target);
-            if self.asset_browser.selected_asset.as_ref() == Some(&target) {
-                self.asset_browser.selected_asset = None;
-            }
-        }
-        if iris_res.cancel_delete {
-            self.asset_browser.delete_confirmation = None;
-        }
 
-        let modal_closed = iris_res.close_preferences
-            || iris_res.close_about
-            || iris_res.cancel_delete
-            || iris_res.confirm_delete
-            || iris_res.cancel_new_folder
-            || iris_res.create_folder.is_some()
-            || iris_res.cancel_rename
-            || iris_res.apply_rename.is_some();
-
-        if let Some(folder_name) = iris_res.create_folder
-            && let Some(parent) = self.asset_browser.new_folder_parent.take()
-        {
-            let _ = crate::assets::file_ops::create_subfolder(&parent, &folder_name);
-            self.iris_overlay.modals.clear_new_folder();
-            self.asset_browser.new_folder_name.clear();
-        }
-        if iris_res.cancel_new_folder {
-            self.asset_browser.new_folder_parent = None;
-            self.iris_overlay.modals.clear_new_folder();
-            self.asset_browser.new_folder_name.clear();
-        }
-
-        if let Some(new_name) = iris_res.apply_rename
-            && let Some(ren) = self.asset_browser.rename_state.take()
-        {
-            let _ = crate::assets::file_ops::rename_asset_or_folder(&ren.target_path, &new_name);
-            self.iris_overlay.modals.clear_rename();
-        }
-        if iris_res.cancel_rename {
-            self.asset_browser.rename_state = None;
-            self.iris_overlay.modals.clear_rename();
-        }
-
+        let modal_closed = iris_res.close_preferences || iris_res.close_about;
         if modal_closed {
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;
@@ -218,6 +175,22 @@ impl EngineUi {
             .handle_ui_event(&mut window, event, menubar_rect)
         {
             return true;
+        }
+
+        // Active framework modal dialog keyboard input (Escape dismiss, Enter confirm, focus trapping)
+        if let UiEvent::KeyboardInput {
+            key, is_pressed, ..
+        } = event
+            && self.dialog_host.is_active()
+        {
+            let handled =
+                self.dialog_host
+                    .handle_keyboard_input(key, *is_pressed, &mut self.action_bus);
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+            self.iris_overlay.notifier.tag_all();
+            if handled {
+                return true;
+            }
         }
 
         // Process keyboard shortcuts and search live-typing

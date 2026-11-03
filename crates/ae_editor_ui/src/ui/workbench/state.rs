@@ -109,6 +109,10 @@ pub struct EngineUi {
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
     pub pending_actions: Vec<EngineUiAction>,
+    /// Framework modal dialog host managing modal confirmations, textual prompts, and keyboard focus traps.
+    pub dialog_host: irisui::workbench::DialogHost<EngineUiAction>,
+    /// Global UI event and action bus managing decoupled FIFO dispatch.
+    pub action_bus: irisui::workbench::ActionBus<EngineUiAction>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
     pub iris_overlay: IrisEditorOverlay,
 }
@@ -124,6 +128,8 @@ impl EngineUi {
 
         Self {
             iris_overlay,
+            dialog_host: irisui::workbench::DialogHost::new(),
+            action_bus: irisui::workbench::ActionBus::new(),
             pending_actions: Vec::new(),
             selected_entity: None,
             status_message: None,

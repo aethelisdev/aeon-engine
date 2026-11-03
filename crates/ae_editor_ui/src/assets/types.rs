@@ -178,14 +178,6 @@ pub struct AssetBrowserState {
     pub sidebar_collapsed: bool,
     /// Active drag-and-drop payload if an asset is being dragged.
     pub drag_payload: Option<AssetDragPayload>,
-    /// Inline renaming state if an asset or folder is being renamed.
-    pub rename_state: Option<RenamingState>,
-    /// Target path pending deletion confirmation.
-    pub delete_confirmation: Option<PathBuf>,
-    /// Active new folder creation parent path if dialog is open.
-    pub new_folder_parent: Option<PathBuf>,
-    /// Input buffer for newly created folder names.
-    pub new_folder_name: String,
     /// Whether internal engine assets and built-in shaders are displayed in the browser.
     pub show_engine_content: bool,
 }
@@ -213,10 +205,6 @@ impl AssetBrowserState {
             sidebar_width: 180.0,
             sidebar_collapsed: false,
             drag_payload: None,
-            rename_state: None,
-            delete_confirmation: None,
-            new_folder_parent: None,
-            new_folder_name: String::new(),
             show_engine_content: false,
         }
     }

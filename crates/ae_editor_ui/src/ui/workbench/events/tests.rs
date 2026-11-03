@@ -235,3 +235,49 @@ fn test_window_drag_host_handle_title_bar_actions_on_mock_window() {
     assert_eq!(out_close, iris_winit::frameless::WindowDragOutcome::Closed);
     assert!(win.closed);
 }
+
+#[test]
+fn test_dialog_host_keyboard_escape_and_enter_dispatch() {
+    use crate::ui::types::EngineUiAction;
+    use irisui::core::event::KeyCode;
+    use irisui::workbench::{ActionBus, DialogHost};
+    use std::path::PathBuf;
+
+    let mut host = DialogHost::<EngineUiAction>::new();
+    let mut bus = ActionBus::<EngineUiAction>::new();
+
+    // 1. Open danger confirm dialog and dismiss with Escape
+    host.open_confirm_danger(
+        "Delete Asset",
+        "Permanently delete model?",
+        EngineUiAction::DeleteAssetOrFolder(PathBuf::from("assets/models/car.glb")),
+    );
+    assert!(host.is_active());
+    let handled_esc = host.handle_keyboard_input(&KeyCode::Escape, true, &mut bus);
+    assert!(handled_esc);
+    assert!(!host.is_active());
+    assert!(bus.is_empty());
+
+    // 2. Open input dialog and submit with Enter
+    host.open_input("New Folder", "Name:", "Textures", |name| {
+        EngineUiAction::CreateSubfolder {
+            parent: PathBuf::from("assets"),
+            name,
+        }
+    });
+    assert!(host.is_active());
+    let handled_enter = host.handle_keyboard_input(&KeyCode::Enter, true, &mut bus);
+    assert!(handled_enter);
+    assert!(!host.is_active());
+
+    // 3. Verify action emitted into ActionBus
+    let actions: Vec<_> = bus.drain().collect();
+    assert_eq!(actions.len(), 1);
+    match &actions[0] {
+        EngineUiAction::CreateSubfolder { parent, name } => {
+            assert_eq!(parent, &PathBuf::from("assets"));
+            assert_eq!(name, "Textures");
+        }
+        _ => panic!("Expected CreateSubfolder action"),
+    }
+}

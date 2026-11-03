@@ -59,8 +59,18 @@ impl EngineUi {
                     ui_actions.push(EngineUiAction::GarbageCollect);
                 }
                 iris_bridge::AssetsPanelAction::OpenCreateSubfolder(parent) => {
-                    self.asset_browser.new_folder_parent = Some(parent);
-                    self.asset_browser.new_folder_name.clear();
+                    let parent_clone = parent.clone();
+                    self.dialog_host.open_input(
+                        "New Folder",
+                        "Folder Name:",
+                        "New Folder",
+                        move |name| EngineUiAction::CreateSubfolder {
+                            parent: parent_clone.clone(),
+                            name,
+                        },
+                    );
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.iris_overlay.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::SpawnAsset(path, cat) => match cat {
                     crate::assets::types::AssetCategory::Models3D => {
@@ -90,14 +100,35 @@ impl EngineUi {
                     );
                 }
                 iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
-                    self.asset_browser.rename_state = Some(crate::assets::types::RenamingState {
-                        target_path: path,
-                        current_name: name,
-                        is_folder,
-                    });
+                    let kind = if is_folder { "Folder" } else { "Asset" };
+                    let path_clone = path.clone();
+                    self.dialog_host.open_input(
+                        format!("Rename {}", kind),
+                        "New Name:",
+                        name,
+                        move |new_name| EngineUiAction::RenameAssetOrFolder {
+                            target: path_clone.clone(),
+                            new_name,
+                        },
+                    );
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.iris_overlay.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::OpenDelete(path) => {
-                    self.asset_browser.delete_confirmation = Some(path);
+                    let file_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("selected item");
+                    self.dialog_host.open_confirm_danger(
+                        "Delete Asset",
+                        format!(
+                            "Are you sure you want to permanently delete '{}'?",
+                            file_name
+                        ),
+                        EngineUiAction::DeleteAssetOrFolder(path),
+                    );
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.iris_overlay.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::CopyPath(path) => {
                     log::info!("Asset file path copied: {}", path.display());
