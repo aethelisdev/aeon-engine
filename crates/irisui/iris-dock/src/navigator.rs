@@ -16,6 +16,12 @@ use iris_core::id::WidgetId;
 use iris_core::style::Style;
 use iris_core::tree::UiTree;
 
+/// Default dimension (width and height) of each square anchor button in logical pixels.
+pub const DEFAULT_BUTTON_SIZE: f32 = 40.0;
+
+/// Default spacing between adjacent anchor buttons in logical pixels.
+pub const DEFAULT_BUTTON_GAP: f32 = 4.0;
+
 /// Normalized relative positions for the 4 dashed line segments inside split buttons.
 const DASHED_LINE_ALPHAS: [f32; 8] = [
     0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375,
@@ -95,6 +101,13 @@ impl DockNavigatorGeometry {
         }
     }
 
+    /// Computes the navigator cross geometry centered inside the specified host content rectangle using default metrics.
+    #[inline]
+    #[must_use]
+    pub fn from_content_rect_default(content_rect: Rect) -> Self {
+        Self::from_content_rect(content_rect, DEFAULT_BUTTON_SIZE, DEFAULT_BUTTON_GAP)
+    }
+
     /// Computes the navigator cross geometry using dimensions defined in a style descriptor.
     pub fn from_content_rect_with_style(content_rect: Rect, style: &DockNavigatorStyle) -> Self {
         Self::from_content_rect(content_rect, style.button_size, style.button_gap)
@@ -163,8 +176,8 @@ pub struct DockNavigatorStyle {
 impl Default for DockNavigatorStyle {
     fn default() -> Self {
         Self {
-            button_size: 40.0,
-            button_gap: 4.0,
+            button_size: DEFAULT_BUTTON_SIZE,
+            button_gap: DEFAULT_BUTTON_GAP,
             corner_radius: 3.0,
             idle_bg: Color::from_u8(22, 26, 35, 230),
             idle_border: Color::from_u8(65, 75, 95, 255),
@@ -563,136 +576,4 @@ pub fn build_floating_tab_badge(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_dock_navigator_geometry_and_hit_testing() {
-        let content_rect = Rect::new(100.0, 100.0, 400.0, 300.0);
-        let style = DockNavigatorStyle::default();
-        let geometry = DockNavigatorGeometry::from_content_rect_with_style(content_rect, &style);
-
-        // Center should be at (300, 250) with 40x40 size
-        assert_eq!(geometry.center_button.x, 300.0 - 20.0);
-        assert_eq!(geometry.center_button.y, 250.0 - 20.0);
-        assert_eq!(geometry.center_button.width, 40.0);
-        assert_eq!(geometry.center_button.height, 40.0);
-
-        // Hit testing center
-        assert_eq!(
-            geometry.hit_test(Point::new(300.0, 250.0)),
-            Some(DropZone::Center)
-        );
-
-        // Hit testing left button (x = 280 - 40 - 4 = 236)
-        assert_eq!(
-            geometry.hit_test(Point::new(250.0, 250.0)),
-            Some(DropZone::Left)
-        );
-
-        // Hit testing right button (x = 320 + 4 = 324)
-        assert_eq!(
-            geometry.hit_test(Point::new(340.0, 250.0)),
-            Some(DropZone::Right)
-        );
-
-        // Hit testing top button (y = 230 - 40 - 4 = 186)
-        assert_eq!(
-            geometry.hit_test(Point::new(300.0, 200.0)),
-            Some(DropZone::Top)
-        );
-
-        // Hit testing bottom button (y = 270 + 4 = 274)
-        assert_eq!(
-            geometry.hit_test(Point::new(300.0, 290.0)),
-            Some(DropZone::Bottom)
-        );
-
-        // Hit outside cross
-        assert_eq!(geometry.hit_test(Point::new(110.0, 110.0)), None);
-    }
-
-    #[test]
-    fn test_dock_navigator_nodes_construction() {
-        let mut tree = UiTree::new();
-        let root_id = tree.create_node();
-        let _ = tree.set_root(root_id);
-
-        let content_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-        let style = DockNavigatorStyle::default();
-        let geometry = DockNavigatorGeometry::from_content_rect_with_style(content_rect, &style);
-
-        build_dock_navigator_nodes(&mut tree, root_id, &geometry, Some(DropZone::Left), &style);
-
-        let root_node = tree.get(root_id).expect("Root node exists");
-        // Root must have 5 child buttons
-        assert_eq!(root_node.children.len(), 5);
-
-        // Verify Left button active styling
-        let left_button_id = root_node.children[1];
-        let left_button = tree.get(left_button_id).expect("Left button exists");
-        assert_eq!(left_button.style.background_color, style.hover_bg);
-
-        // Left button must contain inner window, header rim, active fill, and 4 dashed segments
-        assert_eq!(left_button.children.len(), 7);
-    }
-
-    #[test]
-    fn test_degenerate_content_rect_safety() {
-        let mut tree = UiTree::new();
-        let root_id = tree.create_node();
-        let _ = tree.set_root(root_id);
-
-        let degenerate_rect = Rect::new(0.0, 0.0, 20.0, 20.0);
-        let style = DockNavigatorStyle::default();
-        let geometry = DockNavigatorGeometry::from_content_rect_with_style(degenerate_rect, &style);
-
-        build_dock_navigator_nodes(&mut tree, root_id, &geometry, None, &style);
-
-        let root_node = tree.get(root_id).expect("Root node exists");
-        assert_eq!(root_node.children.len(), 0);
-
-        assert_eq!(
-            hit_test_navigator(degenerate_rect, Point::new(10.0, 10.0), &style),
-            None
-        );
-    }
-
-    #[test]
-    fn test_floating_tab_badge_construction() {
-        let mut tree = UiTree::new();
-        let root_id = tree.create_node();
-        let _ = tree.set_root(root_id);
-
-        let badge_id = build_floating_tab_badge(
-            &mut tree,
-            root_id,
-            FloatingTabBadgeParams {
-                cursor_pos: Point::new(150.0, 200.0),
-                title: "Hierarchy",
-                icon: Some("🏗️"),
-            },
-        );
-
-        let badge_node = tree.get(badge_id).expect("Badge node exists");
-        assert_eq!(badge_node.computed_rect.x, 150.0 + 12.0);
-        assert_eq!(badge_node.computed_rect.y, 200.0 + 12.0);
-        assert_eq!(badge_node.children.len(), 2); // label + close
-    }
-
-    #[test]
-    fn test_drop_preview_node_construction() {
-        let mut tree = UiTree::new();
-        let root_id = tree.create_node();
-        let _ = tree.set_root(root_id);
-
-        let content_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-        let style = DockNavigatorStyle::default();
-        let preview_id =
-            build_drop_preview_node(&mut tree, root_id, content_rect, DropZone::Left, &style);
-
-        let preview_node = tree.get(preview_id).expect("Preview node exists");
-        assert_eq!(preview_node.computed_rect.width, 400.0);
-        assert_eq!(preview_node.computed_rect.height, 600.0);
-    }
-}
+mod tests;

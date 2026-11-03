@@ -6,10 +6,12 @@
 //! Orchestrates dock hierarchy rendering, layout computation, splitter interactions,
 //! and tab dragging workflows.
 
+pub mod dock_navigator;
 pub mod runner;
 pub mod splitter;
 pub mod splitter_drag;
 
+pub use dock_navigator::*;
 pub use runner::*;
 pub use splitter::*;
 pub use splitter_drag::*;

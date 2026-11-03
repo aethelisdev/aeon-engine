@@ -77,6 +77,8 @@ pub struct DockChromeStyle {
     pub chevron_idle_icon_col: Color,
     /// Texture atlas UV coordinates for the chevron down icon `[u0, v0, u1, v1]`, if used.
     pub chevron_icon_uv: Option<[f32; 4]>,
+    /// Nested visual style for the 5-way blueprint drop navigator.
+    pub navigator: DockNavigatorStyle,
 }
 
 impl Default for DockChromeStyle {
@@ -113,6 +115,7 @@ impl Default for DockChromeStyle {
             chevron_hovered_icon_col: Color::from_u8(0, 229, 255, 255),
             chevron_idle_icon_col: Color::from_u8(148, 163, 184, 255),
             chevron_icon_uv: None,
+            navigator: DockNavigatorStyle::default(),
         }
     }
 }

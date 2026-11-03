@@ -284,12 +284,12 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                 .find(|leaf| leaf.contains_point(drag.cursor_pos));
 
             if let Some(leaf) = hovered_leaf {
-                let nav_style = crate::navigator::DockNavigatorStyle::default();
-                let geometry = crate::navigator::DockNavigatorGeometry::from_content_rect(
-                    leaf.content_rect,
-                    40.0,
-                    4.0,
-                );
+                let nav_style = &self.style.navigator;
+                let geometry =
+                    crate::navigator::DockNavigatorGeometry::from_content_rect_with_style(
+                        leaf.content_rect,
+                        nav_style,
+                    );
                 let drop_zone = geometry.hit_test(drag.cursor_pos);
 
                 if let Some(zone) = drop_zone {
@@ -298,7 +298,7 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                         parent_id,
                         leaf.content_rect,
                         zone,
-                        &nav_style,
+                        nav_style,
                     );
                 }
 
@@ -307,7 +307,7 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                     parent_id,
                     &geometry,
                     drop_zone,
-                    &nav_style,
+                    nav_style,
                 );
             }
 

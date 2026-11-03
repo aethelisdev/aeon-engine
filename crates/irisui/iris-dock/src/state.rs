@@ -284,11 +284,10 @@ impl<T> DockState<T> {
             // 2. Check 5-way compass anchor buttons on hovered leaf
             for leaf in &layout.leaves {
                 if leaf.content_rect.contains_point(cursor) {
-                    let nav_geom = crate::navigator::DockNavigatorGeometry::from_content_rect(
-                        leaf.content_rect,
-                        40.0,
-                        4.0,
-                    );
+                    let nav_geom =
+                        crate::navigator::DockNavigatorGeometry::from_content_rect_default(
+                            leaf.content_rect,
+                        );
                     if let Some(zone) = nav_geom.hit_test(cursor) {
                         let preview_rect = calculate_drop_preview_rect(leaf.content_rect, zone);
                         drag.hover_target = Some((leaf.node_id, zone, preview_rect));

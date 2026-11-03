@@ -326,6 +326,21 @@ pub fn editor_dock_style_with_tokens(tokens: &EditorThemeTokens) -> DockChromeSt
         chevron_hovered_icon_col: tokens.accent,
         chevron_idle_icon_col: tokens.text_muted,
         chevron_icon_uv: Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN),
+        navigator: irisui::dock::DockNavigatorStyle {
+            idle_bg: tokens.panel_bg,
+            idle_border: tokens.splitter_idle,
+            hover_bg: tokens.tab_active_bg,
+            hover_border: tokens.accent,
+            active_partition_fill: Color::new(
+                tokens.accent.r,
+                tokens.accent.g,
+                tokens.accent.b,
+                0.40,
+            ),
+            preview_fill: Color::new(tokens.accent.r, tokens.accent.g, tokens.accent.b, 0.15),
+            preview_border: tokens.accent,
+            ..Default::default()
+        },
     }
 }
 
