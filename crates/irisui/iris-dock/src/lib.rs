@@ -54,7 +54,8 @@ pub use events::{
 pub use floating::{
     DEFAULT_RESIZE_MARGIN, FloatingDragState, FloatingResizeEdge, FloatingWindow,
     FloatingWindowClampBounds, FloatingWindowClickAction, FloatingWindowCursor,
-    FloatingWindowStyle, build_floating_windows_layer, clamp_floating_windows, detect_resize_edge,
+    FloatingWindowManager, FloatingWindowStyle, MIN_VISIBLE_TITLE_BAR,
+    build_floating_windows_layer, clamp_floating_windows, detect_resize_edge,
     evaluate_floating_resize_cursor, evaluate_floating_window_click, find_active_tab_content_rect,
 };
 pub use layout::{
@@ -89,8 +90,8 @@ pub mod prelude {
         DockArea, DockChromeFrame, DockChromeParams, DockChromeStyle, DockError,
         DockInteractionConfig, DockLayoutOptions, DockNode, DockNodeId, DockPanel, DockResponse,
         DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
-        FloatingWindowId, FloatingWindowStyle, MultiViewportManager, PanelRegistry,
-        SimpleTabViewer, SplitDirection, TabViewer, UiNotifier,
+        FloatingWindowId, FloatingWindowManager, FloatingWindowStyle, MultiViewportManager,
+        PanelRegistry, SimpleTabViewer, SplitDirection, TabViewer, UiNotifier,
     };
 }
 

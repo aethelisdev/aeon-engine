@@ -9,6 +9,7 @@
 pub mod bounds;
 pub mod cursor;
 pub mod layer;
+pub mod manager;
 pub mod model;
 
 pub use bounds::{FloatingWindowClampBounds, clamp_floating_windows};
@@ -17,6 +18,7 @@ pub use cursor::{
     evaluate_floating_resize_cursor,
 };
 pub use layer::build_floating_windows_layer;
+pub use manager::{FloatingWindowManager, MIN_VISIBLE_TITLE_BAR};
 pub use model::{
     FloatingDragState, FloatingWindow, FloatingWindowClickAction, FloatingWindowStyle,
     evaluate_floating_window_click, find_active_tab_content_rect,

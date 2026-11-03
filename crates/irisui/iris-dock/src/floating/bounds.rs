@@ -83,6 +83,13 @@ impl FloatingWindowClampBounds {
         self.min_visible_margin = margin;
         self
     }
+
+    /// Sets the title bar height used to constrain the window vertically within screen boundaries.
+    #[inline]
+    pub fn with_title_bar_height(mut self, height: f32) -> Self {
+        self.title_bar_height = height;
+        self
+    }
 }
 
 impl<T> FloatingWindow<T> {
