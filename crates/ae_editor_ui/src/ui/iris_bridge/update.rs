@@ -153,7 +153,7 @@ impl IrisEditorOverlay {
             let mut routed_to_panel = false;
             if let Some(target_id) = dispatch.target
                 && let Some(boundary_id) = self.tree.find_invalidation_boundary(target_id)
-                && let Some(dock_frame) = &self.chrome.native_dock_frame
+                && let Some(dock_frame) = &self.chrome.dock_frame
                 && let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
             {
                 self.notifier.tag_redraw(panel_id);
@@ -190,7 +190,7 @@ impl IrisEditorOverlay {
                 if let Some(tag) = target_tag
                     && let Some(target_id) = self.tree.find_node_by_tag(tag)
                     && let Some(boundary_id) = self.tree.find_invalidation_boundary(target_id)
-                    && let Some(dock_frame) = &self.chrome.native_dock_frame
+                    && let Some(dock_frame) = &self.chrome.dock_frame
                     && let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
                 {
                     self.notifier.tag_redraw(panel_id);
@@ -352,7 +352,7 @@ impl IrisEditorOverlay {
 
         // 2. Active dock panel under cursor
         if !self.is_point_over_overlay(cursor)
-            && let Some(dock_frame) = &self.chrome.native_dock_frame
+            && let Some(dock_frame) = &self.chrome.dock_frame
         {
             for (pid, bounds) in &dock_frame.panel_rects {
                 if *pid != PanelId::Viewport && bounds.contains_point(cursor) {
@@ -435,7 +435,7 @@ impl IrisEditorOverlay {
 
         let is_shell_dirty = self.chrome.always_rebuild
             || self.tree.root().is_none()
-            || self.chrome.native_dock_frame.is_none()
+            || self.chrome.dock_frame.is_none()
             || self.notifier.is_global_dirty()
             || viewport_texture_changed
             || dock_changed
@@ -548,7 +548,7 @@ impl IrisEditorOverlay {
                             .is_some_and(super::inspector::is_inspector_tag)
                         || self
                             .chrome
-                            .native_dock_frame
+                            .dock_frame
                             .as_ref()
                             .and_then(|frame| {
                                 frame.leaf_container(crate::ui::panel_layout::PanelId::Inspector)
@@ -710,7 +710,7 @@ impl IrisEditorOverlay {
                     .is_point_over_floating_window(cursor);
 
             // 3. Declarative Docking Framework: orchestrate layout, splitters, tab bars, and leaf panel UIs via DockArea
-            let dock_style = super::native_dock::editor_dock_style_with_tokens(&active_tokens);
+            let dock_style = super::theme::editor_dock_style_with_tokens(&active_tokens);
             let mut tree = std::mem::take(&mut self.tree);
             let root_id = tree.root().unwrap_or(root);
             let dock_frame = {
@@ -738,7 +738,7 @@ impl IrisEditorOverlay {
             }
 
             self.chrome.floating_window_rects = dock_frame.floating_rects.clone();
-            self.chrome.native_dock_frame = Some(dock_frame.into());
+            self.chrome.dock_frame = Some(dock_frame);
             self.tree = tree;
 
             let is_floating = |panel: crate::ui::panel_layout::PanelId| {
@@ -780,7 +780,7 @@ impl IrisEditorOverlay {
                 self.notifier.dirty_panels().iter().copied().collect();
 
             if self.tree.has_dirty_boundaries() {
-                if let Some(dock_frame) = &self.chrome.native_dock_frame {
+                if let Some(dock_frame) = &self.chrome.dock_frame {
                     for boundary_id in self.tree.dirty_boundaries.clone() {
                         if let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
                             && !dirty_panels.contains(&panel_id)
@@ -794,7 +794,7 @@ impl IrisEditorOverlay {
 
             let mut rebuilt_any_panel = false;
             for panel_id in dirty_panels {
-                if let Some(dock_frame) = &self.chrome.native_dock_frame {
+                if let Some(dock_frame) = &self.chrome.dock_frame {
                     if let Some(leaf_id) = dock_frame.leaf_container(panel_id) {
                         if let Err(err) = self.rebuild_panel_content(panel_id, leaf_id, &params) {
                             log::warn!(

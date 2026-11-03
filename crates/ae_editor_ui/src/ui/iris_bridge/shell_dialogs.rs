@@ -165,12 +165,11 @@ impl IrisEditorOverlay {
         }
 
         // 7. Hierarchy Add Menu and Context Menu
-        let hier_rect = self.chrome.native_dock_frame.as_ref().and_then(|f| {
-            f.panel_rects
-                .iter()
-                .find(|(pid, _)| *pid == PanelId::Hierarchy)
-                .map(|(_, r)| *r)
-        });
+        let hier_rect = self
+            .chrome
+            .dock_frame
+            .as_ref()
+            .and_then(|f| f.panel_rect(PanelId::Hierarchy));
         if let Some(hier_rect) = hier_rect {
             let hier_params = hierarchy::HierarchyPanelParams {
                 panel_rect: hier_rect,
@@ -204,12 +203,11 @@ impl IrisEditorOverlay {
         }
 
         // 8. Inspector Add Component Cascading Menu, Dropdowns, and Color Picker
-        let insp_rect = self.chrome.native_dock_frame.as_ref().and_then(|f| {
-            f.panel_rects
-                .iter()
-                .find(|(pid, _)| *pid == PanelId::Inspector)
-                .map(|(_, r)| *r)
-        });
+        let insp_rect = self
+            .chrome
+            .dock_frame
+            .as_ref()
+            .and_then(|f| f.panel_rect(PanelId::Inspector));
         if let Some(insp_rect) = insp_rect {
             let num_input_ref = self
                 .inspector
@@ -297,19 +295,28 @@ impl IrisEditorOverlay {
 
         // 10. Native Dock Tab Overflow Dropdown Menu
         if let Some((leaf_id, anchor_rect)) = self.chrome.active_dock_overflow
-            && let Some(ref mut frame) = self.chrome.native_dock_frame
+            && let Some(node) = params.context.layout_state.dock_state.tree.get(leaf_id)
+            && let irisui::dock::DockNode::Leaf { tabs, active_tab } = node
+            && !tabs.is_empty()
         {
-            super::native_dock::build_native_dock_overflow_menu(
+            let style = irisui::dock::DockOverflowMenuStyle::default();
+            let effective_cursor = if is_cursor_occluded {
+                Point::new(-1000.0, -1000.0)
+            } else {
+                cursor
+            };
+            self.chrome.active_overflow_frame = irisui::dock::build_dock_overflow_menu(
                 &mut self.tree,
                 root,
-                super::native_dock::NativeDockOverflowMenuParams {
+                irisui::dock::DockOverflowMenuParams {
                     leaf_id,
+                    tabs,
+                    active_tab: *active_tab,
                     anchor_rect,
-                    layout_state: params.context.layout_state,
-                    cursor_pos: cursor,
-                    is_cursor_occluded,
+                    cursor_pos: effective_cursor,
                 },
-                frame,
+                &crate::ui::panel_layout::PanelTabViewer::default(),
+                &style,
             );
         }
     }

@@ -48,8 +48,8 @@ impl EngineUi {
         let computed = irisui::dock::compute_dock_layout_with_viewer(
             &self.layout_state.dock_state.tree,
             workspace_rect,
-            crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
-            crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
+            irisui::dock::DEFAULT_SPLITTER_THICKNESS,
+            irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
             &crate::ui::panel_layout::PanelTabViewer::default(),
         );
 

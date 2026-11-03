@@ -217,7 +217,9 @@ pub struct IrisChromeState {
     /// Last recorded cursor position for detecting interactive hover transitions and invalidation.
     pub last_cursor_pos: Point,
     /// Native dock chrome interaction frame from the last layout reconstruction.
-    pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
+    pub dock_frame: Option<irisui::dock::DockChromeFrame<crate::ui::panel_layout::PanelId>>,
+    /// Active dock tab overflow popup menu interaction frame from the last layout reconstruction.
+    pub active_overflow_frame: Option<irisui::dock::DockOverflowMenuFrame>,
     /// Active bounding rectangles of all independent floating windows for solid occlusion and text culling.
     pub floating_window_rects: Vec<Rect>,
     /// Whether Shift modifier key is currently held down.
@@ -297,7 +299,8 @@ impl Default for IrisChromeState {
         Self {
             cursor_pos: Point::default(),
             last_cursor_pos: Point::new(-1000.0, -1000.0),
-            native_dock_frame: None,
+            dock_frame: None,
+            active_overflow_frame: None,
             floating_window_rects: Vec::new(),
             shift_held: false,
             alt_held: false,

@@ -9,7 +9,8 @@
 //! - Level 2 (Tab Strip & Inactive Tabs): Receding surface matching or darker than panel body.
 //! - Level 3 (Active Tab & Focused Pane): Lightest surface layer anchored with a 2px accent underline.
 
-use irisui::prelude::{Color, Theme};
+use irisui::dock::DockChromeStyle;
+use irisui::prelude::{Color, CornerRadii, Theme};
 
 /// Helper converting 8-bit RGBA integer channels to a compile-time constant [`Color`].
 #[inline]
@@ -281,6 +282,50 @@ pub fn elevation_for_level(level: usize) -> Color {
         2 => ELEVATION_2_HEADER,
         3 => ELEVATION_3_INACTIVE_PILL,
         _ => ELEVATION_4_POPUP,
+    }
+}
+
+/// Returns the default engine-themed [`DockChromeStyle`] used across the editor.
+#[must_use]
+pub fn editor_dock_style() -> DockChromeStyle {
+    editor_dock_style_with_tokens(&EditorThemeTokens::default())
+}
+
+/// Returns a [`DockChromeStyle`] resolved from the specified [`EditorThemeTokens`].
+#[must_use]
+pub fn editor_dock_style_with_tokens(tokens: &EditorThemeTokens) -> DockChromeStyle {
+    DockChromeStyle {
+        empty_panel_bg: tokens.canvas_bg,
+        empty_panel_border: tokens.splitter_idle,
+        panel_bg: tokens.panel_bg,
+        tab_bar_bg: tokens.tab_bar_bg,
+        tab_bar_height: irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
+        tab_bar_baseline_color: tokens.border_micron,
+        tab_corner_radii: CornerRadii::new(4.0, 4.0, 0.0, 0.0),
+        tab_active_bg: tokens.tab_active_bg,
+        tab_hovered_bg: tokens.tab_hover_bg,
+        tab_idle_bg: tokens.tab_idle_bg,
+        tab_active_line_color: tokens.accent,
+        tab_active_line_height: 2.0,
+        icon_active_tint: Color::WHITE,
+        icon_hovered_tint: Color::WHITE,
+        icon_idle_tint: tokens.text_muted,
+        text_active_color: tokens.text_active,
+        text_hovered_color: Color::WHITE,
+        text_idle_color: tokens.text_muted,
+        close_btn_hover_bg: Color::rgba(0.9, 0.2, 0.2, 0.25),
+        close_btn_hover_color: Color::rgba(1.0, 0.45, 0.45, 1.0),
+        close_btn_idle_color: tokens.text_muted,
+        splitter_thickness: irisui::dock::DEFAULT_SPLITTER_THICKNESS,
+        splitter_active_color: tokens.splitter_active,
+        splitter_idle_color: tokens.splitter_idle,
+        min_shrunk_tab_width: 68.0,
+        chevron_width: 24.0,
+        chevron_hovered_bg: tokens.tab_hover_bg,
+        chevron_idle_bg: tokens.tab_bar_bg,
+        chevron_hovered_icon_col: tokens.accent,
+        chevron_idle_icon_col: tokens.text_muted,
+        chevron_icon_uv: Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN),
     }
 }
 

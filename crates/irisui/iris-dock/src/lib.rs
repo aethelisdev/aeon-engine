@@ -73,7 +73,7 @@ pub use overflow::{
 };
 pub use panel::{DockPanel, PanelRegistry};
 pub use state::{ActiveSplitterDrag, DockState};
-pub use style::DockStyle;
+pub use style::{DEFAULT_TAB_BAR_HEIGHT, DockStyle};
 pub use tab_bar::{
     TabBarLayoutInfo, TabLayoutInfo, calculate_tab_reorder_index, compute_tab_bar_layout,
 };

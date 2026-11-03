@@ -271,13 +271,12 @@ impl EngineUi {
             min_y: IrisEditorOverlay::MENUBAR_HEIGHT,
             bottom_inset: IrisEditorOverlay::STATUS_BAR_HEIGHT,
             min_visible_margin: 60.0,
-            title_bar_height: crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
+            title_bar_height: irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
         };
 
         let config = DockInteractionConfig {
-            splitter_thickness: crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
-            tab_bar_height: crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
             clamp_bounds,
+            ..Default::default()
         };
 
         let viewer = crate::ui::panel_layout::PanelTabViewer::default();

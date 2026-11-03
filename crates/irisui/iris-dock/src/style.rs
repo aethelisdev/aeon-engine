@@ -9,6 +9,9 @@
 use crate::navigator::DockNavigatorStyle;
 use iris_core::{Color, CornerRadii};
 
+/// Default height in logical pixels for leaf tab bar header strips.
+pub const DEFAULT_TAB_BAR_HEIGHT: f32 = 26.0;
+
 /// Visual styling and dimensional metrics for docked chrome, tab strips, and splitters.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DockChromeStyle {
@@ -83,7 +86,7 @@ impl Default for DockChromeStyle {
             empty_panel_border: Color::from_u8(35, 42, 55, 120),
             panel_bg: Color::from_u8(16, 18, 24, 255),
             tab_bar_bg: Color::from_u8(20, 24, 33, 255),
-            tab_bar_height: 26.0,
+            tab_bar_height: DEFAULT_TAB_BAR_HEIGHT,
             tab_bar_baseline_color: Color::from_u8(36, 42, 56, 180),
             tab_active_bg: Color::from_u8(30, 36, 50, 255),
             tab_hovered_bg: Color::from_u8(25, 30, 42, 255),
@@ -180,7 +183,7 @@ impl DockStyle {
     /// Constructs a standard dark-slate and cyan theme matching Aeon Engine defaults.
     pub fn dark() -> Self {
         Self {
-            tab_bar_height: 26.0,
+            tab_bar_height: DEFAULT_TAB_BAR_HEIGHT,
             tab_min_width: 56.0,
             tab_max_width: 180.0,
             tab_padding_x: 10.0,

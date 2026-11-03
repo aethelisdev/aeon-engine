@@ -487,7 +487,7 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
 
     // 1. Initial Shell Bake (tree.clear() + full construction)
     let root = tree.create_root().expect("root widget must exist");
-    let mut dock_frame = crate::ui::iris_bridge::native_dock::types::NativeDockFrame::default();
+    let mut dock_frame = irisui::dock::DockChromeFrame::<PanelId>::default();
 
     let (hierarchy_leaf, inspector_leaf) = {
         let mut scope = UiScope::new(&mut tree, root);
