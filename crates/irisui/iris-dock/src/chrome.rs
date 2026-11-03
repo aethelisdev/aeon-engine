@@ -99,47 +99,10 @@ impl DockChevronTarget {
     }
 }
 
-/// Native Iris splitter hit target linked to a stable split node.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DockSplitterTarget {
-    /// Split node that owns the divider.
-    pub node: DockNodeId,
-    /// Axis along which the divider moves.
-    pub direction: SplitDirection,
-    /// Interactive hit rectangle of the splitter divider.
-    pub rect: Rect,
-    /// Total width or height of the parent split container.
-    pub total_dimension: f32,
-}
-
-impl DockSplitterTarget {
-    /// Half-width margin in logical pixels applied to thin splitters for ergonomic hit-testing.
-    pub const HIT_MARGIN: f32 = 4.0;
-
-    /// Checks whether the point is contained within this splitter target's bounds with interactive margin.
-    #[inline]
-    pub fn contains_point(&self, point: Point) -> bool {
-        hit_splitter(self.rect, self.direction, point, Self::HIT_MARGIN)
-    }
-}
-
-#[inline]
-fn hit_splitter(rect: Rect, dir: SplitDirection, p: Point, m: f32) -> bool {
-    match dir {
-        SplitDirection::Horizontal => {
-            p.x >= rect.x - m
-                && p.x <= rect.x + rect.width + m
-                && p.y >= rect.y
-                && p.y <= rect.y + rect.height
-        }
-        SplitDirection::Vertical => {
-            p.x >= rect.x
-                && p.x <= rect.x + rect.width
-                && p.y >= rect.y - m
-                && p.y <= rect.y + rect.height + m
-        }
-    }
-}
+pub use crate::area::splitter::{
+    DEFAULT_SPLITTER_HIT_MARGIN, DEFAULT_SPLITTER_THICKNESS, DEFAULT_SPLITTER_TOTAL_HIT_ZONE,
+    DockSplitterTarget, hit_splitter,
+};
 
 /// Native dock chrome geometry consumed by host panel builders and editor hit testing.
 ///

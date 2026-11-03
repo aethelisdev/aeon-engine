@@ -84,10 +84,7 @@ pub fn handle_splitter_event<T>(
 
             // 2. Otherwise, perform hit-testing to provide hover cursor feedback
             if let Some(target) = splitters.iter().find(|t| t.contains_point(*point)) {
-                let cursor = match target.direction {
-                    SplitDirection::Horizontal => WidgetCursor::ColResize,
-                    SplitDirection::Vertical => WidgetCursor::RowResize,
-                };
+                let cursor = target.hover_cursor();
                 return SplitterInteractionResponse {
                     cursor: Some(cursor),
                     consumed: false,
@@ -115,10 +112,7 @@ pub fn handle_splitter_event<T>(
                     target.total_dimension,
                 );
 
-                let cursor = match target.direction {
-                    SplitDirection::Horizontal => WidgetCursor::ColResize,
-                    SplitDirection::Vertical => WidgetCursor::RowResize,
-                };
+                let cursor = target.hover_cursor();
 
                 return SplitterInteractionResponse {
                     cursor: Some(cursor),

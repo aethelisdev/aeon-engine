@@ -29,11 +29,14 @@ pub mod tab_viewer;
 pub mod tree;
 pub mod viewport;
 
-pub use area::{DockArea, DockInteractionConfig, DockResponse};
+pub use area::{
+    DEFAULT_SPLITTER_HIT_MARGIN, DEFAULT_SPLITTER_THICKNESS, DEFAULT_SPLITTER_TOTAL_HIT_ZONE,
+    DockArea, DockInteractionConfig, DockResponse, DockSplitterTarget, hit_splitter,
+};
 pub use chrome::{
     DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
-    DockSplitterTarget, DockTabTarget, TAG_DOCK_TAB_CLOSE_BASE, build_dock_chrome,
-    encode_dock_tab_close_tag, is_dock_tab_close_tag,
+    DockTabTarget, TAG_DOCK_TAB_CLOSE_BASE, build_dock_chrome, encode_dock_tab_close_tag,
+    is_dock_tab_close_tag,
 };
 pub use context_menu::{TabContextMenuAction, TabContextMenuState};
 pub use drag_drop::{

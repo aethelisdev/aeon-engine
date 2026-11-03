@@ -74,7 +74,7 @@ pub struct DockLayoutOptions {
 impl Default for DockLayoutOptions {
     fn default() -> Self {
         Self {
-            splitter_thickness: 4.0,
+            splitter_thickness: crate::area::splitter::DEFAULT_SPLITTER_THICKNESS,
             tab_bar_height: 26.0,
             maximized_leaf: None,
             auto_hide_single_tab_bar: false,
