@@ -68,6 +68,11 @@ pub fn handle_splitter_event<T>(
                     SplitDirection::Horizontal => point.x,
                     SplitDirection::Vertical => point.y,
                 };
+                if (current_coord - drag.start_cursor).abs()
+                    > crate::area::splitter_drag::DOUBLE_CLICK_DISTANCE_THRESHOLD
+                {
+                    dock_state.last_splitter_click = None;
+                }
                 dock_state.update_splitter_drag(current_coord);
 
                 let cursor = match drag.direction {
@@ -100,24 +105,21 @@ pub fn handle_splitter_event<T>(
             point,
         } => {
             if let Some(target) = splitters.iter().find(|t| t.contains_point(*point)) {
-                let start_coord = match target.direction {
-                    SplitDirection::Horizontal => point.x,
-                    SplitDirection::Vertical => point.y,
-                };
-
-                dock_state.start_splitter_drag(
-                    target.node,
-                    target.direction,
-                    start_coord,
-                    target.total_dimension,
+                let outcome = crate::area::splitter_drag::handle_splitter_click_with_time(
+                    dock_state,
+                    target,
+                    *point,
+                    std::time::Instant::now(),
                 );
 
                 let cursor = target.hover_cursor();
+                let layout_changed =
+                    outcome == crate::area::splitter_drag::SplitterClickResult::ResetToHalf;
 
                 return SplitterInteractionResponse {
                     cursor: Some(cursor),
                     consumed: true,
-                    layout_changed: false,
+                    layout_changed,
                 };
             }
 

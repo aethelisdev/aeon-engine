@@ -30,8 +30,10 @@ pub mod tree;
 pub mod viewport;
 
 pub use area::{
-    DEFAULT_SPLITTER_HIT_MARGIN, DEFAULT_SPLITTER_THICKNESS, DEFAULT_SPLITTER_TOTAL_HIT_ZONE,
-    DockArea, DockInteractionConfig, DockResponse, DockSplitterTarget, hit_splitter,
+    DEFAULT_SPLIT_RATIO, DEFAULT_SPLITTER_HIT_MARGIN, DEFAULT_SPLITTER_THICKNESS,
+    DEFAULT_SPLITTER_TOTAL_HIT_ZONE, DockArea, DockInteractionConfig, DockResponse,
+    DockSplitterTarget, MAX_SPLIT_RATIO, MIN_SPLIT_RATIO, SplitterClickResult, clamp_split_ratio,
+    compute_drag_split_ratio, handle_splitter_click_with_time, hit_splitter,
 };
 pub use chrome::{
     DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,

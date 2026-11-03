@@ -45,7 +45,7 @@ pub enum DockNode<T> {
     Split {
         /// Partition axis (horizontal or vertical).
         direction: SplitDirection,
-        /// Fraction of dimension allocated to the first child in range `[0.05, 0.95]`.
+        /// Fraction of dimension allocated to the first child in range `[0.10, 0.90]`.
         ratio: f32,
         /// Identifier of the first (left or top) child node.
         first: DockNodeId,
@@ -232,7 +232,10 @@ impl<T> DockTree<T> {
         if let Some(node) = self.nodes.get_mut(target_leaf) {
             *node = DockNode::Split {
                 direction,
-                ratio: ratio.clamp(0.05, 0.95),
+                ratio: ratio.clamp(
+                    crate::area::splitter_drag::MIN_SPLIT_RATIO,
+                    crate::area::splitter_drag::MAX_SPLIT_RATIO,
+                ),
                 first: first_id,
                 second: second_id,
             };
@@ -601,6 +604,10 @@ impl<T> DockTree<T> {
     }
 
     /// Updates the division ratio of a split container node.
+    ///
+    /// Clamps the ratio within [`crate::area::splitter_drag::MIN_SPLIT_RATIO`] and
+    /// [`crate::area::splitter_drag::MAX_SPLIT_RATIO`] (`[0.10, 0.90]`). If the ratio
+    /// actually changes, monotonically increments [`Self::revision`].
     pub fn set_split_ratio(&mut self, split_node: DockNodeId, ratio: f32) -> Result<(), DockError> {
         let node = self
             .nodes
@@ -608,7 +615,14 @@ impl<T> DockTree<T> {
             .ok_or(DockError::NodeNotFound)?;
         match node {
             DockNode::Split { ratio: r, .. } => {
-                *r = ratio.clamp(0.05, 0.95);
+                let clamped = ratio.clamp(
+                    crate::area::splitter_drag::MIN_SPLIT_RATIO,
+                    crate::area::splitter_drag::MAX_SPLIT_RATIO,
+                );
+                if (*r - clamped).abs() > f32::EPSILON {
+                    *r = clamped;
+                    self.bump_revision();
+                }
                 Ok(())
             }
             DockNode::Leaf { .. } => Err(DockError::ExpectedSplitNode),

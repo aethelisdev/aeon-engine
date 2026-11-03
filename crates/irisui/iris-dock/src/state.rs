@@ -62,6 +62,9 @@ pub struct DockState<T> {
     /// Pending tab drag awaiting threshold motion before turning into an active drag.
     #[serde(skip)]
     pub pending_tab_drag: Option<crate::events::PendingTabDrag<T>>,
+    /// Last click instant, coordinates, and targeted split node for double-click reset detection.
+    #[serde(skip)]
+    pub last_splitter_click: Option<(std::time::Instant, Point, DockNodeId)>,
 }
 
 fn default_min_pane_size() -> f32 {
@@ -89,6 +92,7 @@ impl<T> DockState<T> {
             active_overflow: None,
             active_floating_drag: None,
             pending_tab_drag: None,
+            last_splitter_click: None,
         }
     }
 
@@ -164,16 +168,17 @@ impl<T> DockState<T> {
 
     /// Updates the division ratio of the actively dragged splitter based on new cursor position.
     ///
-    /// Clamps the ratio mathematically so that neither child pane shrinks below `min_pane_size`.
+    /// Clamps the ratio mathematically between `[0.10, 0.90]` while respecting `min_pane_size`.
+    /// Automatically increments the underlying tree revision.
     pub fn update_splitter_drag(&mut self, current_cursor: f32) {
         if let Some(drag) = self.active_splitter {
             let delta = current_cursor - drag.start_cursor;
-            let ratio_delta = delta / drag.total_dimension;
-
-            let min_ratio = (self.min_pane_size / drag.total_dimension).clamp(0.01, 0.45);
-            let max_ratio = (1.0 - min_ratio).max(min_ratio);
-
-            let new_ratio = (drag.start_ratio + ratio_delta).clamp(min_ratio, max_ratio);
+            let new_ratio = crate::area::splitter_drag::compute_drag_split_ratio(
+                drag.start_ratio,
+                delta,
+                drag.total_dimension,
+                self.min_pane_size,
+            );
             let _ = self.tree.set_split_ratio(drag.node_id, new_ratio);
         }
     }
@@ -182,7 +187,8 @@ impl<T> DockState<T> {
     ///
     /// Typically triggered by double-clicking on a divider line.
     pub fn reset_splitter(&mut self, node_id: DockNodeId) -> Result<(), DockError> {
-        self.tree.set_split_ratio(node_id, 0.5)
+        self.tree
+            .set_split_ratio(node_id, crate::area::splitter_drag::DEFAULT_SPLIT_RATIO)
     }
 
     /// Finalizes the active splitter drag operation.
