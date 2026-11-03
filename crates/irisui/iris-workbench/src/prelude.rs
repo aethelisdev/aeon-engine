@@ -13,8 +13,9 @@ pub use crate::descriptors::{
     WorkbenchDescriptor, WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
-    ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalController,
-    ModalDescriptor, ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
+    ActiveDialog, ConfirmDialogDescriptor, CustomModalRenderFn, DialogHost, DialogKind,
+    FloatingWindowDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor,
+    ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
 };
 pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{

@@ -37,8 +37,9 @@ pub use descriptors::{
     StatusPillStyle, WorkbenchDescriptor, WorkbenchPanelRegistry,
 };
 pub use dialogs::{
-    ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalController,
-    ModalDescriptor, ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
+    ActiveDialog, ConfirmDialogDescriptor, CustomModalRenderFn, DialogHost, DialogKind,
+    FloatingWindowDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor,
+    ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
 };
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{

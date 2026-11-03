@@ -8,6 +8,7 @@
 
 pub mod controller;
 pub mod descriptor;
+pub mod host;
 pub mod response;
 pub mod style;
 
@@ -19,5 +20,6 @@ pub use descriptor::{
     ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalDescriptor,
     WorkbenchModal,
 };
+pub use host::{ActiveDialog, CustomModalRenderFn, DialogHost, DialogKind};
 pub use response::{ModalDismissReason, ModalOutcome};
 pub use style::ModalStyle;
