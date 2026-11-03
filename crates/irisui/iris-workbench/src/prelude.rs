@@ -6,6 +6,7 @@
 //! Convenient re-exports of core workbench primitives, error types, descriptors,
 //! and lifecycle structures for  integration with desktop UI applications.
 
+pub use crate::action_bus::ActionBus;
 pub use crate::descriptors::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
     MenuSectionDescriptor, PanelDrawFn, StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle,

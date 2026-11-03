@@ -21,6 +21,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod action_bus;
 pub mod descriptors;
 pub mod dialogs;
 pub mod error;
@@ -29,6 +30,7 @@ pub mod layout_sync;
 pub mod lifecycle;
 pub mod prelude;
 
+pub use action_bus::ActionBus;
 pub use descriptors::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
     MenuSectionDescriptor, PanelDrawFn, PanelRegistry, StatusBarDescriptor, StatusPillDescriptor,
