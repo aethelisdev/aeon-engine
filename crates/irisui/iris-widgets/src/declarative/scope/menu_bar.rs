@@ -35,6 +35,20 @@ impl<'a, 'b, A> MenuScope<'a, 'b, A> {
     /// When clicked, registers the action and signals the menu bar to close the popup.
     pub fn item(&mut self, icon: &str, label: &str, shortcut: Option<&str>, action: A) {
         let tag = self.scope.tag_for(label);
+        self.item_tagged(tag, icon, label, shortcut, action);
+    }
+
+    /// Emits an interactive menu item with an explicit 64-bit interaction tag, icon, label, optional shortcut annotation, and bound action.
+    ///
+    /// When clicked, registers the action and signals the menu bar to close the popup.
+    pub fn item_tagged(
+        &mut self,
+        tag: u64,
+        icon: &str,
+        label: &str,
+        shortcut: Option<&str>,
+        action: A,
+    ) {
         let resp = self.scope.dropdown_item(tag, icon, label, shortcut, true);
         if resp.clicked() {
             self.selected_action = Some(action);
@@ -45,6 +59,17 @@ impl<'a, 'b, A> MenuScope<'a, 'b, A> {
     /// Emits a disabled (grayed-out) menu item that cannot be triggered.
     pub fn item_disabled(&mut self, icon: &str, label: &str, shortcut: Option<&str>) {
         let tag = self.scope.tag_for(label);
+        self.item_disabled_tagged(tag, icon, label, shortcut);
+    }
+
+    /// Emits a disabled (grayed-out) menu item with an explicit 64-bit interaction tag that cannot be triggered.
+    pub fn item_disabled_tagged(
+        &mut self,
+        tag: u64,
+        icon: &str,
+        label: &str,
+        shortcut: Option<&str>,
+    ) {
         self.scope.dropdown_item(tag, icon, label, shortcut, false);
     }
 
@@ -71,12 +96,33 @@ impl<'a, 'b, A> MenuBarRightScope<'a, 'b, A> {
         }
     }
 
+    /// Emits an prominent action button on the right side of the menu bar with an explicit 64-bit semantic tag.
+    pub fn action_button_tagged(
+        &mut self,
+        tag: u64,
+        label: &str,
+        bg: Color,
+        text: Color,
+        action: A,
+    ) {
+        let resp = self.scope.menu_action_button_tagged(label, tag, bg, text);
+        if resp.clicked() {
+            *self.selected_action = Some(action);
+            *self.new_active_menu_tag = Some(None);
+        }
+    }
+
     /// Emits an industrial desktop window control button (e.g. Minimize, Maximize/Restore, Close).
     ///
     /// Close buttons apply an elevated danger hover tint (`#E81123`), while standard controls
     /// apply subtle toolbar hover lightening.
     pub fn window_button(&mut self, label: &str, is_close: bool, action: A) {
         let tag = hash_label_with_seed(0x5749_4E44, label);
+        self.window_button_tagged(tag, label, is_close, action);
+    }
+
+    /// Emits an industrial desktop window control button with an explicit 64-bit semantic interaction tag.
+    pub fn window_button_tagged(&mut self, tag: u64, label: &str, is_close: bool, action: A) {
         let resp = self.scope.menu_window_button(tag, label, is_close);
         if resp.clicked() {
             *self.selected_action = Some(action);

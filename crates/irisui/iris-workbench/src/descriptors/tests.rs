@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use super::*;
+use crate::action_bus::ActionBus;
 use crate::error::WorkbenchError;
 use iris_core::UiTree;
 use iris_dock::{DockState, DockTree};
@@ -308,4 +309,125 @@ fn test_workbench_descriptor_render_chrome_integration() {
             .any(|(_, n)| n.name.as_deref() == Some("IrisBottomStatusBarDivider")),
         "IrisBottomStatusBarDivider must exist"
     );
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum MockMenuAction {
+    NewFile,
+    SaveFile,
+    RequestExit,
+    ToggleFullscreen,
+}
+
+#[test]
+fn test_menu_bar_descriptor_render_with_action_bus_emission() {
+    let mut bus = ActionBus::<MockMenuAction>::new();
+
+    let menu_bar = MenuBarDescriptor::new()
+        .with_height(36.0)
+        .with_menu(
+            MenuSectionDescriptor::new("File", 1000)
+                .with_action_shortcut("New File", "Ctrl+N", 1001)
+                .with_action_shortcut("Save File", "Ctrl+S", 1002)
+                .with_action_shortcut("Exit", "Alt+F4", 1003),
+        )
+        .with_window_control("□", false, 7002);
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+
+    // 1. Initial render without any click event
+    let mut scope = UiScope::new(&mut tree, root);
+    let action_tag =
+        menu_bar.render_with_action_bus(&mut scope, 1920.0, &mut bus, |tag| match tag {
+            1001 => Some(MockMenuAction::NewFile),
+            1002 => Some(MockMenuAction::SaveFile),
+            1003 => Some(MockMenuAction::RequestExit),
+            7002 => Some(MockMenuAction::ToggleFullscreen),
+            _ => None,
+        });
+
+    assert_eq!(action_tag, None);
+    assert!(
+        bus.is_empty(),
+        "No action should be emitted when not clicked"
+    );
+
+    // 2. Simulate opening "File" menu and then clicking "Exit" (tag 1003)
+    let file_header_tag = iris_widgets::declarative::hash_label("File");
+    tree.active_menu_bar_tag = Some(file_header_tag);
+    tree.event_state.frame_clicked_tag = Some(1003);
+    let mut scope2 = UiScope::new(&mut tree, root);
+    let clicked_tag =
+        menu_bar.render_with_action_bus(&mut scope2, 1920.0, &mut bus, |tag| match tag {
+            1001 => Some(MockMenuAction::NewFile),
+            1002 => Some(MockMenuAction::SaveFile),
+            1003 => Some(MockMenuAction::RequestExit),
+            7002 => Some(MockMenuAction::ToggleFullscreen),
+            _ => None,
+        });
+
+    assert_eq!(clicked_tag, Some(1003));
+    assert_eq!(bus.len(), 1, "Clicked action must be pushed to ActionBus");
+    let drained: Vec<_> = bus.drain().collect();
+    assert_eq!(drained, vec![MockMenuAction::RequestExit]);
+    assert!(bus.is_empty(), "ActionBus drained successfully");
+
+    // 3. Simulate clicking window control button (tag 7002)
+    tree.event_state.frame_clicked_tag = Some(7002);
+    let mut scope3 = UiScope::new(&mut tree, root);
+    let win_btn_tag =
+        menu_bar.render_with_action_bus(&mut scope3, 1920.0, &mut bus, |tag| match tag {
+            1001 => Some(MockMenuAction::NewFile),
+            1002 => Some(MockMenuAction::SaveFile),
+            1003 => Some(MockMenuAction::RequestExit),
+            7002 => Some(MockMenuAction::ToggleFullscreen),
+            _ => None,
+        });
+
+    assert_eq!(win_btn_tag, Some(7002));
+    assert_eq!(bus.len(), 1);
+    let drained_win: Vec<_> = bus.drain().collect();
+    assert_eq!(drained_win, vec![MockMenuAction::ToggleFullscreen]);
+}
+
+#[test]
+fn test_workbench_descriptor_render_chrome_with_action_bus() {
+    let mut tree = DockTree::new();
+    let leaf = tree.create_leaf(vec![MockTab::Viewport]);
+    tree.set_root(leaf);
+    let dock_state = DockState::new(tree);
+
+    let workbench = WorkbenchDescriptor::new("Aeon Studio", dock_state)
+        .with_menubar(MenuBarDescriptor::new().with_height(36.0).with_menu(
+            MenuSectionDescriptor::new("File", 2000).with_action_shortcut(
+                "Save Scene",
+                "Ctrl+S",
+                2001,
+            ),
+        ))
+        .with_statusbar(StatusBarDescriptor::new().with_height(22.0));
+
+    let mut bus = ActionBus::<MockMenuAction>::new();
+    let mut ui_tree = UiTree::new();
+    let root = ui_tree.create_root().expect("Root node must exist");
+
+    // Simulate File dropdown opened and Save Scene (tag 2001) clicked
+    let file_tag = iris_widgets::declarative::hash_label("File");
+    ui_tree.active_menu_bar_tag = Some(file_tag);
+    ui_tree.event_state.frame_clicked_tag = Some(2001);
+    let mut scope = UiScope::new(&mut ui_tree, root);
+
+    let tag = workbench.render_chrome_with_action_bus(&mut scope, 1920.0, 1080.0, &mut bus, |t| {
+        if t == 2001 {
+            Some(MockMenuAction::SaveFile)
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(tag, Some(2001));
+    assert_eq!(bus.len(), 1);
+    let events: Vec<_> = bus.drain().collect();
+    assert_eq!(events, vec![MockMenuAction::SaveFile]);
 }

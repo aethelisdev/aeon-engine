@@ -147,6 +147,34 @@ pub trait WorkbenchUiScopeExt {
         screen_width: f32,
         screen_height: f32,
     ) -> Option<u64>;
+
+    /// Declaratively renders the application shell chrome and dispatches any triggered menu action
+    /// directly into the provided [`crate::action_bus::ActionBus`].
+    ///
+    /// # Type Parameters
+    /// * `TabId` - Identifier type representing dock panels and tabs.
+    /// * `Action` - Strongly-typed action type processed by the application event bus.
+    /// * `F` - Mapping closure translating raw 64-bit tags to concrete action payloads.
+    ///
+    /// # Arguments
+    /// * `descriptor` - Configured workbench shell descriptor.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `screen_height` - Available window height in physical pixels.
+    /// * `action_bus` - Target event bus receiving dispatched actions.
+    /// * `map_tag` - Closure converting a triggered semantic tag to an optional action.
+    ///
+    /// Returns the semantic interaction tag of any clicked menu action, or `None`.
+    fn workbench_chrome_with_action_bus<TabId, Action, F>(
+        &mut self,
+        descriptor: &crate::descriptors::WorkbenchDescriptor<TabId>,
+        screen_width: f32,
+        screen_height: f32,
+        action_bus: &mut crate::action_bus::ActionBus<Action>,
+        map_tag: F,
+    ) -> Option<u64>
+    where
+        Action: 'static + Send + Sync,
+        F: FnOnce(u64) -> Option<Action>;
 }
 
 impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
@@ -324,5 +352,26 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
         screen_height: f32,
     ) -> Option<u64> {
         descriptor.render_chrome(self, screen_width, screen_height)
+    }
+
+    fn workbench_chrome_with_action_bus<TabId, Action, F>(
+        &mut self,
+        descriptor: &crate::descriptors::WorkbenchDescriptor<TabId>,
+        screen_width: f32,
+        screen_height: f32,
+        action_bus: &mut crate::action_bus::ActionBus<Action>,
+        map_tag: F,
+    ) -> Option<u64>
+    where
+        Action: 'static + Send + Sync,
+        F: FnOnce(u64) -> Option<Action>,
+    {
+        descriptor.render_chrome_with_action_bus(
+            self,
+            screen_width,
+            screen_height,
+            action_bus,
+            map_tag,
+        )
     }
 }

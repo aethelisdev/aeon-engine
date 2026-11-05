@@ -10,6 +10,8 @@ use iris_core::Color;
 use iris_core::style::Style;
 use iris_widgets::declarative::UiScope;
 
+use crate::action_bus::ActionBus;
+
 /// Represents an item within a dropdown menu or cascading submenu.
 ///
 /// Supports interactive actions, nested submenus, and visual separators.
@@ -528,9 +530,14 @@ impl MenuBarDescriptor {
                             } => {
                                 let icon_str = icon.as_deref().unwrap_or("");
                                 if *enabled {
-                                    m.item(icon_str, label, shortcut.as_deref(), *tag);
+                                    m.item_tagged(*tag, icon_str, label, shortcut.as_deref(), *tag);
                                 } else {
-                                    m.item_disabled(icon_str, label, shortcut.as_deref());
+                                    m.item_disabled_tagged(
+                                        *tag,
+                                        icon_str,
+                                        label,
+                                        shortcut.as_deref(),
+                                    );
                                 }
                             }
                             MenuItemDescriptor::Separator => {
@@ -555,14 +562,14 @@ impl MenuBarDescriptor {
                                 text,
                                 tag,
                             } => {
-                                right.action_button(label, *bg, *text, *tag);
+                                right.action_button_tagged(*tag, label, *bg, *text, *tag);
                             }
                             MenuRightItemDescriptor::WindowControl {
                                 label,
                                 is_close,
                                 tag,
                             } => {
-                                right.window_button(label, *is_close, *tag);
+                                right.window_button_tagged(*tag, label, *is_close, *tag);
                             }
                         }
                     }
@@ -583,5 +590,47 @@ impl MenuBarDescriptor {
         );
 
         action
+    }
+
+    /// Declaratively renders the top application menu bar and baseline divider into [`UiScope`],
+    /// and automatically dispatches any clicked action into the provided [`ActionBus`].
+    ///
+    /// This method guarantees that triggered menu items, action buttons, or window controls
+    /// mapped via `action_map` are immediately enqueued into the application's centralized
+    /// event stream, eliminating forgotten return-value checks or lost input frames.
+    ///
+    /// If an action is clicked whose tag matches an entry in `action_map`, the bound action
+    /// closure/value is emitted into `action_bus`.
+    ///
+    /// # Type Parameters
+    /// * `A` - Strongly-typed action type processed by [`ActionBus`].
+    /// * `F` - Mapping closure translating raw 64-bit tags to concrete action payloads.
+    ///
+    /// # Arguments
+    /// * `scope` - Active declarative UI scope attached to the root container.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `action_bus` - Target [`ActionBus`] receiving dispatched action events.
+    /// * `map_tag` - Closure converting a triggered semantic tag to an optional action.
+    ///
+    /// # Returns
+    /// The clicked semantic tag, if any occurred this frame.
+    pub fn render_with_action_bus<A, F>(
+        &self,
+        scope: &mut UiScope<'_>,
+        screen_width: f32,
+        action_bus: &mut ActionBus<A>,
+        map_tag: F,
+    ) -> Option<u64>
+    where
+        A: 'static + Send + Sync,
+        F: FnOnce(u64) -> Option<A>,
+    {
+        let clicked_tag = self.render(scope, screen_width);
+        if let Some(tag) = clicked_tag
+            && let Some(action) = map_tag(tag)
+        {
+            action_bus.emit(action);
+        }
+        clicked_tag
     }
 }

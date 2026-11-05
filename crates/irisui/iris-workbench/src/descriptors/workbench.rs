@@ -8,6 +8,7 @@
 
 use super::menu::MenuBarDescriptor;
 use super::status::StatusBarDescriptor;
+use crate::action_bus::ActionBus;
 use iris_dock::DockState;
 
 /// Declarative configuration descriptor for the entire application workbench shell.
@@ -154,6 +155,44 @@ impl<TabId> WorkbenchDescriptor<TabId> {
         screen_height: f32,
     ) -> Option<u64> {
         let menu_action = self.render_menubar(scope, screen_width);
+        self.render_statusbar(scope, screen_width, screen_height);
+        menu_action
+    }
+
+    /// Declaratively renders the entire application shell chrome (top menubar, bottom statusbar,
+    /// and baseline dividers) in a single unified invocation, dispatching any clicked menu action
+    /// directly into the provided [`ActionBus`].
+    ///
+    /// # Type Parameters
+    /// * `A` - Strongly-typed action type processed by [`ActionBus`].
+    /// * `F` - Mapping closure translating raw 64-bit tags to concrete action payloads.
+    ///
+    /// # Arguments
+    /// * `scope` - Active declarative UI scope attached to the root container.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `screen_height` - Available window height in physical pixels.
+    /// * `action_bus` - Target [`ActionBus`] receiving dispatched action events.
+    /// * `map_tag` - Closure converting a triggered semantic tag to an optional action.
+    ///
+    /// Returns the semantic interaction tag of any clicked menu or chrome action, or `None`.
+    pub fn render_chrome_with_action_bus<A, F>(
+        &self,
+        scope: &mut iris_widgets::declarative::UiScope<'_>,
+        screen_width: f32,
+        screen_height: f32,
+        action_bus: &mut ActionBus<A>,
+        map_tag: F,
+    ) -> Option<u64>
+    where
+        A: 'static + Send + Sync,
+        F: FnOnce(u64) -> Option<A>,
+    {
+        let menu_action = match &self.menubar {
+            Some(menubar) => {
+                menubar.render_with_action_bus(scope, screen_width, action_bus, map_tag)
+            }
+            None => None,
+        };
         self.render_statusbar(scope, screen_width, screen_height);
         menu_action
     }
