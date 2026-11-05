@@ -14,6 +14,7 @@ use iris_widgets::canvas::ImmediateCanvas;
 use iris_widgets::declarative::UiScope;
 
 use super::drag_drop::{DragDropController, DragDropPayload, DragDropPreviewStyle};
+use super::external_texture::{AspectRatio, ExternalTextureView};
 use super::overlay::CustomOverlayHook;
 use super::texture::ExternalTextureHook;
 use crate::dialogs::{
@@ -28,6 +29,27 @@ use crate::dialogs::{
 /// [`Self::volatile_overlay`], [`Self::drag_drop_preview`], [`Self::workbench_modal`],
 /// [`Self::confirm_modal`], and [`Self::input_modal`] declaratively.
 pub trait WorkbenchUiScopeExt {
+    /// Declaratively presents an external GPU hardware texture inside the current container scope.
+    ///
+    /// Automatically calculates mathematical aspect ratio fitting (letterbox/pillarbox/fill/stretch)
+    /// without requiring engine code to compute manual offsets or scissoring rects.
+    ///
+    /// # Arguments
+    /// * `texture_id` - 64-bit hardware texture key recognized by the GPU renderer backend.
+    /// * `width` - Source texture native width in pixels.
+    /// * `height` - Source texture native height in pixels.
+    /// * `aspect_ratio` - Desired [`AspectRatio`] constraint policy.
+    fn external_texture(
+        &mut self,
+        texture_id: u64,
+        width: f32,
+        height: f32,
+        aspect_ratio: AspectRatio,
+    );
+
+    /// Declaratively presents an external GPU texture using an [`ExternalTextureView`] component.
+    fn external_texture_view(&mut self, view: ExternalTextureView);
+
     /// Declaratively renders a hardware-accelerated viewport surface with optional aspect ratio
     /// fitting, fallback placeholder messaging, and a nested content scope for overlays.
     ///
@@ -178,6 +200,22 @@ pub trait WorkbenchUiScopeExt {
 }
 
 impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
+    fn external_texture(
+        &mut self,
+        texture_id: u64,
+        width: f32,
+        height: f32,
+        aspect_ratio: AspectRatio,
+    ) {
+        let view =
+            ExternalTextureView::new(texture_id, width, height).with_aspect_ratio(aspect_ratio);
+        view.render(self);
+    }
+
+    fn external_texture_view(&mut self, view: ExternalTextureView) {
+        view.render(self);
+    }
+
     fn viewport_surface<F>(
         &mut self,
         texture: Option<ExternalTextureHook>,

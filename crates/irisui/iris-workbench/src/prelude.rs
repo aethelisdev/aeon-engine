@@ -20,8 +20,8 @@ pub use crate::dialogs::{
 };
 pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{
-    CustomOverlayHook, DragDropController, DragDropPayload, DragDropPreviewStyle,
-    ExternalTextureHook, TypedDragDropPayload, WorkbenchUiScopeExt,
+    AspectRatio, CustomOverlayHook, DragDropController, DragDropPayload, DragDropPreviewStyle,
+    ExternalTextureHook, ExternalTextureView, TypedDragDropPayload, WorkbenchUiScopeExt,
 };
 pub use crate::layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,
