@@ -45,7 +45,7 @@ pub use dialogs::{
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{
     AspectRatio, CustomOverlayHook, DragDropController, DragDropPayload, DragDropPreviewStyle,
-    ExternalTextureHook, ExternalTextureView, TypedDragDropPayload, WorkbenchUiScopeExt,
+    ExternalTextureView, TypedDragDropPayload, WorkbenchUiScopeExt,
 };
 pub use layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,

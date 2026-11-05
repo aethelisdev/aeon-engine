@@ -16,7 +16,6 @@ use iris_widgets::declarative::UiScope;
 use super::drag_drop::{DragDropController, DragDropPayload, DragDropPreviewStyle};
 use super::external_texture::{AspectRatio, ExternalTextureView};
 use super::overlay::CustomOverlayHook;
-use super::texture::ExternalTextureHook;
 use crate::dialogs::{
     ConfirmDialogDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor, ModalOutcome,
 };
@@ -53,18 +52,18 @@ pub trait WorkbenchUiScopeExt {
     /// Declaratively renders a hardware-accelerated viewport surface with optional aspect ratio
     /// fitting, fallback placeholder messaging, and a nested content scope for overlays.
     ///
-    /// When `texture` is `Some(hook)`, renders the GPU texture quad with aspect ratio preservation.
+    /// When `texture` is `Some(view)`, renders the GPU texture quad with aspect ratio preservation.
     /// When `texture` is `None` and `placeholder_text` is provided, displays centered fallback text.
     /// The `content_fn` closure receives an inner [`UiScope`] allowing child HUD elements,
     /// floating toolbars, and buttons to be declared on top of the viewport canvas.
     ///
     /// # Arguments
-    /// * `texture` - Optional [`ExternalTextureHook`] descriptor.
+    /// * `texture` - Optional [`ExternalTextureView`] component.
     /// * `placeholder_text` - Human-readable label displayed when `texture` is `None`.
     /// * `content_fn` - Declarative closure building viewport overlays, toolbars, and controls.
     fn viewport_surface<F>(
         &mut self,
-        texture: Option<ExternalTextureHook>,
+        texture: Option<ExternalTextureView>,
         placeholder_text: Option<&str>,
         content_fn: F,
     ) where
@@ -218,7 +217,7 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
 
     fn viewport_surface<F>(
         &mut self,
-        texture: Option<ExternalTextureHook>,
+        texture: Option<ExternalTextureView>,
         placeholder_text: Option<&str>,
         content_fn: F,
     ) where
@@ -235,6 +234,11 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
             .clip_children(true);
 
         self.container_passive(root_style, |vp_scope| {
+            let parent_id = vp_scope.parent();
+            if let Some(node) = vp_scope.tree_mut().get_mut(parent_id) {
+                node.computed_rect = parent_rect;
+            }
+
             if let Some(tex) = texture {
                 tex.render(vp_scope);
             } else if let Some(placeholder) = placeholder_text {

@@ -49,11 +49,7 @@ impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for ViewportWorkbenchPa
         let vp_rect = if scope.parent_rect().width > 20.0 {
             scope.parent_rect()
         } else {
-            crate::ui::iris_bridge::floating_layer::active_panel_content_rect(
-                state.params.context.layout_state,
-                PanelId::Viewport,
-            )
-            .unwrap_or(state.params.viewport.viewport_rect)
+            state.params.viewport.viewport_rect
         };
         if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
             state

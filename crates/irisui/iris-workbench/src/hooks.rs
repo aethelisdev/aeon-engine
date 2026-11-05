@@ -10,7 +10,6 @@
 pub mod drag_drop;
 pub mod external_texture;
 pub mod overlay;
-pub mod texture;
 pub mod ui_ext;
 
 #[cfg(test)]
@@ -21,5 +20,4 @@ pub use drag_drop::{
 };
 pub use external_texture::{AspectRatio, ExternalTextureView};
 pub use overlay::CustomOverlayHook;
-pub use texture::ExternalTextureHook;
 pub use ui_ext::WorkbenchUiScopeExt;

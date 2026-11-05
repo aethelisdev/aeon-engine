@@ -12,43 +12,40 @@ struct TestAssetPayload {
 }
 
 #[test]
-fn test_external_texture_hook_aspect_ratio_fitting() {
-    // 1. Without aspect ratio constraint: returns exact container rect
-    let container = Rect::new(50.0, 50.0, 1000.0, 500.0);
-    let hook = ExternalTextureHook::new(101, container);
-    assert_eq!(hook.fit_aspect_ratio(), container);
-    assert!(hook.is_valid());
+fn test_viewport_surface_declarative_texture_view() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root created");
+    let parent = tree.create_node();
+    if let Some(node) = tree.get_mut(parent) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+    let _ = tree.add_child(root, parent);
 
-    // 2. Wide container (1000x500 = 2.0) with 16:9 ratio (1.7778): pillarbox
-    // Container is wider than 16:9 -> fits height (500), width = 500 * (16/9) = 888.8889
-    let hook_16_9 = hook.with_aspect_ratio(16.0 / 9.0);
-    let fitted_wide = hook_16_9.fit_aspect_ratio();
-    assert_eq!(fitted_wide.height, 500.0);
-    let expected_width = 500.0 * (16.0 / 9.0);
-    assert!((fitted_wide.width - expected_width).abs() < 1e-3);
-    let expected_x = 50.0 + (1000.0 - expected_width) * 0.5;
-    assert!((fitted_wide.x - expected_x).abs() < 1e-3);
-    assert_eq!(fitted_wide.y, 50.0);
+    let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, parent);
+    let view =
+        ExternalTextureView::new(101, 1920.0, 1080.0).with_aspect_ratio(AspectRatio::Stretch);
 
-    // 3. Tall container (400x800 = 0.5) with 16:9 ratio (1.7778): letterbox
-    // Container is taller than 16:9 -> fits width (400), height = 400 / (16/9) = 225.0
-    let tall_container = Rect::new(10.0, 20.0, 400.0, 800.0);
-    let hook_tall = ExternalTextureHook::new(102, tall_container).with_aspect_ratio(16.0 / 9.0);
-    let fitted_tall = hook_tall.fit_aspect_ratio();
-    assert_eq!(fitted_tall.width, 400.0);
-    let expected_height = 400.0 / (16.0 / 9.0);
-    assert!((fitted_tall.height - expected_height).abs() < 1e-3);
-    let expected_y = 20.0 + (800.0 - expected_height) * 0.5;
-    assert!((fitted_tall.y - expected_y).abs() < 1e-3);
-    assert_eq!(fitted_tall.x, 10.0);
+    let mut content_invoked = false;
+    scope.viewport_surface(Some(view), Some("Placeholder"), |_vp_scope| {
+        content_invoked = true;
+    });
 
-    // 4. Zero and negative edge cases
-    let zero_hook = ExternalTextureHook::new(103, Rect::ZERO).with_aspect_ratio(16.0 / 9.0);
-    assert_eq!(zero_hook.fit_aspect_ratio(), Rect::ZERO);
-    assert!(!zero_hook.is_valid());
+    assert!(
+        content_invoked,
+        "Viewport surface content closure must execute"
+    );
 
-    let neg_ratio_hook = ExternalTextureHook::new(104, container).with_aspect_ratio(-1.0);
-    assert_eq!(neg_ratio_hook.fit_aspect_ratio(), container);
+    let parent_node = tree.get(parent).expect("Parent exists");
+    assert_eq!(parent_node.children.len(), 1);
+    let container_id = parent_node.children[0];
+    let container_node = tree.get(container_id).expect("Container exists");
+    assert_eq!(container_node.children.len(), 1);
+    let quad_id = container_node.children[0];
+    let quad_node = tree.get(quad_id).expect("Quad exists");
+    assert_eq!(
+        quad_node.external_texture,
+        Some(iris_core::ExternalTextureId(101))
+    );
 }
 
 #[test]
@@ -159,13 +156,16 @@ fn test_custom_overlay_hook_execution() {
 }
 
 #[test]
-fn test_external_texture_hook_render() {
+fn test_external_texture_view_render() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("Root created");
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(10.0, 20.0, 800.0, 600.0);
+    }
     let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, root);
 
-    let hook = ExternalTextureHook::new(42, Rect::new(10.0, 20.0, 800.0, 600.0));
-    hook.render(&mut scope);
+    let view = ExternalTextureView::new(42, 800.0, 600.0);
+    view.render(&mut scope);
 
     assert_eq!(tree.get(root).unwrap().children.len(), 1);
     let child_id = tree.get(root).unwrap().children[0];
@@ -179,14 +179,17 @@ fn test_external_texture_hook_render() {
 #[test]
 fn test_workbench_ui_scope_ext_viewport_surface_and_overlay() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("Root created");
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
+    }
     let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, root);
 
-    let hook = ExternalTextureHook::new(88, Rect::new(0.0, 0.0, 1280.0, 720.0));
+    let view = ExternalTextureView::new(88, 1280.0, 720.0).with_aspect_ratio(AspectRatio::Stretch);
     let mut overlay_rendered = false;
 
     // Test declarative viewport surface with child volatile overlay
-    scope.viewport_surface(Some(hook), Some("Fallback"), |vp| {
+    scope.viewport_surface(Some(view), Some("Fallback"), |vp| {
         vp.volatile_overlay(
             "TestOverlay",
             1001,

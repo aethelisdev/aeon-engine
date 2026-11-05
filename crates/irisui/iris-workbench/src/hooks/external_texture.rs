@@ -195,7 +195,32 @@ impl ExternalTextureView {
     /// # Arguments
     /// * `scope` - Declarative UI builder scope.
     pub fn render(&self, scope: &mut UiScope<'_>) {
-        let parent_rect = scope.parent_rect();
+        if self.width <= 0.0 || self.height <= 0.0 {
+            return;
+        }
+
+        let mut parent_rect = scope.parent_rect();
+        if parent_rect.width <= 0.0 || parent_rect.height <= 0.0 {
+            let mut curr = scope.parent();
+            while let Some(node) = scope.tree().get(curr) {
+                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
+                    parent_rect = node.computed_rect;
+                    break;
+                }
+                if let (Some(w), Some(h)) = (node.style.width, node.style.height)
+                    && w > 0.0
+                    && h > 0.0
+                {
+                    parent_rect = Rect::new(0.0, 0.0, w, h);
+                    break;
+                }
+                if let Some(parent_id) = node.parent {
+                    curr = parent_id;
+                } else {
+                    break;
+                }
+            }
+        }
         if parent_rect.width <= 0.0 || parent_rect.height <= 0.0 {
             return;
         }
@@ -362,5 +387,35 @@ mod tests {
             child_node.style.position,
             iris_core::style::Position::Absolute
         );
+    }
+
+    #[test]
+    fn test_external_texture_view_render_resolves_ancestor_or_style_bounds() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root created");
+        let parent = tree.create_node();
+        if let Some(node) = tree.get_mut(parent) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        }
+        let _ = tree.add_child(root, parent);
+
+        // Child node has no computed_rect yet, but is nested under parent
+        let intermediate = tree.create_node();
+        let _ = tree.add_child(parent, intermediate);
+
+        {
+            let mut scope = UiScope::new(&mut tree, intermediate);
+            let view = ExternalTextureView::new(99, 1920.0, 1080.0)
+                .with_aspect_ratio(AspectRatio::Stretch);
+            view.render(&mut scope);
+        }
+
+        let inter_node = tree.get(intermediate).expect("Intermediate node exists");
+        assert_eq!(inter_node.children.len(), 1);
+        let quad_id = inter_node.children[0];
+        let quad_node = tree.get(quad_id).expect("Quad node exists");
+        assert_eq!(quad_node.external_texture, Some(ExternalTextureId(99)));
+        assert_eq!(quad_node.style.width, Some(1920.0));
+        assert_eq!(quad_node.style.height, Some(1080.0));
     }
 }

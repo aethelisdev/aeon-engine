@@ -365,11 +365,12 @@ fn test_e2e_drag_drop_cross_panel_carrier() {
 }
 
 #[test]
-fn test_e2e_external_texture_hook_simulation() {
+fn test_e2e_external_texture_view_simulation() {
     // Viewport resizing to ultra-wide (aspect ratio: 32:9)
-    let hook_ultra_wide = ExternalTextureHook::new(777, Rect::new(0.0, 0.0, 2560.0, 720.0))
-        .with_aspect_ratio(16.0 / 9.0);
-    let fitted_pillarbox = hook_ultra_wide.fit_aspect_ratio();
+    let view_ultra_wide =
+        ExternalTextureView::new(777, 1920.0, 1080.0).with_aspect_ratio(AspectRatio::Fit);
+    let ultra_wide_container = Rect::new(0.0, 0.0, 2560.0, 720.0);
+    let fitted_pillarbox = view_ultra_wide.compute_fitted_rect(ultra_wide_container);
 
     // Expect pillarbox (black bars on left and right)
     assert_eq!(fitted_pillarbox.height, 720.0);
@@ -378,9 +379,10 @@ fn test_e2e_external_texture_hook_simulation() {
     assert_eq!(fitted_pillarbox.y, 0.0);
 
     // Viewport resizing to portrait (aspect ratio: 9:16)
-    let hook_portrait = ExternalTextureHook::new(777, Rect::new(0.0, 0.0, 720.0, 1280.0))
-        .with_aspect_ratio(16.0 / 9.0);
-    let fitted_letterbox = hook_portrait.fit_aspect_ratio();
+    let view_portrait =
+        ExternalTextureView::new(777, 1920.0, 1080.0).with_aspect_ratio(AspectRatio::Fit);
+    let portrait_container = Rect::new(0.0, 0.0, 720.0, 1280.0);
+    let fitted_letterbox = view_portrait.compute_fitted_rect(portrait_container);
 
     // Expect letterbox (black bars on top and bottom)
     assert_eq!(fitted_letterbox.width, 720.0);

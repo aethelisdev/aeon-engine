@@ -23,16 +23,20 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let texture_hook = params
-            .viewport
-            .has_viewport_texture
-            .then(|| ExternalTextureHook::new(VIEWPORT_TEXTURE_ID.0, viewport_rect));
+        let texture_view = params.viewport.has_viewport_texture.then(|| {
+            ExternalTextureView::new(
+                VIEWPORT_TEXTURE_ID.0,
+                viewport_rect.width,
+                viewport_rect.height,
+            )
+            .with_aspect_ratio(AspectRatio::Stretch)
+        });
 
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
         let hud = &mut self.viewport_hud;
 
-        scope.viewport_surface(texture_hook, Some("Rendering viewport..."), |vp_scope| {
+        scope.viewport_surface(texture_view, Some("Rendering viewport..."), |vp_scope| {
             // Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
             viewport_hud::build_viewport_hud_scope(
                 vp_scope,
