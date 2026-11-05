@@ -29,6 +29,7 @@ pub mod hooks;
 pub mod layout_sync;
 pub mod lifecycle;
 pub mod prelude;
+pub mod workbench;
 
 pub use action_bus::ActionBus;
 pub use descriptors::{
@@ -51,3 +52,4 @@ pub use layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,
 };
 pub use lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
+pub use workbench::{Workbench, WorkbenchOutcome};

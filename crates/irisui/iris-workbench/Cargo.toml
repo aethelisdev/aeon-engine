@@ -11,6 +11,7 @@ iris-layout = { workspace = true }
 iris-text = { workspace = true }
 iris-widgets = { workspace = true }
 iris-dock = { workspace = true }
+iris-winit = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }

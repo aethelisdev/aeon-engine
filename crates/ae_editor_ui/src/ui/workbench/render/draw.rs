@@ -346,6 +346,7 @@ impl EngineUi {
         }
 
         self.last_viewport_rect = new_rect;
+        self.workbench.set_interactive_viewport(Some(new_rect));
 
         ae_renderer::render::ViewportRect {
             min_x: new_rect.x,
@@ -378,7 +379,10 @@ impl EngineUi {
                 }
                 EngineUiAction::TitleBarAction(action) => {
                     let mut win = window;
-                    let outcome = self.drag_host.handle_title_bar_action(&mut win, action);
+                    let outcome = self
+                        .workbench
+                        .drag_host
+                        .handle_title_bar_action(&mut win, action);
                     if outcome.is_closed() {
                         self.should_exit = true;
                     }

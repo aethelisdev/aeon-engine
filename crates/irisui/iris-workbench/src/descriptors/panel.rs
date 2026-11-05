@@ -79,6 +79,45 @@ pub struct PanelMetadata<TabId> {
 }
 
 impl<TabId: Clone> PanelMetadata<TabId> {
+    /// Creates a new panel metadata snapshot with the specified tab identifier and display title.
+    #[inline]
+    #[must_use]
+    pub fn new(id: TabId, title: impl Into<String>) -> Self {
+        Self {
+            id,
+            title: title.into(),
+            icon: None,
+            atlas_icon: None,
+            closeable: true,
+            clear_background: false,
+            is_domain_bound: false,
+        }
+    }
+
+    /// Sets the optional unicode icon glyph or string icon identifier via fluent builder.
+    #[inline]
+    #[must_use]
+    pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// Sets the optional texture atlas UV coordinates `[u0, v0, u1, v1]` via fluent builder.
+    #[inline]
+    #[must_use]
+    pub fn with_atlas_icon(mut self, atlas_icon: [f32; 4]) -> Self {
+        self.atlas_icon = Some(atlas_icon);
+        self
+    }
+
+    /// Sets whether the panel can be closed by the user via fluent builder.
+    #[inline]
+    #[must_use]
+    pub fn with_closeable(mut self, closeable: bool) -> Self {
+        self.closeable = closeable;
+        self
+    }
+
     /// Constructs panel metadata from an existing [`WorkbenchPanel`].
     #[must_use]
     pub fn from_panel<AppState>(panel: &dyn WorkbenchPanel<TabId, AppState>) -> Self {

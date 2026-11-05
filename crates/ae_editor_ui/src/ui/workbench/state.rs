@@ -113,6 +113,9 @@ pub struct EngineUi {
     pub dialog_host: irisui::workbench::DialogHost<EngineUiAction>,
     /// Global UI event and action bus managing decoupled FIFO dispatch.
     pub action_bus: irisui::workbench::ActionBus<EngineUiAction>,
+    /// Autonomous workbench application orchestrator coordinating dock hierarchy,
+    /// frameless window border resize, title bar dragging, and modal dialog execution.
+    pub workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
     pub iris_overlay: IrisEditorOverlay,
 }
@@ -125,9 +128,39 @@ impl EngineUi {
         _window: &Window,
     ) -> Self {
         let iris_overlay = IrisEditorOverlay::new(device, output_color_format);
+        let layout_state = PanelLayoutState::new_default();
+
+        let workbench_desc = irisui::workbench::WorkbenchDescriptor::new(
+            "Aeon Engine Studio",
+            layout_state.dock_state.clone(),
+        )
+        .with_menubar(irisui::workbench::MenuBarDescriptor::new())
+        .with_statusbar(irisui::workbench::StatusBarDescriptor::new());
+
+        let mut workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()> =
+            irisui::workbench::Workbench::new(workbench_desc)
+                .with_menubar_height(IrisEditorOverlay::MENUBAR_HEIGHT)
+                .with_statusbar_height(IrisEditorOverlay::STATUS_BAR_HEIGHT)
+                .with_non_ui_tab(PanelId::Viewport)
+                .with_file_drop_action(|paths, pt| EngineUiAction::ImportDroppedFiles {
+                    paths,
+                    screen_pos: Some([pt.x, pt.y]),
+                })
+                .with_zoom_action(EngineUiAction::SetUiScale)
+                .with_preferences_action(|| EngineUiAction::OpenPreferences);
+
+        for panel in PanelId::all() {
+            let mut meta = irisui::workbench::PanelMetadata::new(*panel, panel.title())
+                .with_icon(panel.icon());
+            if let Some(atlas) = panel.atlas_icon() {
+                meta = meta.with_atlas_icon(atlas);
+            }
+            workbench.panel_registry.register_metadata(meta);
+        }
 
         Self {
             iris_overlay,
+            workbench,
             dialog_host: irisui::workbench::DialogHost::new(),
             action_bus: irisui::workbench::ActionBus::new(),
             pending_actions: Vec::new(),
@@ -164,7 +197,7 @@ impl EngineUi {
             frameless_host: iris_winit::frameless::FramelessWindowHost::new(),
             drag_host: iris_winit::frameless::WindowDragHost::new()
                 .with_title_bar_height(IrisEditorOverlay::MENUBAR_HEIGHT),
-            layout_state: PanelLayoutState::new_default(),
+            layout_state,
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
@@ -321,6 +354,83 @@ impl EngineUi {
             self.console_entries.clear();
             self.console_last_count = 0;
         }
+    }
+
+    /// Returns whether the UI currently captures the pointer or if the pointer is positioned over
+    /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
+    ///
+    /// Delegates directly to [`irisui::workbench::Workbench::wants_pointer_input`].
+    #[must_use]
+    #[inline]
+    pub fn wants_pointer_input(&self) -> bool {
+        self.workbench.wants_pointer_input(
+            Some(self.iris_overlay.cursor_pos()),
+            &self.layout_state.dock_state,
+            Some(&self.iris_overlay.tree),
+        )
+    }
+
+    /// Evaluates whether the specified screen-space coordinate lands over active workbench UI elements
+    /// rather than the interactive 3D viewport canvas.
+    ///
+    /// Delegates directly to [`irisui::workbench::Workbench::wants_pointer_at`].
+    #[must_use]
+    #[inline]
+    pub fn wants_pointer_at(&self, pos: [f32; 2]) -> bool {
+        self.workbench.wants_pointer_at(
+            pos,
+            &self.layout_state.dock_state,
+            Some(&self.iris_overlay.tree),
+        )
+    }
+
+    /// Compatibility alias forwarding to [`Self::wants_pointer_at`].
+    #[must_use]
+    #[inline]
+    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+        self.wants_pointer_at(pos)
+    }
+
+    /// Dispatches declarative UI interaction events to panel contents and the autonomous
+    /// [`irisui::workbench::Workbench`] orchestrator.
+    pub fn handle_event<W: iris_winit::frameless::WindowInterface>(
+        &mut self,
+        mut window: W,
+        event: &irisui::prelude::UiEvent,
+        _world: Option<&hecs::World>,
+    ) -> bool {
+        let overlay = &mut self.iris_overlay;
+        let outcome = self.workbench.handle_event_with_content(
+            &mut window,
+            event,
+            &mut self.layout_state.dock_state,
+            |ev| {
+                let res = overlay.handle_event(ev);
+                let actions = res.ui_action.into_iter().collect();
+                let cursor = if res.consumed {
+                    Some(overlay.active_cursor())
+                } else {
+                    None
+                };
+                (res.consumed, cursor, actions)
+            },
+        );
+
+        if !outcome.actions.is_empty() {
+            self.pending_actions.extend(outcome.actions);
+        }
+        if let Some(zoom) = outcome.zoom_changed {
+            self.ui_zoom_factor = zoom;
+        }
+        if outcome.toggle_preferences {
+            self.show_preferences = !self.show_preferences;
+        }
+        if outcome.layout_changed {
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+            self.iris_overlay.notifier.tag_all();
+        }
+
+        outcome.consumed
     }
 }
 

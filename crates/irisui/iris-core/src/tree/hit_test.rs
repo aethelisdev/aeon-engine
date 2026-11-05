@@ -417,7 +417,7 @@ impl UiTree {
         };
 
         let layer = self.effective_layer(hit_id);
-        if layer == UiLayer::Modal || layer == UiLayer::Popup || layer == UiLayer::Tooltip {
+        if layer >= UiLayer::Floating {
             return true;
         }
 

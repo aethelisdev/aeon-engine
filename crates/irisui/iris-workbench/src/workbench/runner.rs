@@ -1,0 +1,678 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Autonomous Workbench Application Orchestrator
+//!
+//! Provides the primary [`Workbench`] struct combining retained-mode docking,
+//! frameless window management, modal dialogs, and decoupled action dispatching
+//! into a unified, crates.io-grade desktop IDE framework component.
+
+use super::outcome::WorkbenchOutcome;
+use crate::action_bus::ActionBus;
+use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
+use crate::descriptors::workbench::WorkbenchDescriptor;
+use crate::dialogs::host::DialogHost;
+use iris_core::event::UiEvent;
+use iris_core::geometry::{Point, Rect, Size};
+use iris_core::tree::UiTree;
+use iris_dock::area::runner::{DockArea, DockInteractionConfig};
+use iris_dock::floating::FloatingWindowClampBounds;
+use iris_dock::state::DockState;
+use iris_dock::style::DockChromeStyle;
+use iris_winit::frameless::{FramelessWindowHost, WindowDragHost, WindowInterface};
+use std::fmt::Debug;
+use std::hash::Hash;
+
+/// Type alias for external file drag-and-drop action handler closure.
+pub type FileDropActionBuilder<Action> =
+    Box<dyn Fn(Vec<std::path::PathBuf>, Point) -> Action + Send + Sync>;
+
+/// Type alias for UI zoom alteration action handler closure.
+pub type ZoomActionBuilder<Action> = Box<dyn Fn(f32) -> Action + Send + Sync>;
+
+/// Type alias for preferences modal toggle action handler closure.
+pub type PreferencesActionBuilder<Action> = Box<dyn Fn() -> Action + Send + Sync>;
+
+/// Autonomous desktop IDE and workbench shell orchestrator.
+///
+/// Encapsulates all desktop application management:
+/// - Retained multi-pane docking hierarchy (`DockState<TabId>`).
+/// - 8-directional frameless window border resizing (`FramelessWindowHost`).
+/// - Titlebar and menubar window dragging and double-click maximize (`WindowDragHost`).
+/// - Framework-level modal dialogues and confirmations (`DialogHost<Action>`).
+/// - Decoupled asynchronous action bus (`ActionBus<Action>`).
+/// - Autonomous panel registry delegating content drawing (`WorkbenchPanelRegistry<TabId, AppState>`).
+pub struct Workbench<TabId, Action: 'static + Send + Sync, AppState> {
+    /// Declarative configuration descriptor governing application shell chrome.
+    pub descriptor: WorkbenchDescriptor<TabId>,
+
+    /// Autonomous modal dialog host managing confirmations, text inputs, and focus traps.
+    pub dialog_host: DialogHost<Action>,
+
+    /// Central decoupled action bus collecting emitted application actions.
+    pub action_bus: ActionBus<Action>,
+
+    /// Autonomous panel registry storing panels and tab viewers.
+    pub panel_registry: WorkbenchPanelRegistry<TabId, AppState>,
+
+    /// Frameless window host managing 8-way border hit-testing and hardware resize operations.
+    pub frameless_host: FramelessWindowHost,
+
+    /// Window drag host managing titlebar/menubar dragging and double-click maximize behavior.
+    pub drag_host: WindowDragHost,
+
+    /// Standard menubar height in logical pixels. Defaults to 30.0.
+    pub menubar_height: f32,
+
+    /// Standard statusbar height in logical pixels. Defaults to 24.0.
+    pub statusbar_height: f32,
+
+    /// Dock chrome visual style configuration.
+    pub dock_style: DockChromeStyle,
+
+    /// UI zoom scaling factor (e.g. 1.0 = 100%).
+    pub zoom_factor: f32,
+
+    /// Bounding rectangle of the interactive non-UI viewport canvas (e.g. 3D scene), if any.
+    pub interactive_viewport: Option<Rect>,
+
+    /// Most recently observed cursor position in logical points.
+    pub last_cursor_pos: Option<Point>,
+
+    /// Most recently observed host window size in logical pixels.
+    pub last_window_size: Option<Size>,
+
+    /// Optional identifier of the non-UI interactive viewport tab (e.g. 3D scene canvas).
+    pub non_ui_tab: Option<TabId>,
+
+    /// Optional action mapping hook invoked when external files are dropped onto the host window.
+    pub file_drop_action: Option<FileDropActionBuilder<Action>>,
+
+    /// Optional action mapping hook invoked when UI scale factor is adjusted via hotkeys.
+    pub zoom_action: Option<ZoomActionBuilder<Action>>,
+
+    /// Optional action mapping hook invoked when application preferences modal is toggled.
+    pub preferences_action: Option<PreferencesActionBuilder<Action>>,
+}
+
+impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
+where
+    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    Action: Send + Sync + 'static,
+{
+    /// Creates a new autonomous workbench shell with default configurations.
+    #[must_use]
+    pub fn new(descriptor: WorkbenchDescriptor<TabId>) -> Self {
+        Self {
+            descriptor,
+            dialog_host: DialogHost::new(),
+            action_bus: ActionBus::new(),
+            panel_registry: WorkbenchPanelRegistry::new(),
+            frameless_host: FramelessWindowHost::new(),
+            drag_host: WindowDragHost::new().with_title_bar_height(30.0),
+            menubar_height: 30.0,
+            statusbar_height: 24.0,
+            dock_style: DockChromeStyle::default(),
+            zoom_factor: 1.0,
+            interactive_viewport: None,
+            last_cursor_pos: None,
+            last_window_size: None,
+            non_ui_tab: None,
+            file_drop_action: None,
+            zoom_action: None,
+            preferences_action: None,
+        }
+    }
+
+    /// Configures an action builder to emit whenever external files are dropped into the window.
+    #[must_use]
+    pub fn with_file_drop_action<F>(mut self, builder: F) -> Self
+    where
+        F: Fn(Vec<std::path::PathBuf>, Point) -> Action + 'static + Send + Sync,
+    {
+        self.file_drop_action = Some(Box::new(builder));
+        self
+    }
+
+    /// Configures an action builder to emit whenever the UI scale is altered via hotkeys (Ctrl +/-/0).
+    #[must_use]
+    pub fn with_zoom_action<F>(mut self, builder: F) -> Self
+    where
+        F: Fn(f32) -> Action + 'static + Send + Sync,
+    {
+        self.zoom_action = Some(Box::new(builder));
+        self
+    }
+
+    /// Configures an action builder to emit whenever preferences are toggled via hotkey (Ctrl+,).
+    #[must_use]
+    pub fn with_preferences_action<F>(mut self, builder: F) -> Self
+    where
+        F: Fn() -> Action + 'static + Send + Sync,
+    {
+        self.preferences_action = Some(Box::new(builder));
+        self
+    }
+
+    /// Configures the identifier of the non-UI interactive viewport tab.
+    #[must_use]
+    pub fn with_non_ui_tab(mut self, tab: TabId) -> Self {
+        self.non_ui_tab = Some(tab);
+        self
+    }
+
+    /// Sets the top application menubar height in logical pixels.
+    #[must_use]
+    pub fn with_menubar_height(mut self, height: f32) -> Self {
+        self.menubar_height = height;
+        self.drag_host = self.drag_host.with_title_bar_height(height);
+        self
+    }
+
+    /// Sets the bottom status bar height in logical pixels.
+    #[must_use]
+    pub fn with_statusbar_height(mut self, height: f32) -> Self {
+        self.statusbar_height = height;
+        self
+    }
+
+    /// Sets the dock chrome visual style configuration.
+    #[must_use]
+    pub fn with_dock_style(mut self, style: DockChromeStyle) -> Self {
+        self.dock_style = style;
+        self
+    }
+
+    /// Computes the active dock workspace bounding rectangle excluding the menubar and statusbar.
+    #[inline]
+    #[must_use]
+    pub fn compute_workspace_rect(&self, screen_w: f32, screen_h: f32) -> Rect {
+        let top_inset = if self.descriptor.menubar.is_some() {
+            self.menubar_height
+        } else {
+            0.0
+        };
+        let bottom_inset = if self.descriptor.statusbar.is_some() {
+            self.statusbar_height
+        } else {
+            0.0
+        };
+        let height = (screen_h - top_inset - bottom_inset).max(0.0);
+        Rect::new(0.0, top_inset, screen_w, height)
+    }
+
+    /// Returns the active UI scale factor clamped to the valid range `[0.6, 2.0]`.
+    #[inline]
+    #[must_use]
+    pub fn scale_factor(&self) -> f32 {
+        if self.zoom_factor.is_finite() && self.zoom_factor > 0.1 {
+            self.zoom_factor.clamp(0.6, 2.0)
+        } else {
+            1.0
+        }
+    }
+
+    /// Steps the active UI zoom factor up or down across the predefined scale presets.
+    ///
+    /// Presets: `[0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50]`.
+    pub fn step_zoom(&mut self, increase: bool) -> f32 {
+        const PRESETS: [f32; 7] = [0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50];
+        let current = self.scale_factor();
+        let target = if increase {
+            PRESETS
+                .iter()
+                .copied()
+                .find(|&s| s > current + 0.01)
+                .unwrap_or(*PRESETS.last().unwrap_or(&1.50))
+        } else {
+            PRESETS
+                .iter()
+                .copied()
+                .rfind(|&s| s < current - 0.01)
+                .unwrap_or(*PRESETS.first().unwrap_or(&0.75))
+        };
+        self.zoom_factor = target;
+        target
+    }
+
+    /// Sets the bounding rectangle of the interactive non-UI viewport canvas (in logical points).
+    #[inline]
+    pub fn set_interactive_viewport(&mut self, viewport: Option<Rect>) {
+        self.interactive_viewport = viewport;
+    }
+
+    /// Configures the interactive non-UI viewport bounding rectangle via builder pattern.
+    #[inline]
+    #[must_use]
+    pub fn with_interactive_viewport(mut self, viewport: Option<Rect>) -> Self {
+        self.interactive_viewport = viewport;
+        self
+    }
+
+    /// Returns the most recently observed cursor position in logical points, if available.
+    #[inline]
+    #[must_use]
+    pub fn cursor_pos(&self) -> Option<Point> {
+        self.last_cursor_pos
+    }
+
+    /// Sets or updates the internally tracked cursor position.
+    #[inline]
+    pub fn set_cursor_pos(&mut self, point: Option<Point>) {
+        self.last_cursor_pos = point;
+    }
+
+    /// Returns the most recently observed window size in logical pixels, if available.
+    #[inline]
+    #[must_use]
+    pub fn window_size(&self) -> Option<Size> {
+        self.last_window_size
+    }
+
+    /// Resets the UI zoom factor to default 100% (1.0).
+    #[inline]
+    pub fn reset_zoom(&mut self) -> f32 {
+        self.zoom_factor = 1.0;
+        1.0
+    }
+
+    /// Evaluates whether the UI currently captures the pointer or if the pointer is positioned over
+    /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
+    ///
+    /// Returns `false` if the pointer is positioned over the interactive non-UI viewport canvas
+    /// without any occluding UI layers.
+    #[must_use]
+    pub fn wants_pointer_input(
+        &self,
+        cursor_pos: Option<Point>,
+        dock_state: &DockState<TabId>,
+        tree: Option<&UiTree>,
+    ) -> bool {
+        let pt = cursor_pos.or(self.last_cursor_pos);
+        let Some(point) = pt else {
+            return false;
+        };
+        self.wants_pointer_at_full(
+            [point.x, point.y],
+            self.interactive_viewport,
+            dock_state,
+            tree,
+        )
+    }
+
+    /// Evaluates whether the specified point is positioned over active workbench UI elements,
+    /// modal dialogs, or the top menubar rather than transparent canvas/viewport areas.
+    ///
+    /// Uses the internal dock state from the descriptor and the configured interactive viewport.
+    #[must_use]
+    pub fn wants_pointer_at_default(&self, pos: [f32; 2], non_ui_viewport: Option<Rect>) -> bool {
+        self.wants_pointer_at_with_dock(pos, non_ui_viewport, &self.descriptor.dock_state)
+    }
+
+    /// Evaluates whether the specified point is positioned over active workbench UI elements,
+    /// modal dialogs, floating windows, or elevated UI tree layers using the configured interactive viewport.
+    #[must_use]
+    pub fn wants_pointer_at(
+        &self,
+        pos: [f32; 2],
+        dock_state: &DockState<TabId>,
+        tree: Option<&UiTree>,
+    ) -> bool {
+        self.wants_pointer_at_full(pos, self.interactive_viewport, dock_state, tree)
+    }
+
+    /// Evaluates whether the specified point is positioned over active workbench UI elements,
+    /// modal dialogs, or floating windows using an explicitly provided docking state.
+    #[must_use]
+    pub fn wants_pointer_at_with_dock(
+        &self,
+        pos: [f32; 2],
+        non_ui_viewport: Option<Rect>,
+        dock_state: &DockState<TabId>,
+    ) -> bool {
+        self.wants_pointer_at_full(pos, non_ui_viewport, dock_state, None)
+    }
+
+    /// Evaluates whether the specified point is positioned over active workbench UI elements,
+    /// modal dialogs, floating windows, or elevated UI tree layers.
+    #[must_use]
+    pub fn wants_pointer_at_full(
+        &self,
+        pos: [f32; 2],
+        non_ui_viewport: Option<Rect>,
+        dock_state: &DockState<TabId>,
+        tree: Option<&UiTree>,
+    ) -> bool {
+        let point = Point::new(pos[0], pos[1]);
+
+        // 1. Top menubar & bottom statusbar & active modal dialogs (always highest priority chrome)
+        let is_over_statusbar = if self.descriptor.statusbar.is_some() {
+            if let Some(win_size) = self.last_window_size {
+                pos[1] >= (win_size.height - self.statusbar_height).max(0.0)
+                    && pos[1] <= win_size.height
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if (self.descriptor.menubar.is_some() && pos[1] <= self.menubar_height)
+            || is_over_statusbar
+            || self.dialog_host.is_active()
+        {
+            return true;
+        }
+
+        // 2. Floating windows check (excluding floating window hosting the non_ui_tab)
+        let in_occluding_floating = dock_state.floating_windows.iter().any(|w| {
+            if let Some(non_ui) = self.non_ui_tab
+                && w.tree.all_tabs().contains(&non_ui)
+            {
+                return false;
+            }
+            w.rect.contains_point(point)
+        });
+
+        // 3. Interactive non-UI viewport exclusion
+        let effective_viewport = non_ui_viewport.or(self.interactive_viewport);
+        if let Some(vp) = effective_viewport
+            && vp.contains_point(point)
+        {
+            // If another floating window occludes this viewport point, UI captures pointer
+            if in_occluding_floating {
+                return true;
+            }
+
+            // If elevated popups, dropdowns, modals, or captured widgets in UiTree land over this point, UI captures pointer
+            if let Some(t) = tree
+                && t.wants_pointer_at(point)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        if in_occluding_floating {
+            return true;
+        }
+
+        true
+    }
+
+    /// Evaluates whether the workbench currently requires active text keyboard focus
+    /// (e.g. when a modal dialog text input is active).
+    #[inline]
+    #[must_use]
+    pub fn wants_keyboard_input(&self) -> bool {
+        self.dialog_host.is_active()
+    }
+
+    /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
+    /// using the internal docking state.
+    pub fn handle_event<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+    ) -> WorkbenchOutcome<Action> {
+        let mut dock_state = std::mem::take(&mut self.descriptor.dock_state);
+        let outcome = self.handle_event_full(window, event, &mut dock_state, None);
+        self.descriptor.dock_state = dock_state;
+        outcome
+    }
+
+    /// Dispatches a platform [`UiEvent`] through the autonomous shell layer coordinating
+    /// frameless window border resizing, titlebar dragging on empty menubar space, modal dialog
+    /// keyboard traps, global shortcuts, and dock interaction while respecting content consumption.
+    pub fn handle_shell_event<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        content_consumed: bool,
+    ) -> WorkbenchOutcome<Action> {
+        let logical_size = window.logical_size();
+        let screen_w = logical_size.width;
+        let screen_h = logical_size.height;
+        self.last_window_size = Some(logical_size);
+
+        // Track cursor position from pointer events
+        match event {
+            UiEvent::MouseMove { point }
+            | UiEvent::MouseDown { point, .. }
+            | UiEvent::MouseUp { point, .. }
+            | UiEvent::MouseScroll { point, .. }
+            | UiEvent::FileHovered { point, .. }
+            | UiEvent::FileDropped { point, .. } => {
+                self.last_cursor_pos = Some(*point);
+            }
+            _ => {}
+        }
+
+        // 1. Frameless Window 8-way Native Edge Resizing
+        if self
+            .frameless_host
+            .handle_ui_event(window, event, logical_size)
+        {
+            return WorkbenchOutcome::consumed(None);
+        }
+
+        // If the inner panel/overlay content already consumed the event, skip shell and dock interaction
+        if content_consumed {
+            return WorkbenchOutcome::consumed(None);
+        }
+
+        // 2. Active framework modal dialog keyboard input
+        if let UiEvent::KeyboardInput {
+            key, is_pressed, ..
+        } = event
+            && self.dialog_host.is_active()
+        {
+            let handled =
+                self.dialog_host
+                    .handle_keyboard_input(key, *is_pressed, &mut self.action_bus);
+            if handled {
+                let mut outcome = WorkbenchOutcome::consumed(None);
+                outcome.layout_changed = true;
+                outcome.actions.extend(self.action_bus.drain());
+                return outcome;
+            }
+        }
+
+        // 3. Ingest dropped files directly into outcome
+        if let UiEvent::FileDropped { paths, point } = event
+            && !paths.is_empty()
+        {
+            let mut outcome = WorkbenchOutcome::consumed(None);
+            if let Some(builder) = &self.file_drop_action {
+                outcome.actions.push(builder(paths.clone(), *point));
+            }
+            outcome.dropped_files = Some((paths.clone(), *point));
+            outcome.layout_changed = true;
+            return outcome;
+        }
+
+        // 4. Native Title Bar Dragging & Maximize Double-Click on empty menubar space
+        if self.descriptor.menubar.is_some() {
+            let menubar_rect = Rect::new(0.0, 0.0, screen_w, self.menubar_height);
+            if self.drag_host.handle_ui_event(window, event, menubar_rect) {
+                return WorkbenchOutcome::consumed(None);
+            }
+        }
+
+        // 5. Global Keyboard Shortcuts (Ctrl +/-/0 for zoom, Ctrl+, for preferences)
+        if let UiEvent::KeyboardInput {
+            key,
+            is_pressed,
+            text,
+            ctrl_held,
+            ..
+        } = event
+            && *is_pressed
+            && *ctrl_held
+            && !self.wants_keyboard_input()
+        {
+            let ch = match key {
+                iris_core::event::KeyCode::Character(c) => Some(*c),
+                _ => text.as_deref().and_then(|t| t.chars().next()),
+            };
+
+            if let Some(c) = ch {
+                let zoom_target = match c {
+                    '+' | '=' => Some(self.step_zoom(true)),
+                    '-' | '_' => Some(self.step_zoom(false)),
+                    '0' => Some(self.reset_zoom()),
+                    _ => None,
+                };
+
+                if let Some(new_zoom) = zoom_target {
+                    let mut outcome = WorkbenchOutcome::consumed(None);
+                    if let Some(builder) = &self.zoom_action {
+                        outcome.actions.push(builder(new_zoom));
+                    }
+                    outcome.zoom_changed = Some(new_zoom);
+                    outcome.layout_changed = true;
+                    return outcome;
+                }
+
+                if c == ',' {
+                    let mut outcome = WorkbenchOutcome::consumed(None);
+                    if let Some(builder) = &self.preferences_action {
+                        outcome.actions.push(builder());
+                    }
+                    outcome.toggle_preferences = true;
+                    outcome.layout_changed = true;
+                    return outcome;
+                }
+            }
+        }
+
+        // 6. Autonomous Docking Interaction (Splitters, Tabs, Floating Windows)
+        let workspace_rect = self.compute_workspace_rect(screen_w, screen_h);
+        let clamp_bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
+            .with_min_y(self.menubar_height)
+            .with_bottom_inset(self.statusbar_height);
+
+        let dock_config = DockInteractionConfig {
+            clamp_bounds,
+            ..Default::default()
+        };
+
+        let tab_viewer = self.panel_registry.tab_viewer();
+        let dock_res =
+            DockArea::handle_event(dock_state, &tab_viewer, event, workspace_rect, &dock_config);
+
+        if let Some(cursor) = dock_res.cursor_override {
+            window.set_widget_cursor(cursor);
+        }
+
+        if dock_res.consumed {
+            let mut outcome = WorkbenchOutcome::consumed(dock_res.cursor_override);
+            outcome.layout_changed = dock_res.layout_changed;
+            outcome.actions.extend(self.action_bus.drain());
+            return outcome;
+        }
+
+        WorkbenchOutcome {
+            consumed: false,
+            cursor: dock_res.cursor_override,
+            layout_changed: dock_res.layout_changed,
+            actions: self.action_bus.drain().collect(),
+            dropped_files: None,
+            zoom_changed: None,
+            toggle_preferences: false,
+        }
+    }
+
+    /// Dispatches an event through both content and shell layers in industry-standard sequence.
+    ///
+    /// Evaluates content first. If content produces actions, requests cursor change, or consumes the event,
+    /// those actions are aggregated and shell dragging/dock interaction is bypassed.
+    pub fn handle_event_with_content<W, F>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        content_dispatcher: F,
+    ) -> WorkbenchOutcome<Action>
+    where
+        W: WindowInterface,
+        F: FnOnce(&UiEvent) -> (bool, Option<iris_core::node::WidgetCursor>, Vec<Action>),
+    {
+        let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
+        if let Some(cursor) = content_cursor {
+            window.set_widget_cursor(cursor);
+        }
+
+        let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
+        if !content_actions.is_empty() {
+            outcome.actions.extend(content_actions);
+        }
+        if content_consumed {
+            outcome.consumed = true;
+        }
+        if outcome.cursor.is_none() {
+            outcome.cursor = content_cursor;
+        }
+        outcome
+    }
+
+    /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
+    /// with an explicitly provided external docking state.
+    pub fn handle_event_with_dock<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+    ) -> WorkbenchOutcome<Action> {
+        self.handle_event_full(window, event, dock_state, None)
+    }
+
+    /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
+    /// coordinating frameless window management, titlebar dragging, modal dialogs, docking splitters,
+    /// and declarative [`UiTree`] event routing in a single unified retained pass.
+    pub fn handle_event_full<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        tree: Option<&mut UiTree>,
+    ) -> WorkbenchOutcome<Action> {
+        let (content_consumed, content_cursor, needs_redraw) = if let Some(t) = tree {
+            let dispatch = t.dispatch_event(event);
+            (dispatch.consumed, dispatch.cursor, dispatch.needs_redraw)
+        } else {
+            (false, None, false)
+        };
+
+        if let Some(cursor) = content_cursor {
+            window.set_widget_cursor(cursor);
+        }
+
+        let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
+        if content_consumed {
+            outcome.consumed = true;
+        }
+        if needs_redraw {
+            outcome.layout_changed = true;
+        }
+        if outcome.cursor.is_none() {
+            outcome.cursor = content_cursor;
+        }
+        outcome
+    }
+
+    /// Returns a mutable reference to the underlying docking state.
+    #[inline]
+    pub fn dock_state_mut(&mut self) -> &mut DockState<TabId> {
+        &mut self.descriptor.dock_state
+    }
+
+    /// Returns an immutable reference to the underlying docking state.
+    #[inline]
+    #[must_use]
+    pub fn dock_state(&self) -> &DockState<TabId> {
+        &self.descriptor.dock_state
+    }
+}

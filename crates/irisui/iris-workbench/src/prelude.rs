@@ -27,3 +27,4 @@ pub use crate::layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,
 };
 pub use crate::lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
+pub use crate::workbench::{Workbench, WorkbenchOutcome};

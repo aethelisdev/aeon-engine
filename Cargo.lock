@@ -1885,6 +1885,7 @@ dependencies = [
  "iris-layout",
  "iris-text",
  "iris-widgets",
+ "iris-winit",
  "log",
  "serde",
  "thiserror 2.0.21",

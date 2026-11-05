@@ -80,6 +80,16 @@ where
         self.panels.insert(id, Box::new(panel));
     }
 
+    /// Registers standalone panel metadata without requiring an immediate rendering closure.
+    ///
+    /// Useful for metadata registration in decoupled window/event coordinators.
+    pub fn register_metadata(&mut self, metadata: PanelMetadata<TabId>) {
+        if metadata.is_domain_bound {
+            self.domain_panels.insert(metadata.id.clone());
+        }
+        self.metadata.insert(metadata.id.clone(), metadata);
+    }
+
     /// Registers a boxed trait object implementing [`WorkbenchPanel`].
     pub fn register_boxed(&mut self, panel: Box<dyn WorkbenchPanel<TabId, Context>>) {
         let id = panel.id();

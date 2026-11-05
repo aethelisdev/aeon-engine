@@ -42,6 +42,7 @@ pub use frameless::{
     point_distance,
 };
 pub use glam::Vec2;
+pub use winit::window::CursorIcon;
 
 pub use modifiers::ModifiersState;
 pub use state::WinitState;
