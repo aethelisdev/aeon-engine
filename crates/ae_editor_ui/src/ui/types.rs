@@ -37,6 +37,16 @@ pub enum EngineUiAction {
 
     // --- UI/EDITOR STATE ACTIONS ---
     OpenPanel(crate::ui::panel_layout::PanelId),
+    /// Toggles the visibility or active tab selection of the specified dock panel.
+    TogglePanel(crate::ui::panel_layout::PanelId),
+    /// Resets the dock layout hierarchy and floating window positions to the default layout preset.
+    ResetLayout,
+    /// Opens the editor global preferences and configuration modal window.
+    OpenPreferences,
+    /// Opens the editor 'About Aeon Engine' informational modal dialog.
+    OpenAbout,
+    /// Dispatches desktop window management operations (minimize, maximize, close) to the frameless host.
+    TitleBarAction(irisui::widgets::TitleBarAction),
     SetUiScale(f32),
     SelectEntity(Option<hecs::Entity>),
     SetCameraMode(ae_renderer::camera::ProjectionMode),

@@ -88,7 +88,6 @@ impl IrisEditorOverlay {
             self.clear_focus();
             self.tree.event_state.clear_text_edit();
             self.menubar.active_menu = None;
-            self.menubar.actions.clear();
             self.menubar.dropdown_rect = None;
             self.close_active_popups();
             self.notifier.tag_all();
@@ -465,7 +464,6 @@ impl IrisEditorOverlay {
         self.chrome.last_dock_revision = dock_revision;
 
         if self.menubar.active_menu.is_none() {
-            self.menubar.actions.clear();
             self.menubar.dropdown_rect = None;
         }
         if !params.dialogs.show_preferences {
@@ -614,19 +612,20 @@ impl IrisEditorOverlay {
                 false,
             );
 
-            // 1. Top MenuBar
-            if let Some(action) = menubar::build_top_menu_bar(
-                &mut self.tree,
-                root,
-                &menubar::MenuBarParams {
-                    screen_width,
-                    layout_state: params.context.layout_state,
-                    can_undo: params.context.can_undo,
-                    can_redo: params.context.can_redo,
-                    is_editing: params.context.is_editing,
-                },
-            ) {
-                self.menubar.actions.push(action);
+            // 1. Top MenuBar rendered via MenuBarDescriptor directly into ActionBus
+            if let Some(action_bus) = params.action_bus.as_deref_mut() {
+                menubar::build_top_menu_bar(
+                    &mut self.tree,
+                    root,
+                    &menubar::MenuBarParams {
+                        screen_width,
+                        layout_state: params.context.layout_state,
+                        can_undo: params.context.can_undo,
+                        can_redo: params.context.can_redo,
+                        is_editing: params.context.is_editing,
+                    },
+                    action_bus,
+                );
             }
 
             // 2. Bottom Diagnostics & Status Bar
@@ -640,18 +639,8 @@ impl IrisEditorOverlay {
                 },
             );
 
-            // 2b. Baseline dividers under MenuBar and above StatusBar (positioned absolutely with explicit styles)
+            // 2b. Baseline divider above StatusBar (MenuBar divider is handled by MenuBarDescriptor)
             let mut scope = UiScope::new(&mut self.tree, root);
-            scope.empty_box_passive_named(
-                "IrisTopMenuBarDivider",
-                Style::new()
-                    .position_absolute()
-                    .left(0.0)
-                    .top(Self::MENUBAR_HEIGHT - 1.0)
-                    .width(screen_width)
-                    .height(1.0)
-                    .background(BORDER_MICRON),
-            );
             scope.empty_box_passive_named(
                 "IrisBottomStatusBarDivider",
                 Style::new()

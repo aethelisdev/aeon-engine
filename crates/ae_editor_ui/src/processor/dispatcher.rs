@@ -45,6 +45,21 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::OpenPanel(panel) => {
                 ctx.ui.layout_state.activate_or_open(panel)
             }
+            crate::ui::EngineUiAction::TogglePanel(panel) => {
+                ctx.ui.layout_state.activate_or_open(panel)
+            }
+            crate::ui::EngineUiAction::ResetLayout => {
+                ctx.ui.layout_state.reset_to_default();
+            }
+            crate::ui::EngineUiAction::OpenPreferences => {
+                ctx.ui.show_preferences = true;
+            }
+            crate::ui::EngineUiAction::OpenAbout => {
+                ctx.ui.show_about = true;
+            }
+            crate::ui::EngineUiAction::TitleBarAction(_) => {
+                // Window titlebar actions are dispatched in the render pass where Window handle is present
+            }
             crate::ui::EngineUiAction::SetUiScale(scale) => {
                 ctx.ui.ui_zoom_factor = scale.clamp(0.6, 2.0);
             }

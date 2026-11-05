@@ -76,23 +76,6 @@ impl ActiveMenu {
     }
 }
 
-/// Action payload dispatched from clicking a dropdown menu item.
-#[derive(Debug, Clone)]
-pub enum DropdownAction {
-    /// Dispatches an event-bus UI action.
-    UiAction(EngineUiAction),
-    /// Toggles tool panel visibility.
-    TogglePanel(PanelId),
-    /// Resets docking layout to default preset.
-    ResetLayout,
-    /// Opens preferences modal dialog.
-    OpenPreferences,
-    /// Opens about engine modal dialog.
-    OpenAbout,
-    /// Window management control action (minimize, maximize/restore, close).
-    WindowAction(irisui::prelude::TitleBarAction),
-}
-
 /// Event handling response payload returned from `IrisEditorOverlay::handle_event`.
 #[derive(Debug, Default, Clone)]
 pub struct IrisOverlayEventResult {
@@ -203,8 +186,6 @@ pub struct MenubarOverlayState {
     pub active_menu: Option<ActiveMenu>,
     /// Widget identifiers of active top menu header buttons for dynamic coordinate resolution.
     pub button_ids: Vec<(ActiveMenu, WidgetId)>,
-    /// Dispatched action callbacks indexed by numeric tag from active dropdown items.
-    pub actions: Vec<DropdownAction>,
     /// Cached bounding box of the active floating dropdown.
     pub dropdown_rect: Option<Rect>,
 }

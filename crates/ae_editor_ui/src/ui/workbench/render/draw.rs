@@ -20,7 +20,7 @@ impl EngineUi {
         params: EditorUiRenderParams<'_>,
     ) -> ae_renderer::render::ViewportRect {
         params.ui_actions.append(&mut self.pending_actions);
-        params.ui_actions.extend(self.action_bus.drain());
+        self.dispatch_action_bus(params.window, params.ui_actions);
 
         // Track live engine frames per second (FPS) directly from timing parameters
         self.fps = params.fps;
@@ -207,33 +207,6 @@ impl EngineUi {
             ui_actions: params.ui_actions,
         });
 
-        for action in self.iris_overlay.take_menubar_actions() {
-            match action {
-                crate::ui::iris_bridge::DropdownAction::UiAction(act) => {
-                    params.ui_actions.push(act);
-                }
-                crate::ui::iris_bridge::DropdownAction::TogglePanel(pid) => {
-                    self.layout_state.activate_or_open(pid);
-                }
-                crate::ui::iris_bridge::DropdownAction::ResetLayout => {
-                    self.layout_state.reset_to_default();
-                }
-                crate::ui::iris_bridge::DropdownAction::OpenPreferences => {
-                    self.show_preferences = true;
-                }
-                crate::ui::iris_bridge::DropdownAction::OpenAbout => {
-                    self.show_about = true;
-                }
-                crate::ui::iris_bridge::DropdownAction::WindowAction(action) => {
-                    let mut win = params.window;
-                    let outcome = self.drag_host.handle_title_bar_action(&mut win, action);
-                    if outcome.is_closed() {
-                        self.should_exit = true;
-                    }
-                }
-            }
-        }
-
         self.process_viewport_hud_actions(
             &mut cur_snap,
             &mut snap_changed,
@@ -305,7 +278,10 @@ impl EngineUi {
             is_2d_mode: params.is_2d_mode,
         });
 
-        // 3a. Immediate post-pass action drain for declarative overlay actions produced during render
+        // 3a. Drain action bus events triggered during the Iris overlay render pass
+        self.dispatch_action_bus(params.window, params.ui_actions);
+
+        // 3b. Immediate post-pass action drain for declarative overlay actions produced during render
         self.pending_preferences_actions
             .append(&mut self.iris_overlay.preferences.interactions.actions);
         if !self.pending_preferences_actions.is_empty() {
@@ -332,7 +308,7 @@ impl EngineUi {
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
 
-        // 3b. Dispatch any settings modifications mutated in-place by declarative two-way bindings
+        // 3c. Dispatch any settings modifications mutated in-place by declarative two-way bindings
         if !gs_changed && cur_gs != *params.graphics_settings {
             params
                 .ui_actions
@@ -375,6 +351,39 @@ impl EngineUi {
             min_y: new_rect.y,
             max_x: new_rect.right(),
             max_y: new_rect.bottom(),
+        }
+    }
+
+    /// Drains all queued actions from [`Self::action_bus`], routes window management and chrome
+    /// mutations internally, and passes remaining actions to `ui_actions`.
+    fn dispatch_action_bus(
+        &mut self,
+        window: &winit::window::Window,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        for action in self.action_bus.drain() {
+            match action {
+                EngineUiAction::TogglePanel(pid) => {
+                    self.layout_state.activate_or_open(pid);
+                }
+                EngineUiAction::ResetLayout => {
+                    self.layout_state.reset_to_default();
+                }
+                EngineUiAction::OpenPreferences => {
+                    self.show_preferences = true;
+                }
+                EngineUiAction::OpenAbout => {
+                    self.show_about = true;
+                }
+                EngineUiAction::TitleBarAction(action) => {
+                    let mut win = window;
+                    let outcome = self.drag_host.handle_title_bar_action(&mut win, action);
+                    if outcome.is_closed() {
+                        self.should_exit = true;
+                    }
+                }
+                other => ui_actions.push(other),
+            }
         }
     }
 }
