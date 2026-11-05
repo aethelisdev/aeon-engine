@@ -25,6 +25,11 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
         None
     }
 
+    /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        None
+    }
+
     /// Whether this panel is bound to domain data mutations (e.g. Undo/Redo, ECS changes).
     ///
     /// If `true`, the panel is automatically invalidated when domain revision increments.
@@ -39,6 +44,13 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
         true
     }
 
+    /// Determines whether the background behind this panel's content should remain transparent.
+    ///
+    /// Used for embedded 3D viewports where the underlying render pass should not be obscured.
+    fn clear_background(&self) -> bool {
+        false
+    }
+
     /// Declaratively renders the panel content into the given [`UiScope`].
     ///
     /// # Arguments
@@ -48,7 +60,7 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
 }
 
 /// Immutable metadata snapshot describing a registered workbench panel.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PanelMetadata<TabId> {
     /// Unique panel tab identifier.
     pub id: TabId,
@@ -56,8 +68,12 @@ pub struct PanelMetadata<TabId> {
     pub title: String,
     /// Optional icon identifier or vector name.
     pub icon: Option<String>,
+    /// Optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
+    pub atlas_icon: Option<[f32; 4]>,
     /// Whether the panel can be closed by the user.
     pub closeable: bool,
+    /// Whether the background behind this tab's content should remain transparent.
+    pub clear_background: bool,
     /// Whether the panel is subscribed to domain model transactions.
     pub is_domain_bound: bool,
 }
@@ -70,7 +86,9 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             id: panel.id(),
             title: panel.title().to_string(),
             icon: panel.icon().map(str::to_string),
+            atlas_icon: panel.atlas_icon(),
             closeable: panel.closeable(),
+            clear_background: panel.clear_background(),
             is_domain_bound: panel.is_domain_bound(),
         }
     }

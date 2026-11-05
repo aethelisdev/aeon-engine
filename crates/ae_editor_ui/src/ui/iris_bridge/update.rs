@@ -706,19 +706,17 @@ impl IrisEditorOverlay {
             let root_id = tree.root().unwrap_or(root);
             let dock_frame = {
                 let mut scope = UiScope::new(&mut tree, root_id);
+                let mut registry = crate::ui::workbench::create_editor_panel_registry();
+                let mut panel_ctx = crate::ui::workbench::EditorPanelContext {
+                    overlay: self,
+                    params: &params,
+                };
                 irisui::dock::DockArea::from_ref(&params.context.layout_state.dock_state)
                     .bounds(workspace_rect)
                     .style(dock_style)
                     .cursor_pos(cursor)
                     .cursor_occluded(is_cursor_occluded)
-                    .show(
-                        &mut scope,
-                        &mut crate::ui::panel_layout::PanelTabViewer::with_dispatch(
-                            |leaf_scope, panel| {
-                                self.render_panel_by_id(*panel, leaf_scope, &params);
-                            },
-                        ),
-                    )
+                    .show(&mut scope, &mut registry.active_tab_viewer(&mut panel_ctx))
             };
 
             for &(_, leaf_id) in &dock_frame.leaf_containers {

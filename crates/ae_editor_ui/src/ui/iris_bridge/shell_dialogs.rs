@@ -274,6 +274,7 @@ impl IrisEditorOverlay {
             } else {
                 cursor
             };
+            let registry = crate::ui::workbench::create_editor_panel_registry();
             self.chrome.active_overflow_frame = irisui::dock::build_dock_overflow_menu(
                 &mut self.tree,
                 root,
@@ -284,7 +285,7 @@ impl IrisEditorOverlay {
                     anchor_rect,
                     cursor_pos: effective_cursor,
                 },
-                &crate::ui::panel_layout::PanelTabViewer::default(),
+                &registry.tab_viewer(),
                 &style,
             );
         }

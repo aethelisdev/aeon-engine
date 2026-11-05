@@ -44,12 +44,13 @@ impl EngineUi {
         );
 
         // 1. Compute Native Docking Layout
+        let registry = crate::ui::workbench::create_editor_panel_registry();
         let computed = irisui::dock::compute_dock_layout_with_viewer(
             &self.layout_state.dock_state.tree,
             workspace_rect,
             irisui::dock::DEFAULT_SPLITTER_THICKNESS,
             irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
-            &crate::ui::panel_layout::PanelTabViewer::default(),
+            &registry.tab_viewer(),
         );
 
         let is_floating = |panel: PanelId| {

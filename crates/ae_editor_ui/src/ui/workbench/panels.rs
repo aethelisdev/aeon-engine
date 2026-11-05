@@ -1,0 +1,398 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Autonomous Editor Workbench Panels
+//!
+//! Provides concrete implementations of [`irisui::workbench::WorkbenchPanel`] for all
+//! built-in tool panels of the Aeon Engine editor interface, decoupling individual
+//! tool views from monolithic parameters and enabling granular $O(M)$ dock invalidation.
+
+use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::panel_layout::PanelId;
+use irisui::prelude::UiScope;
+use irisui::workbench::{WorkbenchPanel, WorkbenchPanelRegistry};
+
+/// Execution context passed to autonomous editor workbench panels during rendering.
+pub struct EditorPanelContext<'a> {
+    /// Mutable reference to the parent Iris editor overlay subsystem.
+    pub overlay: &'a mut IrisEditorOverlay,
+    /// Immutable reference to the per-frame overlay parameters.
+    pub params: &'a OverlayUpdateParams<'a>,
+}
+
+/// Autonomous 3D Viewport workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ViewportWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for ViewportWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Viewport
+    }
+
+    fn title(&self) -> &str {
+        "Viewport"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("🎥")
+    }
+
+    fn closeable(&self) -> bool {
+        false
+    }
+
+    fn clear_background(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        let vp_rect = if scope.parent_rect().width > 20.0 {
+            scope.parent_rect()
+        } else {
+            crate::ui::iris_bridge::floating_layer::active_panel_content_rect(
+                state.params.context.layout_state,
+                PanelId::Viewport,
+            )
+            .unwrap_or(state.params.viewport.viewport_rect)
+        };
+        if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
+            state
+                .overlay
+                .build_viewport_content(scope, vp_rect, state.params);
+        }
+    }
+}
+
+/// Autonomous Scene Hierarchy outliner workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HierarchyWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for HierarchyWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Hierarchy
+    }
+
+    fn title(&self) -> &str {
+        "Hierarchy"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("🏗️")
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        true
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_hierarchy_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous Entity Inspector workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InspectorWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for InspectorWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Inspector
+    }
+
+    fn title(&self) -> &str {
+        "Inspector"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("⚙️")
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        true
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_inspector_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous Developer Log & Diagnostics Console workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ConsoleWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for ConsoleWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Console
+    }
+
+    fn title(&self) -> &str {
+        "Console"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("📜")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_console_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous Content & Asset Browser workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AssetsWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for AssetsWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Assets
+    }
+
+    fn title(&self) -> &str {
+        "Assets"
+    }
+
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        Some(crate::ui::iris_bridge::icons::ICON_FOLDER)
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_assets_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous CPU & GPU Profiler Telemetry Stats workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StatsWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for StatsWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::Stats
+    }
+
+    fn title(&self) -> &str {
+        "Stats"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("📊")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_stats_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous Material & Texture Studio workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MaterialEditorWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for MaterialEditorWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::MaterialEditor
+    }
+
+    fn title(&self) -> &str {
+        "Material Editor"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("🌐")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_material_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous Skeletal Animation Timeline Studio workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TimelineWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for TimelineWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::AnimationTimeline
+    }
+
+    fn title(&self) -> &str {
+        "Timeline"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("🎬")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_timeline_panel_if_active(scope, state.params);
+    }
+}
+
+/// Autonomous 2D UI Canvas Designer workbench panel.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UiDesignerWorkbenchPanel;
+
+impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for UiDesignerWorkbenchPanel {
+    fn id(&self) -> PanelId {
+        PanelId::UiDesigner
+    }
+
+    fn title(&self) -> &str {
+        "UI Designer"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("📐")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
+        state
+            .overlay
+            .build_ui_designer_panel_if_active(scope, state.params);
+    }
+}
+
+/// Constructs and populates a [`WorkbenchPanelRegistry`] with all built-in editor workbench panels.
+#[must_use]
+pub fn create_editor_panel_registry<'a>() -> WorkbenchPanelRegistry<PanelId, EditorPanelContext<'a>>
+{
+    let mut registry = WorkbenchPanelRegistry::new();
+    registry.register(ViewportWorkbenchPanel);
+    registry.register(HierarchyWorkbenchPanel);
+    registry.register(InspectorWorkbenchPanel);
+    registry.register(ConsoleWorkbenchPanel);
+    registry.register(AssetsWorkbenchPanel);
+    registry.register(StatsWorkbenchPanel);
+    registry.register(MaterialEditorWorkbenchPanel);
+    registry.register(TimelineWorkbenchPanel);
+    registry.register(UiDesignerWorkbenchPanel);
+    registry
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui::dock::TabViewer;
+
+    #[test]
+    fn test_editor_panel_registry_contains_all_panels_and_metadata() {
+        let registry = create_editor_panel_registry();
+
+        // 1. Verify all 9 standard editor panels are registered
+        for &panel_id in PanelId::all() {
+            assert!(
+                registry.is_registered(&panel_id),
+                "Panel {panel_id:?} must be registered in workbench panel registry"
+            );
+            assert!(
+                registry.panel_metadata(&panel_id).is_some(),
+                "Metadata for panel {panel_id:?} must be present"
+            );
+        }
+
+        // 2. Verify Viewport specific metadata invariants (persistent, transparent background)
+        let vp_meta = registry
+            .panel_metadata(&PanelId::Viewport)
+            .expect("Viewport metadata");
+        assert_eq!(vp_meta.title, "Viewport");
+        assert_eq!(vp_meta.icon.as_deref(), Some("🎥"));
+        assert!(!vp_meta.closeable, "Viewport must not be closeable");
+        assert!(
+            vp_meta.clear_background,
+            "Viewport must have transparent background for WGPU scene pass"
+        );
+        assert!(!vp_meta.is_domain_bound);
+
+        // 3. Verify Assets specific metadata (custom GPU texture atlas folder icon)
+        let assets_meta = registry
+            .panel_metadata(&PanelId::Assets)
+            .expect("Assets metadata");
+        assert_eq!(assets_meta.title, "Assets");
+        assert!(
+            assets_meta.atlas_icon.is_some(),
+            "Assets must provide texture atlas UV coordinates"
+        );
+        assert!(assets_meta.closeable);
+
+        // 4. Verify Domain-bound panels (subscribed to undo/redo/ECS transactions)
+        let hierarchy_meta = registry
+            .panel_metadata(&PanelId::Hierarchy)
+            .expect("Hierarchy metadata");
+        assert!(
+            hierarchy_meta.is_domain_bound,
+            "Hierarchy must be subscribed to domain mutations"
+        );
+        assert!(registry.is_domain_panel(&PanelId::Hierarchy));
+
+        let inspector_meta = registry
+            .panel_metadata(&PanelId::Inspector)
+            .expect("Inspector metadata");
+        assert!(
+            inspector_meta.is_domain_bound,
+            "Inspector must be subscribed to domain mutations"
+        );
+        assert!(registry.is_domain_panel(&PanelId::Inspector));
+
+        // 5. Verify RegistryTabViewer integration
+        let viewer = registry.tab_viewer();
+        assert_eq!(viewer.title(&PanelId::Viewport), "🎥 Viewport");
+        assert_eq!(viewer.raw_title(&PanelId::Viewport), "Viewport");
+        assert_eq!(viewer.title(&PanelId::Hierarchy), "🏗️ Hierarchy");
+        assert_eq!(viewer.title(&PanelId::Inspector), "⚙️ Inspector");
+        assert_eq!(viewer.title(&PanelId::Console), "📜 Console");
+        // Assets uses atlas icon so title has no emoji prefix
+        assert_eq!(viewer.title(&PanelId::Assets), "Assets");
+        assert_eq!(viewer.title(&PanelId::Stats), "📊 Stats");
+        assert_eq!(viewer.title(&PanelId::MaterialEditor), "🌐 Material Editor");
+        assert_eq!(viewer.title(&PanelId::AnimationTimeline), "🎬 Timeline");
+        assert_eq!(viewer.title(&PanelId::UiDesigner), "📐 UI Designer");
+
+        assert!(!viewer.closeable(&PanelId::Viewport));
+        assert!(viewer.closeable(&PanelId::Hierarchy));
+        assert!(viewer.clear_background(&PanelId::Viewport));
+        assert!(!viewer.clear_background(&PanelId::Hierarchy));
+    }
+}

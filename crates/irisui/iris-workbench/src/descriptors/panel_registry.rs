@@ -303,16 +303,40 @@ where
 {
     fn title(&self, tab: &TabId) -> String {
         if let Some(meta) = self.registry.panel_metadata(tab) {
+            if meta.atlas_icon.is_some() {
+                meta.title.clone()
+            } else if let Some(icon) = &meta.icon {
+                format!("{icon} {}", meta.title)
+            } else {
+                meta.title.clone()
+            }
+        } else {
+            format!("{tab:?}")
+        }
+    }
+
+    fn raw_title(&self, tab: &TabId) -> String {
+        if let Some(meta) = self.registry.panel_metadata(tab) {
             meta.title.clone()
         } else {
             format!("{tab:?}")
         }
     }
 
+    fn atlas_icon(&self, tab: &TabId) -> Option<[f32; 4]> {
+        self.registry.panel_metadata(tab).and_then(|m| m.atlas_icon)
+    }
+
     fn closeable(&self, tab: &TabId) -> bool {
         self.registry
             .panel_metadata(tab)
             .is_none_or(|meta| meta.closeable)
+    }
+
+    fn clear_background(&self, tab: &TabId) -> bool {
+        self.registry
+            .panel_metadata(tab)
+            .is_some_and(|meta| meta.clear_background)
     }
 
     fn ui(&mut self, _scope: &mut UiScope<'_>, _tab: &TabId) {}
@@ -342,16 +366,40 @@ where
 {
     fn title(&self, tab: &TabId) -> String {
         if let Some(meta) = self.registry.panel_metadata(tab) {
+            if meta.atlas_icon.is_some() {
+                meta.title.clone()
+            } else if let Some(icon) = &meta.icon {
+                format!("{icon} {}", meta.title)
+            } else {
+                meta.title.clone()
+            }
+        } else {
+            format!("{tab:?}")
+        }
+    }
+
+    fn raw_title(&self, tab: &TabId) -> String {
+        if let Some(meta) = self.registry.panel_metadata(tab) {
             meta.title.clone()
         } else {
             format!("{tab:?}")
         }
     }
 
+    fn atlas_icon(&self, tab: &TabId) -> Option<[f32; 4]> {
+        self.registry.panel_metadata(tab).and_then(|m| m.atlas_icon)
+    }
+
     fn closeable(&self, tab: &TabId) -> bool {
         self.registry
             .panel_metadata(tab)
             .is_none_or(|meta| meta.closeable)
+    }
+
+    fn clear_background(&self, tab: &TabId) -> bool {
+        self.registry
+            .panel_metadata(tab)
+            .is_some_and(|meta| meta.clear_background)
     }
 
     fn ui(&mut self, scope: &mut UiScope<'_>, tab: &TabId) {

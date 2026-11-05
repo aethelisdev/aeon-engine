@@ -564,9 +564,21 @@ fn test_workbench_panel_trait_registration_and_metadata() {
 
     // Verify RegistryTabViewer integration
     let viewer = registry.tab_viewer();
-    assert_eq!(viewer.title(&MockTab::Viewport), "3D Viewport");
-    assert_eq!(viewer.title(&MockTab::Inspector), "Entity Inspector");
-    assert_eq!(viewer.title(&MockTab::Hierarchy), "Scene Hierarchy");
+    assert_eq!(
+        viewer.title(&MockTab::Viewport),
+        "viewport_icon 3D Viewport"
+    );
+    assert_eq!(viewer.raw_title(&MockTab::Viewport), "3D Viewport");
+    assert_eq!(
+        viewer.title(&MockTab::Inspector),
+        "inspector_icon Entity Inspector"
+    );
+    assert_eq!(viewer.raw_title(&MockTab::Inspector), "Entity Inspector");
+    assert_eq!(
+        viewer.title(&MockTab::Hierarchy),
+        "hierarchy_icon Scene Hierarchy"
+    );
+    assert_eq!(viewer.raw_title(&MockTab::Hierarchy), "Scene Hierarchy");
     assert!(!viewer.closeable(&MockTab::Viewport));
     assert!(viewer.closeable(&MockTab::Inspector));
     assert!(viewer.closeable(&MockTab::Hierarchy));

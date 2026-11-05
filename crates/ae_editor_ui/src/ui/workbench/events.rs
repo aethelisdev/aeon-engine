@@ -230,7 +230,8 @@ impl EngineUi {
             ..Default::default()
         };
 
-        let viewer = crate::ui::panel_layout::PanelTabViewer::default();
+        let registry = crate::ui::workbench::create_editor_panel_registry();
+        let viewer = registry.tab_viewer();
         let res = DockArea::handle_event(
             &mut self.layout_state.dock_state,
             &viewer,
