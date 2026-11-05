@@ -431,3 +431,183 @@ fn test_workbench_descriptor_render_chrome_with_action_bus() {
     let events: Vec<_> = bus.drain().collect();
     assert_eq!(events, vec![MockMenuAction::SaveFile]);
 }
+
+// =========================================================================
+// Faz 6.1.1: WorkbenchPanel Trait & Granular Partial Rendering Tests
+// =========================================================================
+
+#[derive(Default)]
+struct MockPanelAppState {
+    viewport_renders: usize,
+    inspector_renders: usize,
+    hierarchy_renders: usize,
+}
+
+struct MockViewportPanel;
+
+impl WorkbenchPanel<MockTab, MockPanelAppState> for MockViewportPanel {
+    fn id(&self) -> MockTab {
+        MockTab::Viewport
+    }
+
+    fn title(&self) -> &str {
+        "3D Viewport"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("viewport_icon")
+    }
+
+    fn closeable(&self) -> bool {
+        false
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        false
+    }
+
+    fn render(&mut self, _scope: &mut UiScope<'_>, state: &mut MockPanelAppState) {
+        state.viewport_renders += 1;
+    }
+}
+
+struct MockInspectorPanel;
+
+impl WorkbenchPanel<MockTab, MockPanelAppState> for MockInspectorPanel {
+    fn id(&self) -> MockTab {
+        MockTab::Inspector
+    }
+
+    fn title(&self) -> &str {
+        "Entity Inspector"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("inspector_icon")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        true
+    }
+
+    fn render(&mut self, _scope: &mut UiScope<'_>, state: &mut MockPanelAppState) {
+        state.inspector_renders += 1;
+    }
+}
+
+struct MockHierarchyPanel;
+
+impl WorkbenchPanel<MockTab, MockPanelAppState> for MockHierarchyPanel {
+    fn id(&self) -> MockTab {
+        MockTab::Hierarchy
+    }
+
+    fn title(&self) -> &str {
+        "Scene Hierarchy"
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        Some("hierarchy_icon")
+    }
+
+    fn closeable(&self) -> bool {
+        true
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        false
+    }
+
+    fn render(&mut self, _scope: &mut UiScope<'_>, state: &mut MockPanelAppState) {
+        state.hierarchy_renders += 1;
+    }
+}
+
+#[test]
+fn test_workbench_panel_trait_registration_and_metadata() {
+    use iris_dock::TabViewer;
+
+    let mut registry = WorkbenchPanelRegistry::<MockTab, MockPanelAppState>::new();
+    registry.register(MockViewportPanel);
+    registry.register(MockInspectorPanel);
+    registry.register(MockHierarchyPanel);
+
+    assert_eq!(registry.len(), 3);
+    assert!(registry.is_registered(&MockTab::Viewport));
+    assert!(registry.is_registered(&MockTab::Inspector));
+    assert!(registry.is_registered(&MockTab::Hierarchy));
+
+    // Verify metadata propagation
+    let vp_meta = registry
+        .panel_metadata(&MockTab::Viewport)
+        .expect("Viewport metadata");
+    assert_eq!(vp_meta.title, "3D Viewport");
+    assert_eq!(vp_meta.icon.as_deref(), Some("viewport_icon"));
+    assert!(!vp_meta.closeable);
+    assert!(!vp_meta.is_domain_bound);
+
+    let insp_meta = registry
+        .panel_metadata(&MockTab::Inspector)
+        .expect("Inspector metadata");
+    assert_eq!(insp_meta.title, "Entity Inspector");
+    assert!(insp_meta.closeable);
+    assert!(insp_meta.is_domain_bound);
+
+    // Verify domain subscriber registration
+    assert!(registry.is_domain_panel(&MockTab::Inspector));
+    assert!(!registry.is_domain_panel(&MockTab::Viewport));
+    assert!(!registry.is_domain_panel(&MockTab::Hierarchy));
+
+    // Verify RegistryTabViewer integration
+    let viewer = registry.tab_viewer();
+    assert_eq!(viewer.title(&MockTab::Viewport), "3D Viewport");
+    assert_eq!(viewer.title(&MockTab::Inspector), "Entity Inspector");
+    assert_eq!(viewer.title(&MockTab::Hierarchy), "Scene Hierarchy");
+    assert!(!viewer.closeable(&MockTab::Viewport));
+    assert!(viewer.closeable(&MockTab::Inspector));
+    assert!(viewer.closeable(&MockTab::Hierarchy));
+}
+
+#[test]
+fn test_workbench_panel_granular_partial_rendering_only_dirty_panel_called() {
+    let mut registry = WorkbenchPanelRegistry::<MockTab, MockPanelAppState>::new();
+    registry.register(MockViewportPanel);
+    registry.register(MockInspectorPanel);
+    registry.register(MockHierarchyPanel);
+
+    let mut state = MockPanelAppState::default();
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+
+    // 1. Initial full render: all 3 panels are drawn
+    let all_tabs = [MockTab::Viewport, MockTab::Inspector, MockTab::Hierarchy];
+    let rendered_all =
+        registry.render_dirty_tabs(&all_tabs, &mut tree, |_tab| Some(root), &mut state);
+    assert_eq!(rendered_all, 3);
+    assert_eq!(state.viewport_renders, 1);
+    assert_eq!(state.inspector_renders, 1);
+    assert_eq!(state.hierarchy_renders, 1);
+
+    // 2. Granular partial invalidation: ONLY MockTab::Inspector is marked dirty!
+    let dirty_tabs = [MockTab::Inspector];
+    let rendered_dirty =
+        registry.render_dirty_tabs(&dirty_tabs, &mut tree, |_tab| Some(root), &mut state);
+
+    // Verify that strictly 1 panel was rendered
+    assert_eq!(rendered_dirty, 1);
+    // Viewport and Hierarchy MUST NOT have received render invocations!
+    assert_eq!(
+        state.viewport_renders, 1,
+        "Viewport must not re-render when clean"
+    );
+    assert_eq!(
+        state.hierarchy_renders, 1,
+        "Hierarchy must not re-render when clean"
+    );
+    // Inspector alone was rendered
+    assert_eq!(state.inspector_renders, 2, "Dirty Inspector must re-render");
+}

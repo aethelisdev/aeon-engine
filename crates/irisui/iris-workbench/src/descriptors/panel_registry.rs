@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Declarative Panel Registry
+//! # Declarative Panel Registry & Tab Adapters
 //!
-//! Provides the generic [`PanelRegistry`] mapping abstract tab identifiers to
-//! their declarative UI drawing closures, decoupling workbench chrome from domain state.
+//! Provides the generic [`WorkbenchPanelRegistry`] mapping abstract tab identifiers to
+//! autonomous [`WorkbenchPanel`] implementations and declarative drawing closures,
+//! decoupling workbench chrome from domain state.
 
+use super::panel::{PanelMetadata, WorkbenchPanel};
 use crate::error::{WorkbenchError, WorkbenchResult};
+use iris_core::{UiTree, WidgetId};
+use iris_dock::TabViewer;
 use iris_widgets::UiScope;
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -16,15 +21,17 @@ use std::hash::Hash;
 ///
 /// Accepts a mutable [`UiScope`] representing the panel's layout scope and a mutable
 /// reference to the caller's custom `Context` containing domain/engine state.
-pub type PanelDrawFn<Context> = Box<dyn Fn(&mut UiScope<'_>, &mut Context) + Send + Sync>;
+pub type PanelDrawFn<Context> = Box<dyn FnMut(&mut UiScope<'_>, &mut Context) + Send + Sync>;
 
-/// Central panel registry mapping panel identifiers to their declarative UI drawing functions.
+/// Central panel registry mapping panel identifiers to autonomous panels and declarative UI drawing functions.
 ///
 /// Designed to decouple the workbench application shell from domain-specific editor state.
-/// The workbench calls the registered closure when constructing isolated dock leaf panels
+/// The workbench calls the registered panel or closure when constructing isolated dock leaf panels
 /// or detached floating windows without knowing the internal ECS or engine architecture.
 pub struct WorkbenchPanelRegistry<TabId, Context> {
+    panels: HashMap<TabId, Box<dyn WorkbenchPanel<TabId, Context>>>,
     draw_callbacks: HashMap<TabId, PanelDrawFn<Context>>,
+    metadata: HashMap<TabId, PanelMetadata<TabId>>,
     domain_panels: HashSet<TabId>,
 }
 
@@ -34,7 +41,9 @@ pub type PanelRegistry<TabId, Context> = WorkbenchPanelRegistry<TabId, Context>;
 impl<TabId, Context> Default for WorkbenchPanelRegistry<TabId, Context> {
     fn default() -> Self {
         Self {
+            panels: HashMap::new(),
             draw_callbacks: HashMap::new(),
+            metadata: HashMap::new(),
             domain_panels: HashSet::new(),
         }
     }
@@ -51,6 +60,37 @@ where
         Self::default()
     }
 
+    /// Registers an autonomous stateful panel implementing [`WorkbenchPanel`].
+    ///
+    /// Automatically records panel metadata (title, icon, closeable) and subscribes
+    /// the panel to domain notifications if `panel.is_domain_bound()` returns `true`.
+    ///
+    /// # Arguments
+    /// * `panel` - Any concrete struct implementing [`WorkbenchPanel`].
+    pub fn register<P>(&mut self, panel: P)
+    where
+        P: WorkbenchPanel<TabId, Context> + 'static,
+    {
+        let id = panel.id();
+        let meta = PanelMetadata::from_panel(&panel);
+        if meta.is_domain_bound {
+            self.domain_panels.insert(id.clone());
+        }
+        self.metadata.insert(id.clone(), meta);
+        self.panels.insert(id, Box::new(panel));
+    }
+
+    /// Registers a boxed trait object implementing [`WorkbenchPanel`].
+    pub fn register_boxed(&mut self, panel: Box<dyn WorkbenchPanel<TabId, Context>>) {
+        let id = panel.id();
+        let meta = PanelMetadata::from_panel(panel.as_ref());
+        if meta.is_domain_bound {
+            self.domain_panels.insert(id.clone());
+        }
+        self.metadata.insert(id.clone(), meta);
+        self.panels.insert(id, panel);
+    }
+
     /// Registers a declarative drawing closure for the given panel tab identifier.
     ///
     /// If a panel with the same identifier was previously registered, its callback is replaced.
@@ -61,7 +101,7 @@ where
     pub fn register_panel(
         &mut self,
         tab: TabId,
-        draw_fn: impl Fn(&mut UiScope<'_>, &mut Context) + Send + Sync + 'static,
+        draw_fn: impl FnMut(&mut UiScope<'_>, &mut Context) + Send + Sync + 'static,
     ) {
         self.draw_callbacks.insert(tab, Box::new(draw_fn));
     }
@@ -78,7 +118,7 @@ where
     pub fn register_domain_panel(
         &mut self,
         tab: TabId,
-        draw_fn: impl Fn(&mut UiScope<'_>, &mut Context) + Send + Sync + 'static,
+        draw_fn: impl FnMut(&mut UiScope<'_>, &mut Context) + Send + Sync + 'static,
     ) {
         self.domain_panels.insert(tab.clone());
         self.register_panel(tab, draw_fn);
@@ -120,52 +160,201 @@ where
         }
     }
 
-    /// Unregisters the drawing closure for the specified panel tab identifier.
+    /// Unregisters the panel and drawing closure for the specified panel tab identifier.
     ///
-    /// Also unregisters the panel from domain data subscription if present.
-    /// Returns `true` if a panel callback was removed, or `false` if it was not present.
+    /// Also unregisters the panel from domain data subscription and metadata if present.
+    /// Returns `true` if a panel or callback was removed.
     pub fn unregister_panel(&mut self, tab: &TabId) -> bool {
         self.domain_panels.remove(tab);
-        self.draw_callbacks.remove(tab).is_some()
+        self.metadata.remove(tab);
+        let removed_panel = self.panels.remove(tab).is_some();
+        let removed_callback = self.draw_callbacks.remove(tab).is_some();
+        removed_panel || removed_callback
     }
 
-    /// Returns `true` if a drawing closure is registered for the given panel tab.
+    /// Returns `true` if a panel or drawing closure is registered for the given panel tab.
     #[inline]
     #[must_use]
     pub fn is_registered(&self, tab: &TabId) -> bool {
-        self.draw_callbacks.contains_key(tab)
+        self.panels.contains_key(tab) || self.draw_callbacks.contains_key(tab)
     }
 
-    /// Returns the number of registered panels.
+    /// Returns the total number of registered panels and callbacks.
     #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
-        self.draw_callbacks.len()
+        self.panels.len() + self.draw_callbacks.len()
     }
 
-    /// Returns `true` if no panels have been registered.
+    /// Returns `true` if no panels or callbacks have been registered.
     #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.draw_callbacks.is_empty()
+        self.panels.is_empty() && self.draw_callbacks.is_empty()
     }
 
-    /// Invokes the registered drawing closure for `tab` within the provided [`UiScope`].
+    /// Returns an immutable reference to an autonomous stateful panel if registered.
+    #[must_use]
+    pub fn get_panel(&self, tab: &TabId) -> Option<&dyn WorkbenchPanel<TabId, Context>> {
+        self.panels.get(tab).map(|b| b.as_ref())
+    }
+
+    /// Returns a mutable reference to an autonomous stateful panel if registered.
+    pub fn get_panel_mut(
+        &mut self,
+        tab: &TabId,
+    ) -> Option<&mut (dyn WorkbenchPanel<TabId, Context> + 'static)> {
+        self.panels.get_mut(tab).map(|b| b.as_mut())
+    }
+
+    /// Returns metadata describing the specified panel if registered.
+    #[must_use]
+    pub fn panel_metadata(&self, tab: &TabId) -> Option<&PanelMetadata<TabId>> {
+        self.metadata.get(tab)
+    }
+
+    /// Invokes the registered panel or drawing closure for `tab` within the provided [`UiScope`].
     ///
     /// # Errors
-    /// Returns [`WorkbenchError::PanelNotFound`] if no drawing callback is registered for `tab`.
+    /// Returns [`WorkbenchError::PanelNotFound`] if neither a panel nor a drawing callback
+    /// is registered for `tab`.
     pub fn draw(
-        &self,
+        &mut self,
         tab: &TabId,
         scope: &mut UiScope<'_>,
         context: &mut Context,
     ) -> WorkbenchResult<()> {
-        match self.draw_callbacks.get(tab) {
-            Some(callback) => {
-                (callback)(scope, context);
-                Ok(())
-            }
-            None => Err(WorkbenchError::PanelNotFound(format!("{tab:?}"))),
+        if let Some(panel) = self.panels.get_mut(tab) {
+            panel.render(scope, context);
+            Ok(())
+        } else if let Some(callback) = self.draw_callbacks.get_mut(tab) {
+            (callback)(scope, context);
+            Ok(())
+        } else {
+            Err(WorkbenchError::PanelNotFound(format!("{tab:?}")))
         }
+    }
+
+    /// Invokes the registered panel renderers for all tabs present in `dirty_tabs`.
+    ///
+    /// Resolves each dirty tab's container [`WidgetId`] via `leaf_resolver`, constructs
+    /// an isolated [`UiScope`], and executes its declarative `render` routine.
+    /// Clean tabs are skipped entirely, guaranteeing $O(M)$ partial leaf invalidation.
+    ///
+    /// Returns the number of panels actually rendered.
+    pub fn render_dirty_tabs<I, R>(
+        &mut self,
+        dirty_tabs: I,
+        tree: &mut UiTree,
+        leaf_resolver: R,
+        context: &mut Context,
+    ) -> usize
+    where
+        I: IntoIterator,
+        I::Item: Borrow<TabId>,
+        R: Fn(&TabId) -> Option<WidgetId>,
+    {
+        let mut rendered = 0;
+        for tab in dirty_tabs {
+            let tab = tab.borrow();
+            if let Some(leaf_id) = leaf_resolver(tab) {
+                let mut scope = UiScope::new(tree, leaf_id);
+                if self.draw(tab, &mut scope, context).is_ok() {
+                    rendered += 1;
+                }
+            }
+        }
+        rendered
+    }
+
+    /// Constructs a [`RegistryTabViewer`] adapter implementing [`TabViewer`] for dock area integration.
+    #[must_use]
+    pub fn tab_viewer(&self) -> RegistryTabViewer<'_, TabId, Context> {
+        RegistryTabViewer::new(self)
+    }
+
+    /// Constructs an active [`RegistryActiveTabViewer`] adapter that delegates `ui` rendering
+    /// directly to the registered panel closures using `context`.
+    pub fn active_tab_viewer<'a>(
+        &'a mut self,
+        context: &'a mut Context,
+    ) -> RegistryActiveTabViewer<'a, TabId, Context> {
+        RegistryActiveTabViewer::new(self, context)
+    }
+}
+
+/// Read-only TabViewer implementation delegating tab title and closeable metadata to [`WorkbenchPanelRegistry`].
+pub struct RegistryTabViewer<'a, TabId, Context> {
+    registry: &'a WorkbenchPanelRegistry<TabId, Context>,
+}
+
+impl<'a, TabId, Context> RegistryTabViewer<'a, TabId, Context> {
+    /// Constructs a tab viewer adapter referencing the given panel registry.
+    #[inline]
+    #[must_use]
+    pub fn new(registry: &'a WorkbenchPanelRegistry<TabId, Context>) -> Self {
+        Self { registry }
+    }
+}
+
+impl<'a, TabId, Context> TabViewer<TabId> for RegistryTabViewer<'a, TabId, Context>
+where
+    TabId: Eq + Hash + Clone + Debug,
+{
+    fn title(&self, tab: &TabId) -> String {
+        if let Some(meta) = self.registry.panel_metadata(tab) {
+            meta.title.clone()
+        } else {
+            format!("{tab:?}")
+        }
+    }
+
+    fn closeable(&self, tab: &TabId) -> bool {
+        self.registry
+            .panel_metadata(tab)
+            .is_none_or(|meta| meta.closeable)
+    }
+
+    fn ui(&mut self, _scope: &mut UiScope<'_>, _tab: &TabId) {}
+}
+
+/// Active TabViewer implementation delegating tab presentation and content rendering to [`WorkbenchPanelRegistry`].
+pub struct RegistryActiveTabViewer<'a, TabId, Context> {
+    registry: &'a mut WorkbenchPanelRegistry<TabId, Context>,
+    context: &'a mut Context,
+}
+
+impl<'a, TabId, Context> RegistryActiveTabViewer<'a, TabId, Context> {
+    /// Constructs an active tab viewer adapter binding the registry and its active context.
+    #[inline]
+    #[must_use]
+    pub fn new(
+        registry: &'a mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &'a mut Context,
+    ) -> Self {
+        Self { registry, context }
+    }
+}
+
+impl<'a, TabId, Context> TabViewer<TabId> for RegistryActiveTabViewer<'a, TabId, Context>
+where
+    TabId: Eq + Hash + Clone + Debug,
+{
+    fn title(&self, tab: &TabId) -> String {
+        if let Some(meta) = self.registry.panel_metadata(tab) {
+            meta.title.clone()
+        } else {
+            format!("{tab:?}")
+        }
+    }
+
+    fn closeable(&self, tab: &TabId) -> bool {
+        self.registry
+            .panel_metadata(tab)
+            .is_none_or(|meta| meta.closeable)
+    }
+
+    fn ui(&mut self, scope: &mut UiScope<'_>, tab: &TabId) {
+        let _ = self.registry.draw(tab, scope, self.context);
     }
 }

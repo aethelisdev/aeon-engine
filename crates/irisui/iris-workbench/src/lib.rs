@@ -33,8 +33,9 @@ pub mod prelude;
 pub use action_bus::ActionBus;
 pub use descriptors::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
-    MenuSectionDescriptor, PanelDrawFn, PanelRegistry, StatusBarDescriptor, StatusPillDescriptor,
-    StatusPillStyle, WorkbenchDescriptor, WorkbenchPanelRegistry,
+    MenuSectionDescriptor, PanelDrawFn, PanelMetadata, PanelRegistry, RegistryTabViewer,
+    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
+    WorkbenchPanel, WorkbenchPanelRegistry,
 };
 pub use dialogs::{
     ActiveDialog, ConfirmDialogDescriptor, CustomModalRenderFn, DialogHost, DialogKind,

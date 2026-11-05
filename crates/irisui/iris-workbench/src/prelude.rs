@@ -9,8 +9,9 @@
 pub use crate::action_bus::ActionBus;
 pub use crate::descriptors::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
-    MenuSectionDescriptor, PanelDrawFn, StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle,
-    WorkbenchDescriptor, WorkbenchPanelRegistry,
+    MenuSectionDescriptor, PanelDrawFn, PanelMetadata, RegistryTabViewer, StatusBarDescriptor,
+    StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanel,
+    WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
     ActiveDialog, ConfirmDialogDescriptor, CustomModalRenderFn, DialogHost, DialogKind,
