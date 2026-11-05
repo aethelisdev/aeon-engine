@@ -11,6 +11,7 @@
 use crate::command::DrawCommandList;
 use crate::external_texture_pipeline::ExternalTextureQuadInstance;
 use crate::quad::QuadInstance;
+use crate::scissor::ScissorStack;
 use crate::texture_pipeline::TextureQuadInstance;
 use iris_core::color::Color;
 use iris_core::geometry::{Border, Rect};
@@ -115,7 +116,7 @@ impl<'a> TreeCompilerOptions<'a> {
 
 /// Internal context holding traversal parameters during tree compilation.
 struct CompilationContext<'a, 'b> {
-    clip_rect: Option<Rect>,
+    scissor_stack: ScissorStack,
     inherited_layer: UiLayer,
     inherited_hovered: bool,
     inherited_focused: bool,
@@ -138,7 +139,7 @@ pub fn compile_tree_draw_commands_into(
 ) {
     let mut layer_lists: [DrawCommandList; 6] = Default::default();
     let mut ctx = CompilationContext {
-        clip_rect: options.initial_clip,
+        scissor_stack: ScissorStack::with_initial_clip(options.initial_clip),
         inherited_layer: UiLayer::Background,
         inherited_hovered: false,
         inherited_focused: false,
@@ -281,16 +282,7 @@ fn populate_layer_commands(
     let effective_clip = if is_elevated_root {
         None
     } else {
-        ctx.clip_rect
-    };
-
-    let child_clip = if node.style.clip_children {
-        match effective_clip {
-            Some(existing) => Some(existing.intersect(node.computed_rect)),
-            None => Some(node.computed_rect),
-        }
-    } else {
-        effective_clip
+        ctx.scissor_stack.current()
     };
 
     let effective_style = if is_focused {
@@ -433,23 +425,51 @@ fn populate_layer_commands(
     }
 
     // 6. Traverse Children
-    let prev_clip = ctx.clip_rect;
     let prev_layer = ctx.inherited_layer;
     let prev_hovered = ctx.inherited_hovered;
     let prev_focused = ctx.inherited_focused;
     let prev_boundary = ctx.current_boundary;
 
-    ctx.clip_rect = child_clip;
     ctx.inherited_layer = effective_layer;
     ctx.inherited_hovered = is_hovered;
     ctx.inherited_focused = is_focused;
     ctx.current_boundary = effective_boundary;
 
-    for &child_id in &node.children {
-        populate_layer_commands(tree, child_id, ctx, layer_lists);
+    if is_elevated_root {
+        // Elevated layers decouple completely from parent scissor stack
+        let saved_stack = std::mem::take(&mut ctx.scissor_stack);
+        let pushed_clip = if node.style.clip_children {
+            ctx.scissor_stack.push(node.computed_rect);
+            true
+        } else {
+            false
+        };
+
+        for &child_id in &node.children {
+            populate_layer_commands(tree, child_id, ctx, layer_lists);
+        }
+
+        if pushed_clip {
+            ctx.scissor_stack.pop();
+        }
+        ctx.scissor_stack = saved_stack;
+    } else {
+        let pushed_clip = if node.style.clip_children {
+            ctx.scissor_stack.push(node.computed_rect);
+            true
+        } else {
+            false
+        };
+
+        for &child_id in &node.children {
+            populate_layer_commands(tree, child_id, ctx, layer_lists);
+        }
+
+        if pushed_clip {
+            ctx.scissor_stack.pop();
+        }
     }
 
-    ctx.clip_rect = prev_clip;
     ctx.inherited_layer = prev_layer;
     ctx.inherited_hovered = prev_hovered;
     ctx.inherited_focused = prev_focused;

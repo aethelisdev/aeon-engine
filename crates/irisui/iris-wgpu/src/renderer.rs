@@ -341,6 +341,7 @@ impl IrisRenderer {
         }
 
         let mut active_pipe = ActivePipeline::None;
+        let mut active_scissor: Option<(u32, u32, u32, u32)> = None;
 
         for cmd in &command_list.commands {
             match *cmd {
@@ -371,11 +372,19 @@ impl IrisRenderer {
                     let clamped_w = width.min(screen_size.0.saturating_sub(x)).max(1);
                     let clamped_h = height.min(screen_size.1.saturating_sub(y)).max(1);
                     if x < screen_size.0 && y < screen_size.1 {
-                        render_pass.set_scissor_rect(x, y, clamped_w, clamped_h);
+                        let target = (x, y, clamped_w, clamped_h);
+                        if active_scissor != Some(target) {
+                            render_pass.set_scissor_rect(x, y, clamped_w, clamped_h);
+                            active_scissor = Some(target);
+                        }
                     }
                 }
                 crate::command::DrawCommand::ResetScissor => {
-                    render_pass.set_scissor_rect(0, 0, screen_size.0.max(1), screen_size.1.max(1));
+                    let target = (0, 0, screen_size.0.max(1), screen_size.1.max(1));
+                    if active_scissor != Some(target) {
+                        render_pass.set_scissor_rect(0, 0, target.2, target.3);
+                        active_scissor = Some(target);
+                    }
                 }
                 crate::command::DrawCommand::DrawTexture { instance_index } => {
                     if let (Some(tex_buf), Some(tex_bg)) =

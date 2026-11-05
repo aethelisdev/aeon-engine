@@ -17,6 +17,7 @@ pub mod external_textures;
 pub mod layer_cache;
 pub mod quad;
 pub mod renderer;
+pub mod scissor;
 pub mod texture_pipeline;
 pub mod tree_compiler;
 
@@ -26,6 +27,7 @@ pub use external_textures::ExternalTextures;
 pub use layer_cache::{BoundaryLayerCache, InstanceBufferTarget};
 pub use quad::QuadInstance;
 pub use renderer::IrisRenderer;
+pub use scissor::ScissorStack;
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};
 pub use tree_compiler::{
     CustomDrawCallback, TreeCompilerOptions, compile_tree_draw_commands,
@@ -39,7 +41,7 @@ pub mod prelude {
     pub use crate::{
         BoundarySlice, CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
         ExternalTextureQuadInstance, ExternalTextures, InstanceBufferTarget, IrisRenderer,
-        QuadInstance, TextureQuadInstance, TextureQuadPipeline, TreeCompilerOptions,
+        QuadInstance, ScissorStack, TextureQuadInstance, TextureQuadPipeline, TreeCompilerOptions,
         compile_tree_draw_commands, compile_tree_draw_commands_into,
     };
 }
