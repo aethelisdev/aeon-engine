@@ -97,8 +97,6 @@ impl ComponentCategory {
 pub enum InspectorAction {
     /// Renames the specified entity in the ECS world.
     RenameEntity(hecs::Entity, String),
-    /// Focuses the entity rename text field.
-    FocusRename,
     /// Resets a specific transform axis (Position, Rotation, or Scale) on an entity.
     ResetTransform(hecs::Entity, TransformAxisType),
     /// Applies an object color change from the Appearance card to an entity.
@@ -149,28 +147,6 @@ pub enum InspectorAction {
     ToggleAudioPlayback(hecs::Entity),
     /// Unparents the specified entity from its parent.
     Unparent(hecs::Entity),
-    /// Sets a string text property on a component of an entity.
-    SetTextValue(hecs::Entity, InspectorTextInputId, String),
-}
-
-/// String text input field identifier inside the Inspector panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum InspectorTextInputId {
-    /// UiText component string content.
-    UiTextContent,
-    /// UiTextInput component placeholder string.
-    UiTextInputPlaceholder,
-}
-
-impl InspectorTextInputId {
-    /// Returns the canonical ComponentRegistry type name associated with this text field.
-    #[must_use]
-    pub fn component_name(self) -> &'static str {
-        match self {
-            Self::UiTextContent => "UiText",
-            Self::UiTextInputPlaceholder => "UiTextInput",
-        }
-    }
 }
 
 /// Transform axis group for reset actions.
@@ -206,8 +182,6 @@ pub struct InspectorPanelParams<'a> {
     pub is_add_menu_open: bool,
     /// Whether the floating Color Picker popup is open.
     pub is_color_picker_open: bool,
-    /// Active string text input field and its buffer: `(FieldId, BufferText)`.
-    pub active_text_input: Option<(InspectorTextInputId, &'a str)>,
     /// Active entity rename text buffer if currently being edited.
     pub active_rename_buffer: Option<&'a str>,
     /// Whether all text in the active entity rename buffer is currently selected in blue.

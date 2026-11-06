@@ -316,7 +316,6 @@ mod tests {
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: true,
-            active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             active_hex_buffer: None,

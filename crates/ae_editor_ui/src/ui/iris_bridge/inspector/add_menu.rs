@@ -328,7 +328,6 @@ mod tests {
             active_submenu: Some(ComponentCategory::Physics),
             is_add_menu_open: true,
             is_color_picker_open: false,
-            active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             active_hex_buffer: None,

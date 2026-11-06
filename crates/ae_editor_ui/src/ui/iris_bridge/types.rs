@@ -484,7 +484,6 @@ impl IrisEditorOverlay {
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
     pub fn is_any_text_input_focused(&self) -> bool {
         self.tree.is_text_input_focused()
-            || self.inspector.active_text_input.is_some()
             || self.inspector.rename_input.is_some()
             || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active

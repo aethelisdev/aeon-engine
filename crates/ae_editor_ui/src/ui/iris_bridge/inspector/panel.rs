@@ -37,11 +37,14 @@ pub fn build_inspector_panel(
 
             // 2. Top Entity Name Header
             let mut name = params.entity_display_name(entity).to_string();
-            let name_resp =
-                header::build_entity_header(panel_scope, &mut name, params.panel_rect.width);
-            if name_resp.changed() {
-                actions.push(super::types::InspectorAction::RenameEntity(entity, name));
-            }
+            header::build_entity_header(panel_scope, &mut name, params.panel_rect.width).on_change(
+                || {
+                    actions.push(super::types::InspectorAction::RenameEntity(
+                        entity,
+                        name.clone(),
+                    ));
+                },
+            );
 
             // 3. Scrollable Cards Container (Single Declarative Flex Column)
             let mut ctx = ComponentRenderContext::with_actions(
@@ -193,7 +196,6 @@ mod tests {
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             active_hex_buffer: None,

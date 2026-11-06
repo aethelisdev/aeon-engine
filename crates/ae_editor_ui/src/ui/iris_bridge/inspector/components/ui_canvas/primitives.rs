@@ -13,8 +13,7 @@
 
 use super::super::super::context::{PropComboMapConfig, PropComboRowLayout};
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::tags::encode_inspector_text_input_tag;
-use super::super::super::types::{ComponentCategory, InspectorTextInputId};
+use super::super::super::types::ComponentCategory;
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
@@ -150,95 +149,11 @@ impl ComponentInspectorHandler for UiTextHandler {
             return;
         };
 
-        let is_editing = matches!(
-            ctx.params.active_text_input,
-            Some((InspectorTextInputId::UiTextContent, _))
-        );
-
-        let display_text = if is_editing {
-            let buf = match ctx.params.active_text_input {
-                Some((InspectorTextInputId::UiTextContent, b)) => b,
-                _ => "",
-            };
-            if ctx.params.blink_caret {
-                format!("{}|", buf)
-            } else {
-                buf.to_string()
-            }
-        } else if t.text.is_empty() {
-            "Empty text...".to_string()
-        } else {
-            t.text.clone()
-        };
-
-        let text_col = if is_editing {
-            Color::WHITE
-        } else if t.text.is_empty() {
-            Color::rgba(0.45, 0.48, 0.55, 1.0)
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-
-        let (bg, border_col) = if is_editing {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.0, 0.85, 1.0, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.125, 0.133, 0.153, 0.98),
-                Color::rgba(0.180, 0.192, 0.227, 0.85),
-            )
-        };
-
         scope.card_panel("UiTextCard", |card| {
             self.render_header(card);
 
-            // Row 1: Text string interactive box
-            let text_row_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(22.0)
-                .gap(4.0);
-
-            card.container_named("TextRow", text_row_style, |row| {
-                row.label_styled_passive(
-                    "UiTextLabelPrefix",
-                    "Text",
-                    11.0,
-                    row.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().width(42.0).height(22.0),
-                );
-
-                let box_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .flex_grow(1.0)
-                    .height(22.0)
-                    .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-                    .background(bg)
-                    .border(1.0, border_col)
-                    .border_radius(4.0);
-
-                let text_tag = encode_inspector_text_input_tag(InspectorTextInputId::UiTextContent);
-                row.container_tagged(
-                    "UiTextBox",
-                    box_style,
-                    WidgetRole::TextInput,
-                    text_tag,
-                    |tb| {
-                        tb.label_styled_passive(
-                            "UiTextBoxText",
-                            &display_text,
-                            11.0,
-                            text_col,
-                            TextAlign::Left,
-                            Style::new().flex_grow(1.0).height(22.0),
-                        );
-                    },
-                );
-            });
+            // Row 1: Text string property editor
+            card.prop_text("Text", &mut t.text);
 
             // Row 2: Font Size
             ctx.prop_f32(
@@ -523,7 +438,6 @@ mod tests {
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             active_hex_buffer: None,
@@ -573,7 +487,6 @@ mod tests {
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             active_hex_buffer: None,

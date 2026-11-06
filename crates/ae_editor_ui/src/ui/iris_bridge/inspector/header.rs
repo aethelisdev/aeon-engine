@@ -6,6 +6,7 @@
 //! Renders the top entity rename input box and label using high-level
 //! declarative [`UiScope`] property primitives and flexbox layout.
 
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 use irisui::widgets::declarative::hash_label_with_seed;
 
@@ -32,7 +33,6 @@ pub fn build_entity_header(
     name: &mut String,
     panel_w: f32,
 ) -> WidgetResponse {
-    let mut input_resp = WidgetResponse::default();
     scope
         .column_with()
         .name("EntityHeaderCard")
@@ -40,30 +40,59 @@ pub fn build_entity_header(
         .height(30.0)
         .margin_insets(Insets::new(4.0, 6.0, 4.0, 6.0))
         .show(|header_scope| {
-            let row_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(26.0)
-                .gap(6.0);
-            header_scope.container_named("EntityHeaderRow", row_style, |row| {
-                row.label_styled_passive(
-                    "NameLabel",
-                    "🏷 Name:",
-                    11.0,
-                    row.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().width(55.0).height(24.0),
-                );
-                let w = (panel_w - 85.0).max(60.0);
-                input_resp = row.text_input_with_width_tagged(
-                    "Entity name...",
-                    entity_name_input_tag(),
-                    w,
-                    name,
-                );
-            });
-        });
-    input_resp
+            header_scope
+                .container_named(
+                    "EntityHeaderRow",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .height(26.0)
+                        .gap(6.0),
+                    |row| {
+                        row.label_styled_passive(
+                            "NameLabel",
+                            "🏷 Name:",
+                            11.0,
+                            row.theme().text_muted,
+                            TextAlign::Left,
+                            Style::new().width(55.0).height(24.0),
+                        );
+                        row.text_input_with_width_tagged(
+                            "Entity name...",
+                            entity_name_input_tag(),
+                            (panel_w - 85.0).max(60.0),
+                            name,
+                        )
+                    },
+                )
+                .inner
+        })
+        .inner
+}
+
+/// Emits the top Entity Name header declaratively and invokes `on_modify` with [`EngineUiAction::ModifyName`] when changed.
+///
+/// Eliminates intermediate imperative variable plumbing and directly generates the engine UI action.
+pub fn build_entity_header_modify<F>(
+    scope: &mut UiScope<'_>,
+    entity: hecs::Entity,
+    old_name: &str,
+    name: &mut String,
+    panel_w: f32,
+    mut on_modify: F,
+) -> WidgetResponse
+where
+    F: FnMut(EngineUiAction),
+{
+    build_entity_header(scope, name, panel_w).on_change(|| {
+        if name != old_name {
+            on_modify(EngineUiAction::ModifyName(
+                entity,
+                old_name.to_string(),
+                name.clone(),
+            ));
+        }
+    })
 }
 
 #[cfg(test)]
@@ -89,5 +118,31 @@ mod tests {
         assert_eq!(box_node.cursor, Some(WidgetCursor::Text));
         assert!(box_node.computed_rect.width > 100.0);
         assert!(box_node.computed_rect.height >= 24.0);
+    }
+
+    #[test]
+    fn test_declarative_entity_header_modify_action_emission() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let mut name = "New Cube".to_string();
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+
+        let mut emitted_action = None;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _resp = build_entity_header_modify(
+                &mut scope,
+                entity,
+                "Old Cube",
+                &mut name,
+                320.0,
+                |act| {
+                    emitted_action = Some(act);
+                },
+            );
+        }
+
+        assert!(emitted_action.is_none());
     }
 }

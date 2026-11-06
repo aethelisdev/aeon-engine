@@ -7,7 +7,7 @@
 //! retained-mode dirty tracking for the Scene Inspector panel overlay.
 
 use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorTextInputId,
+    ComponentCategory, InspectorAction, InspectorColorDragMode,
 };
 use crate::ui::iris_bridge::types::PanelInteractionState;
 
@@ -20,14 +20,6 @@ pub struct InspectorPanelState {
     pub is_add_menu_open: bool,
     /// Currently open category submenu in Add Component menu.
     pub active_submenu: Option<ComponentCategory>,
-    /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
-    pub active_text_input: Option<(hecs::Entity, InspectorTextInputId, String)>,
-    /// Currently active `TextInputState` session for Inspector string text fields.
-    pub active_text_input_state: Option<(
-        hecs::Entity,
-        InspectorTextInputId,
-        irisui::prelude::TextInputState,
-    )>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
     /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
@@ -153,14 +145,6 @@ impl InspectorPanelState {
         &mut self,
         selected_entity: Option<hecs::Entity>,
     ) {
-        if let Some((ent, id, buf)) = self.active_text_input.take() {
-            if Some(ent) != selected_entity {
-                self.actions
-                    .push(InspectorAction::SetTextValue(ent, id, buf));
-            } else {
-                self.active_text_input = Some((ent, id, buf));
-            }
-        }
         if let Some((ent, input)) = self.rename_input.take() {
             if Some(ent) != selected_entity {
                 let final_name = input.text().trim().to_string();

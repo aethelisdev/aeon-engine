@@ -138,35 +138,6 @@ impl EngineUi {
                 InspectorAction::SyncInspectorEuler(rx, ry, rz) => {
                     self.inspector_euler = [rx, ry, rz];
                 }
-                InspectorAction::SetTextValue(entity, text_id, val) => {
-                    let comp_name = text_id.component_name();
-                    let registry = ae_core::registry::ComponentRegistry::global();
-                    let old_bytes = registry
-                        .get_by_name(comp_name)
-                        .and_then(|h| h.capture(world, entity));
-                    match text_id {
-                        crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextContent => {
-                            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
-                                t.text = val;
-                            }
-                        }
-                        crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextInputPlaceholder => {
-                            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiTextInput>(entity) {
-                                t.placeholder = val;
-                            }
-                        }
-                    }
-                    let new_bytes = registry
-                        .get_by_name(comp_name)
-                        .and_then(|h| h.capture(world, entity));
-                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                        && old != new
-                    {
-                        ui_actions.push(EngineUiAction::CommitComponentModify(
-                            entity, comp_name, old, new,
-                        ));
-                    }
-                }
                 InspectorAction::ResetPhysMatPreset(entity) => {
                     let comp_name = "PhysicsMaterial";
                     let registry = ae_core::registry::ComponentRegistry::global();
@@ -256,7 +227,6 @@ impl EngineUi {
                     self.iris_overlay.notifier.tag_all();
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
-                _ => {}
             }
         }
     }

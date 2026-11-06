@@ -15,10 +15,8 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::{
 use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::tags::{
-    resolve_component_delete_tag, resolve_inspector_text_input_tag,
-};
-use ae_editor_ui::ui::iris_bridge::inspector::types::{InspectorPanelParams, InspectorTextInputId};
+use ae_editor_ui::ui::iris_bridge::inspector::tags::resolve_component_delete_tag;
+use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use ae_editor_ui::ui::iris_bridge::inspector::ui_transform::build_ui_transform_card;
 use irisui::prelude::*;
 
@@ -39,7 +37,6 @@ fn create_test_params<'a>(
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         active_hex_buffer: None,
@@ -161,10 +158,8 @@ fn test_ui_text_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiText"));
     assert!(has_delete, "UiText delete button must be tagged");
 
-    let has_text_input = tree.iter().any(|(_, n)| {
-        resolve_inspector_text_input_tag(n.tag) == Some(InspectorTextInputId::UiTextContent)
-    });
-    assert!(has_text_input, "UiTextContent text input must be tagged");
+    let has_text_input = tree.iter().any(|(_, n)| n.role == WidgetRole::TextInput);
+    assert!(has_text_input, "UiText text input must be present");
 
     let has_alignment = tree
         .iter()
@@ -318,6 +313,20 @@ fn test_ui_controls_declarative_structure() {
         .iter()
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiTextInput"));
     assert!(has_input_del, "UiTextInput delete button must be tagged");
+
+    let has_placeholder_label = tree
+        .iter()
+        .any(|(_, n)| n.text.as_deref() == Some("Placeholder"));
+    assert!(
+        has_placeholder_label,
+        "UiTextInput Placeholder property label must be present"
+    );
+
+    let has_text_input = tree.iter().any(|(_, n)| n.role == WidgetRole::TextInput);
+    assert!(
+        has_text_input,
+        "UiTextInput interactive TextInput widget must be present"
+    );
 }
 
 #[test]

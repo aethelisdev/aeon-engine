@@ -531,8 +531,7 @@ impl IrisEditorOverlay {
                 );
                 if self.inspector.last_transform_snapshot.as_ref() != Some(&current_snap) {
                     self.inspector.last_transform_snapshot = Some(current_snap);
-                    let is_inspector_busy = self.inspector.active_text_input.is_some()
-                        || self.inspector.rename_input.is_some()
+                    let is_inspector_busy = self.inspector.rename_input.is_some()
                         || self.tree.event_state.active_text_edit.is_some()
                         || self
                             .tree

@@ -10,7 +10,6 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use super::registry::InspectorRegistry;
-use super::types::InspectorTextInputId;
 
 /// Semantic tag for the Inspector root scroll panel container.
 pub const TAG_INSPECTOR_PANEL_ROOT: u64 = 0xDAFF_0000;
@@ -99,9 +98,6 @@ pub const fn resolve_palette_swatch_tag(tag: u64) -> Option<usize> {
 /// Base numeric domain for component delete/trash action buttons.
 pub const TAG_COMPONENT_DELETE_BASE: u64 = 0xDF00_0000;
 
-/// Base numeric domain for string text input fields.
-pub const TAG_INSPECTOR_TEXT_INPUT_BASE: u64 = 0xDE00_0000;
-
 /// Encodes a component type name into a stable 64-bit component deletion tag.
 ///
 /// Hashes the component name and masks it to 24 bits (`0x00FF_FFFF`), ensuring
@@ -141,25 +137,6 @@ pub fn resolve_component_delete_tag(tag: u64) -> Option<&'static str> {
     }
 
     None
-}
-
-/// Encodes an [`InspectorTextInputId`] into a unique 64-bit semantic tag.
-#[inline]
-#[must_use]
-pub const fn encode_inspector_text_input_tag(id: InspectorTextInputId) -> u64 {
-    TAG_INSPECTOR_TEXT_INPUT_BASE + id as u64
-}
-
-/// Resolves a semantic tag into its corresponding [`InspectorTextInputId`].
-#[must_use]
-pub const fn resolve_inspector_text_input_tag(tag: u64) -> Option<InspectorTextInputId> {
-    if tag == TAG_INSPECTOR_TEXT_INPUT_BASE {
-        Some(InspectorTextInputId::UiTextContent)
-    } else if tag == TAG_INSPECTOR_TEXT_INPUT_BASE + 1 {
-        Some(InspectorTextInputId::UiTextInputPlaceholder)
-    } else {
-        None
-    }
 }
 
 /// Resolves whether a semantic tag corresponds to the `➕ Add Component` footer button.

@@ -178,12 +178,6 @@ impl IrisEditorOverlay {
             .as_ref()
             .and_then(|f| f.panel_rect(PanelId::Inspector));
         if let Some(insp_rect) = insp_rect {
-            let text_input_ref = self
-                .inspector
-                .active_text_input
-                .as_ref()
-                .filter(|(ent, _, _)| Some(*ent) == params.scene.selected_entity)
-                .map(|(_, id, s)| (*id, s.as_str()));
             let rename_buf_ref = self
                 .inspector
                 .rename_input
@@ -213,7 +207,6 @@ impl IrisEditorOverlay {
                     active_submenu: self.inspector.active_submenu,
                     is_add_menu_open: self.inspector.is_add_menu_open,
                     is_color_picker_open: self.inspector.is_color_picker_open,
-                    active_text_input: text_input_ref,
                     active_rename_buffer: rename_buf_ref,
                     is_rename_all_selected: self.inspector.rename_is_all_selected
                         && rename_buf_ref.is_some(),

@@ -53,14 +53,13 @@ pub use state::{
 pub use tags::{
     TAG_COMPONENT_DELETE_BASE, TAG_INSPECTOR_ACTION_BASE, TAG_INSPECTOR_ADD_COMPONENT,
     TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, TAG_INSPECTOR_PANEL_ROOT,
-    TAG_INSPECTOR_PRESET_RESET, TAG_INSPECTOR_SAVE_PREFAB, TAG_INSPECTOR_TEXT_INPUT_BASE,
-    TAG_INSPECTOR_UNPARENT, encode_component_delete_tag, encode_inspector_text_input_tag,
-    is_inspector_tag, resolve_add_component_btn_tag, resolve_audio_pick_tag,
-    resolve_audio_play_tag, resolve_component_delete_tag, resolve_inspector_text_input_tag,
+    TAG_INSPECTOR_PRESET_RESET, TAG_INSPECTOR_SAVE_PREFAB, TAG_INSPECTOR_UNPARENT,
+    encode_component_delete_tag, is_inspector_tag, resolve_add_component_btn_tag,
+    resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_delete_tag,
     resolve_preset_reset_tag, resolve_save_prefab_btn_tag, resolve_unparent_tag,
 };
 pub use transform::build_transform_card;
 pub use types::{
     ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorPanelParams,
-    InspectorTextInputId, TransformAxisType,
+    TransformAxisType,
 };

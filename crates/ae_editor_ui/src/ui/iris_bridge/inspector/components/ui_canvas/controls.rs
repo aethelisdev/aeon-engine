@@ -160,22 +160,14 @@ impl ComponentInspectorHandler for UiTextInputHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(input) = ctx.world.get::<&ae_core::ecs::UiTextInput>(ctx.entity) else {
+        let Ok(mut input) = ctx.world.get::<&mut ae_core::ecs::UiTextInput>(ctx.entity) else {
             return;
         };
 
         scope.card_panel("UiTextInputCard", |card| {
             self.render_header(card);
 
-            let label_text = format!("Placeholder: \"{}\"", input.placeholder);
-            card.label_styled_passive(
-                "UiInputPlaceholder",
-                &label_text,
-                11.0,
-                card.theme().text_primary,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
+            card.prop_text("Placeholder", &mut input.placeholder);
         });
     }
 

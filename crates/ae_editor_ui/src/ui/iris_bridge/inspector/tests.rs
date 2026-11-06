@@ -30,7 +30,6 @@ fn create_default_test_params<'a>(
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         active_hex_buffer: None,
@@ -224,11 +223,10 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
         "UiTextAlignment dropdown must be present"
     );
 
-    let has_text_input = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_text_input_tag(n.tag)
-            == Some(InspectorTextInputId::UiTextContent)
-    });
-    assert!(has_text_input, "UiTextContent text input must be present");
+    let has_text_input = tree
+        .iter()
+        .any(|(_, n)| n.role == irisui::prelude::WidgetRole::TextInput);
+    assert!(has_text_input, "UiText text input must be present");
 
     // Verify UiButton properties (declarative checkbox)
     let checkbox_count = tree
