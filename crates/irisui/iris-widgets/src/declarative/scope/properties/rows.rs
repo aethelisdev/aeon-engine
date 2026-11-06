@@ -7,7 +7,9 @@
 //! and section divider headers on [`UiScope`].
 
 use crate::declarative::scope::core::UiScope;
+use crate::declarative::scope::input::ComboRowLayout;
 use crate::declarative::types::{WidgetResponse, split_label_id};
+use crate::declarative::widget::{ComboBox, ComboBoxResponse};
 use iris_core::{
     AlignItems, Color, Insets, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
 };
@@ -102,11 +104,38 @@ impl<'a> UiScope<'a> {
     /// * `label` - Property description displayed on the left (supports `##` separator).
     /// * `checked` - Mutable reference to the bound boolean state.
     pub fn property_checkbox(&mut self, label: &str, checked: &mut bool) -> WidgetResponse {
+        self.prop_bool(label, checked)
+    }
+
+    /// Emits a declarative boolean checkbox property row modifying `checked` in-place.
+    ///
+    /// Renders a left-aligned property label and a custom styled checkbox indicator,
+    /// toggling `*checked` upon click. Defaults to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`].
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left.
+    /// * `checked` - Mutable reference to the bound boolean state.
+    pub fn prop_bool(&mut self, label: &str, checked: &mut bool) -> WidgetResponse {
+        self.prop_bool_styled(label, checked, None)
+    }
+
+    /// Emits a declarative boolean checkbox property row with an explicit label column width.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left.
+    /// * `checked` - Mutable reference to the bound boolean state.
+    /// * `label_width` - Optional column width in physical pixels allocated for the label column.
+    pub fn prop_bool_styled(
+        &mut self,
+        label: &str,
+        checked: &mut bool,
+        label_width: Option<f32>,
+    ) -> WidgetResponse {
         let tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
         let mut slot_executed = false;
 
-        let row_id = self.property_row(label, |slot| {
+        let row_id = self.property_row_styled(label, label_width, |slot| {
             let check_id = slot.tree.create_node();
             if let Some(node) = slot.tree.get_mut(check_id) {
                 node.set_name("PropertyCheckbox");
@@ -169,6 +198,136 @@ impl<'a> UiScope<'a> {
             response = self.response(row_id);
         }
         response
+    }
+
+    /// Emits a declarative boolean checkbox property row modifying `checked` in-place.
+    ///
+    /// Alias for [`UiScope::prop_bool`].
+    pub fn prop_checkbox(&mut self, label: &str, checked: &mut bool) -> WidgetResponse {
+        self.prop_bool(label, checked)
+    }
+
+    /// Emits a declarative boolean checkbox property row with an explicit label column width.
+    ///
+    /// Alias for [`UiScope::prop_bool_styled`].
+    pub fn prop_checkbox_styled(
+        &mut self,
+        label: &str,
+        checked: &mut bool,
+        label_width: Option<f32>,
+    ) -> WidgetResponse {
+        self.prop_bool_styled(label, checked, label_width)
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox property row modifying `selected` index in-place.
+    ///
+    /// Renders a left-aligned property label defaulting to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`], an interactive
+    /// selection pill displaying the current option text, and autonomously manages the elevated [`iris_core::UiLayer::Popup`]
+    /// dropdown menu. Mutates `*selected = idx` immediately upon selection and returns a [`ComboBoxResponse`].
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `selected` - Mutable reference to the zero-based active option index modified in-place upon selection.
+    /// * `options` - List of selectable option string labels.
+    pub fn prop_combobox(
+        &mut self,
+        label: &str,
+        selected: &mut usize,
+        options: &[&str],
+    ) -> ComboBoxResponse {
+        self.prop_combobox_styled(label, selected, options, None, None)
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox property row with custom column and pill widths.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `selected` - Mutable reference to the zero-based active option index modified in-place upon selection.
+    /// * `options` - List of selectable option string labels.
+    /// * `label_width` - Optional column width in physical pixels allocated for the label.
+    /// * `combo_width` - Optional width in physical pixels for the dropdown pill button.
+    pub fn prop_combobox_styled(
+        &mut self,
+        label: &str,
+        selected: &mut usize,
+        options: &[&str],
+        label_width: Option<f32>,
+        combo_width: Option<f32>,
+    ) -> ComboBoxResponse {
+        let selected_text = options.get(*selected).copied().unwrap_or("");
+        let mut combo = ComboBox::new(selected_text, options).label(label);
+        if let Some(lw) = label_width {
+            combo = combo.label_width(lw);
+        }
+        if let Some(cw) = combo_width {
+            combo = combo.width(cw);
+        }
+        let resp = self.add(combo);
+        if let Some(idx) = resp.selected_index() {
+            *selected = idx;
+        }
+        resp
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox property row mapped to an arbitrary domain value or enum.
+    ///
+    /// Modifies `*target = map_fn(idx)` in-place when a new option item is selected, eliminating imperative
+    /// `let` plumbing and variable unpacking in UI view callers. Defaults to standard [`ComboRowLayout::default`].
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `current_idx` - Current zero-based index of the active option.
+    /// * `options` - List of selectable option string labels.
+    /// * `target` - Target domain value or enum modified in-place upon selection.
+    /// * `map_fn` - Closure mapping the newly selected index to the domain target value.
+    pub fn prop_combobox_mapped<T>(
+        &mut self,
+        label: &str,
+        current_idx: usize,
+        options: &[&str],
+        target: &mut T,
+        map_fn: impl FnOnce(usize) -> T,
+    ) -> ComboBoxResponse {
+        self.prop_combobox_mapped_styled(
+            label,
+            current_idx,
+            options,
+            ComboRowLayout::default(),
+            target,
+            map_fn,
+        )
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox property row mapped to an arbitrary domain value or enum with custom layout.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `current_idx` - Current zero-based index of the active option.
+    /// * `options` - List of selectable option string labels.
+    /// * `layout` - Column width layout for the label and pill button ([`ComboRowLayout`]).
+    /// * `target` - Target domain value or enum modified in-place upon selection.
+    /// * `map_fn` - Closure mapping the newly selected index to the domain target value.
+    pub fn prop_combobox_mapped_styled<T>(
+        &mut self,
+        label: &str,
+        current_idx: usize,
+        options: &[&str],
+        layout: ComboRowLayout,
+        target: &mut T,
+        map_fn: impl FnOnce(usize) -> T,
+    ) -> ComboBoxResponse {
+        let mut idx = current_idx;
+        let resp = self.prop_combobox_styled(
+            label,
+            &mut idx,
+            options,
+            Some(layout.label_width),
+            Some(layout.button_width),
+        );
+        if resp.changed() && idx != current_idx {
+            *target = map_fn(idx);
+        }
+        resp
     }
 
     /// Emits an interactive property dropdown selection trigger row.

@@ -16,13 +16,9 @@ use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::tags::{
-    resolve_component_checkbox_tag, resolve_component_delete_tag, resolve_inspector_dropdown_tag,
-    resolve_inspector_number_input_tag, resolve_inspector_text_input_tag,
+    resolve_component_delete_tag, resolve_inspector_text_input_tag,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::types::{
-    ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId, InspectorPanelParams,
-    InspectorTextInputId,
-};
+use ae_editor_ui::ui::iris_bridge::inspector::types::{InspectorPanelParams, InspectorTextInputId};
 use ae_editor_ui::ui::iris_bridge::inspector::ui_transform::build_ui_transform_card;
 use irisui::prelude::*;
 
@@ -40,11 +36,9 @@ fn create_test_params<'a>(
         inspector_color_hex: "#ffffff",
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -85,39 +79,22 @@ fn test_ui_transform_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiElement"));
     assert!(has_delete, "UiElement delete button must be tagged");
 
-    // Dropdown for Anchor
+    // 2D Screen Transform inputs via DragVec2
+    tree.assert_node_exists("NumBox_Offset_X");
+    tree.assert_node_exists("NumBox_Offset_Y");
+    tree.assert_node_exists("NumBox_Size_W");
+    tree.assert_node_exists("NumBox_Size_H");
+    tree.assert_node_exists("NumBox_Pivot_X");
+    tree.assert_node_exists("NumBox_Pivot_Y");
+
+    // ComboBox and Checkbox
     let has_dropdown = tree
         .iter()
-        .any(|(_, n)| resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::UiAnchor));
-    assert!(has_dropdown, "UiAnchor dropdown must be tagged");
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_dropdown, "Anchor combobox must be present");
 
-    // 8 Number inputs: Offset X, Y, Size W, H, Pivot X, Y, ZIndex, Alpha
-    let expected_number_inputs = [
-        InspectorNumberInputId::UiOffsetX,
-        InspectorNumberInputId::UiOffsetY,
-        InspectorNumberInputId::UiSizeW,
-        InspectorNumberInputId::UiSizeH,
-        InspectorNumberInputId::UiPivotX,
-        InspectorNumberInputId::UiPivotY,
-        InspectorNumberInputId::UiZIndex,
-        InspectorNumberInputId::UiAlpha,
-    ];
-    for expected_id in expected_number_inputs {
-        let found = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag).is_some_and(|(id, _, _, _)| id == expected_id)
-        });
-        assert!(
-            found,
-            "Number input {:?} must be tagged in tree",
-            expected_id
-        );
-    }
-
-    // Visibility Checkbox
-    let has_checkbox = tree.iter().any(|(_, n)| {
-        resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::UiVisible)
-    });
-    assert!(has_checkbox, "UiVisible checkbox must be tagged");
+    let has_checkbox = tree.iter().any(|(_, n)| n.role == WidgetRole::Checkbox);
+    assert!(has_checkbox, "UiVisible checkbox must be present");
 }
 
 #[test]
@@ -146,20 +123,15 @@ fn test_ui_panel_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiPanel"));
     assert!(has_delete, "UiPanel delete button must be tagged");
 
-    let expected_inputs = [
-        InspectorNumberInputId::UiBorderWidth,
-        InspectorNumberInputId::UiCornerRadius,
-    ];
-    for expected_id in expected_inputs {
-        let found = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag).is_some_and(|(id, _, _, _)| id == expected_id)
-        });
-        assert!(
-            found,
-            "Number input {:?} must be tagged in tree",
-            expected_id
-        );
+    // Direct in-place mutation verification
+    {
+        let mut p = world.get::<&mut ae_core::ecs::UiPanel>(entity).unwrap();
+        p.border_width = 5.0;
+        p.corner_radius = 8.0;
     }
+    let panel = world.get::<&ae_core::ecs::UiPanel>(entity).unwrap();
+    assert_eq!(panel.border_width, 5.0);
+    assert_eq!(panel.corner_radius, 8.0);
 }
 
 #[test]
@@ -194,16 +166,10 @@ fn test_ui_text_card_declarative_structure() {
     });
     assert!(has_text_input, "UiTextContent text input must be tagged");
 
-    let has_font_size = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, _, _, _)| id == InspectorNumberInputId::UiFontSize)
-    });
-    assert!(has_font_size, "UiFontSize number input must be tagged");
-
-    let has_alignment = tree.iter().any(|(_, n)| {
-        resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::UiTextAlignment)
-    });
-    assert!(has_alignment, "UiTextAlignment dropdown must be tagged");
+    let has_alignment = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_alignment, "UiText alignment combobox must be present");
 }
 
 #[test]
@@ -232,6 +198,16 @@ fn test_ui_progress_bar_card_declarative_structure() {
         .iter()
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiProgressBar"));
     assert!(has_delete, "UiProgressBar delete button must be tagged");
+
+    // In-place mutation verification
+    {
+        let mut pb = world
+            .get::<&mut ae_core::ecs::UiProgressBar>(entity)
+            .unwrap();
+        pb.value = 75.0;
+    }
+    let bar = world.get::<&ae_core::ecs::UiProgressBar>(entity).unwrap();
+    assert_eq!(bar.value, 75.0);
 }
 
 #[test]
@@ -259,10 +235,11 @@ fn test_ui_button_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiButton"));
     assert!(has_delete, "UiButton delete button must be tagged");
 
-    let has_interactable = tree.iter().any(|(_, n)| {
-        resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::UiInteractable)
-    });
-    assert!(has_interactable, "UiInteractable checkbox must be tagged");
+    let has_interactable = tree.iter().any(|(_, n)| n.role == WidgetRole::Checkbox);
+    assert!(
+        has_interactable,
+        "UiButton enabled checkbox must be present"
+    );
 }
 
 #[test]

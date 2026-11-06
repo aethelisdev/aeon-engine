@@ -10,9 +10,7 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use super::registry::InspectorRegistry;
-use super::types::{
-    ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId, InspectorTextInputId,
-};
+use super::types::InspectorTextInputId;
 
 /// Semantic tag for the Inspector root scroll panel container.
 pub const TAG_INSPECTOR_PANEL_ROOT: u64 = 0xDAFF_0000;
@@ -25,9 +23,6 @@ pub const TAG_INSPECTOR_ACTION_BASE: u64 = 0xDA00_0000;
 
 /// Base numeric domain for attachable component items inside the Add Component menu.
 pub const TAG_ADD_MENU_COMPONENT_BASE: u64 = 0xDB00_0000;
-
-/// Base numeric domain for selectable items inside the Inspector dropdown popup menus.
-pub const TAG_INSPECTOR_DROPDOWN_ITEM_BASE: u64 = 0xDD80_0000;
 
 /// Checks whether a semantic tag belongs to the Inspector subsystem (including the root panel container).
 #[inline]
@@ -104,15 +99,6 @@ pub const fn resolve_palette_swatch_tag(tag: u64) -> Option<usize> {
 /// Base numeric domain for component delete/trash action buttons.
 pub const TAG_COMPONENT_DELETE_BASE: u64 = 0xDF00_0000;
 
-/// Base numeric domain for dropdown combobox trigger buttons.
-pub const TAG_INSPECTOR_DROPDOWN_BASE: u64 = 0xDD00_0000;
-
-/// Base numeric domain for component boolean checkbox toggles.
-pub const TAG_INSPECTOR_CHECKBOX_BASE: u64 = 0xDC00_0000;
-
-/// Base numeric domain for scalar numeric input fields.
-pub const TAG_INSPECTOR_NUMBER_INPUT_BASE: u64 = 0xD100_0000;
-
 /// Base numeric domain for string text input fields.
 pub const TAG_INSPECTOR_TEXT_INPUT_BASE: u64 = 0xDE00_0000;
 
@@ -152,122 +138,6 @@ pub fn resolve_component_delete_tag(tag: u64) -> Option<&'static str> {
 
     if encode_component_delete_tag("UiElement") == tag {
         return Some("UiElement");
-    }
-
-    None
-}
-
-/// Encodes an [`InspectorDropdownId`] into a unique 64-bit semantic tag.
-#[inline]
-#[must_use]
-pub const fn encode_inspector_dropdown_tag(dd: InspectorDropdownId) -> u64 {
-    TAG_INSPECTOR_DROPDOWN_BASE + dd as u64
-}
-
-/// Resolves a semantic tag into its corresponding [`InspectorDropdownId`].
-#[must_use]
-pub const fn resolve_inspector_dropdown_tag(tag: u64) -> Option<InspectorDropdownId> {
-    if tag >= TAG_INSPECTOR_DROPDOWN_BASE && tag < TAG_INSPECTOR_DROPDOWN_BASE + 8 {
-        match tag - TAG_INSPECTOR_DROPDOWN_BASE {
-            0 => Some(InspectorDropdownId::RigidBodyType),
-            1 => Some(InspectorDropdownId::ColliderShape),
-            2 => Some(InspectorDropdownId::SurfaceType),
-            3 => Some(InspectorDropdownId::LightType),
-            4 => Some(InspectorDropdownId::CameraProjection),
-            5 => Some(InspectorDropdownId::ShapeType),
-            6 => Some(InspectorDropdownId::UiAnchor),
-            7 => Some(InspectorDropdownId::UiTextAlignment),
-            _ => None,
-        }
-    } else {
-        None
-    }
-}
-
-/// Encodes a [`ComponentCheckboxId`] into a unique 64-bit semantic tag.
-#[inline]
-#[must_use]
-pub const fn encode_component_checkbox_tag(cb_id: ComponentCheckboxId) -> u64 {
-    TAG_INSPECTOR_CHECKBOX_BASE + cb_id as u64
-}
-
-/// Resolves a semantic tag into its corresponding [`ComponentCheckboxId`].
-#[must_use]
-pub const fn resolve_component_checkbox_tag(tag: u64) -> Option<ComponentCheckboxId> {
-    if tag >= TAG_INSPECTOR_CHECKBOX_BASE && tag < TAG_INSPECTOR_CHECKBOX_BASE + 7 {
-        match tag - TAG_INSPECTOR_CHECKBOX_BASE {
-            0 => Some(ComponentCheckboxId::ColliderIsSensor),
-            1 => Some(ComponentCheckboxId::AudioLoop),
-            2 => Some(ComponentCheckboxId::AudioSpatial),
-            3 => Some(ComponentCheckboxId::AudioPlayOnStart),
-            4 => Some(ComponentCheckboxId::LightCastShadows),
-            5 => Some(ComponentCheckboxId::UiInteractable),
-            6 => Some(ComponentCheckboxId::UiVisible),
-            _ => None,
-        }
-    } else {
-        None
-    }
-}
-
-/// Encodes an [`InspectorNumberInputId`] into a unique 64-bit semantic tag.
-///
-/// Delegates to [`InspectorNumberInputId::to_tag_index`] as the Single Source of Truth.
-#[inline]
-#[must_use]
-pub const fn encode_inspector_number_input_tag(id: InspectorNumberInputId) -> u64 {
-    TAG_INSPECTOR_NUMBER_INPUT_BASE + id.to_tag_index() as u64
-}
-
-/// Resolves an interactive semantic tag into its numeric input field identifier, valid range bounds, and sensitivity.
-///
-/// Automatically delegates to Transform numeric resolution if appropriate, enabling uniform $O(1)$ dispatch.
-/// Safely bounds-checks against at least 64 variants and delegates to [`InspectorNumberInputId::from_tag_index`].
-#[must_use]
-pub fn resolve_inspector_number_input_tag(
-    tag: u64,
-) -> Option<(InspectorNumberInputId, f32, f32, f32)> {
-    if (TAG_INSPECTOR_NUMBER_INPUT_BASE..TAG_INSPECTOR_NUMBER_INPUT_BASE + 64).contains(&tag) {
-        let idx = (tag - TAG_INSPECTOR_NUMBER_INPUT_BASE) as usize;
-        if let Some(id) = InspectorNumberInputId::from_tag_index(idx) {
-            let (min_val, max_val) = id.valid_range();
-            let sensitivity = match id {
-                InspectorNumberInputId::UiOffsetX
-                | InspectorNumberInputId::UiOffsetY
-                | InspectorNumberInputId::UiSizeW
-                | InspectorNumberInputId::UiSizeH => 1.0,
-                InspectorNumberInputId::UiFontSize
-                | InspectorNumberInputId::UiBorderWidth
-                | InspectorNumberInputId::UiCornerRadius
-                | InspectorNumberInputId::UiProgressVal
-                | InspectorNumberInputId::UiProgressMin
-                | InspectorNumberInputId::UiProgressMax
-                | InspectorNumberInputId::UiZIndex => 0.5,
-                InspectorNumberInputId::UiAlpha
-                | InspectorNumberInputId::UiPivotX
-                | InspectorNumberInputId::UiPivotY => 0.01,
-                InspectorNumberInputId::RotX
-                | InspectorNumberInputId::RotY
-                | InspectorNumberInputId::RotZ
-                | InspectorNumberInputId::CharacterMaxSlope => 0.5,
-                InspectorNumberInputId::ScaleX
-                | InspectorNumberInputId::ScaleY
-                | InspectorNumberInputId::ScaleZ => 0.01,
-                InspectorNumberInputId::PosX
-                | InspectorNumberInputId::PosY
-                | InspectorNumberInputId::PosZ => 0.1,
-                InspectorNumberInputId::RigidBodyMass
-                | InspectorNumberInputId::RigidBodyGravity
-                | InspectorNumberInputId::ColliderBoxX
-                | InspectorNumberInputId::ColliderBoxY
-                | InspectorNumberInputId::ColliderBoxZ
-                | InspectorNumberInputId::ColliderHalfHeight
-                | InspectorNumberInputId::ColliderRadius
-                | InspectorNumberInputId::ColliderCenterY => 0.05,
-                _ => 0.05,
-            };
-            return Some((id, min_val, max_val, sensitivity));
-        }
     }
 
     None
@@ -416,42 +286,6 @@ mod tests {
                 "Delete tag must resolve back to {}",
                 name
             );
-        }
-    }
-
-    #[test]
-    fn test_number_input_tag_encoding_and_resolution_coverage() {
-        for idx in 0..57 {
-            let id = InspectorNumberInputId::from_tag_index(idx)
-                .expect("valid index 0..57 must have a variant");
-            assert_eq!(id.to_tag_index(), idx);
-            let tag = encode_inspector_number_input_tag(id);
-            assert!(
-                is_inspector_tag(tag),
-                "is_inspector_tag must return true for number input {:?}",
-                id
-            );
-            let resolved = resolve_inspector_number_input_tag(tag);
-            assert!(
-                resolved.is_some(),
-                "resolve_inspector_number_input_tag must resolve tag for {:?}",
-                id
-            );
-            assert_eq!(resolved.unwrap().0, id);
-        }
-
-        // Out of bounds check: 57..128 must be None
-        for out_of_bounds in 57..128 {
-            assert_eq!(
-                InspectorNumberInputId::from_tag_index(out_of_bounds),
-                None,
-                "Tag index {} should be out of bounds",
-                out_of_bounds
-            );
-            let invalid_tag = TAG_INSPECTOR_NUMBER_INPUT_BASE + out_of_bounds as u64;
-            if out_of_bounds >= 64 {
-                assert_eq!(resolve_inspector_number_input_tag(invalid_tag), None);
-            }
         }
     }
 

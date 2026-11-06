@@ -7,341 +7,6 @@
 //! and interaction state models for the Iris UI GPU SDF Inspector panel.
 
 use irisui::prelude::*;
-use irisui::widgets::controls::NumericDragState;
-use irisui::widgets::numeric_input::NumericInputEditState;
-
-/// Number input field identifier inside the Inspector panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(usize)]
-pub enum InspectorNumberInputId {
-    /// Transform position X.
-    PosX = 0,
-    /// Transform position Y.
-    PosY = 1,
-    /// Transform position Z.
-    PosZ = 2,
-    /// Transform rotation Euler X (degrees).
-    RotX = 3,
-    /// Transform rotation Euler Y (degrees).
-    RotY = 4,
-    /// Transform rotation Euler Z (degrees).
-    RotZ = 5,
-    /// Transform scale X.
-    ScaleX = 6,
-    /// Transform scale Y.
-    ScaleY = 7,
-    /// Transform scale Z.
-    ScaleZ = 8,
-    /// Collider Half-Height.
-    ColliderHalfHeight = 9,
-    /// Collider Radius.
-    ColliderRadius = 10,
-    /// Collider Center Y offset.
-    ColliderCenterY = 11,
-    /// Collider Box Half-Extent X.
-    ColliderBoxX = 12,
-    /// Collider Box Half-Extent Y.
-    ColliderBoxY = 13,
-    /// Collider Box Half-Extent Z.
-    ColliderBoxZ = 14,
-    /// Collider Friction coefficient.
-    ColliderFriction = 15,
-    /// Collider Restitution coefficient.
-    ColliderRestitution = 16,
-    /// Physics Material Friction.
-    PhysMatFriction = 17,
-    /// Physics Material Restitution.
-    PhysMatRestitution = 18,
-    /// Character controller height.
-    CharacterHeight = 19,
-    /// Character controller radius.
-    CharacterRadius = 20,
-    /// Character controller center Y offset.
-    CharacterCenterY = 21,
-    /// Character max slope angle (degrees).
-    CharacterMaxSlope = 22,
-    /// Character controller step height.
-    CharacterStepHeight = 23,
-    /// CharacterAction speed or range.
-    ActionSpeedRange = 24,
-    /// CharacterAction cooldown time (seconds).
-    ActionCooldown = 25,
-    /// Velocity linear X.
-    VelocityX = 26,
-    /// Velocity linear Y.
-    VelocityY = 27,
-    /// Velocity linear Z.
-    VelocityZ = 28,
-    /// Rotator angular speed (rad/s).
-    RotatorSpeed = 29,
-    /// Rotator axis X, Y, Z components.
-    RotatorAxisX = 30,
-    RotatorAxisY = 31,
-    RotatorAxisZ = 32,
-    /// Light offset Y and color components.
-    LightOffsetY = 33,
-    LightColorR = 34,
-    LightColorG = 35,
-    /// RigidBody mass (kg).
-    RigidBodyMass = 36,
-    /// RigidBody gravity scale.
-    RigidBodyGravity = 37,
-    /// Camera field of view (degrees).
-    CameraFov = 38,
-    /// Camera near plane.
-    CameraNear = 39,
-    /// Camera far plane.
-    CameraFar = 40,
-    /// AudioSource volume gain (0.0 to 2.0).
-    AudioVolume = 41,
-    /// AudioSource pitch playback multiplier (0.1 to 3.0).
-    AudioPitch = 42,
-    /// 2D Screen UI Element Offset X (px).
-    UiOffsetX = 43,
-    /// 2D Screen UI Element Offset Y (px).
-    UiOffsetY = 44,
-    /// 2D Screen UI Element Size Width (px).
-    UiSizeW = 45,
-    /// 2D Screen UI Element Size Height (px).
-    UiSizeH = 46,
-    /// 2D Screen UI Element Pivot X (0.0 to 1.0).
-    UiPivotX = 47,
-    /// 2D Screen UI Element Pivot Y (0.0 to 1.0).
-    UiPivotY = 48,
-    /// 2D Screen UI Element Z-Index layer ordering.
-    UiZIndex = 49,
-    /// 2D Screen UI Element Opacity Alpha (0.0 to 1.0).
-    UiAlpha = 50,
-    /// 2D Screen UI Text font size (pt).
-    UiFontSize = 51,
-    /// 2D Screen UI Panel border width (px).
-    UiBorderWidth = 52,
-    /// 2D Screen UI Panel corner radius (px).
-    UiCornerRadius = 53,
-    /// 2D Screen UI ProgressBar minimum value.
-    UiProgressMin = 54,
-    /// 2D Screen UI ProgressBar maximum value.
-    UiProgressMax = 55,
-    /// 2D Screen UI ProgressBar current value.
-    UiProgressVal = 56,
-}
-
-impl InspectorNumberInputId {
-    /// Returns the canonical ComponentRegistry type name associated with this numeric field.
-    #[must_use]
-    pub fn component_name(self) -> &'static str {
-        match self {
-            Self::PosX | Self::PosY | Self::PosZ => "Position",
-            Self::RotX | Self::RotY | Self::RotZ => "Rotation",
-            Self::ScaleX | Self::ScaleY | Self::ScaleZ => "Scale",
-            Self::VelocityX | Self::VelocityY | Self::VelocityZ => "Velocity",
-            Self::ColliderHalfHeight
-            | Self::ColliderRadius
-            | Self::ColliderCenterY
-            | Self::ColliderBoxX
-            | Self::ColliderBoxY
-            | Self::ColliderBoxZ
-            | Self::ColliderFriction
-            | Self::ColliderRestitution => "Collider",
-            Self::PhysMatFriction | Self::PhysMatRestitution => "PhysicsMaterial",
-            Self::CharacterHeight
-            | Self::CharacterRadius
-            | Self::CharacterCenterY
-            | Self::CharacterMaxSlope
-            | Self::CharacterStepHeight => "CharacterController",
-            Self::ActionSpeedRange | Self::ActionCooldown => "CharacterAction",
-            Self::RotatorSpeed | Self::RotatorAxisX | Self::RotatorAxisY | Self::RotatorAxisZ => {
-                "Rotator"
-            }
-            Self::LightOffsetY | Self::LightColorR | Self::LightColorG => "Light",
-            Self::RigidBodyMass | Self::RigidBodyGravity => "RigidBody",
-            Self::CameraFov | Self::CameraNear | Self::CameraFar => "Camera",
-            Self::AudioVolume | Self::AudioPitch => "AudioSource",
-            Self::UiOffsetX
-            | Self::UiOffsetY
-            | Self::UiSizeW
-            | Self::UiSizeH
-            | Self::UiPivotX
-            | Self::UiPivotY
-            | Self::UiZIndex
-            | Self::UiAlpha => "UiElement",
-            Self::UiFontSize => "UiText",
-            Self::UiBorderWidth | Self::UiCornerRadius => "UiPanel",
-            Self::UiProgressMin | Self::UiProgressMax | Self::UiProgressVal => "UiProgressBar",
-        }
-    }
-
-    /// Returns the valid numerical range `[min, max]` allowed for this property.
-    ///
-    /// Prevents physics solver singularities, negative extents, negative mass, and invalid ranges.
-    #[must_use]
-    pub fn valid_range(self) -> (f32, f32) {
-        match self {
-            Self::PosX | Self::PosY | Self::PosZ => (-100_000.0, 100_000.0),
-            Self::RotX | Self::RotY | Self::RotZ => (-36_000.0, 36_000.0),
-            Self::ScaleX | Self::ScaleY | Self::ScaleZ => (-10_000.0, 10_000.0),
-            Self::VelocityX | Self::VelocityY | Self::VelocityZ => (-100_000.0, 100_000.0),
-            Self::ColliderBoxX | Self::ColliderBoxY | Self::ColliderBoxZ => (0.001, 10_000.0),
-            Self::ColliderHalfHeight | Self::ColliderRadius => (0.001, 10_000.0),
-            Self::ColliderCenterY => (-10_000.0, 10_000.0),
-            Self::ColliderFriction | Self::PhysMatFriction => (0.0, 100.0),
-            Self::ColliderRestitution | Self::PhysMatRestitution => (0.0, 1.0),
-            Self::CharacterHeight => (0.05, 1_000.0),
-            Self::CharacterRadius => (0.01, 500.0),
-            Self::CharacterCenterY => (-1_000.0, 1_000.0),
-            Self::CharacterMaxSlope => (0.0, 89.9),
-            Self::CharacterStepHeight => (0.0, 100.0),
-            Self::ActionSpeedRange => (0.0, 10_000.0),
-            Self::ActionCooldown => (0.0, 3_600.0),
-            Self::RotatorSpeed => (-100.0, 100.0),
-            Self::RotatorAxisX | Self::RotatorAxisY | Self::RotatorAxisZ => (-1.0, 1.0),
-            Self::LightOffsetY => (-1_000.0, 1_000.0),
-            Self::LightColorR | Self::LightColorG => (0.0, 100.0),
-            Self::RigidBodyMass => (0.001, 100_000.0),
-            Self::RigidBodyGravity => (-100.0, 100.0),
-            Self::CameraFov => (1.0, 179.0),
-            Self::CameraNear => (0.001, 1_000.0),
-            Self::CameraFar => (0.01, 100_000.0),
-            Self::AudioVolume => (0.0, 10.0),
-            Self::AudioPitch => (0.05, 5.0),
-            Self::UiOffsetX | Self::UiOffsetY => (-10_000.0, 10_000.0),
-            Self::UiSizeW | Self::UiSizeH => (1.0, 10_000.0),
-            Self::UiPivotX | Self::UiPivotY => (0.0, 1.0),
-            Self::UiZIndex => (-1_000.0, 1_000.0),
-            Self::UiAlpha => (0.0, 1.0),
-            Self::UiFontSize => (1.0, 500.0),
-            Self::UiBorderWidth => (0.0, 200.0),
-            Self::UiCornerRadius => (0.0, 200.0),
-            Self::UiProgressMin | Self::UiProgressMax | Self::UiProgressVal => {
-                (-100_000.0, 100_000.0)
-            }
-        }
-    }
-
-    /// Clamps an incoming numeric value to the safe range prescribed by this input identifier.
-    #[must_use]
-    pub fn clamp_value(self, val: f32) -> f32 {
-        let (min_val, max_val) = self.valid_range();
-        val.clamp(min_val, max_val)
-    }
-
-    /// Converts this numeric field identifier to a zero-based tag index.
-    ///
-    /// Serves as the canonical Single Source of Truth (SSOT) mapping between
-    /// variant order and persistent 64-bit semantic tags.
-    #[inline]
-    #[must_use]
-    pub const fn to_tag_index(self) -> usize {
-        self as usize
-    }
-
-    /// Resolves a zero-based tag index back into its corresponding numeric field identifier.
-    ///
-    /// Serves as the canonical Single Source of Truth (SSOT) mapping from
-    /// semantic tag offsets to [`InspectorNumberInputId`] variants.
-    #[inline]
-    #[must_use]
-    pub const fn from_tag_index(idx: usize) -> Option<Self> {
-        match idx {
-            0 => Some(Self::PosX),
-            1 => Some(Self::PosY),
-            2 => Some(Self::PosZ),
-            3 => Some(Self::RotX),
-            4 => Some(Self::RotY),
-            5 => Some(Self::RotZ),
-            6 => Some(Self::ScaleX),
-            7 => Some(Self::ScaleY),
-            8 => Some(Self::ScaleZ),
-            9 => Some(Self::ColliderHalfHeight),
-            10 => Some(Self::ColliderRadius),
-            11 => Some(Self::ColliderCenterY),
-            12 => Some(Self::ColliderBoxX),
-            13 => Some(Self::ColliderBoxY),
-            14 => Some(Self::ColliderBoxZ),
-            15 => Some(Self::ColliderFriction),
-            16 => Some(Self::ColliderRestitution),
-            17 => Some(Self::PhysMatFriction),
-            18 => Some(Self::PhysMatRestitution),
-            19 => Some(Self::CharacterHeight),
-            20 => Some(Self::CharacterRadius),
-            21 => Some(Self::CharacterCenterY),
-            22 => Some(Self::CharacterMaxSlope),
-            23 => Some(Self::CharacterStepHeight),
-            24 => Some(Self::ActionSpeedRange),
-            25 => Some(Self::ActionCooldown),
-            26 => Some(Self::VelocityX),
-            27 => Some(Self::VelocityY),
-            28 => Some(Self::VelocityZ),
-            29 => Some(Self::RotatorSpeed),
-            30 => Some(Self::RotatorAxisX),
-            31 => Some(Self::RotatorAxisY),
-            32 => Some(Self::RotatorAxisZ),
-            33 => Some(Self::LightOffsetY),
-            34 => Some(Self::LightColorR),
-            35 => Some(Self::LightColorG),
-            36 => Some(Self::RigidBodyMass),
-            37 => Some(Self::RigidBodyGravity),
-            38 => Some(Self::CameraFov),
-            39 => Some(Self::CameraNear),
-            40 => Some(Self::CameraFar),
-            41 => Some(Self::AudioVolume),
-            42 => Some(Self::AudioPitch),
-            43 => Some(Self::UiOffsetX),
-            44 => Some(Self::UiOffsetY),
-            45 => Some(Self::UiSizeW),
-            46 => Some(Self::UiSizeH),
-            47 => Some(Self::UiPivotX),
-            48 => Some(Self::UiPivotY),
-            49 => Some(Self::UiZIndex),
-            50 => Some(Self::UiAlpha),
-            51 => Some(Self::UiFontSize),
-            52 => Some(Self::UiBorderWidth),
-            53 => Some(Self::UiCornerRadius),
-            54 => Some(Self::UiProgressMin),
-            55 => Some(Self::UiProgressMax),
-            56 => Some(Self::UiProgressVal),
-            _ => None,
-        }
-    }
-}
-
-/// Dropdown selector identifier inside the Inspector panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum InspectorDropdownId {
-    /// RigidBody Body Type (Dynamic, Kinematic, Static).
-    RigidBodyType,
-    /// Collider Shape (Box, Sphere, Capsule, Cylinder).
-    ColliderShape,
-    /// Physics Material Surface Type (Flesh, Concrete, Metal, Wood, Ice, Rubber, Glass).
-    SurfaceType,
-    /// Light Type (Point, Directional, Spot).
-    LightType,
-    /// Camera Projection (Perspective, Orthographic).
-    CameraProjection,
-    /// 3D Shape Type (Cube, Sphere, Cylinder, Capsule, Torus, Plane).
-    ShapeType,
-    /// 2D Screen UI Element Anchor Preset.
-    UiAnchor,
-    /// 2D Screen UI Text horizontal alignment.
-    UiTextAlignment,
-}
-
-impl InspectorDropdownId {
-    /// Returns the canonical ComponentRegistry type name associated with this dropdown selector.
-    #[must_use]
-    pub fn component_name(self) -> &'static str {
-        match self {
-            Self::RigidBodyType => "RigidBody",
-            Self::ColliderShape => "Collider",
-            Self::SurfaceType => "PhysicsMaterial",
-            Self::LightType => "Light",
-            Self::CameraProjection => "Camera",
-            Self::ShapeType => "Shape",
-            Self::UiAnchor => "UiElement",
-            Self::UiTextAlignment => "UiText",
-        }
-    }
-}
 
 /// 8-Category classification for the `➕ Add Component` cascading menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -428,7 +93,7 @@ impl ComponentCategory {
 }
 
 /// User actions emitted by interactive widgets in the Inspector panel.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InspectorAction {
     /// Renames the specified entity in the ECS world.
     RenameEntity(hecs::Entity, String),
@@ -436,8 +101,6 @@ pub enum InspectorAction {
     FocusRename,
     /// Resets a specific transform axis (Position, Rotation, or Scale) on an entity.
     ResetTransform(hecs::Entity, TransformAxisType),
-    /// Applies a direct numeric value change to a component property on an entity.
-    SetNumberValue(hecs::Entity, InspectorNumberInputId, f32),
     /// Applies an object color change from the Appearance card to an entity.
     SetObjectColor(hecs::Entity, Color),
     /// Signals that interactive color picker dragging has begun on an entity, snapshotting pre-edit color.
@@ -456,10 +119,6 @@ pub enum InspectorAction {
     ClearCustomPalette,
     /// Removes a color swatch from the saved palette by index.
     RemoveColorFromPalette(usize),
-    /// Selects a dropdown combo option on an entity.
-    SelectDropdown(hecs::Entity, InspectorDropdownId, usize),
-    /// Toggles a boolean checkbox on a component of an entity.
-    ToggleCheckbox(hecs::Entity, ComponentCheckboxId),
     /// Removes an entire component from the specified entity.
     RemoveComponent(hecs::Entity, &'static str),
     /// Adds a new component to the specified entity from the Add Menu.
@@ -476,10 +135,14 @@ pub enum InspectorAction {
     CloseAddSubmenu,
     /// Resets Physics Material properties to the active SurfaceType preset on an entity.
     ResetPhysMatPreset(hecs::Entity),
-    /// Signals that numeric input editing has begun on an entity, capturing pre-edit component state.
-    StartNumberEdit(hecs::Entity, InspectorNumberInputId),
-    /// Signals that numeric input editing has completed on an entity, committing undo history if value changed.
-    CommitNumberEdit(hecs::Entity, InspectorNumberInputId),
+    /// Signals that editing has begun on a named component of an entity, optionally supplying pre-edit snapshot bytes.
+    StartComponentEdit(hecs::Entity, &'static str, Option<Vec<u8>>),
+    /// Signals that editing has completed on a named component of an entity, committing undo history if state changed.
+    CommitComponentEdit(hecs::Entity, &'static str),
+    /// Commits an atomic modify undo action on a component with explicit pre-edit and post-edit byte snapshots.
+    CommitComponentModify(hecs::Entity, &'static str, Vec<u8>, Vec<u8>),
+    /// Synchronizes authoritatively inspected Euler rotation angles [rx, ry, rz] in degrees.
+    SyncInspectorEuler(f32, f32, f32),
     /// Opens native file dialog to select sound asset for AudioSource on an entity.
     PickAudioFile(hecs::Entity),
     /// Toggles play/stop preview playback for AudioSource on an entity.
@@ -521,65 +184,6 @@ pub enum TransformAxisType {
     Scale,
 }
 
-/// Checkbox field identifier on components.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ComponentCheckboxId {
-    /// Collider IsSensor trigger flag.
-    ColliderIsSensor,
-    /// AudioSource loop flag.
-    AudioLoop,
-    /// AudioSource spatial 3D audio flag.
-    AudioSpatial,
-    /// AudioSource play on start flag.
-    AudioPlayOnStart,
-    /// Light shadow casting flag.
-    LightCastShadows,
-    /// UI Button interactable state.
-    UiInteractable,
-    /// UI Element visible state flag.
-    UiVisible,
-}
-
-impl ComponentCheckboxId {
-    /// Returns the canonical ComponentRegistry type name associated with this boolean checkbox.
-    #[must_use]
-    pub fn component_name(self) -> &'static str {
-        match self {
-            Self::ColliderIsSensor => "Collider",
-            Self::AudioLoop | Self::AudioSpatial | Self::AudioPlayOnStart => "AudioSource",
-            Self::LightCastShadows => "Light",
-            Self::UiInteractable => "UiButton",
-            Self::UiVisible => "UiElement",
-        }
-    }
-}
-
-/// Active numeric input field display state passed to Inspector rendering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ActiveNumberInputState<'a> {
-    /// Field identifier.
-    pub id: InspectorNumberInputId,
-    /// Live text buffer being edited.
-    pub buffer: &'a str,
-    /// Cursor index within the buffer for caret rendering.
-    pub cursor_idx: usize,
-    /// Whether all text in the field is selected.
-    pub is_all_selected: bool,
-}
-
-impl<'a> ActiveNumberInputState<'a> {
-    /// Converts this active number input state to an Iris UI [`NumericInputEditState`].
-    #[must_use]
-    pub fn to_edit_state(&self, blink_caret: bool) -> NumericInputEditState<'a> {
-        NumericInputEditState {
-            buffer: self.buffer,
-            cursor_idx: self.cursor_idx,
-            is_all_selected: self.is_all_selected,
-            blink_caret,
-        }
-    }
-}
-
 /// Input parameters supplied to the Inspector panel layout builder.
 pub struct InspectorPanelParams<'a> {
     /// Bounding rectangle of the docked Inspector panel tab.
@@ -596,16 +200,12 @@ pub struct InspectorPanelParams<'a> {
     pub saved_swatches: &'a [[f32; 4]],
     /// Current mouse cursor position in global screen coordinates.
     pub cursor_pos: Point,
-    /// Active open dropdown identifier (if any).
-    pub active_dropdown: Option<InspectorDropdownId>,
     /// Active open Add Component category flyout (if any).
     pub active_submenu: Option<ComponentCategory>,
     /// Whether the top-level Add Component menu is open.
     pub is_add_menu_open: bool,
     /// Whether the floating Color Picker popup is open.
     pub is_color_picker_open: bool,
-    /// Active numeric input field display and cursor state if currently focused.
-    pub active_number_input: Option<ActiveNumberInputState<'a>>,
     /// Active string text input field and its buffer: `(FieldId, BufferText)`.
     pub active_text_input: Option<(InspectorTextInputId, &'a str)>,
     /// Active entity rename text buffer if currently being edited.
@@ -637,83 +237,9 @@ impl<'a> InspectorPanelParams<'a> {
     }
 }
 
-/// Active horizontal mouse drag state for interactive Inspector numeric inputs.
-///
-/// Wraps the framework-level [`NumericDragState`] to provide autonomous scrubber
-/// dragging, pointer capture, speed multipliers, and in-place click detection.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct InspectorNumberDragState {
-    /// Inspected target ECS entity.
-    pub entity: hecs::Entity,
-    /// Target numeric input identifier.
-    pub id: InspectorNumberInputId,
-    /// Autonomous framework scrubber drag tracking state.
-    pub drag: NumericDragState,
-}
-
-impl InspectorNumberDragState {
-    /// Creates a new Inspector numeric drag session wrapping [`NumericDragState`].
-    pub fn new(
-        entity: hecs::Entity,
-        id: InspectorNumberInputId,
-        start_x: f32,
-        start_val: f32,
-        min_val: f32,
-        max_val: f32,
-        sensitivity: f32,
-    ) -> Self {
-        Self {
-            entity,
-            id,
-            drag: NumericDragState::new(
-                start_x,
-                start_val as f64,
-                sensitivity as f64,
-                min_val as f64,
-                max_val as f64,
-            ),
-        }
-    }
-
-    /// Returns the initial starting value as an `f32`.
-    #[must_use]
-    #[inline]
-    pub fn start_val(&self) -> f32 {
-        self.drag.start_val as f32
-    }
-
-    /// Sets the initial starting value (e.g. from live world snapshot).
-    #[inline]
-    pub fn set_start_val(&mut self, val: f32) {
-        self.drag.start_val = val as f64;
-        self.drag.current_val = val as f64;
-    }
-}
-
 /// Dragging mode on the 2D HSV color picker.
 ///
 /// Aliased directly to [`irisui::widgets::color_picker::ColorPickerDragMode`].
 pub type InspectorColorDragMode = irisui::widgets::color_picker::ColorPickerDragMode;
-
-/// Active numeric text input session in Inspector.
-#[derive(Debug, Clone)]
-pub struct InspectorNumberInputSession {
-    /// Target entity being modified.
-    pub entity: hecs::Entity,
-    /// Identifier of the specific numeric field being edited.
-    pub id: InspectorNumberInputId,
-    /// Text buffer containing the current expression or number.
-    pub buffer: String,
-    /// Byte cursor index within the buffer for caret rendering and insertion.
-    pub cursor_idx: usize,
-    /// Whether the text in the buffer is fully selected.
-    pub is_all_selected: bool,
-    /// Initial baseline value before editing started.
-    pub initial_val: f32,
-    /// Minimum allowed value for clamping.
-    pub min_val: f32,
-    /// Maximum allowed value for clamping.
-    pub max_val: f32,
-}
 
 pub use super::state::{InspectorPanelState, InspectorState};

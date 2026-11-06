@@ -5,14 +5,10 @@
 //!
 //! Provides a declarative inspector card for continuous rotation components around an arbitrary 3D axis.
 
-use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, build_declarative_card_header,
-};
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
-use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
+use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `🔄 Rotator`.
@@ -44,54 +40,45 @@ impl ComponentInspectorHandler for RotatorHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut speed, [mut ax, mut ay, mut az]) = ctx
-            .world
-            .get::<&ae_core::ecs::Rotator>(ctx.entity)
-            .map(|r| (r.speed, r.axis))
-            .unwrap_or((1.5, [0.0, 1.0, 0.0]));
+        let Ok(mut r) = ctx.world.get::<&mut ae_core::ecs::Rotator>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("RotatorCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Speed (rad/s):",
+                &mut r.speed,
+                -100.0..=100.0,
+                0.05,
             );
-
-            let mut row_defs = [
-                (
-                    "Speed (rad/s):",
-                    &mut speed,
-                    InspectorNumberInputId::RotatorSpeed,
-                ),
-                ("Axis X:", &mut ax, InspectorNumberInputId::RotatorAxisX),
-                ("Axis Y:", &mut ay, InspectorNumberInputId::RotatorAxisY),
-                ("Axis Z:", &mut az, InspectorNumberInputId::RotatorAxisZ),
-            ];
-
-            for (lbl, val, input_id) in &mut row_defs {
-                let tag = encode_inspector_number_input_tag(*input_id);
-                let edit = ctx.edit_state(*input_id);
-                let resp = card.add(
-                    NumericDrag::new(lbl, val)
-                        .tag(tag)
-                        .label_width(95.0)
-                        .box_width(44.0)
-                        .curve(DragCurve::quadratic())
-                        .edit_state(edit),
-                );
-                if resp.changed() {
-                    ctx.set_number(*input_id, **val);
-                }
-                if resp.committed() {
-                    ctx.commit_number(*input_id);
-                }
-            }
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Axis X:",
+                &mut r.axis[0],
+                -1.0..=1.0,
+                0.05,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Axis Y:",
+                &mut r.axis[1],
+                -1.0..=1.0,
+                0.05,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Axis Z:",
+                &mut r.axis[2],
+                -1.0..=1.0,
+                0.05,
+            );
         });
     }
 
@@ -109,13 +96,11 @@ impl ComponentInspectorHandler for RotatorHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::{
-        encode_component_delete_tag, encode_inspector_number_input_tag,
-    };
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
 
     #[test]
-    fn test_rotator_render_tags() {
+    fn test_rotator_render_and_in_place_mutation() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::Rotator {
             speed: 1.5,
@@ -133,11 +118,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -146,15 +129,58 @@ mod tests {
             blink_caret: false,
         };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
         let handler = RotatorHandler;
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
         let del_tag = encode_component_delete_tag("Rotator");
-        assert!(tree.iter().any(|(_, n)| n.tag == del_tag));
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "Rotator card must tag delete button with semantic delete tag"
+        );
 
-        let speed_tag = encode_inspector_number_input_tag(InspectorNumberInputId::RotatorSpeed);
-        assert!(tree.iter().any(|(_, n)| n.tag == speed_tag));
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 4,
+            "Rotator card must emit 4 numeric pills (Speed, Axis X, Axis Y, Axis Z)"
+        );
+
+        // Test in-place mutation and undo snapshotting
+        {
+            let mut r = world.get::<&mut ae_core::ecs::Rotator>(entity).unwrap();
+            ctx.begin_edit(handler.component_name());
+            r.speed = 2.5;
+            r.axis = [1.0, 0.0, 0.0];
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let r = world.get::<&ae_core::ecs::Rotator>(entity).unwrap();
+            assert_eq!(r.speed, 2.5);
+            assert_eq!(r.axis, [1.0, 0.0, 0.0]);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
     }
 }

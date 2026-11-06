@@ -317,7 +317,23 @@ impl<'a> UiScope<'a> {
         self.numeric_drag_range(label, value, speed, min, max)
     }
 
-    /// Emits a 3D vector property row with inline X, Y, Z drag-value editors.
+    /// Emits a 2D vector property drag row with dedicated axis numeric drag inputs.
+    ///
+    /// Modifies `values` (`[x, y]`) in place and yields a [`crate::declarative::widget::Vec2Response`].
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive vector label (e.g. `"Offset"`, `"Size"`).
+    /// * `values` - Mutable slice containing `[x, y]` vector coordinates.
+    /// * `speed` - Multiplier applied to drag displacement.
+    pub fn drag_vec2(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 2],
+        speed: f32,
+    ) -> crate::declarative::widget::Vec2Response {
+        self.add(crate::declarative::widget::DragVec2::new(label, values).speed(speed))
+    }
+
     /// Emits a 3D vector property drag row with dedicated X, Y, and Z numeric drag inputs.
     ///
     /// Modifies `values` (`[x, y, z]`) in place and yields a [`crate::declarative::widget::Vec3Response`].
@@ -334,6 +350,411 @@ impl<'a> UiScope<'a> {
     ) -> crate::declarative::widget::Vec3Response {
         self.add(crate::declarative::widget::DragVec3::new(label, values).speed(speed))
     }
+
+    /// Emits a declarative floating-point property scrubber modifying `value` in-place.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing and yields a [`crate::declarative::widget::ScalarResponse`]
+    /// with direct access to `.changed()`, `.committed()`, and mutated `.value()`.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed alongside the numeric value.
+    /// * `value` - Mutable reference to the floating-point scalar value modified in-place upon interaction.
+    pub fn drag_f32(
+        &mut self,
+        label: &str,
+        value: &mut f32,
+    ) -> crate::declarative::widget::ScalarResponse {
+        self.add(crate::declarative::widget::NumericDrag::new(label, value))
+    }
+
+    /// Emits a declarative floating-point property scrubber constrained within an explicit `[min, max]` range.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing with custom velocity and boundary bounds, yielding
+    /// a [`crate::declarative::widget::ScalarResponse`] with direct access to `.changed()` and `.committed()` signals.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed alongside the numeric value.
+    /// * `value` - Mutable reference to the floating-point scalar value modified in-place upon interaction.
+    /// * `range` - Inclusive numeric boundary constraints governing valid scalar values.
+    /// * `speed` - Drag sensitivity multiplier applied per pointer displacement pixel.
+    pub fn drag_f32_ranged(
+        &mut self,
+        label: &str,
+        value: &mut f32,
+        range: std::ops::RangeInclusive<f32>,
+        speed: f32,
+    ) -> crate::declarative::widget::ScalarResponse {
+        self.add(
+            crate::declarative::widget::NumericDrag::new(label, value)
+                .range(range)
+                .speed(speed),
+        )
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox widget modifying `selected` index in-place.
+    ///
+    /// Displays the currently selected option label, manages the elevated popup layer autonomously,
+    /// and immediately mutates `*selected = idx` whenever an option is picked.
+    ///
+    /// # Arguments
+    /// * `label` - Optional left-aligned descriptive caption.
+    /// * `selected` - Mutable reference to the active option index modified in-place upon selection.
+    /// * `options` - List of selectable option string labels.
+    pub fn combobox(
+        &mut self,
+        label: Option<&str>,
+        selected: &mut usize,
+        options: &[&str],
+    ) -> crate::declarative::widget::ComboBoxResponse {
+        let selected_text = options.get(*selected).copied().unwrap_or("");
+        let mut combo = crate::declarative::widget::ComboBox::new(selected_text, options);
+        if let Some(lbl) = label {
+            combo = combo.label(lbl);
+        }
+        let resp = self.add(combo);
+        if let Some(idx) = resp.selected_index() {
+            *selected = idx;
+        }
+        resp
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox with an explicit button pill width.
+    ///
+    /// Displays the currently selected option label, manages the elevated popup layer autonomously,
+    /// and immediately mutates `*selected = idx` whenever an option is picked.
+    ///
+    /// # Arguments
+    /// * `label` - Optional left-aligned descriptive caption.
+    /// * `selected` - Mutable reference to the active option index modified in-place upon selection.
+    /// * `options` - List of selectable option string labels.
+    /// * `width` - Explicit width of the interactive trigger button pill in logical pixels.
+    pub fn combobox_styled(
+        &mut self,
+        label: Option<&str>,
+        selected: &mut usize,
+        options: &[&str],
+        width: f32,
+    ) -> crate::declarative::widget::ComboBoxResponse {
+        let selected_text = options.get(*selected).copied().unwrap_or("");
+        let mut combo =
+            crate::declarative::widget::ComboBox::new(selected_text, options).width(width);
+        if let Some(lbl) = label {
+            combo = combo.label(lbl);
+        }
+        let resp = self.add(combo);
+        if let Some(idx) = resp.selected_index() {
+            *selected = idx;
+        }
+        resp
+    }
+    /// Emits a declarative floating-point property scrubber with explicit label width and input box width.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing with custom velocity, boundary bounds, and explicit sizing,
+    /// yielding a [`crate::declarative::widget::ScalarResponse`] with direct access to `.changed()` and `.committed()` signals.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed alongside the numeric value.
+    /// * `value` - Mutable reference to the floating-point scalar value modified in-place upon interaction.
+    /// * `range` - Inclusive numeric boundary constraints governing valid scalar values.
+    /// * `speed` - Drag sensitivity multiplier applied per pointer displacement pixel.
+    /// * `label_width` - Column width in pixels for the left-aligned property label.
+    /// * `box_width` - Fixed width in pixels for the draggable numeric pill box.
+    pub fn drag_f32_styled(
+        &mut self,
+        label: &str,
+        value: &mut f32,
+        range: std::ops::RangeInclusive<f32>,
+        speed: f32,
+        label_width: f32,
+        box_width: f32,
+    ) -> crate::declarative::widget::ScalarResponse {
+        self.add(
+            crate::declarative::widget::NumericDrag::new(label, value)
+                .range(range)
+                .speed(speed)
+                .label_width(label_width)
+                .box_width(box_width),
+        )
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox row with explicit label width and button width.
+    ///
+    /// # Arguments
+    /// * `label` - Left-aligned property caption.
+    /// * `label_width` - Explicit width allocated for the property caption column in logical pixels.
+    /// * `selected` - Mutable reference to the active option index modified in-place upon selection.
+    /// * `options` - List of selectable option string labels.
+    /// * `width` - Explicit width of the interactive trigger button pill in logical pixels.
+    pub fn combobox_row(
+        &mut self,
+        label: &str,
+        label_width: f32,
+        selected: &mut usize,
+        options: &[&str],
+        width: f32,
+    ) -> crate::declarative::widget::ComboBoxResponse {
+        let selected_text = options.get(*selected).copied().unwrap_or("");
+        let combo = crate::declarative::widget::ComboBox::new(selected_text, options)
+            .label(label)
+            .label_width(label_width)
+            .width(width);
+        let resp = self.add(combo);
+        if let Some(idx) = resp.selected_index() {
+            *selected = idx;
+        }
+        resp
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox row mapped to an arbitrary domain value or enum.
+    ///
+    /// Modifies `*target` in-place using `map_fn` when a new option item is selected.
+    ///
+    /// # Arguments
+    /// * `label` - Left-aligned property caption.
+    /// * `current_idx` - Current zero-based index of the active option.
+    /// * `options` - List of selectable option string labels.
+    /// * `layout` - Column width layout for the label and pill button.
+    /// * `target` - Target domain value or enum modified in-place upon selection.
+    /// * `map_fn` - Closure mapping the newly selected index to the domain target value.
+    pub fn combobox_row_mapped<T>(
+        &mut self,
+        label: &str,
+        current_idx: usize,
+        options: &[&str],
+        layout: ComboRowLayout,
+        target: &mut T,
+        map_fn: impl FnOnce(usize) -> T,
+    ) -> crate::declarative::widget::ComboBoxResponse {
+        let mut idx = current_idx;
+        let resp = self.combobox_row(
+            label,
+            layout.label_width,
+            &mut idx,
+            options,
+            layout.button_width,
+        );
+        if resp.changed() && idx != current_idx {
+            *target = map_fn(idx);
+        }
+        resp
+    }
+
+    /// Emits a declarative asset file slot row with path display, file picker trigger, and optional play/stop toggle.
+    ///
+    /// Renders a horizontal container with label, styled path box, picker button, and preview button.
+    pub fn asset_slot_row(&mut self, cfg: AssetSlotConfig<'_>) {
+        let row_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(22.0)
+            .gap(4.0);
+
+        self.container_named("AudioSoundRow", row_style, |row| {
+            row.label_styled_passive(
+                "AudioPathLbl",
+                cfg.label,
+                11.0,
+                row.theme().text_muted,
+                TextAlign::Left,
+                Style::new().width(46.0).height(22.0),
+            );
+
+            let file_name = if cfg.path.is_empty() {
+                cfg.empty_label.to_string()
+            } else {
+                std::path::Path::new(cfg.path)
+                    .file_name()
+                    .map(|f| f.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| cfg.path.to_string())
+            };
+
+            let path_box_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .flex_grow(1.0)
+                .height(22.0)
+                .background(row.theme().card_header_bg)
+                .border(1.0, row.theme().card_border)
+                .border_radius(4.0)
+                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
+
+            row.container_named("AudioPathBox", path_box_style, |pbox| {
+                pbox.label_styled_passive(
+                    "AudioPathTxt",
+                    &file_name,
+                    10.0,
+                    if cfg.path.is_empty() {
+                        pbox.theme().text_muted
+                    } else {
+                        pbox.theme().text_primary
+                    },
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0).height(20.0),
+                );
+            });
+
+            // Pick File Button
+            let pick_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .width(20.0)
+                .height(20.0)
+                .background(row.theme().button_idle_bg)
+                .border(1.0, row.theme().button_border)
+                .border_radius(4.0);
+
+            row.container_tagged(
+                "AudioPickBtn",
+                pick_style,
+                WidgetRole::Button,
+                cfg.pick_tag,
+                |btn| {
+                    if let Some(uv) = cfg.picker_icon_uv {
+                        btn.icon_named("AudioPickBtnIcon", uv, btn.theme().text_secondary, 14.0);
+                    } else {
+                        btn.label_styled_passive(
+                            "AudioPickBtnText",
+                            "…",
+                            12.0,
+                            btn.theme().text_secondary,
+                            TextAlign::Center,
+                            Style::new().width(20.0).height(20.0),
+                        );
+                    }
+                },
+            );
+
+            // Optional Play/Stop Preview Toggle Button
+            if let Some(play_tag) = cfg.play_tag {
+                let (bg, border, text_col) = if cfg.is_playing {
+                    (
+                        Color::rgba(0.50, 0.15, 0.15, 0.95),
+                        Color::rgba(0.75, 0.25, 0.25, 0.90),
+                        Color::rgba(1.0, 0.85, 0.85, 1.0),
+                    )
+                } else {
+                    (
+                        Color::rgba(0.157, 0.165, 0.188, 0.98),
+                        Color::rgba(0.212, 0.220, 0.259, 0.85),
+                        Color::rgba(0.35, 0.75, 0.48, 1.0),
+                    )
+                };
+
+                let play_style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .width(20.0)
+                    .height(20.0)
+                    .background(bg)
+                    .border(1.0, border)
+                    .border_radius(4.0);
+
+                row.container_tagged(
+                    "AudioPlayToggleBtn",
+                    play_style,
+                    WidgetRole::Button,
+                    play_tag,
+                    |btn| {
+                        btn.label_styled_passive(
+                            "PlayIcon",
+                            if cfg.is_playing { "⏹" } else { "▶" },
+                            9.0,
+                            text_col,
+                            TextAlign::Center,
+                            Style::new().width(20.0).height(20.0),
+                        );
+                    },
+                );
+            }
+        });
+    }
 }
 
-pub use super::input_box::*;
+/// Configuration for rendering a declarative asset file slot with picker and optional play preview buttons.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AssetSlotConfig<'a> {
+    /// Property label displayed on the left (e.g. "Sound:").
+    pub label: &'a str,
+    /// Current asset path or name.
+    pub path: &'a str,
+    /// Placeholder text shown when `path` is empty (e.g. "Select sound...").
+    pub empty_label: &'a str,
+    /// Semantic 64-bit tag assigned to the file picker button.
+    pub pick_tag: u64,
+    /// Semantic 64-bit tag assigned to the preview toggle button, if enabled.
+    pub play_tag: Option<u64>,
+    /// Whether the preview media is currently playing.
+    pub is_playing: bool,
+    /// Optional atlas UV coordinates for the picker button icon.
+    pub picker_icon_uv: Option<[f32; 4]>,
+}
+
+impl<'a> AssetSlotConfig<'a> {
+    /// Constructs a new asset slot configuration with label, path, empty label, and pick tag.
+    #[inline]
+    #[must_use]
+    pub const fn new(label: &'a str, path: &'a str, empty_label: &'a str, pick_tag: u64) -> Self {
+        Self {
+            label,
+            path,
+            empty_label,
+            pick_tag,
+            play_tag: None,
+            is_playing: false,
+            picker_icon_uv: None,
+        }
+    }
+
+    /// Sets the optional preview toggle button tag and current playback state.
+    #[inline]
+    #[must_use]
+    pub const fn with_play(mut self, play_tag: u64, is_playing: bool) -> Self {
+        self.play_tag = Some(play_tag);
+        self.is_playing = is_playing;
+        self
+    }
+
+    /// Sets the optional atlas icon UV coordinates for the picker button.
+    #[inline]
+    #[must_use]
+    pub const fn with_icon(mut self, uv: [f32; 4]) -> Self {
+        self.picker_icon_uv = Some(uv);
+        self
+    }
+}
+
+/// Horizontal layout configuration for a labeled dropdown combobox row.
+///
+/// Specifies column widths for the property caption label and the interactive dropdown pill button.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ComboRowLayout {
+    /// Width allocated for the property label column in logical pixels.
+    pub label_width: f32,
+    /// Width allocated for the dropdown trigger pill button in logical pixels.
+    pub button_width: f32,
+}
+
+impl ComboRowLayout {
+    /// Constructs a new combobox row layout with label and button widths.
+    #[inline]
+    #[must_use]
+    pub const fn new(label_width: f32, button_width: f32) -> Self {
+        Self {
+            label_width,
+            button_width,
+        }
+    }
+}
+
+impl Default for ComboRowLayout {
+    /// Constructs the standard inspector property dropdown layout with canonical 105px label width.
+    #[inline]
+    fn default() -> Self {
+        Self {
+            label_width: crate::declarative::widget::numeric_drag::DEFAULT_PROPERTY_LABEL_WIDTH,
+            button_width: 90.0,
+        }
+    }
+}

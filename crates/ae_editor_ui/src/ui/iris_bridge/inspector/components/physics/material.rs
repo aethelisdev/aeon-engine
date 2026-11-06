@@ -3,17 +3,13 @@
 
 //! # Physics Material Component Inspector Card
 //!
-//! Provides the `PhysicsMaterialHandler` implementing UI rendering, surface type
-//! combobox with preset action button, and friction / restitution numeric controls.
+//! Provides the `PhysicsMaterialHandler` implementing declarative UI rendering, surface type
+//! combobox with preset action button, and friction / restitution numeric controls with two-way data-binding.
 
-use super::helpers::{ComponentHeaderProps, build_declarative_card_header};
 use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
+    ComponentInspectorHandler, ComponentRenderContext, PropComboRowLayout,
 };
-use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
-use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorAction, InspectorDropdownId, InspectorNumberInputId,
-};
+use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for Physics Material.
@@ -45,24 +41,26 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut friction, mut restitution, surface_name) = ctx
+        let Ok(mut m) = ctx
             .world
-            .get::<&ae_core::ecs::PhysicsMaterial>(ctx.entity)
-            .map(|m| (m.friction, m.restitution, m.surface_type.display_name()))
-            .unwrap_or((0.70, 0.0, "Default"));
+            .get::<&mut ae_core::ecs::PhysicsMaterial>(ctx.entity)
+        else {
+            return;
+        };
+
+        let mut surface_type_idx = match m.surface_type {
+            ae_core::ecs::SurfaceType::Default => 0,
+            ae_core::ecs::SurfaceType::Metal => 1,
+            ae_core::ecs::SurfaceType::Wood => 2,
+            ae_core::ecs::SurfaceType::Stone => 3,
+            ae_core::ecs::SurfaceType::Flesh => 4,
+            ae_core::ecs::SurfaceType::Dirt => 5,
+            ae_core::ecs::SurfaceType::Glass => 6,
+            ae_core::ecs::SurfaceType::Rubber => 7,
+        };
 
         scope.card_panel("PhysicsMaterialCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             // Row 1: Surface Type Dropdown + Preset Reset Button
             let row_style = Style::new()
@@ -75,25 +73,24 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                 let options = &[
                     "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
                 ];
-                let combo = ComboBox::new(surface_name, options)
-                    .label("Surface Type:")
-                    .label_width(85.0)
-                    .width(80.0)
-                    .tag(
-                        crate::ui::iris_bridge::inspector::tags::encode_inspector_dropdown_tag(
-                            InspectorDropdownId::SurfaceType,
-                        ),
-                    );
-                let resp = row.add(combo);
-                if resp.changed()
-                    && let Some(idx) = resp.selected_index()
-                {
-                    ctx.push_action(InspectorAction::SelectDropdown(
-                        ctx.entity,
-                        InspectorDropdownId::SurfaceType,
-                        idx,
-                    ));
-                }
+                ctx.prop_combobox_row(
+                    row,
+                    self.component_name(),
+                    "Surface Type:",
+                    &mut surface_type_idx,
+                    options,
+                    PropComboRowLayout::default(),
+                );
+                m.surface_type = match surface_type_idx {
+                    0 => ae_core::ecs::SurfaceType::Default,
+                    1 => ae_core::ecs::SurfaceType::Metal,
+                    2 => ae_core::ecs::SurfaceType::Wood,
+                    3 => ae_core::ecs::SurfaceType::Stone,
+                    4 => ae_core::ecs::SurfaceType::Flesh,
+                    5 => ae_core::ecs::SurfaceType::Dirt,
+                    6 => ae_core::ecs::SurfaceType::Glass,
+                    _ => ae_core::ecs::SurfaceType::Rubber,
+                };
 
                 // ↺ Preset button
                 let preset_style = Style::new()
@@ -125,43 +122,32 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                     },
                 );
                 if preset_resp.response.clicked() {
-                    ctx.push_action(InspectorAction::ResetPhysMatPreset(ctx.entity));
+                    ctx.begin_edit(self.component_name());
+                    let surf = m.surface_type;
+                    *m = ae_core::ecs::PhysicsMaterial::from_preset(surf);
+                    ctx.commit_edit(self.component_name());
                 }
             });
 
             // Row 2: Friction
-            let fric_id = InspectorNumberInputId::PhysMatFriction;
-            let resp_fric = card.add(
-                NumericDrag::new("Friction:", &mut friction)
-                    .tag(encode_inspector_number_input_tag(fric_id))
-                    .label_width(85.0)
-                    .box_width(44.0)
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(fric_id)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Friction:",
+                &mut m.friction,
+                0.0..=100.0,
+                0.05,
             );
-            if resp_fric.changed() {
-                ctx.set_number(fric_id, friction);
-            }
-            if resp_fric.committed() {
-                ctx.commit_number(fric_id);
-            }
 
-            // Row 3: Restitution (Bounciness)
-            let rest_id = InspectorNumberInputId::PhysMatRestitution;
-            let resp_rest = card.add(
-                NumericDrag::new("Restitution (Bounciness):", &mut restitution)
-                    .tag(encode_inspector_number_input_tag(rest_id))
-                    .label_width(155.0)
-                    .box_width(44.0)
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(rest_id)),
+            // Row 3: Restitution
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Restitution:",
+                &mut m.restitution,
+                0.0..=1.0,
+                0.05,
             );
-            if resp_rest.changed() {
-                ctx.set_number(rest_id, restitution);
-            }
-            if resp_rest.committed() {
-                ctx.commit_number(rest_id);
-            }
         });
     }
 
@@ -172,5 +158,145 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
             surface_type: ae_core::ecs::SurfaceType::Default,
         };
         let _ = world.insert_one(entity, mat);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::iris_bridge::inspector::InspectorAction;
+    use crate::ui::iris_bridge::inspector::tags::{
+        TAG_INSPECTOR_PRESET_RESET, encode_component_delete_tag,
+    };
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+
+    #[test]
+    fn test_physics_material_declarative_scope_renders_structure() {
+        let handler = PhysicsMaterialHandler;
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::PhysicsMaterial {
+            friction: 0.75,
+            restitution: 0.25,
+            surface_type: ae_core::ecs::SurfaceType::Wood,
+        },));
+
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let has_del = tree
+            .iter()
+            .any(|(_, n)| n.tag == encode_component_delete_tag("PhysicsMaterial"));
+        assert!(has_del, "Delete button must be tagged");
+
+        let has_preset = tree
+            .iter()
+            .any(|(_, n)| n.tag == TAG_INSPECTOR_PRESET_RESET);
+        assert!(has_preset, "Preset reset button must be tagged");
+
+        let has_combo = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+        assert!(has_combo, "Surface Type combobox pill must exist");
+
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "Must emit 2 numeric drag pills (Friction & Restitution)"
+        );
+    }
+
+    #[test]
+    fn test_physics_material_declarative_in_place_mutation_and_undo() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::PhysicsMaterial {
+            friction: 0.70,
+            restitution: 0.0,
+            surface_type: ae_core::ecs::SurfaceType::Default,
+        },));
+
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            50.0,
+            280.0,
+        );
+
+        ctx.begin_edit("PhysicsMaterial");
+        if let Ok(mut m) = ctx
+            .world
+            .get::<&mut ae_core::ecs::PhysicsMaterial>(ctx.entity)
+        {
+            m.friction = 0.40;
+            m.restitution = 0.80;
+            m.surface_type = ae_core::ecs::SurfaceType::Rubber;
+        }
+        ctx.commit_edit("PhysicsMaterial");
+
+        assert_eq!(actions.len(), 2);
+        assert_eq!(
+            actions[0],
+            InspectorAction::StartComponentEdit(entity, "PhysicsMaterial", None)
+        );
+        assert_eq!(
+            actions[1],
+            InspectorAction::CommitComponentEdit(entity, "PhysicsMaterial")
+        );
+
+        let mat = world.get::<&ae_core::ecs::PhysicsMaterial>(entity).unwrap();
+        assert!((mat.friction - 0.40).abs() < f32::EPSILON);
+        assert!((mat.restitution - 0.80).abs() < f32::EPSILON);
+        assert_eq!(mat.surface_type, ae_core::ecs::SurfaceType::Rubber);
     }
 }

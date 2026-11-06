@@ -174,7 +174,9 @@ impl<'a> Widget for ComboBox<'a> {
         // Optional Left Label
         if let Some(lbl) = self.label {
             let (visible_label, _) = crate::declarative::types::split_label_id(lbl);
-            let lbl_w = self.label_width.unwrap_or(65.0);
+            let lbl_w = self
+                .label_width
+                .unwrap_or(crate::declarative::widget::numeric_drag::DEFAULT_PROPERTY_LABEL_WIDTH);
             row_scope.label_styled_passive(
                 "ComboLabel",
                 visible_label,

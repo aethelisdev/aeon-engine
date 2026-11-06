@@ -30,7 +30,9 @@ pub mod tree_view;
 // Primary declarative showcase elements re-exported at crate root
 pub use clipboard::SystemClipboard;
 pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
-pub use declarative::scope::{MultilineEditorProps, TabBarResponse, UiScope};
+pub use declarative::scope::{
+    AssetSlotConfig, ComboRowLayout, MultilineEditorProps, TabBarResponse, UiScope,
+};
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
 pub use declarative::widget::{
@@ -53,7 +55,9 @@ pub use scroll_area::ScrollArea;
 /// Designed to be imported via wildcard `use iris_widgets::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     // 1. Declarative Core & Scope
-    pub use crate::declarative::scope::{MultilineEditorProps, TabBarResponse, UiScope};
+    pub use crate::declarative::scope::{
+        AssetSlotConfig, ComboRowLayout, MultilineEditorProps, TabBarResponse, UiScope,
+    };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
     pub use crate::declarative::widget::Widget;
@@ -61,11 +65,12 @@ pub mod prelude {
     // 2. Primary Showcase Widgets
     pub use crate::declarative::widget::{
         Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DEFAULT_OVERSCAN,
-        DROP_TARGET_SEED, DragCurve, DragVec3, DropTargetId, DropTargetResponse, EmptyBox,
-        NumericDrag, TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder,
-        TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup, VirtualList, VirtualListBuilder,
-        VirtualListResponse, VirtualSlice, VirtualSliceParams, compute_slice,
-        compute_virtual_slice, title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+        DEFAULT_PROPERTY_LABEL_WIDTH, DROP_TARGET_SEED, DragCurve, DragVec2, DragVec3,
+        DropTargetId, DropTargetResponse, EmptyBox, NumericDrag, TITLE_BAR_CONTROL_SEED, TitleBar,
+        TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
+        Vec2Response, Vec3Response, VirtualList, VirtualListBuilder, VirtualListResponse,
+        VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
+        title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
     };
     pub use crate::floating_panel::{
         FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,

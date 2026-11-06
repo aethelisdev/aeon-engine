@@ -13,6 +13,7 @@ pub mod chip;
 pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
+pub mod drag_vec2;
 pub mod drag_vec3;
 pub mod drop_target;
 pub mod empty_box;
@@ -29,10 +30,11 @@ pub use chip::Chip;
 pub use color_picker::{ColorPicker, ColorPickerResponse};
 pub use color_swatch::ColorSwatch;
 pub use combobox::{ComboBox, ComboBoxResponse};
+pub use drag_vec2::{DragVec2, Vec2Response};
 pub use drag_vec3::{DragVec3, Vec3Response};
 pub use drop_target::{DROP_TARGET_SEED, DropTargetId, DropTargetResponse};
 pub use empty_box::EmptyBox;
-pub use numeric_drag::{DragCurve, NumericDrag, ScalarResponse};
+pub use numeric_drag::{DEFAULT_PROPERTY_LABEL_WIDTH, DragCurve, NumericDrag, ScalarResponse};
 pub use scroll_area::ScrollAreaView;
 pub use title_bar::{
     TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse,

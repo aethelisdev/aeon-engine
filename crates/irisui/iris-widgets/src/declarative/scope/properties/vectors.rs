@@ -116,6 +116,12 @@ pub const fn property_vec3_axis_tag(base_tag: u64, axis_idx: usize) -> u64 {
     base_tag.wrapping_add((axis_idx as u64) + 1)
 }
 
+/// Derives the semantic tag for an individual axis input in a 2-channel vector row.
+#[inline]
+pub const fn property_vec2_axis_tag(base_tag: u64, axis_idx: usize) -> u64 {
+    base_tag.wrapping_add((axis_idx as u64) + 1)
+}
+
 /// Derives the semantic tag for the reset button in a 3-channel vector row.
 #[inline]
 pub const fn property_vec3_reset_tag(base_tag: u64) -> u64 {
@@ -193,6 +199,13 @@ impl PropertyVec3Response {
     pub const fn committed(&self) -> bool {
         self.committed_axis.is_some()
     }
+
+    /// Returns `true` if any vector axis value was modified or the reset button was clicked during this frame.
+    #[inline]
+    #[must_use]
+    pub const fn changed(&self) -> bool {
+        self.changed_axis.is_some() || self.reset_clicked || self.response.changed()
+    }
 }
 
 impl std::ops::Deref for PropertyVec3Response {
@@ -204,7 +217,127 @@ impl std::ops::Deref for PropertyVec3Response {
     }
 }
 
+/// Configuration options for 2D coordinate vector property rows.
+#[derive(Debug, Clone)]
+pub struct PropertyVec2Options<'a> {
+    /// Multiplier applied to continuous pointer drag displacement.
+    pub speed: f32,
+    /// Display precision decimals for formatted floating-point values.
+    pub decimals: usize,
+    /// Column width allocated for the left-aligned title caption.
+    pub label_width: f32,
+    /// Axis prefix labels displayed in each interactive channel pill (e.g. `["X", "Y"]`, `["W", "H"]`).
+    pub axis_labels: [&'a str; 2],
+    /// Physical unit suffix string (e.g. `"px"`, `""`).
+    pub unit: &'a str,
+    /// Valid numerical bounding constraints for both scalar components.
+    pub range: std::ops::RangeInclusive<f32>,
+    /// Pointer drag scrubbing acceleration/deceleration response profile.
+    pub curve: DragCurve,
+    /// Reference displacement pixels required per step unit.
+    pub pixels_per_step: f32,
+}
+
+impl<'a> PropertyVec2Options<'a> {
+    /// Constructs default configuration options with the specified drag speed.
+    #[inline]
+    #[must_use]
+    pub const fn new(speed: f32) -> Self {
+        Self {
+            speed,
+            decimals: 2,
+            label_width: 52.0,
+            axis_labels: ["X", "Y"],
+            unit: "",
+            range: -10000.0..=10000.0,
+            curve: DragCurve::Linear,
+            pixels_per_step: crate::controls::numeric_drag::DEFAULT_PIXELS_PER_STEP as f32,
+        }
+    }
+}
+
+/// Comprehensive interaction response returned by evaluating a 2D vector property row.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct PropertyVec2Response {
+    /// Aggregated composite widget response across the entire row.
+    pub response: WidgetResponse,
+    /// Allocated widget identifiers for each axis numeric input pill.
+    pub axes: [WidgetId; 2],
+    /// 0-indexed axis that changed during this frame (0 for axis 0, 1 for axis 1).
+    pub changed_axis: Option<usize>,
+    /// 0-indexed axis that was committed during this frame upon pointer release.
+    pub committed_axis: Option<usize>,
+}
+
+impl PropertyVec2Response {
+    /// Returns `true` if any vector axis value was committed during this frame.
+    #[inline]
+    #[must_use]
+    pub const fn committed(&self) -> bool {
+        self.committed_axis.is_some()
+    }
+
+    /// Returns `true` if any vector axis value was modified during this frame.
+    #[inline]
+    #[must_use]
+    pub const fn changed(&self) -> bool {
+        self.changed_axis.is_some() || self.response.changed()
+    }
+}
+
+impl std::ops::Deref for PropertyVec2Response {
+    type Target = WidgetResponse;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.response
+    }
+}
+
 impl<'a> UiScope<'a> {
+    /// Emits a declarative two-way bound 3D vector property row modifying `values` (`[x, y, z]`) in-place.
+    ///
+    /// Renders distinct color-coded X (red), Y (green), and Z (blue) axis editors alongside an optional reset button.
+    /// Returns a rich [`PropertyVec3Response`] with per-axis change tracking (`.changed()`, `.committed()`).
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 3-element float array `[x, y, z]`.
+    /// * `speed` - Drag sensitivity multiplier applied per horizontal delta pixel.
+    /// * `reset_value` - Optional default value restored when the reset button `🔄` is clicked.
+    pub fn prop_vec3(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 3],
+        speed: f32,
+        reset_value: Option<[f32; 3]>,
+    ) -> PropertyVec3Response {
+        self.prop_vec3_styled(label, values, speed, reset_value, None)
+    }
+
+    /// Emits a declarative two-way bound 3D vector property row with custom label column width.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 3-element float array `[x, y, z]`.
+    /// * `speed` - Drag sensitivity multiplier applied per horizontal delta pixel.
+    /// * `reset_value` - Optional default value restored when the reset button `🔄` is clicked.
+    /// * `label_width` - Optional column width in physical pixels allocated for the label. Defaults to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`].
+    pub fn prop_vec3_styled(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 3],
+        speed: f32,
+        reset_value: Option<[f32; 3]>,
+        label_width: Option<f32>,
+    ) -> PropertyVec3Response {
+        let mut opts = PropertyVec3Options::new(speed);
+        opts.reset_value = reset_value;
+        opts.label_width =
+            label_width.unwrap_or(crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH);
+        self.property_vec3_with_options(label, values, opts)
+    }
+
     /// Emits a 3D coordinate vector property row with distinct color-coded X, Y, Z axis editors.
     ///
     /// Modifies `values` (`[x, y, z]`) in place based on continuous pointer drag deltas.
@@ -219,8 +352,7 @@ impl<'a> UiScope<'a> {
         values: &mut [f32; 3],
         speed: f32,
     ) -> WidgetResponse {
-        self.property_vec3_with_options(label, values, PropertyVec3Options::new(speed))
-            .response
+        self.prop_vec3(label, values, speed, None).response
     }
 
     /// Emits a 3D coordinate vector property row with distinct color-coded X, Y, Z axis editors and optional reset button.
@@ -260,7 +392,7 @@ impl<'a> UiScope<'a> {
             let mut any_clicked = false;
             let mut any_hovered = false;
 
-            for (prefix, _col, idx) in axes_meta {
+            for (prefix, col, idx) in axes_meta {
                 let axis_tag = property_vec3_axis_tag(base_tag, idx);
                 let axis_name = axis_names[idx];
                 let box_name = format!("NumBox_{}_{}", visible_label, axis_name);
@@ -359,42 +491,43 @@ impl<'a> UiScope<'a> {
                     )
                 };
 
-                let txt_col = if is_editing {
-                    Color::WHITE
-                } else {
-                    Color::rgba(0.886, 0.894, 0.918, 1.0)
-                };
+                let txt_col = if is_editing { Color::WHITE } else { col };
 
-                let (display_str, is_all_selected) = if let Some(s) = options.edit_states[idx] {
-                    let buf = s.buffer;
-                    let cursor = s.cursor_idx.min(buf.len());
-                    let (left, right) = buf.split_at(cursor);
-                    let str = if s.is_all_selected {
-                        format!("{}{}", prefix, buf)
-                    } else if s.blink_caret {
-                        format!("{}{}|{}", prefix, left, right)
-                    } else {
-                        format!("{}{}{}", prefix, left, right)
-                    };
-                    (str, s.is_all_selected)
-                } else if let Some(ref res) = edit_res {
-                    let is_all = res
-                        .selection
-                        .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
-                    (format!("{}{}", prefix, res.display_text), is_all)
-                } else {
-                    (
-                        format!(
-                            "{}{}",
-                            prefix,
-                            crate::declarative::types::format_compact_float(
-                                values[idx],
-                                options.decimals
+                let (_raw_value_str, display_str, is_all_selected) =
+                    if let Some(s) = options.edit_states[idx] {
+                        let buf = s.buffer;
+                        let cursor = s.cursor_idx.min(buf.len());
+                        let (left, right) = buf.split_at(cursor);
+                        let (raw_val, str) = if s.is_all_selected {
+                            (buf.to_string(), format!("{}{}", prefix, buf))
+                        } else if s.blink_caret {
+                            (
+                                format!("{}|{}", left, right),
+                                format!("{}{}|{}", prefix, left, right),
                             )
-                        ),
-                        false,
-                    )
-                };
+                        } else {
+                            (
+                                format!("{}{}", left, right),
+                                format!("{}{}{}", prefix, left, right),
+                            )
+                        };
+                        (raw_val, str, s.is_all_selected)
+                    } else if let Some(ref res) = edit_res {
+                        let is_all = res
+                            .selection
+                            .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
+                        (
+                            res.raw_text.clone(),
+                            format!("{}{}", prefix, res.display_text),
+                            is_all,
+                        )
+                    } else {
+                        let formatted = crate::declarative::types::format_compact_float(
+                            values[idx],
+                            options.decimals,
+                        );
+                        (formatted.clone(), format!("{}{}", prefix, formatted), false)
+                    };
 
                 let pill_style = Style::new()
                     .width(54.0)
@@ -544,6 +677,69 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Emits a declarative two-way bound 2D vector property row with custom axis labels and drag speed.
+    ///
+    /// Modifies `values` (`[axis 0, axis 1]`) in-place upon horizontal dragging, clamping within range,
+    /// and returns a rich [`PropertyVec2Response`] with per-axis change tracking (`.changed()`, `.committed()`).
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 2-element float array.
+    /// * `axis_labels` - Two-character or string labels for each channel (e.g. `["X", "Y"]` or `["W", "H"]`).
+    /// * `speed` - Drag sensitivity multiplier applied per horizontal delta pixel.
+    pub fn prop_vec2(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 2],
+        axis_labels: [&str; 2],
+        speed: f32,
+    ) -> PropertyVec2Response {
+        self.prop_vec2_styled(label, values, axis_labels, speed, None, None)
+    }
+
+    /// Emits a declarative two-way bound 2D vector property row with custom column width and numerical range constraints.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 2-element float array.
+    /// * `axis_labels` - Two-character or string labels for each channel (e.g. `["X", "Y"]` or `["W", "H"]`).
+    /// * `speed` - Drag sensitivity multiplier applied per horizontal delta pixel.
+    /// * `label_width` - Optional column width in physical pixels allocated for the label. Defaults to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`].
+    /// * `range` - Optional inclusive numerical bounds for both scalar components.
+    pub fn prop_vec2_styled(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 2],
+        axis_labels: [&str; 2],
+        speed: f32,
+        label_width: Option<f32>,
+        range: Option<std::ops::RangeInclusive<f32>>,
+    ) -> PropertyVec2Response {
+        let mut opts = PropertyVec2Options::new(speed);
+        opts.axis_labels = axis_labels;
+        opts.label_width =
+            label_width.unwrap_or(crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH);
+        if let Some(r) = range {
+            opts.range = r;
+        }
+        self.property_vec2_with_options(label, values, opts)
+    }
+
+    /// Emits a standard `["X", "Y"]` declarative two-way bound 2D coordinate property row.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 2-element float array `[x, y]`.
+    /// * `speed` - Drag sensitivity multiplier applied per horizontal delta pixel.
+    pub fn prop_vec2_xy(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 2],
+        speed: f32,
+    ) -> PropertyVec2Response {
+        self.prop_vec2(label, values, ["X", "Y"], speed)
+    }
+
     /// Emits an inline horizontal 2D vector editor (e.g. UV Tiling or 2D Offset) with labeled axes.
     ///
     /// # Arguments
@@ -556,80 +752,152 @@ impl<'a> UiScope<'a> {
         values: &mut [f32; 2],
         speed: f32,
     ) -> WidgetResponse {
+        self.prop_vec2_xy(label, values, speed).response
+    }
+
+    /// Emits an inline horizontal 2D vector editor with customizable axis labels, units, and ranges.
+    ///
+    /// # Arguments
+    /// * `label` - Property description displayed on the left (supports `##` separator).
+    /// * `values` - Mutable reference to the 2-element float array.
+    /// * `options` - Custom configuration options (speed, decimals, axis_labels, unit, range).
+    pub fn property_vec2_with_options(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 2],
+        options: PropertyVec2Options<'_>,
+    ) -> PropertyVec2Response {
         let (visible_label, _) = crate::declarative::types::split_label_id(label);
         let base_tag = self.tag_for(label);
-        let mut response = WidgetResponse::default();
+        let mut widget_response = WidgetResponse::default();
+        let mut axes_out = [WidgetId::default(); 2];
+        let mut changed_axis_out = None;
+        let mut committed_axis_out = None;
         let mut slot_executed = false;
 
-        let row_id = self.property_row_styled(label, Some(52.0), |slot| {
-            let axes = [
-                ("U:", Color::rgba(0.35, 0.75, 0.98, 1.0), 0),
-                ("V:", Color::rgba(0.95, 0.80, 0.30, 1.0), 1),
+        let row_id = self.property_row_styled(label, Some(options.label_width), |slot| {
+            let colors = [
+                Color::rgba(0.90, 0.35, 0.35, 1.0),
+                Color::rgba(0.35, 0.85, 0.45, 1.0),
             ];
 
             let mut any_changed = false;
             let mut any_clicked = false;
             let mut any_hovered = false;
 
-            for (prefix, col, idx) in axes {
-                let axis_tag = base_tag.wrapping_add((idx as u64) + 1);
-                let axis_name = if idx == 0 { "U" } else { "V" };
-                let box_name = format!("PropertyVec2_{}_{}", visible_label, axis_name);
-                let txt_name = format!("PropertyVec2Text_{}_{}", visible_label, axis_name);
-
-                let box_style = Style::new()
-                    .width(80.0)
-                    .height(20.0)
-                    .background(Color::rgba(0.10, 0.11, 0.14, 0.95))
-                    .border(1.0, Color::rgba(0.20, 0.22, 0.28, 0.80))
-                    .border_radius(3.0)
-                    .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center);
-
-                let text_val = format!("{} {:.2}", prefix, values[idx]);
+            for idx in 0..2 {
+                let axis_tag = property_vec2_axis_tag(base_tag, idx);
+                let axis_name = options.axis_labels[idx];
+                let box_name = format!("NumBox_{}_{}", visible_label, axis_name);
+                let txt_name = format!("NumText_{}_{}", visible_label, axis_name);
 
                 let axis_box_id = slot.tree.create_node();
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
-                    node.set_name(box_name);
-                    node.set_style(box_style);
-                    node.role = WidgetRole::NumericInput;
                     node.tag = axis_tag;
+                }
+                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+                axes_out[idx] = axis_box_id;
+
+                let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
+
+                let is_dragging = slot.tree.event_state.is_pointer_drag_active
+                    && (slot.tree.event_state.pointer_capture == Some(axis_box_id)
+                        || (axis_tag != 0
+                            && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
+
+                if let Some(delta) = drag_delta {
+                    let step = options.curve.compute_delta_f32(
+                        delta.x,
+                        options.speed,
+                        options.pixels_per_step,
+                        &slot.tree.event_state,
+                    );
+                    let min_val = *options.range.start();
+                    let max_val = *options.range.end();
+                    let next = (values[idx] + step).clamp(min_val, max_val);
+                    if (next - values[idx]).abs() > f32::EPSILON {
+                        values[idx] = next;
+                        any_changed = true;
+                        changed_axis_out = Some(idx);
+                    }
+                }
+
+                let is_drag_released = (slot.tree.event_state.frame_drag_released_tag
+                    == Some(axis_tag)
+                    && axis_tag != 0)
+                    || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
+                if is_drag_released {
+                    committed_axis_out = Some(idx);
+                    if slot.tree.event_state.focused == Some(axis_box_id) {
+                        slot.tree.event_state.focused = None;
+                    }
+                    if axis_tag != 0 && slot.tree.event_state.focused_tag == Some(axis_tag) {
+                        slot.tree.event_state.focused_tag = None;
+                    }
+                }
+
+                any_clicked |= clicked;
+                any_hovered |= hovered;
+
+                let pill_style = Style::new()
+                    .width(70.0)
+                    .height(20.0)
+                    .background(Color::rgba(0.125, 0.133, 0.153, 0.98))
+                    .border(
+                        1.0,
+                        if hovered || is_dragging {
+                            Color::rgba(0.35, 0.50, 0.70, 0.95)
+                        } else {
+                            Color::rgba(0.180, 0.192, 0.227, 0.85)
+                        },
+                    )
+                    .border_radius(3.0)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0));
+
+                if let Some(node) = slot.tree.get_mut(axis_box_id) {
+                    node.set_name(box_name);
+                    node.set_style(pill_style);
+                    node.role = WidgetRole::NumericInput;
                     node.interactive = true;
                     node.cursor = Some(WidgetCursor::EwResize);
                 }
-                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+
+                let formatted_val =
+                    crate::declarative::types::format_compact_float(values[idx], options.decimals);
+                let text_val = if options.unit.is_empty() {
+                    format!("{}: {}", axis_name, formatted_val)
+                } else {
+                    format!("{}: {} {}", axis_name, formatted_val, options.unit)
+                };
 
                 let mut pill_scope = slot.child_scope(axis_box_id);
                 pill_scope.label_styled_passive(
                     txt_name,
                     text_val,
                     10.5,
-                    col,
+                    colors[idx],
                     TextAlign::Center,
-                    Style::new().width(72.0).height(16.0),
+                    Style::new().width(64.0).height(16.0),
                 );
-
-                let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
-                if let Some(delta) = drag_delta {
-                    let next = values[idx] + delta.x * speed;
-                    if (next - values[idx]).abs() > f32::EPSILON {
-                        values[idx] = next;
-                        any_changed = true;
-                    }
-                }
-                any_clicked |= clicked;
-                any_hovered |= hovered;
             }
 
-            response = WidgetResponse::new(slot.parent, any_clicked, any_hovered, any_changed);
+            widget_response =
+                WidgetResponse::new(slot.parent, any_clicked, any_hovered, any_changed);
             slot_executed = true;
         });
 
         if !slot_executed {
-            response = self.response(row_id);
+            widget_response = self.response(row_id);
         }
-        response
+
+        PropertyVec2Response {
+            response: widget_response,
+            axes: axes_out,
+            changed_axis: changed_axis_out,
+            committed_axis: committed_axis_out,
+        }
     }
 
     /// Emits an inline horizontal RGB color channel multiplier editor with R, G, B color coding.

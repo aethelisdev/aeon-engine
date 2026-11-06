@@ -11,18 +11,10 @@
 //! - `UiButton`
 //! - `UiImage`
 
+use super::super::super::context::{PropComboMapConfig, PropComboRowLayout};
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::tags::{
-    encode_inspector_number_input_tag, encode_inspector_text_input_tag,
-};
-use super::super::super::types::{
-    ComponentCategory, ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
-    InspectorTextInputId,
-};
-use super::super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
-    render_declarative_checkbox_row, render_declarative_combobox_row,
-};
+use super::super::super::tags::encode_inspector_text_input_tag;
+use super::super::super::types::{ComponentCategory, InspectorTextInputId};
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
@@ -93,61 +85,30 @@ impl ComponentInspectorHandler for UiPanelHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut border_w, mut radius) =
-            if let Ok(p) = ctx.world.get::<&ae_core::ecs::UiPanel>(ctx.entity) {
-                (p.border_width, p.corner_radius)
-            } else {
-                (1.0, 4.0)
-            };
+        let Ok(mut p) = ctx.world.get::<&mut ae_core::ecs::UiPanel>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("UiPanelCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Border Width:",
+                &mut p.border_width,
+                0.0..=50.0,
+                0.5,
             );
 
-            // Row 1: Border Width
-            let bw_id = InspectorNumberInputId::UiBorderWidth;
-            let resp_bw = card.add(
-                NumericDrag::new("Border Width", &mut border_w)
-                    .tag(encode_inspector_number_input_tag(bw_id))
-                    .label_width(80.0)
-                    .box_width(60.0)
-                    .unit("px")
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(bw_id)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Corner Radius:",
+                &mut p.corner_radius,
+                0.0..=100.0,
+                0.5,
             );
-            if resp_bw.changed() {
-                ctx.set_number(bw_id, border_w);
-            }
-            if resp_bw.committed() {
-                ctx.commit_number(bw_id);
-            }
-
-            // Row 2: Corner Radius
-            let cr_id = InspectorNumberInputId::UiCornerRadius;
-            let resp_cr = card.add(
-                NumericDrag::new("Corner Radius", &mut radius)
-                    .tag(encode_inspector_number_input_tag(cr_id))
-                    .label_width(80.0)
-                    .box_width(60.0)
-                    .unit("px")
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(cr_id)),
-            );
-            if resp_cr.changed() {
-                ctx.set_number(cr_id, radius);
-            }
-            if resp_cr.committed() {
-                ctx.commit_number(cr_id);
-            }
         });
     }
 
@@ -185,12 +146,9 @@ impl ComponentInspectorHandler for UiTextHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (txt, mut font_size, alignment) =
-            if let Ok(t) = ctx.world.get::<&ae_core::ecs::UiText>(ctx.entity) {
-                (t.text.clone(), t.font_size, t.alignment)
-            } else {
-                ("Label".to_string(), 14.0, UiTextAlignment::Left)
-            };
+        let Ok(mut t) = ctx.world.get::<&mut ae_core::ecs::UiText>(ctx.entity) else {
+            return;
+        };
 
         let is_editing = matches!(
             ctx.params.active_text_input,
@@ -207,15 +165,15 @@ impl ComponentInspectorHandler for UiTextHandler {
             } else {
                 buf.to_string()
             }
-        } else if txt.is_empty() {
+        } else if t.text.is_empty() {
             "Empty text...".to_string()
         } else {
-            txt.clone()
+            t.text.clone()
         };
 
         let text_col = if is_editing {
             Color::WHITE
-        } else if txt.is_empty() {
+        } else if t.text.is_empty() {
             Color::rgba(0.45, 0.48, 0.55, 1.0)
         } else {
             Color::rgba(0.886, 0.894, 0.918, 1.0)
@@ -233,24 +191,8 @@ impl ComponentInspectorHandler for UiTextHandler {
             )
         };
 
-        let align_str = match alignment {
-            UiTextAlignment::Left => "Left",
-            UiTextAlignment::Center => "Center",
-            UiTextAlignment::Right => "Right",
-        };
-
         scope.card_panel("UiTextCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             // Row 1: Text string interactive box
             let text_row_style = Style::new()
@@ -299,34 +241,34 @@ impl ComponentInspectorHandler for UiTextHandler {
             });
 
             // Row 2: Font Size
-            let fs_id = InspectorNumberInputId::UiFontSize;
-            let resp_fs = card.add(
-                NumericDrag::new("Font Size", &mut font_size)
-                    .tag(encode_inspector_number_input_tag(fs_id))
-                    .label_width(80.0)
-                    .box_width(60.0)
-                    .unit("pt")
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(fs_id)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Font Size:",
+                &mut t.font_size,
+                6.0..=128.0,
+                0.5,
             );
-            if resp_fs.changed() {
-                ctx.set_number(fs_id, font_size);
-            }
-            if resp_fs.committed() {
-                ctx.commit_number(fs_id);
-            }
 
             // Row 3: Text Alignment Dropdown
-            render_declarative_combobox_row(
+            ctx.prop_combobox_mapped(
                 card,
-                ctx,
-                DeclarativeComboboxRowParams {
-                    dropdown_id: InspectorDropdownId::UiTextAlignment,
-                    label: Some("Align"),
-                    label_w: 52.0,
-                    selected_text: align_str,
-                    combo_w: 80.0,
-                    options: &["Left", "Center", "Right"],
+                self.component_name(),
+                PropComboMapConfig::new(
+                    "Align:",
+                    match t.alignment {
+                        UiTextAlignment::Left => 0,
+                        UiTextAlignment::Center => 1,
+                        UiTextAlignment::Right => 2,
+                    },
+                    &["Left", "Center", "Right"],
+                    PropComboRowLayout::new(52.0, 80.0),
+                ),
+                &mut t.alignment,
+                |idx| match idx {
+                    0 => UiTextAlignment::Left,
+                    1 => UiTextAlignment::Center,
+                    _ => UiTextAlignment::Right,
                 },
             );
         });
@@ -366,39 +308,50 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (val, min, max) = ctx
+        let Ok(mut pb) = ctx
             .world
-            .get::<&ae_core::ecs::UiProgressBar>(ctx.entity)
-            .map(|bar| (bar.value, bar.min, bar.max))
-            .unwrap_or((50.0, 0.0, 100.0));
+            .get::<&mut ae_core::ecs::UiProgressBar>(ctx.entity)
+        else {
+            return;
+        };
 
+        let min = pb.min;
+        let max = pb.max;
+        let val_range = min..=max;
         let frac = if max > min {
-            ((val - min) / (max - min)).clamp(0.0, 1.0)
+            ((pb.value - min) / (max - min)).clamp(0.0, 1.0)
         } else {
             0.0
         };
 
         scope.card_panel("UiProgressBarCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Min:",
+                &mut pb.min,
+                -100_000.0..=100_000.0,
+                1.0,
             );
 
-            let stats_text = format!("Value: {:.0} / {:.0}", val, max);
-            card.label_styled_passive(
-                "ProgressBarStats",
-                &stats_text,
-                11.0,
-                card.theme().text_primary,
-                TextAlign::Left,
-                Style::new().height(20.0),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Max:",
+                &mut pb.max,
+                -100_000.0..=100_000.0,
+                1.0,
+            );
+
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Value:",
+                &mut pb.value,
+                val_range,
+                1.0,
             );
 
             // Visual Mini Progress Bar track + fill
@@ -458,34 +411,14 @@ impl ComponentInspectorHandler for UiButtonHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let is_enabled = ctx
-            .world
-            .get::<&ae_core::ecs::UiButton>(ctx.entity)
-            .map(|b| b.is_enabled)
-            .unwrap_or(true);
+        let Ok(mut b) = ctx.world.get::<&mut ae_core::ecs::UiButton>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("UiButtonCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            let resp_enabled = render_declarative_checkbox_row(
-                card,
-                ComponentCheckboxId::UiInteractable,
-                "Enabled",
-                is_enabled,
-            );
-            if resp_enabled.clicked() {
-                ctx.toggle_checkbox(ComponentCheckboxId::UiInteractable);
-            }
+            ctx.prop_checkbox(card, self.component_name(), "Enabled", &mut b.is_enabled);
         });
     }
 
@@ -522,30 +455,23 @@ impl ComponentInspectorHandler for UiImageHandler {
         world.get::<&ae_core::ecs::UiImage>(entity).is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let slice_mode = if let Ok(img) = ctx.world.get::<&ae_core::ecs::UiImage>(ctx.entity) {
-            format!("{:?}", img.slice_mode)
-        } else {
-            "Stretch".to_string()
+    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
+        let Ok(img) = _ctx.world.get::<&ae_core::ecs::UiImage>(_ctx.entity) else {
+            return;
         };
 
         scope.card_panel("UiImageCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            let mode_str = format!("Slice Mode: {}", slice_mode);
+            let mode_str = match img.slice_mode {
+                ae_core::ecs::UiSliceMode::Stretch => "Slice Mode: Stretch",
+                ae_core::ecs::UiSliceMode::Fit => "Slice Mode: Fit",
+                ae_core::ecs::UiSliceMode::NineSlice => "Slice Mode: NineSlice",
+                ae_core::ecs::UiSliceMode::Tile => "Slice Mode: Tile",
+            };
             card.label_styled_passive(
                 "UiImageMode",
-                &mode_str,
+                mode_str,
                 11.0,
                 card.theme().text_primary,
                 TextAlign::Left,
@@ -556,5 +482,118 @@ impl ComponentInspectorHandler for UiImageHandler {
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         let _ = world.insert_one(entity, ae_core::ecs::UiImage::default());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+
+    fn create_test_context<'a>(
+        world: &'a hecs::World,
+        entity: hecs::Entity,
+        params: &'a InspectorPanelParams<'a>,
+        actions: &'a mut Vec<InspectorAction>,
+    ) -> ComponentRenderContext<'a> {
+        ComponentRenderContext::with_actions(entity, world, params, actions, 0.0, 0.0, 260.0)
+    }
+
+    #[test]
+    fn test_ui_panel_render_and_in_place_mutation() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiPanel {
+            border_width: 2.0,
+            corner_radius: 4.0,
+            ..Default::default()
+        },));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            UiPanelHandler.render_card(&mut scope, &mut ctx);
+        }
+
+        // Verify direct in-place mutation
+        {
+            let mut p = world.get::<&mut ae_core::ecs::UiPanel>(entity).unwrap();
+            p.border_width = 5.0;
+            p.corner_radius = 8.0;
+        }
+        let panel = world.get::<&ae_core::ecs::UiPanel>(entity).unwrap();
+        assert_eq!(panel.border_width, 5.0);
+        assert_eq!(panel.corner_radius, 8.0);
+    }
+
+    #[test]
+    fn test_ui_button_toggle_mutation() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiButton {
+            is_enabled: true,
+            ..Default::default()
+        },));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            UiButtonHandler.render_card(&mut scope, &mut ctx);
+        }
+
+        {
+            let mut b = world.get::<&mut ae_core::ecs::UiButton>(entity).unwrap();
+            b.is_enabled = false;
+        }
+        let btn = world.get::<&ae_core::ecs::UiButton>(entity).unwrap();
+        assert!(!btn.is_enabled);
     }
 }

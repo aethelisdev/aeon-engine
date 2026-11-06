@@ -23,11 +23,9 @@ pub struct EngineUi {
     pub inspector_euler: [f32; 3],
     pub last_selected_entity: Option<hecs::Entity>,
     pub wireframe_enabled: bool,
-    /// Controls whether the editor grid is visible in the viewport.
     pub grid_enabled: bool,
     pub is_loading_assets: bool,
     pub gizmo_mode: ae_editor::gizmo::GizmoMode,
-    /// Controls whether gizmo axes are aligned to world or entity-local orientation.
     pub gizmo_space: ae_editor::gizmo::GizmoSpace,
     pub inspector_color_hex: String,
     pub saved_swatches: Vec<[f32; 4]>,
@@ -43,17 +41,6 @@ pub struct EngineUi {
     pub pending_load_path: Option<std::path::PathBuf>,
     pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
     pub should_exit: bool,
-    /// Hardware-independent frameless window host coordinating 8-way resize boundary hit-testing and cursor state.
-    ///
-    /// Evaluates window borders and corners against incoming interaction events and coordinates
-    /// native platform drag-resize operations via [`iris_winit::frameless::WindowInterface`].
-    pub frameless_host: iris_winit::frameless::FramelessWindowHost,
-    /// Hardware-independent window drag and double-click maximize gesture coordinator.
-    ///
-    /// Manages native window dragging gestures initiated from title bar surfaces and detects
-    /// rapid double-click events within strict spatial ($\Delta r < 4.0\text{px}$) and temporal
-    /// ($t \le 300\text{ms}$) thresholds to toggle window maximization state via [`iris_winit::frameless::WindowInterface`].
-    pub drag_host: iris_winit::frameless::WindowDragHost,
     /// Modular docking panel and tab layout state.
     pub layout_state: PanelLayoutState,
     pub hierarchy_search_query: String,
@@ -113,8 +100,7 @@ pub struct EngineUi {
     pub dialog_host: irisui::workbench::DialogHost<EngineUiAction>,
     /// Global UI event and action bus managing decoupled FIFO dispatch.
     pub action_bus: irisui::workbench::ActionBus<EngineUiAction>,
-    /// Autonomous workbench application orchestrator coordinating dock hierarchy,
-    /// frameless window border resize, title bar dragging, and modal dialog execution.
+    /// Autonomous workbench orchestrator coordinating dock hierarchy, frameless window border resize, and modal dialogs.
     pub workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
     pub iris_overlay: IrisEditorOverlay,
@@ -194,9 +180,6 @@ impl EngineUi {
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
-            frameless_host: iris_winit::frameless::FramelessWindowHost::new(),
-            drag_host: iris_winit::frameless::WindowDragHost::new()
-                .with_title_bar_height(IrisEditorOverlay::MENUBAR_HEIGHT),
             layout_state,
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
@@ -233,38 +216,19 @@ impl EngineUi {
 
     /// Active UI scaling factor.
     pub fn scale_factor(&self) -> f32 {
-        if self.ui_zoom_factor.is_finite() && self.ui_zoom_factor > 0.1 {
-            self.ui_zoom_factor.clamp(0.6, 2.0)
-        } else {
-            1.0
-        }
+        self.workbench.scale_factor()
     }
 
-    /// Steps the active UI scale up or down across the predefined scale presets.
+    /// Steps the active UI scale up or down across predefined scale presets.
     pub fn step_ui_scale(&mut self, increase: bool) -> f32 {
-        const PRESETS: [f32; 7] = [0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50];
-        let current = self.scale_factor();
-        let target = if increase {
-            PRESETS
-                .iter()
-                .copied()
-                .find(|&s| s > current + 0.01)
-                .unwrap_or(*PRESETS.last().unwrap_or(&1.50))
-        } else {
-            PRESETS
-                .iter()
-                .copied()
-                .rfind(|&s| s < current - 0.01)
-                .unwrap_or(*PRESETS.first().unwrap_or(&0.75))
-        };
-        self.ui_zoom_factor = target;
-        target
+        self.ui_zoom_factor = self.workbench.step_zoom(increase);
+        self.ui_zoom_factor
     }
 
     /// Resets the UI scale back to default 100% (1.0).
     pub fn reset_ui_scale(&mut self) -> f32 {
-        self.ui_zoom_factor = 1.0;
-        1.0
+        self.ui_zoom_factor = self.workbench.reset_zoom();
+        self.ui_zoom_factor
     }
 
     /// Sets a temporary status message displayed at the bottom status bar.
@@ -296,20 +260,17 @@ impl EngineUi {
 
     /// Polls asynchronous native file dialog receivers and applies their actions.
     pub fn poll_dialog_receivers(&mut self) {
-        let mut completed_indices = Vec::new();
+        let mut completed = Vec::new();
         let mut actions = Vec::new();
-
         for (idx, rx) in self.scene_dialog_receivers.iter().enumerate() {
             if let Ok(action) = rx.try_recv() {
                 actions.push(action);
-                completed_indices.push(idx);
+                completed.push(idx);
             }
         }
-
-        for &idx in completed_indices.iter().rev() {
+        for &idx in completed.iter().rev() {
             self.scene_dialog_receivers.swap_remove(idx);
         }
-
         for action in actions {
             match action {
                 SceneDialogAction::SaveTo(path) => {

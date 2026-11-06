@@ -6,9 +6,7 @@
 //! Provides handlers for `🚶 Kinematic Character Controller` and `🎮 PlayerTag`.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::tags::encode_inspector_number_input_tag;
-use super::super::types::{ComponentCategory, InspectorNumberInputId};
-use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
+use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `🚶 Kinematic Character Controller`.
@@ -42,116 +40,86 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut height, mut radius, mut center_y, mut max_slope, mut step_height, is_grounded) =
-            ctx.world
-                .get::<&ae_core::ecs::CharacterController>(ctx.entity)
-                .map(|c| {
-                    (
-                        c.height,
-                        c.radius,
-                        c.center_y,
-                        c.max_slope_climb_angle,
-                        c.step_height,
-                        c.is_grounded,
-                    )
-                })
-                .unwrap_or((1.80, 0.40, 0.0, 45.0, 0.30, false));
+        let Ok(mut c) = ctx
+            .world
+            .get::<&mut ae_core::ecs::CharacterController>(ctx.entity)
+        else {
+            return;
+        };
 
         scope.card_panel("CharacterControllerCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Height:",
+                &mut c.height,
+                0.05..=1_000.0,
+                0.05,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Radius:",
+                &mut c.radius,
+                0.01..=500.0,
+                0.02,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Center Y:",
+                &mut c.center_y,
+                -1_000.0..=1_000.0,
+                0.05,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Max Slope Angle:",
+                &mut c.max_slope_climb_angle,
+                0.0..=89.9,
+                0.5,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Step Height:",
+                &mut c.step_height,
+                0.0..=100.0,
+                0.02,
             );
 
-            let mut rows = [
-                (
-                    InspectorNumberInputId::CharacterHeight,
-                    "Height:",
-                    &mut height,
-                    false,
-                ),
-                (
-                    InspectorNumberInputId::CharacterRadius,
-                    "Radius:",
-                    &mut radius,
-                    false,
-                ),
-                (
-                    InspectorNumberInputId::CharacterCenterY,
-                    "Center Y:",
-                    &mut center_y,
-                    false,
-                ),
-                (
-                    InspectorNumberInputId::CharacterMaxSlope,
-                    "Max Slope Angle:",
-                    &mut max_slope,
-                    true,
-                ),
-                (
-                    InspectorNumberInputId::CharacterStepHeight,
-                    "Step Height:",
-                    &mut step_height,
-                    false,
-                ),
-            ];
-
-            for (id, lbl, val, is_angle) in &mut rows {
-                let tag = encode_inspector_number_input_tag(*id);
-                let edit = ctx.edit_state(*id);
-                let current_val = **val;
-                let mut drag = NumericDrag::new(lbl, val)
-                    .tag(tag)
-                    .label_width(110.0)
-                    .box_width(44.0)
-                    .curve(if *is_angle {
-                        DragCurve::Linear
-                    } else {
-                        DragCurve::quadratic()
-                    })
-                    .edit_state(edit);
-                let formatted;
-                if *is_angle {
-                    formatted = format!("{:.0}°", current_val);
-                    drag = drag.custom_text(&formatted);
-                }
-                let resp = card.add(drag);
-                if resp.changed() {
-                    ctx.set_number(*id, **val);
-                }
-                if resp.committed() {
-                    ctx.commit_number(*id);
-                }
-            }
-
             // Grounded Status Text (e.g. 🛡 In Air / 🛡 Grounded)
-            let status_row_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(18.0);
-
-            card.container_named("GroundedStatusPill", status_row_style, |status_scope| {
-                let (text_str, text_col) = if is_grounded {
-                    ("🛡 Grounded", status_scope.theme().success)
-                } else {
-                    ("🛡 In Air", status_scope.theme().warning)
-                };
-                status_scope.label_styled_passive(
-                    "GroundedStatusText",
-                    text_str,
-                    10.5,
-                    text_col,
-                    TextAlign::Left,
-                    Style::new().height(18.0),
-                );
-            });
+            card.container_named(
+                "GroundedStatusPill",
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .height(18.0),
+                |status_scope| {
+                    if c.is_grounded {
+                        status_scope.label_styled_passive(
+                            "GroundedStatusText",
+                            "🛡 Grounded",
+                            10.5,
+                            status_scope.theme().success,
+                            TextAlign::Left,
+                            Style::new().height(18.0),
+                        );
+                    } else {
+                        status_scope.label_styled_passive(
+                            "GroundedStatusText",
+                            "🛡 In Air",
+                            10.5,
+                            status_scope.theme().warning,
+                            TextAlign::Left,
+                            Style::new().height(18.0),
+                        );
+                    }
+                },
+            );
         });
     }
 
@@ -198,17 +166,7 @@ impl ComponentInspectorHandler for PlayerTagHandler {
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
         scope.card_panel("PlayerTagCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             card.label_styled_passive(
                 "PlayerTagDesc",
@@ -257,11 +215,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -281,5 +237,125 @@ mod tests {
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "PlayerTag card must tag its delete button with semantic delete tag"
         );
+    }
+
+    #[test]
+    fn test_character_controller_declarative_render_and_grounded_status() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::CharacterController {
+            height: 2.0,
+            radius: 0.5,
+            center_y: 0.1,
+            max_slope_climb_angle: 40.0,
+            step_height: 0.25,
+            is_grounded: true,
+        },));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+
+        let handler = CharacterControllerHandler;
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("CharacterController");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "CharacterController card must tag its delete button with semantic delete tag"
+        );
+
+        let has_grounded_text = tree
+            .iter()
+            .any(|(_, n)| n.text.as_deref() == Some("🛡 Grounded"));
+        assert!(
+            has_grounded_text,
+            "CharacterController must display '🛡 Grounded' text when is_grounded is true"
+        );
+
+        // Verify initial state
+        {
+            let c = world
+                .get::<&ae_core::ecs::CharacterController>(entity)
+                .unwrap();
+            assert_eq!(c.height, 2.0);
+            assert_eq!(c.radius, 0.5);
+            assert_eq!(c.center_y, 0.1);
+            assert_eq!(c.max_slope_climb_angle, 40.0);
+            assert_eq!(c.step_height, 0.25);
+            assert!(c.is_grounded);
+        }
+
+        // Test in-place mutation of fields with undo snapshotting
+        {
+            let mut c = world
+                .get::<&mut ae_core::ecs::CharacterController>(entity)
+                .unwrap();
+            ctx.begin_edit(handler.component_name());
+            c.height = 1.75;
+            c.radius = 0.35;
+            c.center_y = -0.05;
+            c.max_slope_climb_angle = 50.0;
+            c.step_height = 0.40;
+            c.is_grounded = false;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        // Verify mutation reflected in ECS world
+        {
+            let c = world
+                .get::<&ae_core::ecs::CharacterController>(entity)
+                .unwrap();
+            assert_eq!(c.height, 1.75);
+            assert_eq!(c.radius, 0.35);
+            assert_eq!(c.center_y, -0.05);
+            assert_eq!(c.max_slope_climb_angle, 50.0);
+            assert_eq!(c.step_height, 0.40);
+            assert!(!c.is_grounded);
+        }
+
+        // Verify undo actions were captured
+        assert!(actions.contains(
+            &crate::ui::iris_bridge::inspector::types::InspectorAction::StartComponentEdit(
+                entity,
+                handler.component_name(),
+                None,
+            )
+        ));
+        assert!(actions.contains(
+            &crate::ui::iris_bridge::inspector::types::InspectorAction::CommitComponentEdit(
+                entity,
+                handler.component_name()
+            )
+        ));
     }
 }

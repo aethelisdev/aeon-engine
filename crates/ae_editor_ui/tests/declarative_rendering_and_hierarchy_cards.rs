@@ -15,9 +15,7 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::{
 use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::types::{
-    InspectorNumberInputId, InspectorPanelParams,
-};
+use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use irisui::prelude::*;
 
 fn create_test_params<'a>(
@@ -34,11 +32,9 @@ fn create_test_params<'a>(
         inspector_color_hex: "#ffffff",
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -73,23 +69,14 @@ fn test_light_card_declarative_structure() {
     });
     assert!(has_delete, "Light delete button must be tagged");
 
-    let has_offset_y = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::LightOffsetY)
-    });
-    assert!(has_offset_y, "LightOffsetY must be tagged");
-
-    let has_color_r = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::LightColorR)
-    });
-    assert!(has_color_r, "LightColorR must be tagged");
-
-    let has_color_g = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::LightColorG)
-    });
-    assert!(has_color_g, "LightColorG must be tagged");
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert_eq!(
+        numeric_pills, 3,
+        "Light card must emit 3 numeric pills (Light Offset Y, Color R, Color G)"
+    );
 }
 
 #[test]

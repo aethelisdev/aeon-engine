@@ -520,4 +520,123 @@ impl<'a> UiScope<'a> {
         }
         response
     }
+
+    /// Emits a declarative floating-point property scrubber row using canonical label alignment.
+    ///
+    /// Modifies `value` in-place, clamping strictly within `range` and applying `speed` velocity
+    /// multiplier per pointer drag displacement pixel. Defaults to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`].
+    ///
+    /// # Arguments
+    /// * `label` - Left column title caption displayed on the property row.
+    /// * `value` - Mutable reference to the floating-point scalar value modified in-place upon interaction.
+    /// * `range` - Inclusive numeric boundary constraints governing valid scalar values.
+    /// * `speed` - Drag sensitivity multiplier applied per pointer displacement pixel.
+    pub fn prop_f32(
+        &mut self,
+        label: &str,
+        value: &mut f32,
+        range: std::ops::RangeInclusive<f32>,
+        speed: f32,
+    ) -> crate::declarative::widget::ScalarResponse {
+        self.prop_f32_styled(label, value, range, speed, None, None)
+    }
+
+    /// Emits a declarative floating-point property scrubber row with explicit label width and input box width.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing with custom velocity, boundary bounds, and explicit sizing,
+    /// yielding a [`crate::declarative::widget::ScalarResponse`] with direct access to `.changed()` and `.committed()` signals.
+    ///
+    /// # Arguments
+    /// * `label` - Left column title caption displayed on the property row.
+    /// * `value` - Mutable reference to the floating-point scalar value modified in-place upon interaction.
+    /// * `range` - Inclusive numeric boundary constraints governing valid scalar values.
+    /// * `speed` - Drag sensitivity multiplier applied per pointer displacement pixel.
+    /// * `label_width` - Optional column width in pixels for the left-aligned property label.
+    /// * `box_width` - Optional fixed width in pixels for the draggable numeric pill box.
+    pub fn prop_f32_styled(
+        &mut self,
+        label: &str,
+        value: &mut f32,
+        range: std::ops::RangeInclusive<f32>,
+        speed: f32,
+        label_width: Option<f32>,
+        box_width: Option<f32>,
+    ) -> crate::declarative::widget::ScalarResponse {
+        let tag = self.tag_for(label);
+        let mut builder = crate::declarative::widget::NumericDrag::new(label, value)
+            .range(range)
+            .speed(speed)
+            .tag(tag);
+
+        if let Some(lw) = label_width {
+            builder = builder.label_width(lw);
+        }
+        if let Some(bw) = box_width {
+            builder = builder.box_width(bw);
+        }
+
+        self.add(builder)
+    }
+
+    /// Emits a declarative integer property scrubber row modifying `value` in-place.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing with discrete integer increments (`decimals: 0`),
+    /// strictly clamping within `range`. Defaults to [`crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH`].
+    ///
+    /// # Arguments
+    /// * `label` - Left column title caption displayed on the property row.
+    /// * `value` - Mutable reference to the 32-bit signed integer value modified in-place upon interaction.
+    /// * `range` - Inclusive integer boundary constraints governing valid scalar values.
+    pub fn prop_i32(
+        &mut self,
+        label: &str,
+        value: &mut i32,
+        range: std::ops::RangeInclusive<i32>,
+    ) -> crate::declarative::widget::ScalarResponse {
+        self.prop_i32_styled(label, value, range, None, None)
+    }
+
+    /// Emits a declarative integer property scrubber row with explicit label width and input box width.
+    ///
+    /// Evaluates continuous horizontal drag scrubbing with discrete integer increments (`decimals: 0`),
+    /// strictly clamping within `range` and applying explicit layout widths.
+    ///
+    /// # Arguments
+    /// * `label` - Left column title caption displayed on the property row.
+    /// * `value` - Mutable reference to the 32-bit signed integer value modified in-place upon interaction.
+    /// * `range` - Inclusive integer boundary constraints governing valid scalar values.
+    /// * `label_width` - Optional column width in pixels for the left-aligned property label.
+    /// * `box_width` - Optional fixed width in pixels for the draggable numeric pill box.
+    pub fn prop_i32_styled(
+        &mut self,
+        label: &str,
+        value: &mut i32,
+        range: std::ops::RangeInclusive<i32>,
+        label_width: Option<f32>,
+        box_width: Option<f32>,
+    ) -> crate::declarative::widget::ScalarResponse {
+        let tag = self.tag_for(label);
+        let mut f_val = *value as f32;
+        let range_f = (*range.start() as f32)..=(*range.end() as f32);
+
+        let mut builder = crate::declarative::widget::NumericDrag::new(label, &mut f_val)
+            .range(range_f)
+            .speed(1.0)
+            .decimals(0)
+            .tag(tag);
+
+        if let Some(lw) = label_width {
+            builder = builder.label_width(lw);
+        }
+        if let Some(bw) = box_width {
+            builder = builder.box_width(bw);
+        }
+
+        let resp = self.add(builder);
+        if resp.changed() || resp.committed() {
+            *value = f_val.round() as i32;
+        }
+
+        resp
+    }
 }

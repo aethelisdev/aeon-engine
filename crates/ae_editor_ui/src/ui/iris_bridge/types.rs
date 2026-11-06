@@ -6,10 +6,7 @@
 pub use super::assets::{AssetsPanelState, AssetsState};
 pub use super::console::{ConsolePanelState, ConsoleState};
 pub use super::hierarchy::{HierarchyPanelState, HierarchyState};
-pub use super::inspector::{
-    InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
-    InspectorPanelState, InspectorState,
-};
+pub use super::inspector::{InspectorColorDragMode, InspectorPanelState, InspectorState};
 pub use super::material::{MaterialPanelState, MaterialState};
 use super::modals::ModalsOverlayState;
 use super::preferences::PreferencesDialogState;
@@ -487,7 +484,6 @@ impl IrisEditorOverlay {
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
     pub fn is_any_text_input_focused(&self) -> bool {
         self.tree.is_text_input_focused()
-            || self.inspector.active_number_input.is_some()
             || self.inspector.active_text_input.is_some()
             || self.inspector.rename_input.is_some()
             || self.inspector.hex_buffer.is_some()

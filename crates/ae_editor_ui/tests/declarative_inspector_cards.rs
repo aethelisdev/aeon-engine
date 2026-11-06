@@ -17,13 +17,10 @@ use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::tags::{
-    encode_inspector_dropdown_tag, resolve_audio_pick_tag, resolve_audio_play_tag,
-    resolve_component_checkbox_tag, resolve_component_delete_tag, resolve_inspector_dropdown_tag,
-    resolve_inspector_number_input_tag, resolve_preset_reset_tag,
+    resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_delete_tag,
+    resolve_preset_reset_tag,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::types::{
-    ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId, InspectorPanelParams,
-};
+use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use irisui::prelude::*;
 
 #[test]
@@ -42,11 +39,9 @@ fn test_player_tag_card_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -94,11 +89,9 @@ fn test_velocity_card_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -118,21 +111,19 @@ fn test_velocity_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("Velocity"));
     assert!(has_delete, "Velocity delete button must be tagged");
 
-    let has_vx = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::VelocityX)
-    });
-    let has_vy = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::VelocityY)
-    });
-    let has_vz = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::VelocityZ)
-    });
-    assert!(
-        has_vx && has_vy && has_vz,
-        "Velocity X/Y/Z inputs must be tagged"
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| {
+            n.role == irisui::core::WidgetRole::NumericInput
+                && n.name
+                    .as_deref()
+                    .unwrap_or("")
+                    .starts_with("NumBox_Linear_")
+        })
+        .count();
+    assert_eq!(
+        numeric_pills, 3,
+        "Velocity card must emit 3 numeric pills (X, Y, Z)"
     );
 }
 
@@ -152,11 +143,9 @@ fn test_shape_card_declarative_structure_and_chevron() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -176,34 +165,37 @@ fn test_shape_card_declarative_structure_and_chevron() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("Shape"));
     assert!(has_delete, "Shape delete button must be tagged");
 
-    let has_dropdown = tree.iter().any(|(_, n)| {
-        resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::ShapeType)
-    });
-    assert!(has_dropdown, "Shape dropdown must be tagged");
+    let has_combo = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_combo, "Shape dropdown combo pill must be rendered");
 
-    let has_chevron_down = tree.iter().any(|(_, n)| {
-        n.name.as_deref() == Some("ComboChevron")
-            && n.texture_uv == Some(ae_editor_ui::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
-    });
+    let has_chevron_down = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▾"));
     assert!(
         has_chevron_down,
-        "Closed combobox must render atlas chevron down"
+        "Closed combobox must render chevron down (▾)"
     );
 
     // Test open state renders chevron up
+    let combo_tag = tree
+        .iter()
+        .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
+        .map(|(_, n)| n.tag)
+        .expect("ComboPill node must exist in tree");
+
     let mut open_tree = UiTree::new();
-    open_tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
-        InspectorDropdownId::ShapeType,
-    ));
+    let open_root = open_tree.create_root().expect("Root node must exist");
+    open_tree.active_combobox_tag = Some(combo_tag);
     let mut open_ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-    let mut open_scope = UiScope::new(&mut open_tree, root);
+    let mut open_scope = UiScope::new(&mut open_tree, open_root);
     handler.render_card(&mut open_scope, &mut open_ctx);
 
-    let has_chevron_up = open_tree.iter().any(|(_, n)| {
-        n.name.as_deref() == Some("ComboChevron")
-            && n.texture_uv == Some(ae_editor_ui::ui::iris_bridge::icons::ICON_CHEVRON_UP)
-    });
-    assert!(has_chevron_up, "Open combobox must render atlas chevron up");
+    let has_chevron_up = open_tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▴"));
+    assert!(has_chevron_up, "Open combobox must render chevron up (▴)");
 }
 
 #[test]
@@ -228,11 +220,9 @@ fn test_character_controller_card_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -256,11 +246,14 @@ fn test_character_controller_card_declarative_structure() {
         "CharacterController delete button must be tagged"
     );
 
-    let has_height = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::CharacterHeight)
-    });
-    assert!(has_height, "CharacterHeight must be tagged");
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert_eq!(
+        numeric_pills, 5,
+        "CharacterController must emit 5 numeric drag inputs (Height, Radius, Center Y, Max Slope, Step Height)"
+    );
 
     let has_in_air_badge = tree.iter().any(|(_, n)| {
         n.name.as_deref() == Some("GroundedStatusText")
@@ -306,11 +299,9 @@ fn test_gameplay_cards_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -327,11 +318,14 @@ fn test_gameplay_cards_declarative_structure() {
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         CharacterActionHandler.render_card(&mut scope, &mut ctx);
-        let has_speed = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag)
-                .is_some_and(|(id, ..)| id == InspectorNumberInputId::ActionSpeedRange)
-        });
-        assert!(has_speed, "ActionSpeedRange must be tagged");
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "CharacterAction must emit 2 numeric drag pills (Speed, Cooldown)"
+        );
     }
 
     // Rotator
@@ -340,11 +334,14 @@ fn test_gameplay_cards_declarative_structure() {
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         RotatorHandler.render_card(&mut scope, &mut ctx);
-        let has_speed = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag)
-                .is_some_and(|(id, ..)| id == InspectorNumberInputId::RotatorSpeed)
-        });
-        assert!(has_speed, "RotatorSpeed must be tagged");
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 4,
+            "Rotator must emit 4 numeric drag pills (Speed, Axis X, Y, Z)"
+        );
     }
 
     // MovingPlatform
@@ -420,11 +417,9 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -486,11 +481,9 @@ fn test_physics_material_card_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -510,25 +503,21 @@ fn test_physics_material_card_declarative_structure() {
         .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("PhysicsMaterial"));
     assert!(has_delete, "PhysicsMaterial delete button must be tagged");
 
-    let has_dropdown = tree.iter().any(|(_, n)| {
-        resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::SurfaceType)
-    });
-    assert!(has_dropdown, "SurfaceType dropdown must be tagged");
+    let has_combo = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_combo, "SurfaceType dropdown ComboPill must be present");
 
     let has_preset = tree.iter().any(|(_, n)| resolve_preset_reset_tag(n.tag));
     assert!(has_preset, "Preset reset button must be tagged");
 
-    let has_fric = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::PhysMatFriction)
-    });
-    let has_rest = tree.iter().any(|(_, n)| {
-        resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| id == InspectorNumberInputId::PhysMatRestitution)
-    });
-    assert!(
-        has_fric && has_rest,
-        "PhysMatFriction and PhysMatRestitution must be tagged"
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert_eq!(
+        numeric_pills, 2,
+        "PhysMatFriction and PhysMatRestitution must be emitted as numeric drag pills"
     );
 }
 
@@ -559,11 +548,9 @@ fn test_audio_cards_declarative_structure() {
         inspector_color_hex: "#ffffff",
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -593,31 +580,22 @@ fn test_audio_cards_declarative_structure() {
             "Audio pick and play buttons must be tagged"
         );
 
-        let has_vol = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag)
-                .is_some_and(|(id, ..)| id == InspectorNumberInputId::AudioVolume)
-        });
-        let has_pitch = tree.iter().any(|(_, n)| {
-            resolve_inspector_number_input_tag(n.tag)
-                .is_some_and(|(id, ..)| id == InspectorNumberInputId::AudioPitch)
-        });
-        assert!(
-            has_vol && has_pitch,
-            "AudioVolume and AudioPitch must be tagged"
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "AudioSource must emit 2 numeric drag pills (Volume, Pitch)"
         );
 
-        let has_spatial = tree.iter().any(|(_, n)| {
-            resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::AudioSpatial)
-        });
-        let has_loop = tree.iter().any(|(_, n)| {
-            resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::AudioLoop)
-        });
-        let has_play_on_start = tree.iter().any(|(_, n)| {
-            resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::AudioPlayOnStart)
-        });
-        assert!(
-            has_spatial && has_loop && has_play_on_start,
-            "Audio checkboxes must be tagged"
+        let checkboxes = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("Checkbox"))
+            .count();
+        assert_eq!(
+            checkboxes, 3,
+            "AudioSource must emit 3 checkboxes (Spatial, Loop, Play on Start)"
         );
     }
 

@@ -20,6 +20,11 @@ use crate::declarative::scope::core::UiScope;
 use crate::declarative::widget::Widget;
 use crate::numeric_input::NumericInputEditState;
 
+/// Canonical default column width in logical pixels allocated for property labels.
+///
+/// Ensures all property rows across inspector cards align to a standard horizontal column boundary.
+pub const DEFAULT_PROPERTY_LABEL_WIDTH: f32 = 105.0;
+
 /// Comprehensive interaction response returned by evaluating a [`NumericDrag`] widget.
 ///
 /// Implements [`Deref<Target = WidgetResponse>`] for transparent access to generic
@@ -517,7 +522,7 @@ impl<'a> Widget for NumericDrag<'a> {
         }
 
         // When label is not empty, build standard property row with label + pill (+ optional unit)
-        let label_w = self.label_width.unwrap_or(55.0);
+        let label_w = self.label_width.unwrap_or(DEFAULT_PROPERTY_LABEL_WIDTH);
         let gap_w = 4.0;
         let mut row_w = label_w + gap_w + box_w;
         if self.unit.is_some() {

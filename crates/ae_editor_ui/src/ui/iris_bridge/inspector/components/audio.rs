@@ -3,16 +3,11 @@
 
 //! # Audio Components Inspector Cards
 //!
-//! Provides inspection cards for  AudioSource and AudioListener components.
+//! Provides inspection cards for AudioSource and AudioListener components.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::tags::{
-    TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, encode_inspector_number_input_tag,
-};
-use super::super::types::{ComponentCategory, ComponentCheckboxId, InspectorNumberInputId};
-use super::physics::helpers::{
-    ComponentHeaderProps, build_declarative_card_header, render_declarative_checkbox_row,
-};
+use super::super::tags::{TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY};
+use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `AudioSource` component.
@@ -44,222 +39,54 @@ impl ComponentInspectorHandler for AudioSourceHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (path_str, mut volume, mut pitch, is_spatial, looping, play_on_start, is_playing) =
-            if let Ok(audio) = ctx.world.get::<&ae_audio::AudioSource>(ctx.entity) {
-                (
-                    audio.sound_path.clone(),
-                    audio.volume,
-                    audio.pitch,
-                    audio.is_spatial,
-                    audio.looping,
-                    audio.play_on_start,
-                    audio.is_playing,
-                )
-            } else {
-                (String::new(), 1.0, 1.0, true, false, true, false)
-            };
+        let Ok(mut audio) = ctx.world.get::<&mut ae_audio::AudioSource>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("AudioSourceCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            // Row 1: Sound Path + Pick File Button + Play/Stop Preview Button
-            let row_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(22.0)
-                .gap(4.0);
-
-            card.container_named("AudioSoundRow", row_style, |row| {
-                row.label_styled_passive(
-                    "AudioPathLbl",
+            card.asset_slot_row(
+                AssetSlotConfig::new(
                     "Sound:",
-                    11.0,
-                    row.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().width(46.0).height(22.0),
-                );
-
-                let file_name = if path_str.is_empty() {
-                    "Select sound...".to_string()
-                } else {
-                    std::path::Path::new(&path_str)
-                        .file_name()
-                        .map(|f| f.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| path_str.clone())
-                };
-
-                let path_box_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .flex_grow(1.0)
-                    .height(22.0)
-                    .background(row.theme().card_header_bg)
-                    .border(1.0, row.theme().card_border)
-                    .border_radius(4.0)
-                    .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
-
-                row.container_named("AudioPathBox", path_box_style, |pbox| {
-                    pbox.label_styled_passive(
-                        "AudioPathTxt",
-                        &file_name,
-                        10.0,
-                        if path_str.is_empty() {
-                            pbox.theme().text_muted
-                        } else {
-                            pbox.theme().text_primary
-                        },
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0).height(20.0),
-                    );
-                });
-
-                // Pick File Button using custom master atlas folder icon
-                let pick_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .width(20.0)
-                    .height(20.0)
-                    .background(row.theme().button_idle_bg)
-                    .border(1.0, row.theme().button_border)
-                    .border_radius(4.0);
-
-                row.container_tagged(
-                    "AudioPickBtn",
-                    pick_style,
-                    WidgetRole::Button,
+                    &audio.sound_path,
+                    "Select sound...",
                     TAG_INSPECTOR_AUDIO_PICK,
-                    |btn| {
-                        btn.icon_named(
-                            "AudioPickBtnIcon",
-                            crate::ui::iris_bridge::icons::ICON_FOLDER,
-                            btn.theme().text_secondary,
-                            14.0,
-                        );
-                    },
-                );
-
-                // Play/Stop Preview Toggle Button
-                let (bg, border, text_col) = if is_playing {
-                    (
-                        Color::rgba(0.50, 0.15, 0.15, 0.95),
-                        Color::rgba(0.75, 0.25, 0.25, 0.90),
-                        Color::rgba(1.0, 0.85, 0.85, 1.0),
-                    )
-                } else {
-                    (
-                        Color::rgba(0.157, 0.165, 0.188, 0.98),
-                        Color::rgba(0.212, 0.220, 0.259, 0.85),
-                        Color::rgba(0.35, 0.75, 0.48, 1.0),
-                    )
-                };
-
-                let play_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .width(20.0)
-                    .height(20.0)
-                    .background(bg)
-                    .border(1.0, border)
-                    .border_radius(4.0);
-
-                row.container_tagged(
-                    "AudioPlayToggleBtn",
-                    play_style,
-                    WidgetRole::Button,
-                    TAG_INSPECTOR_AUDIO_PLAY,
-                    |btn| {
-                        btn.label_styled_passive(
-                            "PlayIcon",
-                            if is_playing { "⏹" } else { "▶" },
-                            9.0,
-                            text_col,
-                            TextAlign::Center,
-                            Style::new().width(20.0).height(20.0),
-                        );
-                    },
-                );
-            });
-
-            // Row 2: Volume
-            let vol_id = InspectorNumberInputId::AudioVolume;
-            let resp_vol = card.add(
-                NumericDrag::new("Volume:", &mut volume)
-                    .range(0.0..=1.0)
-                    .tag(encode_inspector_number_input_tag(vol_id))
-                    .label_width(55.0)
-                    .box_width(48.0)
-                    .curve(DragCurve::Logarithmic)
-                    .edit_state(ctx.edit_state(vol_id)),
+                )
+                .with_play(TAG_INSPECTOR_AUDIO_PLAY, audio.is_playing)
+                .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
             );
-            if resp_vol.changed() {
-                ctx.set_number(vol_id, volume);
-            }
-            if resp_vol.committed() {
-                ctx.commit_number(vol_id);
-            }
 
-            // Row 3: Pitch
-            let pitch_id = InspectorNumberInputId::AudioPitch;
-            let resp_pitch = card.add(
-                NumericDrag::new("Pitch:", &mut pitch)
-                    .range(0.1..=10.0)
-                    .tag(encode_inspector_number_input_tag(pitch_id))
-                    .label_width(55.0)
-                    .box_width(48.0)
-                    .curve(DragCurve::Logarithmic)
-                    .edit_state(ctx.edit_state(pitch_id)),
-            );
-            if resp_pitch.changed() {
-                ctx.set_number(pitch_id, pitch);
-            }
-            if resp_pitch.committed() {
-                ctx.commit_number(pitch_id);
-            }
-
-            // Row 4: Spatial 3D Audio
-            let resp_spatial = render_declarative_checkbox_row(
+            ctx.prop_f32(
                 card,
-                ComponentCheckboxId::AudioSpatial,
+                self.component_name(),
+                "Volume:",
+                &mut audio.volume,
+                0.0..=1.0,
+                0.02,
+            );
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Pitch:",
+                &mut audio.pitch,
+                0.1..=10.0,
+                0.05,
+            );
+
+            ctx.prop_checkbox(
+                card,
+                self.component_name(),
                 "Spatial 3D Audio",
-                is_spatial,
+                &mut audio.is_spatial,
             );
-            if resp_spatial.clicked() {
-                ctx.toggle_checkbox(ComponentCheckboxId::AudioSpatial);
-            }
-
-            // Row 5: Looping
-            let resp_loop = render_declarative_checkbox_row(
+            ctx.prop_checkbox(card, self.component_name(), "Looping", &mut audio.looping);
+            ctx.prop_checkbox(
                 card,
-                ComponentCheckboxId::AudioLoop,
-                "Looping",
-                looping,
-            );
-            if resp_loop.clicked() {
-                ctx.toggle_checkbox(ComponentCheckboxId::AudioLoop);
-            }
-
-            // Row 6: Play on Start
-            let resp_play = render_declarative_checkbox_row(
-                card,
-                ComponentCheckboxId::AudioPlayOnStart,
+                self.component_name(),
                 "Play on Start",
-                play_on_start,
+                &mut audio.play_on_start,
             );
-            if resp_play.clicked() {
-                ctx.toggle_checkbox(ComponentCheckboxId::AudioPlayOnStart);
-            }
         });
     }
 
@@ -298,17 +125,7 @@ impl ComponentInspectorHandler for AudioListenerHandler {
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
         scope.card_panel("AudioListenerCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             card.label_styled_passive(
                 "AudioListenerDesc",
@@ -323,5 +140,154 @@ impl ComponentInspectorHandler for AudioListenerHandler {
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         let _ = world.insert_one(entity, ae_audio::AudioListener);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::iris_bridge::inspector::tags::{
+        encode_component_delete_tag, resolve_audio_pick_tag, resolve_audio_play_tag,
+    };
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+
+    #[test]
+    fn test_audio_source_render_and_in_place_mutation() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_audio::AudioSource {
+            sound_path: "assets/audio/test.wav".to_string(),
+            volume: 0.85,
+            pitch: 1.10,
+            looping: false,
+            is_spatial: true,
+            play_on_start: true,
+            is_playing: false,
+            ..Default::default()
+        },));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+        let handler = AudioSourceHandler;
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("AudioSource");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "AudioSource card must tag delete button with semantic delete tag"
+        );
+
+        let has_pick = tree.iter().any(|(_, n)| resolve_audio_pick_tag(n.tag));
+        assert!(has_pick, "AudioPickBtn must be tagged");
+
+        let has_play = tree.iter().any(|(_, n)| resolve_audio_play_tag(n.tag));
+        assert!(has_play, "AudioPlayToggleBtn must be tagged");
+
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "AudioSource card must emit 2 numeric pills (Volume, Pitch)"
+        );
+
+        // Test in-place mutation and undo snapshotting
+        {
+            let mut a = world.get::<&mut ae_audio::AudioSource>(entity).unwrap();
+            ctx.begin_edit(handler.component_name());
+            a.volume = 0.50;
+            a.pitch = 1.25;
+            a.looping = true;
+            a.is_spatial = false;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let a = world.get::<&ae_audio::AudioSource>(entity).unwrap();
+            assert_eq!(a.volume, 0.50);
+            assert_eq!(a.pitch, 1.25);
+            assert!(a.looping);
+            assert!(!a.is_spatial);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
+    }
+
+    #[test]
+    fn test_audio_listener_declarative_render() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_audio::AudioListener,));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+        let handler = AudioListenerHandler;
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("AudioListener");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "AudioListener card must tag delete button with semantic delete tag"
+        );
     }
 }

@@ -6,15 +6,17 @@
 //! Orchestrates the inspection, modification, reflection, and prefab export
 //! of selected ECS entities via 100% hardware-accelerated Iris UI GPU SDF.
 
+pub mod actions;
 pub mod add_menu;
 pub mod appearance;
 pub mod builder;
 pub mod color_picker_popup;
 pub mod components;
-pub mod dropdown_popup;
+pub mod context;
 pub mod dynamic_reflection;
 pub mod events;
 pub mod footer;
+pub mod handler;
 pub mod header;
 pub mod math;
 pub mod math_eval;
@@ -29,8 +31,6 @@ pub mod ui_transform;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod tests_drag;
-#[cfg(test)]
 mod tests_popups;
 
 pub use appearance::{
@@ -40,6 +40,7 @@ pub use appearance::{
     resolve_appearance_color_swatch_tag, resolve_appearance_hex_input_tag,
     resolve_appearance_palette_swatch_tag,
 };
+pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
 pub use events::resolve_inspector_tag_click;
 pub use header::{entity_name_input_tag, resolve_entity_name_input_tag};
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
@@ -51,20 +52,15 @@ pub use state::{
 };
 pub use tags::{
     TAG_COMPONENT_DELETE_BASE, TAG_INSPECTOR_ACTION_BASE, TAG_INSPECTOR_ADD_COMPONENT,
-    TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, TAG_INSPECTOR_CHECKBOX_BASE,
-    TAG_INSPECTOR_DROPDOWN_BASE, TAG_INSPECTOR_NUMBER_INPUT_BASE, TAG_INSPECTOR_PANEL_ROOT,
+    TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, TAG_INSPECTOR_PANEL_ROOT,
     TAG_INSPECTOR_PRESET_RESET, TAG_INSPECTOR_SAVE_PREFAB, TAG_INSPECTOR_TEXT_INPUT_BASE,
-    TAG_INSPECTOR_UNPARENT, encode_component_checkbox_tag, encode_component_delete_tag,
-    encode_inspector_dropdown_tag, encode_inspector_number_input_tag,
-    encode_inspector_text_input_tag, is_inspector_tag, resolve_add_component_btn_tag,
-    resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_checkbox_tag,
-    resolve_component_delete_tag, resolve_inspector_dropdown_tag,
-    resolve_inspector_number_input_tag, resolve_inspector_text_input_tag, resolve_preset_reset_tag,
-    resolve_save_prefab_btn_tag, resolve_unparent_tag,
+    TAG_INSPECTOR_UNPARENT, encode_component_delete_tag, encode_inspector_text_input_tag,
+    is_inspector_tag, resolve_add_component_btn_tag, resolve_audio_pick_tag,
+    resolve_audio_play_tag, resolve_component_delete_tag, resolve_inspector_text_input_tag,
+    resolve_preset_reset_tag, resolve_save_prefab_btn_tag, resolve_unparent_tag,
 };
 pub use transform::build_transform_card;
 pub use types::{
-    ActiveNumberInputState, ComponentCategory, ComponentCheckboxId, InspectorAction,
-    InspectorColorDragMode, InspectorDropdownId, InspectorNumberDragState, InspectorNumberInputId,
-    InspectorNumberInputSession, InspectorPanelParams, InspectorTextInputId, TransformAxisType,
+    ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorPanelParams,
+    InspectorTextInputId, TransformAxisType,
 };

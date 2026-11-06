@@ -201,11 +201,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(12.0, 775.0), // Hover over Add Component button
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,

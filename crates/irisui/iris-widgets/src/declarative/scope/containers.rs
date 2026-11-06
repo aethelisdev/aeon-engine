@@ -13,4 +13,5 @@ pub mod generic;
 pub mod scroll;
 
 pub use builder::{ColumnBuilder, RowBuilder};
+pub use cards::{CardBuilder, CardHeaderResponse, CardOptions, CardResponse};
 pub use generic::{ContainerResponseExt, InnerResponse};

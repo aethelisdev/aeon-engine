@@ -5,14 +5,10 @@
 //!
 //! Provides a declarative inspector card for configuring action speed, range, and cooldown times.
 
-use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, build_declarative_card_header,
-};
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
-use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
+use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `💨 CharacterAction`.
@@ -44,65 +40,32 @@ impl ComponentInspectorHandler for CharacterActionHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut speed, mut cooldown) = ctx
+        let Ok(mut a) = ctx
             .world
-            .get::<&ae_core::ecs::CharacterAction>(ctx.entity)
-            .map(|a| (a.speed, a.cooldown))
-            .unwrap_or((50.0, 0.20));
+            .get::<&mut ae_core::ecs::CharacterAction>(ctx.entity)
+        else {
+            return;
+        };
 
         scope.card_panel("CharacterActionCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Speed / Range:",
+                &mut a.speed,
+                0.0..=10_000.0,
+                0.5,
             );
-
-            let label_w = 95.0;
-            let box_w = 44.0;
-
-            // Speed / Range [ 50 ] m/s
-            let speed_id = InspectorNumberInputId::ActionSpeedRange;
-            let custom_speed = format!("{:.0}", speed);
-            let resp_speed = card.add(
-                NumericDrag::new("Speed / Range:", &mut speed)
-                    .tag(encode_inspector_number_input_tag(speed_id))
-                    .label_width(label_w)
-                    .box_width(box_w)
-                    .unit("m/s")
-                    .custom_text(&custom_speed)
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(speed_id)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Cooldown:",
+                &mut a.cooldown,
+                0.0..=3_600.0,
+                0.05,
             );
-            if resp_speed.changed() {
-                ctx.set_number(speed_id, speed);
-            }
-            if resp_speed.committed() {
-                ctx.commit_number(speed_id);
-            }
-
-            // Cooldown [ 0.20 ] s
-            let cd_id = InspectorNumberInputId::ActionCooldown;
-            let resp_cd = card.add(
-                NumericDrag::new("Cooldown:", &mut cooldown)
-                    .tag(encode_inspector_number_input_tag(cd_id))
-                    .label_width(label_w)
-                    .box_width(box_w)
-                    .unit("s")
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(cd_id)),
-            );
-            if resp_cd.changed() {
-                ctx.set_number(cd_id, cooldown);
-            }
-            if resp_cd.committed() {
-                ctx.commit_number(cd_id);
-            }
         });
     }
 
@@ -114,13 +77,11 @@ impl ComponentInspectorHandler for CharacterActionHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::{
-        encode_component_delete_tag, encode_inspector_number_input_tag,
-    };
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
 
     #[test]
-    fn test_character_action_render_tags() {
+    fn test_character_action_render_and_in_place_mutation() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::CharacterAction::new(),));
         let mut tree = UiTree::new();
@@ -135,11 +96,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -148,15 +107,60 @@ mod tests {
             blink_caret: false,
         };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
         let handler = CharacterActionHandler;
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
         let del_tag = encode_component_delete_tag("CharacterAction");
-        assert!(tree.iter().any(|(_, n)| n.tag == del_tag));
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "CharacterAction card must tag delete button with semantic delete tag"
+        );
 
-        let speed_tag = encode_inspector_number_input_tag(InspectorNumberInputId::ActionSpeedRange);
-        assert!(tree.iter().any(|(_, n)| n.tag == speed_tag));
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "CharacterAction card must emit 2 numeric pills (Speed, Cooldown)"
+        );
+
+        // Test in-place mutation and undo snapshotting
+        {
+            let mut a = world
+                .get::<&mut ae_core::ecs::CharacterAction>(entity)
+                .unwrap();
+            ctx.begin_edit(handler.component_name());
+            a.speed = 120.0;
+            a.cooldown = 1.5;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let a = world.get::<&ae_core::ecs::CharacterAction>(entity).unwrap();
+            assert_eq!(a.speed, 120.0);
+            assert_eq!(a.cooldown, 1.5);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
     }
 }

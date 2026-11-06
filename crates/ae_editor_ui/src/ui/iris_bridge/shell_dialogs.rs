@@ -171,24 +171,13 @@ impl IrisEditorOverlay {
                 .append(&mut hierarchy_overlay_actions);
         }
 
-        // 8. Inspector Add Component Cascading Menu, Dropdowns, and Color Picker
+        // 8. Inspector Add Component Cascading Menu and Color Picker
         let insp_rect = self
             .chrome
             .dock_frame
             .as_ref()
             .and_then(|f| f.panel_rect(PanelId::Inspector));
         if let Some(insp_rect) = insp_rect {
-            let num_input_ref = self
-                .inspector
-                .active_number_input
-                .as_ref()
-                .filter(|session| Some(session.entity) == params.scene.selected_entity)
-                .map(|session| super::inspector::types::ActiveNumberInputState {
-                    id: session.id,
-                    buffer: session.buffer.as_str(),
-                    cursor_idx: session.cursor_idx,
-                    is_all_selected: session.is_all_selected,
-                });
             let text_input_ref = self
                 .inspector
                 .active_text_input
@@ -208,9 +197,8 @@ impl IrisEditorOverlay {
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, s)| s.as_str());
 
-            let is_inspector_popup_open = self.inspector.is_add_menu_open
-                || self.inspector.active_dropdown.is_some()
-                || self.inspector.is_color_picker_open;
+            let is_inspector_popup_open =
+                self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
 
             if is_inspector_popup_open {
                 let mut inspector_overlay_actions = Vec::new();
@@ -222,11 +210,9 @@ impl IrisEditorOverlay {
                     inspector_color_hex: params.panel_data.inspector_color_hex,
                     saved_swatches: params.panel_data.saved_swatches,
                     cursor_pos: cursor,
-                    active_dropdown: self.inspector.active_dropdown,
                     active_submenu: self.inspector.active_submenu,
                     is_add_menu_open: self.inspector.is_add_menu_open,
                     is_color_picker_open: self.inspector.is_color_picker_open,
-                    active_number_input: num_input_ref,
                     active_text_input: text_input_ref,
                     active_rename_buffer: rename_buf_ref,
                     is_rename_all_selected: self.inspector.rename_is_all_selected

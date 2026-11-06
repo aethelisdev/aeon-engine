@@ -5,14 +5,10 @@
 //!
 //! Provides a declarative inspector card for 3D linear velocity components (`X`, `Y`, `Z`).
 
-use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, build_declarative_card_header,
-};
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
-use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
+use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `📎 Velocity`.
@@ -44,48 +40,13 @@ impl ComponentInspectorHandler for VelocityHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let [mut vx, mut vy, mut vz] = ctx
-            .world
-            .get::<&ae_core::ecs::Velocity>(ctx.entity)
-            .map(|v| [v.x, v.y, v.z])
-            .unwrap_or([0.0, 0.0, 0.0]);
+        let Ok(mut v) = ctx.world.get::<&mut ae_core::ecs::Velocity>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("VelocityCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
-
-            let mut row_defs = [
-                ("X:", &mut vx, InspectorNumberInputId::VelocityX),
-                ("Y:", &mut vy, InspectorNumberInputId::VelocityY),
-                ("Z:", &mut vz, InspectorNumberInputId::VelocityZ),
-            ];
-            for (lbl, val, input_id) in &mut row_defs {
-                let tag = encode_inspector_number_input_tag(*input_id);
-                let edit = ctx.edit_state(*input_id);
-                let resp = card.add(
-                    NumericDrag::new(lbl, val)
-                        .tag(tag)
-                        .label_width(20.0)
-                        .box_width(44.0)
-                        .curve(DragCurve::quadratic())
-                        .edit_state(edit),
-                );
-                if resp.changed() {
-                    ctx.set_number(*input_id, **val);
-                }
-                if resp.committed() {
-                    ctx.commit_number(*input_id);
-                }
-            }
+            self.render_header(card);
+            ctx.prop_velocity(card, &mut v);
         });
     }
 
@@ -104,13 +65,11 @@ impl ComponentInspectorHandler for VelocityHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::{
-        encode_component_delete_tag, encode_inspector_number_input_tag,
-    };
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
 
     #[test]
-    fn test_velocity_render_tags() {
+    fn test_velocity_render_and_in_place_mutation() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::Velocity {
             x: 1.0,
@@ -129,11 +88,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -142,15 +99,66 @@ mod tests {
             blink_caret: false,
         };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
         let handler = VelocityHandler;
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
         let del_tag = encode_component_delete_tag("Velocity");
-        assert!(tree.iter().any(|(_, n)| n.tag == del_tag));
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "Velocity card must tag delete button with semantic delete tag"
+        );
 
-        let vx_tag = encode_inspector_number_input_tag(InspectorNumberInputId::VelocityX);
-        assert!(tree.iter().any(|(_, n)| n.tag == vx_tag));
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| {
+                n.role == irisui::core::WidgetRole::NumericInput
+                    && n.name
+                        .as_deref()
+                        .unwrap_or("")
+                        .starts_with("NumBox_Linear_")
+            })
+            .count();
+        assert_eq!(
+            numeric_pills, 3,
+            "Velocity card must emit 3 numeric pills (X, Y, Z)"
+        );
+
+        // Test in-place mutation and undo snapshotting
+        {
+            let mut v = world.get::<&mut ae_core::ecs::Velocity>(entity).unwrap();
+            ctx.begin_edit(handler.component_name());
+            v.x = 5.5;
+            v.y = -4.2;
+            v.z = 10.0;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let v = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            assert_eq!(v.x, 5.5);
+            assert_eq!(v.y, -4.2);
+            assert_eq!(v.z, 10.0);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
     }
 }

@@ -3,22 +3,15 @@
 
 //! # RigidBody Component Inspector Card
 //!
-//! Provides the `RigidBodyHandler` implementing UI rendering, body type combobox
-//! (`Dynamic`, `Kinematic`, `Static`), mass and gravity scale numeric inputs,
+//! Provides the `RigidBodyHandler` implementing declarative UI rendering, body type combobox
+//! (`Dynamic`, `Kinematic`, `Static`), mass and gravity scale numeric inputs with two-way data-binding,
 //! and paired component attachment with `Collider`.
 
-use super::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
-    render_declarative_combobox_row,
-};
 use crate::ui::iris_bridge::icons::ICON_GEAR;
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
-use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorDropdownId, InspectorNumberInputId,
-};
+use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Inspector handler for `⚙ RigidBody`.
@@ -54,75 +47,13 @@ impl ComponentInspectorHandler for RigidBodyHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (body_type, mut mass, mut gravity_scale) = ctx
-            .world
-            .get::<&ae_core::ecs::RigidBody>(ctx.entity)
-            .map(|rb| (rb.body_type, rb.mass, rb.gravity_scale))
-            .unwrap_or((ae_core::ecs::RigidBodyType::Kinematic, 1.0, 1.0));
-
-        let body_type_str = match body_type {
-            ae_core::ecs::RigidBodyType::Dynamic => "Dynamic",
-            ae_core::ecs::RigidBodyType::Kinematic => "Kinematic",
-            ae_core::ecs::RigidBodyType::Static => "Static",
+        let Ok(mut rb) = ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity) else {
+            return;
         };
 
         scope.card_panel("RigidBodyCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: self.atlas_icon(),
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
-
-            render_declarative_combobox_row(
-                card,
-                ctx,
-                DeclarativeComboboxRowParams {
-                    dropdown_id: InspectorDropdownId::RigidBodyType,
-                    label: None,
-                    label_w: 0.0,
-                    selected_text: body_type_str,
-                    combo_w: 96.0,
-                    options: &["Dynamic", "Kinematic", "Static"],
-                },
-            );
-
-            let mass_id = InspectorNumberInputId::RigidBodyMass;
-            let resp_mass = card.add(
-                NumericDrag::new("Mass:", &mut mass)
-                    .tag(encode_inspector_number_input_tag(mass_id))
-                    .label_width(55.0)
-                    .box_width(44.0)
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(mass_id)),
-            );
-            if resp_mass.changed() {
-                ctx.set_number(mass_id, mass);
-            }
-            if resp_mass.committed() {
-                ctx.commit_number(mass_id);
-            }
-
-            let grav_id = InspectorNumberInputId::RigidBodyGravity;
-            let resp_grav = card.add(
-                NumericDrag::new("Gravity:", &mut gravity_scale)
-                    .tag(encode_inspector_number_input_tag(grav_id))
-                    .label_width(55.0)
-                    .box_width(44.0)
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(grav_id)),
-            );
-            if resp_grav.changed() {
-                ctx.set_number(grav_id, gravity_scale);
-            }
-            if resp_grav.committed() {
-                ctx.commit_number(grav_id);
-            }
+            self.render_header(card);
+            ctx.prop_rigidbody(card, &mut rb);
         });
     }
 
@@ -137,10 +68,8 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::{
-        encode_component_delete_tag, encode_inspector_dropdown_tag,
-        encode_inspector_number_input_tag,
-    };
+    use crate::ui::iris_bridge::inspector::InspectorAction;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -167,11 +96,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -190,26 +117,13 @@ mod tests {
         });
         assert!(has_gear_icon, "RigidBody card header must render ICON_GEAR");
 
-        let has_chevron_down = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron")
-                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
-        });
+        let has_chevron_down = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("ComboChevron"));
         assert!(
             has_chevron_down,
-            "Combobox must render atlas chevron down when closed"
+            "Combobox must render chevron down when closed"
         );
-
-        let dropdown_tag = encode_inspector_dropdown_tag(InspectorDropdownId::RigidBodyType);
-        let has_dropdown = tree.iter().any(|(_, n)| n.tag == dropdown_tag);
-        assert!(has_dropdown, "RigidBody combobox must be tagged");
-
-        let mass_tag = encode_inspector_number_input_tag(InspectorNumberInputId::RigidBodyMass);
-        let has_mass = tree.iter().any(|(_, n)| n.tag == mass_tag);
-        assert!(has_mass, "RigidBody mass input must be tagged");
-
-        let grav_tag = encode_inspector_number_input_tag(InspectorNumberInputId::RigidBodyGravity);
-        let has_grav = tree.iter().any(|(_, n)| n.tag == grav_tag);
-        assert!(has_grav, "RigidBody gravity input must be tagged");
 
         let del_tag = encode_component_delete_tag("RigidBody");
         let has_del = tree.iter().any(|(_, n)| n.tag == del_tag);
@@ -220,7 +134,7 @@ mod tests {
     fn test_rigidbody_combobox_renders_chevron_up_when_open() {
         let handler = RigidBodyHandler;
         let mut tree = UiTree::new();
-        let root = WidgetId::default();
+        let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::RigidBody::default(),));
 
@@ -234,11 +148,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: Some(InspectorDropdownId::RigidBodyType),
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -249,19 +161,99 @@ mod tests {
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
 
-        tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
-            InspectorDropdownId::RigidBodyType,
-        ));
-        let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        // First pass: render once to get the tag of the ComboPill
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            handler.render_card(&mut scope, &mut ctx);
+        }
 
-        let has_chevron_up = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron")
-                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_UP)
+        let combo_tag = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
+            .map(|(_, n)| n.tag)
+            .expect("ComboPill node must exist in tree");
+
+        // Second pass: set active_combobox_tag to combo_tag and render
+        let mut tree2 = UiTree::new();
+        let root2 = tree2.create_root().expect("Root node must exist");
+        tree2.active_combobox_tag = Some(combo_tag);
+
+        let mut scope2 = UiScope::new(&mut tree2, root2);
+        handler.render_card(&mut scope2, &mut ctx);
+
+        let has_chevron_up = tree2.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▴")
         });
         assert!(
             has_chevron_up,
-            "Combobox must render atlas chevron up when open"
+            "Combobox must render chevron up (▴) when open"
         );
+    }
+
+    #[test]
+    fn test_rigidbody_declarative_in_place_mutation_and_undo_snapshot() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::RigidBody {
+            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+            mass: 2.5,
+            gravity_scale: 1.0,
+        },));
+
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            50.0,
+            280.0,
+        );
+
+        // Verify begin_edit and commit_edit signals
+        ctx.begin_edit("RigidBody");
+        if let Ok(mut rb) = ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity) {
+            rb.mass = 5.0;
+            rb.gravity_scale = 2.0;
+            rb.body_type = ae_core::ecs::RigidBodyType::Static;
+        }
+        ctx.commit_edit("RigidBody");
+
+        assert_eq!(actions.len(), 2);
+        assert_eq!(
+            actions[0],
+            InspectorAction::StartComponentEdit(entity, "RigidBody", None)
+        );
+        assert_eq!(
+            actions[1],
+            InspectorAction::CommitComponentEdit(entity, "RigidBody")
+        );
+
+        // Verify mutations in world
+        let rb = world.get::<&ae_core::ecs::RigidBody>(entity).unwrap();
+        assert_eq!(rb.mass, 5.0);
+        assert_eq!(rb.gravity_scale, 2.0);
+        assert_eq!(rb.body_type, ae_core::ecs::RigidBodyType::Static);
     }
 }

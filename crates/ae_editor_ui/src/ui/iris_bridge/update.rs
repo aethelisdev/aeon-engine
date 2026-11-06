@@ -417,9 +417,8 @@ impl IrisEditorOverlay {
         let menu_active =
             self.menubar.active_menu.is_some() || self.menubar.dropdown_rect.is_some();
         let menu_changed = menu_active != self.chrome.last_menu_active;
-        let inspector_popups = self.inspector.is_add_menu_open
-            || self.inspector.is_color_picker_open
-            || self.inspector.active_dropdown.is_some();
+        let inspector_popups =
+            self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
         let inspector_popups_changed = inspector_popups != self.chrome.last_inspector_popups;
         let hierarchy_popups =
             self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some();
@@ -532,8 +531,7 @@ impl IrisEditorOverlay {
                 );
                 if self.inspector.last_transform_snapshot.as_ref() != Some(&current_snap) {
                     self.inspector.last_transform_snapshot = Some(current_snap);
-                    let is_inspector_busy = self.inspector.active_number_input.is_some()
-                        || self.inspector.active_text_input.is_some()
+                    let is_inspector_busy = self.inspector.active_text_input.is_some()
                         || self.inspector.rename_input.is_some()
                         || self.tree.event_state.active_text_edit.is_some()
                         || self
@@ -931,10 +929,6 @@ impl IrisEditorOverlay {
         }
         if self.viewport_hud.dropdown.is_some() {
             self.viewport_hud.dropdown = None;
-            closed_any = true;
-        }
-        if self.inspector.active_dropdown.is_some() {
-            self.inspector.active_dropdown = None;
             closed_any = true;
         }
         if self.inspector.is_add_menu_open {

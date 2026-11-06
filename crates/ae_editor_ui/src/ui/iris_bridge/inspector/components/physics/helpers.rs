@@ -3,15 +3,10 @@
 
 //! # Common UI Widget and Card Render Helpers
 //!
-//! Provides reusable helper routines for drawing headers, numeric input pills,
-//! dropdown comboboxes, and checkboxes inside Iris UI Inspector component cards.
+//! Provides reusable helper routines for drawing standardized headers
+//! inside Iris UI Inspector component cards.
 
-use crate::ui::iris_bridge::inspector::tags::{
-    encode_component_checkbox_tag, encode_component_delete_tag, encode_inspector_dropdown_tag,
-};
-use crate::ui::iris_bridge::inspector::types::{
-    ComponentCheckboxId, InspectorAction, InspectorDropdownId,
-};
+use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
 use irisui::prelude::*;
 
 /// Parameters for rendering a component card header.
@@ -39,8 +34,6 @@ pub struct ComponentHeaderProps {
 /// * `scope` - Active declarative UI scope for the card container.
 /// * `props` - Title, icon coordinates, and visual accent styling configuration.
 /// * `is_delete_hovered` - Whether the cursor is currently hovering over the delete action button.
-///
-/// Returns the allocated [`WidgetId`] of the component deletion button container.
 pub fn build_declarative_card_header(
     scope: &mut UiScope<'_>,
     props: ComponentHeaderProps,
@@ -118,86 +111,4 @@ pub fn build_declarative_card_header(
             },
         );
     });
-}
-
-use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
-use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-
-/// Parameter descriptor for rendering an autonomous declarative combobox property row.
-#[derive(Debug, Clone, Copy)]
-pub struct DeclarativeComboboxRowParams<'a> {
-    /// Associated inspector dropdown identifier for semantic tag hit-testing.
-    pub dropdown_id: InspectorDropdownId,
-    /// Optional property description label (e.g. `Some("Shape:")`).
-    pub label: Option<&'a str>,
-    /// Width allocated for the description label in physical pixels.
-    pub label_w: f32,
-    /// Currently selected option string displayed on the combobox pill.
-    pub selected_text: &'a str,
-    /// Width of the combobox trigger button in physical pixels.
-    pub combo_w: f32,
-    /// Available selectable option strings for the popup dropdown list.
-    pub options: &'a [&'a str],
-}
-
-/// Renders a standardized autonomous dropdown combobox row in a declarative [`UiScope`].
-///
-/// Automatically delegates to the autonomous [`irisui::prelude::ComboBox`] widget which
-/// manages open/close popup layer state internally, emitting [`InspectorAction::SelectDropdown`]
-/// directly upon option selection.
-pub fn render_declarative_combobox_row(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    params: DeclarativeComboboxRowParams<'_>,
-) {
-    let mut combo = irisui::prelude::ComboBox::new(params.selected_text, params.options)
-        .tag(encode_inspector_dropdown_tag(params.dropdown_id))
-        .width(params.combo_w)
-        .indicator(|pill_scope, is_open| {
-            let uv = if is_open {
-                ICON_CHEVRON_UP
-            } else {
-                ICON_CHEVRON_DOWN
-            };
-            pill_scope.icon_named("ComboChevron", uv, Color::rgba(0.85, 0.88, 0.94, 0.9), 9.0);
-        });
-    if let Some(lbl) = params.label {
-        combo = combo.label(lbl).label_width(params.label_w);
-    }
-    let resp = scope.add(combo);
-    if resp.changed()
-        && let Some(idx) = resp.selected_index()
-    {
-        ctx.push_action(InspectorAction::SelectDropdown(
-            ctx.entity,
-            params.dropdown_id,
-            idx,
-        ));
-    }
-}
-
-/// Renders a standardized interactive checkbox row using the autonomous [`Checkbox`] widget.
-///
-/// Encapsulates persistent 64-bit tag encoding, hover states, border highlights, and click detection
-/// using the unified declarative IrisUI widget framework.
-///
-/// # Arguments
-/// * `scope` - Active declarative scope in which to mount the checkbox.
-/// * `cb_id` - Semantic component checkbox identifier.
-/// * `label` - Descriptive text displayed next to the indicator box.
-/// * `is_checked` - Current boolean state of the property.
-///
-/// Returns the resulting [`WidgetResponse`] capturing click and hover interaction signals.
-pub fn render_declarative_checkbox_row(
-    scope: &mut UiScope<'_>,
-    cb_id: ComponentCheckboxId,
-    label: &'static str,
-    is_checked: bool,
-) -> WidgetResponse {
-    let tag = encode_component_checkbox_tag(cb_id);
-    scope.add(
-        Checkbox::new(label, is_checked)
-            .name("CheckboxBox")
-            .tag(tag),
-    )
 }

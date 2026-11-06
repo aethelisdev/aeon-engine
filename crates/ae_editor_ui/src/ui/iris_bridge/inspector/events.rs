@@ -13,8 +13,8 @@ use super::appearance::{
 use super::header::resolve_entity_name_input_tag;
 use super::tags::{
     resolve_add_component_btn_tag, resolve_audio_pick_tag, resolve_audio_play_tag,
-    resolve_component_checkbox_tag, resolve_component_delete_tag, resolve_inspector_dropdown_tag,
-    resolve_preset_reset_tag, resolve_save_prefab_btn_tag, resolve_unparent_tag,
+    resolve_component_delete_tag, resolve_preset_reset_tag, resolve_save_prefab_btn_tag,
+    resolve_unparent_tag,
 };
 use super::types::InspectorAction;
 use irisui::prelude::*;
@@ -43,20 +43,6 @@ pub fn resolve_inspector_tag_click(
     if let Some(comp_name) = resolve_component_delete_tag(hit_tag) {
         if let Some(entity) = entity_opt {
             out_actions.push(InspectorAction::RemoveComponent(entity, comp_name));
-        }
-        return true;
-    }
-
-    if let Some(dd_id) = resolve_inspector_dropdown_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::SelectDropdown(entity, dd_id, 0));
-        }
-        return true;
-    }
-
-    if let Some(cb_id) = resolve_component_checkbox_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::ToggleCheckbox(entity, cb_id));
         }
         return true;
     }

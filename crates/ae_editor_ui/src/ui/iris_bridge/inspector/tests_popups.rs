@@ -25,11 +25,9 @@ fn create_default_test_params<'a>(
         inspector_color_hex: "#ffffff",
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -37,67 +35,6 @@ fn create_default_test_params<'a>(
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
     }
-}
-
-#[test]
-fn test_inspector_dropdown_popup_declarative_scope_and_hit_testing() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
-    let entity = world.spawn((Position::default(),));
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.active_dropdown = Some(InspectorDropdownId::RigidBodyType);
-
-    // Build trigger anchor via declarative UiScope directly in tree
-    {
-        let mut scope = UiScope::new(&mut tree, root);
-        scope.container_tagged(
-            "AnchorDropdownTrigger",
-            Style::new()
-                .position_absolute()
-                .left(100.0)
-                .top(100.0)
-                .width(120.0)
-                .height(24.0),
-            WidgetRole::Button,
-            encode_inspector_dropdown_tag(InspectorDropdownId::RigidBodyType),
-            |btn| {
-                btn.label_styled_passive(
-                    "DropdownLabel",
-                    "Dynamic",
-                    11.0,
-                    Color::WHITE,
-                    TextAlign::Left,
-                    Style::new().height(20.0),
-                );
-            },
-        );
-        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
-    }
-
-    // Build the dropdown popup via declarative UiScope
-    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params);
-
-    // Option 0: "Dynamic" (tag = TAG_INSPECTOR_DROPDOWN_ITEM_BASE)
-    let opt0_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 10.0);
-    let hit0 = tree
-        .hit_test_target(opt0_point)
-        .expect("Must hit dropdown item 0");
-    assert_eq!(hit0.layer, UiLayer::Popup);
-    assert_eq!(hit0.role, WidgetRole::DropdownItem);
-    assert_eq!(hit0.tag, tags::TAG_INSPECTOR_DROPDOWN_ITEM_BASE);
-
-    // Option 1: "Kinematic" (tag = TAG_INSPECTOR_DROPDOWN_ITEM_BASE + 1)
-    let opt1_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 22.0 + 10.0);
-    let hit1 = tree
-        .hit_test_target(opt1_point)
-        .expect("Must hit dropdown item 1");
-    assert_eq!(hit1.layer, UiLayer::Popup);
-    assert_eq!(hit1.role, WidgetRole::DropdownItem);
-    assert_eq!(hit1.tag, tags::TAG_INSPECTOR_DROPDOWN_ITEM_BASE + 1);
 }
 
 #[test]

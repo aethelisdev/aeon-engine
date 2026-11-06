@@ -10,7 +10,6 @@
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
-use super::super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 
 use irisui::prelude::*;
 
@@ -46,17 +45,7 @@ impl ComponentInspectorHandler for PlayerHealthBarTagHandler {
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
         scope.card_panel("PlayerHealthBarTagCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             card.label_styled_passive(
                 "HealthBarTagDesc",
@@ -104,17 +93,7 @@ impl ComponentInspectorHandler for ScoreDisplayTagHandler {
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
         scope.card_panel("ScoreDisplayTagCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             card.label_styled_passive(
                 "ScoreDisplayTagDesc",
@@ -162,17 +141,7 @@ impl ComponentInspectorHandler for ReticleTagHandler {
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
         scope.card_panel("ReticleTagCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
             card.label_styled_passive(
                 "ReticleTagDesc",

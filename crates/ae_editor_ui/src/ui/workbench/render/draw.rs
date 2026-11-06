@@ -141,29 +141,9 @@ impl EngineUi {
             let is_editing_rotation = self
                 .iris_overlay
                 .inspector
-                .drag_number
+                .edit_start_snapshot
                 .as_ref()
-                .is_some_and(|d| {
-                    matches!(
-                        d.id,
-                        crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX
-                            | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY
-                            | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ
-                    )
-                })
-                || self
-                    .iris_overlay
-                    .inspector
-                    .active_number_input
-                    .as_ref()
-                    .is_some_and(|s| {
-                        matches!(
-                            s.id,
-                            crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX
-                                | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY
-                                | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ
-                        )
-                    });
+                .is_some_and(|(e, c, _)| *e == ent && *c == "Rotation");
 
             if !is_editing_rotation {
                 let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(

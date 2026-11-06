@@ -7,8 +7,7 @@
 //! retained-mode dirty tracking for the Scene Inspector panel overlay.
 
 use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorDropdownId,
-    InspectorNumberDragState, InspectorNumberInputSession, InspectorTextInputId,
+    ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorTextInputId,
 };
 use crate::ui::iris_bridge::types::PanelInteractionState;
 
@@ -21,10 +20,6 @@ pub struct InspectorPanelState {
     pub is_add_menu_open: bool,
     /// Currently open category submenu in Add Component menu.
     pub active_submenu: Option<ComponentCategory>,
-    /// Currently open dropdown in Inspector.
-    pub active_dropdown: Option<InspectorDropdownId>,
-    /// Currently active number input editing session in Inspector.
-    pub active_number_input: Option<InspectorNumberInputSession>,
     /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
     pub active_text_input: Option<(hecs::Entity, InspectorTextInputId, String)>,
     /// Currently active `TextInputState` session for Inspector string text fields.
@@ -33,8 +28,6 @@ pub struct InspectorPanelState {
         InspectorTextInputId,
         irisui::prelude::TextInputState,
     )>,
-    /// Active continuous horizontal mouse drag state for Inspector numeric fields.
-    pub drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
     /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
@@ -160,27 +153,6 @@ impl InspectorPanelState {
         &mut self,
         selected_entity: Option<hecs::Entity>,
     ) {
-        if let Some(session) = self.active_number_input.take() {
-            if Some(session.entity) != selected_entity {
-                if let Ok(v) =
-                    super::math_eval::evaluate_inspector_math(&session.buffer, session.initial_val)
-                {
-                    self.actions.push(InspectorAction::SetNumberValue(
-                        session.entity,
-                        session.id,
-                        v,
-                    ));
-                    self.actions.push(InspectorAction::CommitNumberEdit(
-                        session.entity,
-                        session.id,
-                    ));
-                } else {
-                    self.edit_start_snapshot = None;
-                }
-            } else {
-                self.active_number_input = Some(session);
-            }
-        }
         if let Some((ent, id, buf)) = self.active_text_input.take() {
             if Some(ent) != selected_entity {
                 self.actions

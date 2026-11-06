@@ -46,10 +46,14 @@ pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
-pub use containers::{ColumnBuilder, ContainerResponseExt, InnerResponse, RowBuilder};
+pub use containers::{
+    CardBuilder, CardHeaderResponse, CardOptions, CardResponse, ColumnBuilder,
+    ContainerResponseExt, InnerResponse, RowBuilder,
+};
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
+pub use input::{AssetSlotConfig, ComboRowLayout};
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use menu::{PopupExt, PopupPlacement};
 pub use properties::{

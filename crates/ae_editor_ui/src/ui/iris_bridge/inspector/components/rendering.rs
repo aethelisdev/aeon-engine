@@ -5,13 +5,10 @@
 //!
 //! Provides handlers for `💡 Light`, `📦 ModelId`, and `🎲 Shape`.
 
-use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::tags::encode_inspector_number_input_tag;
-use super::super::types::{ComponentCategory, InspectorDropdownId, InspectorNumberInputId};
-use super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
-    render_declarative_combobox_row,
+use super::super::registry::{
+    ComponentInspectorHandler, ComponentRenderContext, PropComboMapConfig, PropComboRowLayout,
 };
+use super::super::types::ComponentCategory;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_LIGHT};
 use irisui::prelude::*;
 
@@ -48,79 +45,37 @@ impl ComponentInspectorHandler for LightHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (mut pos, mut col) = ctx
-            .world
-            .get::<&ae_core::ecs::Light>(ctx.entity)
-            .map(|l| (l.position, l.color))
-            .unwrap_or(([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
+        let Ok(mut light) = ctx.world.get::<&mut ae_core::ecs::Light>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("LightCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: self.atlas_icon(),
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Light Offset Y:",
+                &mut light.position[1],
+                -1_000.0..=1_000.0,
+                0.05,
             );
-
-            // Row 1: Light Offset Y
-            let id_offset = InspectorNumberInputId::LightOffsetY;
-            let resp_offset = card.add(
-                NumericDrag::new("Light Offset Y:", &mut pos[1])
-                    .label_width(95.0)
-                    .box_width(44.0)
-                    .tag(encode_inspector_number_input_tag(id_offset))
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(id_offset)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Color R:",
+                &mut light.color[0],
+                0.0..=1.0,
+                0.01,
             );
-            if resp_offset.changed() {
-                ctx.set_number(id_offset, pos[1]);
-            }
-            if resp_offset.committed() {
-                ctx.commit_number(id_offset);
-            }
-
-            // Row 2: Color R
-            let id_r = InspectorNumberInputId::LightColorR;
-            let resp_r = card.add(
-                NumericDrag::new("Color R:", &mut col[0])
-                    .label_width(95.0)
-                    .box_width(44.0)
-                    .range(0.0..=1.0)
-                    .speed(0.01)
-                    .tag(encode_inspector_number_input_tag(id_r))
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(id_r)),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Color G:",
+                &mut light.color[1],
+                0.0..=1.0,
+                0.01,
             );
-            if resp_r.changed() {
-                ctx.set_number(id_r, col[0]);
-            }
-            if resp_r.committed() {
-                ctx.commit_number(id_r);
-            }
-
-            // Row 3: Color G
-            let id_g = InspectorNumberInputId::LightColorG;
-            let resp_g = card.add(
-                NumericDrag::new("Color G:", &mut col[1])
-                    .label_width(95.0)
-                    .box_width(44.0)
-                    .range(0.0..=1.0)
-                    .speed(0.01)
-                    .tag(encode_inspector_number_input_tag(id_g))
-                    .curve(DragCurve::quadratic())
-                    .edit_state(ctx.edit_state(id_g)),
-            );
-            if resp_g.changed() {
-                ctx.set_number(id_g, col[1]);
-            }
-            if resp_g.committed() {
-                ctx.commit_number(id_g);
-            }
         });
     }
 
@@ -162,33 +117,28 @@ impl ComponentInspectorHandler for ModelMeshHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let handle_str = ctx
-            .world
-            .get::<&ae_core::ecs::ModelId>(ctx.entity)
-            .map(|m| format!("{:?}", m.0))
-            .unwrap_or_else(|_| "Default".to_string());
-
         scope.card_panel("ModelMeshCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: self.atlas_icon(),
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            card.label_styled_passive(
-                "ModelAssetInfo",
-                format!("Asset Handle: {}", handle_str),
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
+            if let Ok(model) = ctx.world.get::<&ae_core::ecs::ModelId>(ctx.entity) {
+                card.label_styled_passive(
+                    "ModelAssetInfo",
+                    format!("Asset Handle: {:?}", model.0),
+                    10.5,
+                    card.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            } else {
+                card.label_styled_passive(
+                    "ModelAssetInfo",
+                    "Asset Handle: Default",
+                    10.5,
+                    card.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            }
         });
     }
 
@@ -230,39 +180,38 @@ impl ComponentInspectorHandler for ShapeHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let shape_str = match ctx.world.get::<&ae_core::ecs::Shape>(ctx.entity).as_deref() {
-            Ok(ae_core::ecs::Shape::Cube) => "Cube",
-            Ok(ae_core::ecs::Shape::Sphere) => "Sphere",
-            Ok(ae_core::ecs::Shape::Cylinder) => "Cylinder",
-            Ok(ae_core::ecs::Shape::Capsule) => "Capsule",
-            Ok(ae_core::ecs::Shape::Torus) => "Torus",
-            Ok(ae_core::ecs::Shape::Triangle) => "Triangle",
-            _ => "Procedural Mesh",
+        let Ok(mut s) = ctx.world.get::<&mut ae_core::ecs::Shape>(ctx.entity) else {
+            return;
         };
 
         scope.card_panel("ShapeCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: self.atlas_icon(),
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            render_declarative_combobox_row(
+            ctx.prop_combobox_mapped(
                 card,
-                ctx,
-                DeclarativeComboboxRowParams {
-                    dropdown_id: InspectorDropdownId::ShapeType,
-                    label: Some("Geometry:"),
-                    label_w: 65.0,
-                    selected_text: shape_str,
-                    combo_w: 96.0,
-                    options: &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
+                self.component_name(),
+                PropComboMapConfig::new(
+                    "Geometry:",
+                    match *s {
+                        ae_core::ecs::Shape::Cube => 0,
+                        ae_core::ecs::Shape::Sphere => 1,
+                        ae_core::ecs::Shape::Cylinder => 2,
+                        ae_core::ecs::Shape::Capsule => 3,
+                        ae_core::ecs::Shape::Torus => 4,
+                        ae_core::ecs::Shape::Triangle => 5,
+                    },
+                    &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
+                    PropComboRowLayout::new(65.0, 96.0),
+                ),
+                &mut *s,
+                |idx| match idx {
+                    0 => ae_core::ecs::Shape::Cube,
+                    1 => ae_core::ecs::Shape::Sphere,
+                    2 => ae_core::ecs::Shape::Cylinder,
+                    3 => ae_core::ecs::Shape::Capsule,
+                    4 => ae_core::ecs::Shape::Torus,
+                    5 => ae_core::ecs::Shape::Triangle,
+                    _ => ae_core::ecs::Shape::Cube,
                 },
             );
         });
@@ -277,10 +226,95 @@ impl ComponentInspectorHandler for ShapeHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-    use crate::ui::iris_bridge::inspector::tags::{
-        encode_component_delete_tag, encode_inspector_dropdown_tag,
-    };
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
+    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+
+    #[test]
+    fn test_light_render_and_in_place_mutation() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Light {
+            position: [0.0, 5.0, 0.0],
+            color: [1.0, 0.8, 0.6],
+        },));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+        let handler = LightHandler;
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("Light");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "Light card must tag delete button with semantic delete tag"
+        );
+
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 3,
+            "Light card must emit 3 numeric pills (Offset Y, Color R, Color G)"
+        );
+
+        // Test in-place mutation and undo snapshotting
+        {
+            let mut l = world.get::<&mut ae_core::ecs::Light>(entity).unwrap();
+            ctx.begin_edit(handler.component_name());
+            l.position[1] = 8.5;
+            l.color[0] = 0.5;
+            l.color[1] = 0.4;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let l = world.get::<&ae_core::ecs::Light>(entity).unwrap();
+            assert_eq!(l.position[1], 8.5);
+            assert_eq!(l.color[0], 0.5);
+            assert_eq!(l.color[1], 0.4);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
+    }
 
     #[test]
     fn test_shape_declarative_render() {
@@ -298,11 +332,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -331,19 +363,17 @@ mod tests {
             "Shape card header must render ICON_CUBE from editor atlas"
         );
 
-        let dd_tag = encode_inspector_dropdown_tag(InspectorDropdownId::ShapeType);
-        assert!(
-            tree.iter().any(|(_, n)| n.tag == dd_tag),
-            "Shape dropdown button must be tagged"
-        );
+        let has_combo_pill = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+        assert!(has_combo_pill, "Shape combobox pill must be rendered");
 
         let has_chevron_down = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron")
-                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
+            n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▾")
         });
         assert!(
             has_chevron_down,
-            "Combobox must render atlas chevron down when closed"
+            "Combobox must render chevron down (▾) when closed"
         );
     }
 
@@ -363,11 +393,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: Some(InspectorDropdownId::ShapeType),
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -378,20 +406,94 @@ mod tests {
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
-        tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
-            InspectorDropdownId::ShapeType,
-        ));
-        let mut scope = UiScope::new(&mut tree, root);
-        let handler = ShapeHandler;
-        handler.render_card(&mut scope, &mut ctx);
+        // First pass: render once to obtain ComboPill tag
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let handler = ShapeHandler;
+            handler.render_card(&mut scope, &mut ctx);
+        }
 
-        let has_chevron_up = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron")
-                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_UP)
+        let combo_tag = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
+            .map(|(_, n)| n.tag)
+            .expect("ComboPill node must exist in tree");
+
+        // Second pass: set active_combobox_tag to combo_tag and render
+        let mut tree2 = UiTree::new();
+        let root2 = tree2.create_root().expect("Root node must exist");
+        tree2.active_combobox_tag = Some(combo_tag);
+
+        let mut scope2 = UiScope::new(&mut tree2, root2);
+        let handler = ShapeHandler;
+        handler.render_card(&mut scope2, &mut ctx);
+
+        let has_chevron_up = tree2.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▴")
         });
         assert!(
             has_chevron_up,
-            "Combobox must render atlas chevron up when open"
+            "Combobox must render chevron up (▴) when open"
         );
+    }
+
+    #[test]
+    fn test_shape_declarative_in_place_mutation_and_undo_snapshot() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut actions = Vec::new();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+
+        let handler = ShapeHandler;
+        {
+            let mut s = world.get::<&mut ae_core::ecs::Shape>(entity).unwrap();
+            ctx.begin_edit(handler.component_name());
+            *s = ae_core::ecs::Shape::Sphere;
+            ctx.commit_edit(handler.component_name());
+        }
+
+        {
+            let s = world.get::<&ae_core::ecs::Shape>(entity).unwrap();
+            assert_eq!(*s, ae_core::ecs::Shape::Sphere);
+        }
+
+        assert!(actions.contains(&InspectorAction::StartComponentEdit(
+            entity,
+            handler.component_name(),
+            None,
+        )));
+        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
+            entity,
+            handler.component_name()
+        )));
     }
 }

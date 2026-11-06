@@ -1,160 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Extensible Component Inspector Registry & Handler Trait
+//! # Extensible Component Inspector Registry
 //!
-//! Replaces monolithic `if-else` cascades with an extensible, type-safe,
-//! plugin-friendly component inspection and editing registry.
+//! Provides the centralized, type-safe registry storing and querying all registered
+//! component inspector handlers in deterministic order.
 
-use super::types::{
-    ComponentCategory, InspectorAction, InspectorNumberInputId, InspectorPanelParams,
+pub use super::context::{
+    ComponentRenderContext, PropComboMapConfig, PropComboRowLayout, PropF32Config, PropVec2Config,
+    PropVec3Config,
 };
-use irisui::prelude::*;
-use irisui::widgets::numeric_input::NumericInputEditState;
+pub use super::handler::ComponentInspectorHandler;
+use super::types::ComponentCategory;
 use std::sync::OnceLock;
-
-/// Shared rendering context passed into each registered component inspector handler.
-pub struct ComponentRenderContext<'a> {
-    /// Selected entity being inspected.
-    pub entity: hecs::Entity,
-    /// The ECS world containing components.
-    pub world: &'a hecs::World,
-    /// Global parameters from the parent Inspector panel.
-    pub params: &'a InspectorPanelParams<'a>,
-    /// Mutable collector for inspector UI actions generated during rendering.
-    pub actions: Option<&'a mut Vec<InspectorAction>>,
-    /// Absolute X start coordinate of the card.
-    pub base_x: f32,
-    /// Absolute Y start coordinate of the card.
-    pub base_y: f32,
-    /// Card width in pixels.
-    pub card_w: f32,
-}
-
-impl<'a> ComponentRenderContext<'a> {
-    /// Constructs a new [`ComponentRenderContext`] without an attached action sink.
-    pub fn new(
-        entity: hecs::Entity,
-        world: &'a hecs::World,
-        params: &'a InspectorPanelParams<'a>,
-        base_x: f32,
-        base_y: f32,
-        card_w: f32,
-    ) -> Self {
-        Self {
-            entity,
-            world,
-            params,
-            actions: None,
-            base_x,
-            base_y,
-            card_w,
-        }
-    }
-
-    /// Constructs a new [`ComponentRenderContext`] with an attached action sink.
-    pub fn with_actions(
-        entity: hecs::Entity,
-        world: &'a hecs::World,
-        params: &'a InspectorPanelParams<'a>,
-        actions: &'a mut Vec<InspectorAction>,
-        base_x: f32,
-        base_y: f32,
-        card_w: f32,
-    ) -> Self {
-        Self {
-            entity,
-            world,
-            params,
-            actions: Some(actions),
-            base_x,
-            base_y,
-            card_w,
-        }
-    }
-
-    /// Pushes an inspector UI action for the inspected entity, if an action sink is attached.
-    #[inline]
-    pub fn push_action(&mut self, action: InspectorAction) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(action);
-        }
-    }
-
-    /// Pushes a numeric value modification action for the inspected entity.
-    #[inline]
-    pub fn set_number(&mut self, id: InspectorNumberInputId, val: f32) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::SetNumberValue(self.entity, id, val));
-        }
-    }
-
-    /// Pushes a numeric value commit action finalizing an edit session and producing an undo/redo command snapshot.
-    #[inline]
-    pub fn commit_number(&mut self, id: InspectorNumberInputId) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::CommitNumberEdit(self.entity, id));
-        }
-    }
-
-    /// Pushes a checkbox toggle action for the inspected entity.
-    #[inline]
-    pub fn toggle_checkbox(&mut self, cb_id: super::types::ComponentCheckboxId) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::ToggleCheckbox(self.entity, cb_id));
-        }
-    }
-
-    /// Queries the active inline keyboard editing state for a numeric property.
-    #[inline]
-    #[must_use]
-    pub fn edit_state(&self, id: InspectorNumberInputId) -> Option<NumericInputEditState<'a>> {
-        self.params
-            .active_number_input
-            .filter(|s| s.id == id)
-            .map(|s| s.to_edit_state(self.params.blink_caret))
-    }
-}
-
-/// Common trait implemented by all component inspection cards.
-pub trait ComponentInspectorHandler: Send + Sync {
-    /// Unique component identifier name (e.g. `"Collider"`, `"Light"`, `"KinematicCharacterController"`).
-    fn component_name(&self) -> &'static str;
-
-    /// Human-readable title displayed in the card header.
-    fn display_title(&self) -> &'static str;
-
-    /// Unicode icon prepended to the card title.
-    fn icon(&self) -> &'static str;
-
-    /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
-    ///
-    /// When `Some`, the component header and menu items render this hardware-accelerated vector icon quad
-    /// instead of a plain unicode/emoji text icon.
-    fn atlas_icon(&self) -> Option<[f32; 4]> {
-        None
-    }
-
-    /// Color accent for the card icon and header title.
-    fn header_color(&self) -> Color;
-
-    /// Category under which this component is listed in the Add Component menu.
-    fn category(&self) -> ComponentCategory;
-
-    /// Whether this component currently exists on the target entity.
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool;
-
-    /// Whether this component can be removed via the trash `🗑` button.
-    fn can_remove(&self) -> bool {
-        true
-    }
-
-    /// Renders the component card into the declarative [`UiScope`].
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>);
-
-    /// Instantiates and attaches this default component to the target entity in the ECS world.
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity);
-}
 
 /// Global registry storing all registered component inspector handlers in deterministic order.
 pub struct InspectorRegistry {

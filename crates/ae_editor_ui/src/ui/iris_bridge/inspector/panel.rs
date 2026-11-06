@@ -6,7 +6,6 @@
 use super::add_menu;
 use super::appearance;
 use super::color_picker_popup;
-use super::dropdown_popup;
 use super::footer;
 use super::header;
 use super::registry::{ComponentRenderContext, InspectorRegistry};
@@ -99,8 +98,6 @@ pub fn build_inspector_overlays(
 ) -> Option<Rect> {
     if params.is_add_menu_open {
         add_menu::build_add_component_menu(tree, parent_id, params, actions)
-    } else if params.active_dropdown.is_some() {
-        dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params)
     } else if params.is_color_picker_open {
         color_picker_popup::build_color_picker_popup(tree, parent_id, params, actions)
     } else {
@@ -193,11 +190,9 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: None,
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,

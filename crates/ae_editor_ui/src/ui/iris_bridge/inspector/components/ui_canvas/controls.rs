@@ -11,7 +11,6 @@
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
-use super::super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 
 use irisui::prelude::*;
 
@@ -44,33 +43,40 @@ impl ComponentInspectorHandler for UiSliderHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (val, min, max) = if let Ok(s) = ctx.world.get::<&ae_core::ecs::UiSlider>(ctx.entity) {
-            (s.value, s.min, s.max)
-        } else {
-            (0.5, 0.0, 1.0)
+        let Ok(mut s) = ctx.world.get::<&mut ae_core::ecs::UiSlider>(ctx.entity) else {
+            return;
         };
 
+        let val_range = s.min..=s.max;
+
         scope.card_panel("UiSliderCard", |card| {
-            build_declarative_card_header(
+            self.render_header(card);
+
+            ctx.prop_f32(
                 card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
+                self.component_name(),
+                "Min:",
+                &mut s.min,
+                -100_000.0..=100_000.0,
+                0.1,
             );
 
-            let label_text = format!("Value: {:.2} (Range: {:.1} - {:.1})", val, min, max);
-            card.label_styled_passive(
-                "UiSliderRange",
-                &label_text,
-                11.0,
-                card.theme().text_primary,
-                TextAlign::Left,
-                Style::new().height(20.0),
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Max:",
+                &mut s.max,
+                -100_000.0..=100_000.0,
+                0.1,
+            );
+
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Value:",
+                &mut s.value,
+                val_range,
+                0.05,
             );
         });
     }
@@ -109,36 +115,14 @@ impl ComponentInspectorHandler for UiCheckboxHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (label, is_checked) =
-            if let Ok(c) = ctx.world.get::<&ae_core::ecs::UiCheckbox>(ctx.entity) {
-                (c.label.clone(), c.is_checked)
-            } else {
-                ("Option".to_string(), false)
-            };
+        let Ok(mut c) = ctx.world.get::<&mut ae_core::ecs::UiCheckbox>(ctx.entity) else {
+            return;
+        };
 
         scope.card_panel("UiCheckboxCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            let mark = if is_checked { "[x]" } else { "[ ]" };
-            let label_text = format!("{} Label: \"{}\"", mark, label);
-            card.label_styled_passive(
-                "UiCheckboxState",
-                &label_text,
-                11.0,
-                card.theme().text_primary,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
+            ctx.prop_checkbox(card, self.component_name(), "Checked", &mut c.is_checked);
         });
     }
 
@@ -176,27 +160,14 @@ impl ComponentInspectorHandler for UiTextInputHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let placeholder = if let Ok(input) = ctx.world.get::<&ae_core::ecs::UiTextInput>(ctx.entity)
-        {
-            input.placeholder.clone()
-        } else {
-            "Enter text...".to_string()
+        let Ok(input) = ctx.world.get::<&ae_core::ecs::UiTextInput>(ctx.entity) else {
+            return;
         };
 
         scope.card_panel("UiTextInputCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            let label_text = format!("Placeholder: \"{}\"", placeholder);
+            let label_text = format!("Placeholder: \"{}\"", input.placeholder);
             card.label_styled_passive(
                 "UiInputPlaceholder",
                 &label_text,
@@ -242,27 +213,21 @@ impl ComponentInspectorHandler for UiLayoutGroupHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (layout_type, spacing) =
-            if let Ok(lg) = ctx.world.get::<&ae_core::ecs::UiLayoutGroup>(ctx.entity) {
-                (format!("{:?}", lg.layout_type), lg.spacing)
-            } else {
-                ("Vertical".to_string(), 8.0)
-            };
+        let Ok(mut lg) = ctx
+            .world
+            .get::<&mut ae_core::ecs::UiLayoutGroup>(ctx.entity)
+        else {
+            return;
+        };
+
+        let props_str = format!(
+            "Type: {:?}  |  Spacing: {:.1} px",
+            lg.layout_type, lg.spacing
+        );
 
         scope.card_panel("UiLayoutGroupCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                false,
-            );
+            self.render_header(card);
 
-            let props_str = format!("Type: {}  |  Spacing: {:.1} px", layout_type, spacing);
             card.label_styled_passive(
                 "UiLayoutProps",
                 &props_str,
@@ -270,6 +235,15 @@ impl ComponentInspectorHandler for UiLayoutGroupHandler {
                 card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
+            );
+
+            ctx.prop_f32(
+                card,
+                self.component_name(),
+                "Spacing:",
+                &mut lg.spacing,
+                0.0..=500.0,
+                0.5,
             );
         });
     }

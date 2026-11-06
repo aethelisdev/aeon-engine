@@ -55,7 +55,7 @@ pub fn build_sprite_view(
     }
 
     // ── 1. Active Texture Asset Card ──────────────────────────────────────────
-    scope.card("Active Texture Asset", |card| {
+    scope.card("Active Texture Asset", None, None, |card| {
         card.colored_label(
             Color::rgba(0.35, 0.75, 0.98, 1.0),
             format!("File: {}", file_name),
@@ -88,7 +88,7 @@ pub fn build_sprite_view(
     });
 
     // ── 2. Surface Tiling & Sampler Settings Card ──────────────────────────────
-    scope.card("Surface Tiling & Sampler Settings", |card| {
+    scope.card("Surface Tiling & Sampler Settings", None, None, |card| {
         card.row(|row| {
             row.key_value_badge("Wrap U:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
             row.key_value_badge("Wrap V:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
@@ -101,7 +101,7 @@ pub fn build_sprite_view(
     });
 
     // ── 3. Object Tint / Color Swatch Card ─────────────────────────────────────
-    scope.card("Object Base Color", |card| {
+    scope.card("Object Base Color", None, None, |card| {
         if let Ok(color_ref) = params.world.get::<&ae_core::ecs::Color>(params.entity) {
             let hex_str = format!(
                 "#{:02X}{:02X}{:02X}",

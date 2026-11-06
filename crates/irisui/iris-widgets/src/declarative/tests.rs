@@ -16,7 +16,7 @@ fn test_declarative_scope_hierarchy() {
 
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.card("Transform", |card| {
+        let resp = scope.card("Transform", None, None, |card| {
             card.row(|row| {
                 row.text("Position");
                 row.drag_value(101, "X: ", 0.0);
@@ -45,7 +45,7 @@ fn test_declarative_layout_subtree_rects() {
 
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.card("Properties", |card| {
+        let resp = scope.card("Properties", None, None, |card| {
             card.heading("Section 1");
             card.text("Label A");
             let _ = card.button("Action");
@@ -744,6 +744,7 @@ mod collapsing_tests;
 mod color_picker_tests;
 mod color_swatch_tests;
 mod context_menu_tests;
+mod declarative_scope_binding_tests;
 mod drag_selection_tests;
 mod drop_target_tests;
 mod hierarchical_seed_tests;

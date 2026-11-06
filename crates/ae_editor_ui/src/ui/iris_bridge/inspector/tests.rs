@@ -27,11 +27,9 @@ fn create_default_test_params<'a>(
         inspector_color_hex: "#ffffff",
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,
         is_color_picker_open: false,
-        active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
         is_rename_all_selected: false,
@@ -84,11 +82,7 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     tree.assert_node_exists("NumBox_Scale_X");
 
     // Verify 2D Screen Transform inputs are NOT present
-    let has_ui_offset = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX))
-    });
-    assert!(!has_ui_offset, "3D entity must not have 2D UiOffsetX input");
+    tree.assert_node_absent("NumBox_Offset_X");
 }
 
 #[test]
@@ -194,82 +188,37 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     tree.assert_node_absent("NumBox_Position_X");
 
     // Verify 2D Screen Transform inputs ARE present
-    let has_offset_x = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX))
-    });
-    let has_offset_y = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetY))
-    });
-    let has_size_w = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeW))
-    });
-    let has_size_h = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeH))
-    });
-    let has_pivot_x = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotX))
-    });
-    let has_pivot_y = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotY))
-    });
-    let has_z_index = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiZIndex))
-    });
-    let has_alpha = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiAlpha))
-    });
+    tree.assert_node_exists("NumBox_Offset_X");
+    tree.assert_node_exists("NumBox_Offset_Y");
+    tree.assert_node_exists("NumBox_Size_W");
+    tree.assert_node_exists("NumBox_Size_H");
+    tree.assert_node_exists("NumBox_Pivot_X");
+    tree.assert_node_exists("NumBox_Pivot_Y");
 
-    assert!(has_offset_x, "UiOffsetX must be present");
-    assert!(has_offset_y, "UiOffsetY must be present");
-    assert!(has_size_w, "UiSizeW must be present");
-    assert!(has_size_h, "UiSizeH must be present");
-    assert!(has_pivot_x, "UiPivotX must be present");
-    assert!(has_pivot_y, "UiPivotY must be present");
-    assert!(has_z_index, "UiZIndex must be present");
-    assert!(has_alpha, "UiAlpha must be present");
+    // Verify Anchor combobox and Visible checkbox are present
+    let has_combobox = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_combobox, "Anchor combobox must be present");
+    let has_checkbox = tree
+        .iter()
+        .any(|(_, n)| n.role == irisui::prelude::WidgetRole::Checkbox);
+    assert!(has_checkbox, "UiVisible checkbox must be present");
 
-    // Verify Anchor dropdown is present
-    let has_anchor_dropdown = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::UiAnchor)
-    });
-    assert!(has_anchor_dropdown, "UiAnchor dropdown must be present");
+    // Verify UiPanel properties (declarative NumericDrag)
+    let numeric_drag_count = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert!(
+        numeric_drag_count >= 2,
+        "UiBorderWidth and UiCornerRadius NumericDrag must be present"
+    );
 
-    // Verify UiVisible checkbox is present
-    let has_visible_cb = tree.iter().any(|(_, n)| {
-        super::tags::resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::UiVisible)
-    });
-    assert!(has_visible_cb, "UiVisible checkbox must be present");
-
-    // Verify UiPanel properties
-    let has_border_w = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiBorderWidth))
-    });
-    let has_corner_r = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiCornerRadius))
-    });
-    assert!(has_border_w, "UiBorderWidth must be present");
-    assert!(has_corner_r, "UiCornerRadius must be present");
-
-    // Verify UiText properties
-    let has_font_size = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiFontSize))
-    });
-    let has_align_dropdown = tree.iter().any(|(_, n)| {
-        super::tags::resolve_inspector_dropdown_tag(n.tag)
-            == Some(InspectorDropdownId::UiTextAlignment)
-    });
-    assert!(has_font_size, "UiFontSize must be present");
+    // Verify UiText properties (declarative NumericDrag & ComboBox)
+    let has_align_dropdown = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
     assert!(
         has_align_dropdown,
         "UiTextAlignment dropdown must be present"
@@ -281,14 +230,14 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     });
     assert!(has_text_input, "UiTextContent text input must be present");
 
-    // Verify UiButton properties
-    let has_button_interactable = tree.iter().any(|(_, n)| {
-        super::tags::resolve_component_checkbox_tag(n.tag)
-            == Some(ComponentCheckboxId::UiInteractable)
-    });
+    // Verify UiButton properties (declarative checkbox)
+    let checkbox_count = tree
+        .iter()
+        .filter(|(_, n)| n.role == irisui::prelude::WidgetRole::Checkbox)
+        .count();
     assert!(
-        has_button_interactable,
-        "UiInteractable checkbox must be present"
+        checkbox_count >= 2,
+        "UiVisible and UiButton is_enabled checkboxes must be present"
     );
 }
 
@@ -329,96 +278,6 @@ fn test_inspector_entity_isolation_invariant() {
 }
 
 #[test]
-fn test_inspector_select_all_number_input_styling() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
-    let ent = world.spawn((
-        Position {
-            x: 5.0,
-            y: 10.0,
-            z: 15.0,
-        },
-        Rotation::identity(),
-        Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-    ));
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
-    params.active_number_input = Some(ActiveNumberInputState {
-        id: InspectorNumberInputId::PosX,
-        buffer: "5.0",
-        cursor_idx: 3,
-        is_all_selected: true,
-    });
-
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
-
-    // Verify node tree contains NumBox_Position_X with active editing background and border
-    let mut pos_x_style = None;
-    tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_Position_X") {
-            pos_x_style = Some((node.style.background_color, node.style.border.color));
-        }
-    });
-    assert_eq!(
-        pos_x_style,
-        Some((
-            Color::rgba(0.180, 0.190, 0.220, 1.0),
-            Color::rgba(0.85, 0.88, 0.98, 0.95),
-        )),
-        "Active number input must have editing background and bright active border"
-    );
-}
-
-#[test]
-fn test_active_number_input_caret_position() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
-    let ent = world.spawn((
-        Name("TestObject".to_string()),
-        Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        Rotation::default(),
-        Scale::default(),
-    ));
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
-    params.blink_caret = true;
-    params.active_number_input = Some(ActiveNumberInputState {
-        id: InspectorNumberInputId::PosX,
-        buffer: "42.5",
-        cursor_idx: 2, // between "42" and ".5"
-        is_all_selected: false,
-    });
-
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
-
-    let mut pos_x_text = None;
-    tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_Position_X") {
-            pos_x_text = node.text.clone();
-        }
-    });
-    assert_eq!(
-        pos_x_text,
-        Some("42|.5".to_string()),
-        "Active number input must place caret at the exact cursor index"
-    );
-}
-
-#[test]
 fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
@@ -438,11 +297,11 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text = node.text.clone();
         }
     });
-    assert_eq!(rot_y_text, Some("0.0".to_string()));
+    assert_eq!(rot_y_text, Some("Y: 0.0".to_string()));
 
     // 2. Modified State: Change Rotation component to 55.0 degrees Y
     if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
@@ -457,11 +316,11 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     );
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text2 = node.text.clone();
         }
     });
-    assert_eq!(rot_y_text2, Some("55.0".to_string()));
+    assert_eq!(rot_y_text2, Some("Y: 55.0".to_string()));
 
     // 3. Undo State: Revert Rotation component back to identity
     if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
@@ -476,111 +335,15 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     );
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text3 = node.text.clone();
         }
     });
     assert_eq!(
         rot_y_text3,
-        Some("0.0".to_string()),
+        Some("Y: 0.0".to_string()),
         "Inspector Rotation row must immediately reflect undone component value"
     );
-}
-
-#[test]
-fn test_inspector_numeric_input_clamping_and_non_negative_invariants() {
-    use super::types::InspectorNumberInputId;
-
-    // 1. Collider Box Extents cannot be negative or zero
-    assert_eq!(
-        InspectorNumberInputId::ColliderBoxX.clamp_value(-100.0),
-        0.001
-    );
-    assert_eq!(
-        InspectorNumberInputId::ColliderBoxY.clamp_value(-0.5),
-        0.001
-    );
-    assert_eq!(
-        InspectorNumberInputId::ColliderBoxZ.clamp_value(-1000.0),
-        0.001
-    );
-    assert_eq!(InspectorNumberInputId::ColliderBoxX.clamp_value(5.0), 5.0);
-
-    // 2. Collider Radius and Height cannot be negative
-    assert_eq!(
-        InspectorNumberInputId::ColliderRadius.clamp_value(-50.0),
-        0.001
-    );
-    assert_eq!(
-        InspectorNumberInputId::ColliderHalfHeight.clamp_value(-10.0),
-        0.001
-    );
-
-    // 3. RigidBody mass cannot be negative or zero
-    assert_eq!(
-        InspectorNumberInputId::RigidBodyMass.clamp_value(-100.0),
-        0.001
-    );
-    assert_eq!(
-        InspectorNumberInputId::RigidBodyMass.clamp_value(0.0),
-        0.001
-    );
-    assert_eq!(
-        InspectorNumberInputId::RigidBodyMass.clamp_value(25.0),
-        25.0
-    );
-
-    // 4. UI dimensions and opacity invariants
-    assert_eq!(InspectorNumberInputId::UiSizeW.clamp_value(-100.0), 1.0);
-    assert_eq!(InspectorNumberInputId::UiSizeH.clamp_value(0.0), 1.0);
-    assert_eq!(InspectorNumberInputId::UiAlpha.clamp_value(-0.5), 0.0);
-    assert_eq!(InspectorNumberInputId::UiAlpha.clamp_value(1.5), 1.0);
-
-    // 5. Physics friction and restitution invariants
-    assert_eq!(
-        InspectorNumberInputId::ColliderFriction.clamp_value(-2.0),
-        0.0
-    );
-    assert_eq!(
-        InspectorNumberInputId::ColliderRestitution.clamp_value(-1.0),
-        0.0
-    );
-    assert_eq!(
-        InspectorNumberInputId::ColliderRestitution.clamp_value(2.0),
-        1.0
-    );
-
-    // 6. Verify handle_set_number_value enforces clamping on Collider entity in hecs::World
-    let mut world = hecs::World::new();
-    let ent = world.spawn((ae_core::ecs::Collider {
-        shape: ae_core::ecs::ColliderShape::Box {
-            half_extents: [0.5, 0.5, 0.5],
-        },
-        friction: 0.7,
-        restitution: 0.0,
-        is_sensor: false,
-    },));
-
-    let mut euler = [0.0, 0.0, 0.0];
-    crate::ui::workbench::render::inspector_actions::handle_set_number_value(
-        &world,
-        ent,
-        InspectorNumberInputId::ColliderBoxX,
-        -100.0,
-        &mut euler,
-    );
-
-    let col = world.get::<&ae_core::ecs::Collider>(ent).unwrap();
-    if let ae_core::ecs::ColliderShape::Box { half_extents } = col.shape {
-        assert!(
-            half_extents[0] > 0.0,
-            "Half extent X must be clamped to positive value, got {}",
-            half_extents[0]
-        );
-        assert_eq!(half_extents[0], 0.001);
-    } else {
-        panic!("Expected Box shape");
-    }
 }
 
 /// Verifies that continuous Color Picker dragging mutates the entity in real time

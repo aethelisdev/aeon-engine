@@ -106,6 +106,42 @@ impl<'a> UiScope<'a> {
         self.property_text_with_options(label, value, PropertyTextOptions::default())
     }
 
+    /// Emits a standardized two-way bound text input property row modifying `value` in-place.
+    ///
+    /// Manages the label column, autonomous single-line text editing, cursor movement, selection,
+    /// and Enter/blur submission  via [`UiScope::text_input_with_width_tagged`].
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed on the left.
+    /// * `value` - Mutable string reference updated in-place as characters are typed or confirmed.
+    pub fn prop_text(&mut self, label: &str, value: &mut String) -> WidgetResponse {
+        self.prop_text_styled(label, value, None, "")
+    }
+
+    /// Emits a standardized two-way bound text input property row with explicit label width and placeholder.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed on the left.
+    /// * `value` - Mutable string reference updated in-place as characters are typed or confirmed.
+    /// * `label_width` - Optional column width in physical pixels for the left-aligned property label.
+    /// * `placeholder` - Hint text rendered when `value` is empty.
+    pub fn prop_text_styled(
+        &mut self,
+        label: &str,
+        value: &mut String,
+        label_width: Option<f32>,
+        placeholder: &str,
+    ) -> WidgetResponse {
+        let tag = self.tag_for(label);
+        let mut input_resp = WidgetResponse::default();
+
+        let _ = self.property_row_styled(label, label_width, |slot| {
+            input_resp = slot.text_input_with_width_tagged(placeholder, tag, 0.0, value);
+        });
+
+        input_resp
+    }
+
     /// Emits a standardized text input property row with custom configuration options.
     pub fn property_text_with_options(
         &mut self,
@@ -347,5 +383,29 @@ mod tests {
             sel_node_after.computed_rect.width
         );
         assert!(sel_node_after.computed_rect.width >= 50.0);
+    }
+
+    #[test]
+    fn test_prop_text_two_way_binding_structure_and_mutation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut content = "Original".to_string();
+        let resp = scope.prop_text("Text", &mut content);
+
+        assert_eq!(content, "Original");
+        assert!(!resp.changed());
+        assert!(!resp.submitted());
+
+        scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 50.0));
+        let tag = scope.tag_for("Text");
+        let box_id = scope
+            .tree()
+            .find_node_by_tag(tag)
+            .expect("Text input node must exist");
+        let box_node = scope.tree().get(box_id).expect("Node must be retrieved");
+        assert_eq!(box_node.role, WidgetRole::TextInput);
+        assert_eq!(box_node.cursor, Some(WidgetCursor::Text));
     }
 }
