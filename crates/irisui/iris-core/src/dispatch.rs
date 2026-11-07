@@ -10,6 +10,7 @@
 //! pointer capture for uninterrupted drags, keyboard focus routing, and autonomous scrollbar/wheel bubbling.
 
 pub mod engine;
+pub mod numeric_undo;
 pub mod types;
 pub mod undo;
 
@@ -17,6 +18,7 @@ pub mod undo;
 mod tests;
 
 pub use engine::dispatch_ui_event;
+pub use numeric_undo::{NumericUndoEntry, NumericUndoStack, PendingNumericRestore};
 pub use types::{
     ActiveTextEditSession, DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, DispatchResult,
     EventState, PopupMenuState, TOOLTIP_DEFAULT_HOVER_DELAY_MS, TooltipState,

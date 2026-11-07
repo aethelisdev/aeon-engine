@@ -9,49 +9,48 @@
 use super::registry::ComponentRenderContext;
 use irisui::prelude::*;
 
+/// Renders the `📐 Transform` card declaratively by mutating `Position`, `Rotation`, and `Scale` in-place.
+pub fn draw_transform_card(
+    scope: &mut UiScope<'_>,
+    pos: &mut ae_core::ecs::Position,
+    rot: &mut ae_core::ecs::Rotation,
+    scale: &mut ae_core::ecs::Scale,
+) {
+    scope.card_named("TransformCard", "📐 Transform", |card| {
+        card.prop_vec3_xyz(
+            "Position",
+            (&mut pos.x, &mut pos.y, &mut pos.z),
+            0.1,
+            Some([0.0, 0.0, 0.0]),
+        );
+        card.prop_vec3_euler_quat(
+            "Rotation",
+            (&mut rot.x, &mut rot.y, &mut rot.z, &mut rot.w),
+            0.5,
+            Some([0.0, 0.0, 0.0]),
+        );
+        card.prop_vec3_xyz(
+            "Scale",
+            (&mut scale.x, &mut scale.y, &mut scale.z),
+            0.01,
+            Some([1.0, 1.0, 1.0]),
+        );
+    });
+}
+
 /// Builds the `📐 Transform` card declaratively in the `UiTree`.
 ///
 /// Encapsulates the entire Transform inspector interface within a pure declarative [`UiScope`]
 /// container hierarchy, managing flex layout, hover states, caret blinking, and Select-All highlight
 /// capsules without manual coordinate arithmetic or imperative target buffers.
 pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    let mut pos = ctx
-        .world
-        .get::<&ae_core::ecs::Position>(ctx.entity)
-        .map(|p| [p.x, p.y, p.z])
-        .unwrap_or([0.0, 0.0, 0.0]);
-
-    let mut rot = if let Ok(world_rot) = ctx.world.get::<&ae_core::ecs::Rotation>(ctx.entity) {
-        let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-            ctx.params.inspector_euler[0],
-            ctx.params.inspector_euler[1],
-            ctx.params.inspector_euler[2],
-        );
-        let dot = (cached_quat.x * world_rot.x
-            + cached_quat.y * world_rot.y
-            + cached_quat.z * world_rot.z
-            + cached_quat.w * world_rot.w)
-            .abs();
-        if ctx.params.selected_entity == Some(ctx.entity) && dot > 0.999 {
-            *ctx.params.inspector_euler
-        } else {
-            crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot)
-        }
-    } else {
-        [0.0, 0.0, 0.0]
-    };
-
-    let mut scale = ctx
-        .world
-        .get::<&ae_core::ecs::Scale>(ctx.entity)
-        .map(|s| [s.x, s.y, s.z])
-        .unwrap_or([1.0, 1.0, 1.0]);
-
-    scope.card_named("TransformCard", "📐 Transform", |card| {
-        ctx.prop_transform_position(card, &mut pos);
-        ctx.prop_transform_rotation(card, &mut rot);
-        ctx.prop_transform_scale(card, &mut scale);
-    });
+    if let (Ok(mut p), Ok(mut r), Ok(mut s)) = (
+        ctx.world.get::<&mut ae_core::ecs::Position>(ctx.entity),
+        ctx.world.get::<&mut ae_core::ecs::Rotation>(ctx.entity),
+        ctx.world.get::<&mut ae_core::ecs::Scale>(ctx.entity),
+    ) {
+        draw_transform_card(scope, &mut p, &mut r, &mut s);
+    }
 }
 
 #[cfg(test)]
@@ -247,6 +246,12 @@ mod tests {
         };
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
+        let rot_tag = {
+            let scope = UiScope::new(&mut tree, root);
+            scope.tag_for("Rotation")
+        };
+        tree.event_state.set_cached_euler(rot_tag, euler);
+
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
 
@@ -331,53 +336,55 @@ mod tests {
     }
 
     #[test]
-    fn test_transform_in_place_mutation_and_undo_actions() {
+    fn test_transform_in_place_mutation_on_reset() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((
-            Name("MutEntity".to_string()),
-            Position::new(0.0, 0.0, 0.0),
-            Rotation::identity(),
-            Scale::one(),
-        ));
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
+        let pos_base = {
+            let scope = UiScope::new(&mut tree, root);
+            scope.tag_for("Position")
         };
+        tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(pos_base));
 
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            6.0,
-            10.0,
-            308.0,
-        );
+        let mut pos = Position::new(5.0, 10.0, 15.0);
+        let mut rot = Rotation::identity();
+        let mut scale = Scale::one();
 
         let mut scope = UiScope::new(&mut tree, root);
-        let mut pos = [5.0, 10.0, 15.0];
-        ctx.prop_transform_position(&mut scope, &mut pos);
+        draw_transform_card(&mut scope, &mut pos, &mut rot, &mut scale);
 
-        // Position was updated in ECS
-        let world_pos = *world.get::<&Position>(entity).expect("Position exists");
-        assert_eq!(world_pos, Position::new(0.0, 0.0, 0.0)); // No interaction occurred yet
+        assert_eq!(pos, Position::new(0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_transform_rotation_and_scale_reset_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let (rot_base, scale_base) = {
+            let scope = UiScope::new(&mut tree, root);
+            (scope.tag_for("Rotation"), scope.tag_for("Scale"))
+        };
+
+        let mut pos = Position::zero();
+        let mut rot = super::super::euler_deg_to_quaternion(30.0, 45.0, 60.0);
+        let mut scale = Scale::new(2.0, 3.0, 4.0);
+
+        tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(rot_base));
+        draw_transform_card(
+            &mut UiScope::new(&mut tree, root),
+            &mut pos,
+            &mut rot,
+            &mut scale,
+        );
+        assert_eq!(rot, Rotation::identity());
+        assert_eq!(tree.event_state.cached_euler, Some((rot_base, [0.0; 3])));
+
+        tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(scale_base));
+        draw_transform_card(
+            &mut UiScope::new(&mut tree, root),
+            &mut pos,
+            &mut rot,
+            &mut scale,
+        );
+        assert_eq!(scale, Scale::one());
     }
 }

@@ -321,6 +321,17 @@ impl<'a> NumericDrag<'a> {
         let mut changed = false;
         let mut submitted = false;
 
+        if self.edit_state.is_some()
+            && let Some(restored) = scope.tree.event_state.numeric_undo.take_pending_scalar(tag)
+        {
+            let next = restored.clamp(min_val, max_val);
+            if (next - *self.value).abs() > f32::EPSILON {
+                *self.value = next;
+                changed = true;
+            }
+            submitted = true;
+        }
+
         if let Some(ref res) = edit_res {
             if res.value_changed {
                 changed = true;
@@ -340,11 +351,21 @@ impl<'a> NumericDrag<'a> {
                 if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean) {
                     let next = parsed.clamp(min_val, max_val);
                     if (next - *self.value).abs() > f32::EPSILON {
+                        scope
+                            .tree
+                            .event_state
+                            .numeric_undo
+                            .push_scalar(tag, *self.value, next);
                         *self.value = next;
                         changed = true;
                     }
                 }
             } else if let Some(delta) = drag_delta {
+                scope
+                    .tree
+                    .event_state
+                    .numeric_undo
+                    .begin_drag(tag, *self.value);
                 let delta_val = self.curve.compute_delta_f32(
                     delta.x,
                     self.speed,
@@ -479,13 +500,16 @@ impl<'a> NumericDrag<'a> {
             resp = resp.with_dragged(true);
         }
         if is_drag_released {
+            scope
+                .tree
+                .event_state
+                .numeric_undo
+                .commit_drag(tag, *self.value);
             resp = resp.with_drag_released(true);
             if !is_editing {
-                if scope.tree.event_state.focused == Some(pill_id) {
-                    scope.tree.event_state.focused = None;
-                }
-                if tag != 0 && scope.tree.event_state.focused_tag == Some(tag) {
-                    scope.tree.event_state.focused_tag = None;
+                scope.tree.event_state.focused = Some(pill_id);
+                if tag != 0 {
+                    scope.tree.event_state.focused_tag = Some(tag);
                 }
             }
         }

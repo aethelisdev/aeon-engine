@@ -27,9 +27,6 @@ impl EngineUi {
                         .unwrap_or_default();
                     ui_actions.push(EngineUiAction::ModifyName(entity, old_name, name));
                 }
-                InspectorAction::ResetTransform(entity, axis) => {
-                    self.handle_reset_transform(world, ui_actions, entity, axis);
-                }
                 InspectorAction::StartColorEdit(..)
                 | InspectorAction::LiveSetObjectColor(..)
                 | InspectorAction::CommitColorEdit(..) => {
@@ -44,7 +41,29 @@ impl EngineUi {
                 }
                 InspectorAction::SetObjectColor(entity, col) => {
                     self.iris_overlay.inspector.color_edit_start = None;
-                    self.handle_set_object_color(world, ui_actions, entity, col);
+                    let old_col = world
+                        .get::<&ae_core::ecs::Color>(entity)
+                        .map(|c| *c)
+                        .unwrap_or(ae_core::ecs::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        });
+                    let new_col = ae_core::ecs::Color {
+                        r: col.r,
+                        g: col.g,
+                        b: col.b,
+                        a: col.a,
+                    };
+                    let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
+                    let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
+                    let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
+                    self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
+                    let (h, s, v) =
+                        irisui::prelude::HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
+                    self.iris_overlay.inspector.hsv = [h, s, v];
+                    ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
                 }
                 InspectorAction::AddColorToPalette(col) => {
                     if let Some(entity) = self.selected_entity {

@@ -43,7 +43,7 @@ pub use appearance::{
 pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
 pub use events::resolve_inspector_tag_click;
 pub use header::{entity_name_input_tag, resolve_entity_name_input_tag};
-pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
+pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::{build_inspector_overlays, build_inspector_panel};
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
@@ -58,8 +58,5 @@ pub use tags::{
     resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_delete_tag,
     resolve_preset_reset_tag, resolve_save_prefab_btn_tag, resolve_unparent_tag,
 };
-pub use transform::build_transform_card;
-pub use types::{
-    ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorPanelParams,
-    TransformAxisType,
-};
+pub use transform::{build_transform_card, draw_transform_card};
+pub use types::{ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorPanelParams};

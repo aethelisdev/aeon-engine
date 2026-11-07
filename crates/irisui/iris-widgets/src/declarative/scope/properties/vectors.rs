@@ -190,6 +190,8 @@ pub struct PropertyVec3Response {
     pub committed_axis: Option<usize>,
     /// Whether the reset button was clicked during this frame.
     pub reset_clicked: bool,
+    /// The updated 3-channel vector values after evaluating interaction for this frame.
+    pub new_values: [f32; 3],
 }
 
 impl PropertyVec3Response {
@@ -205,6 +207,15 @@ impl PropertyVec3Response {
     #[must_use]
     pub const fn changed(&self) -> bool {
         self.changed_axis.is_some() || self.reset_clicked || self.response.changed()
+    }
+
+    /// Invokes `f` with the updated 3-channel vector values if any axis changed or the reset button was clicked.
+    #[inline]
+    pub fn on_change(self, f: impl FnOnce([f32; 3])) -> Self {
+        if self.changed() {
+            f(self.new_values);
+        }
+        self
     }
 }
 
@@ -392,6 +403,18 @@ impl<'a> UiScope<'a> {
             let mut any_clicked = false;
             let mut any_hovered = false;
 
+            if let Some(restored_vec) = slot
+                .tree
+                .event_state
+                .numeric_undo
+                .take_pending_vec3(base_tag)
+            {
+                *values = restored_vec;
+                any_changed = true;
+                changed_axis_out = Some(0);
+                committed_axis_out = Some(0);
+            }
+
             for (prefix, col, idx) in axes_meta {
                 let axis_tag = property_vec3_axis_tag(base_tag, idx);
                 let axis_name = axis_names[idx];
@@ -446,6 +469,10 @@ impl<'a> UiScope<'a> {
                             && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
 
                 if !is_editing && let Some(delta) = drag_delta {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .begin_drag(axis_tag, values[idx]);
                     let next = values[idx]
                         + options.curve.compute_delta_f32(
                             delta.x,
@@ -465,13 +492,15 @@ impl<'a> UiScope<'a> {
                     && axis_tag != 0)
                     || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
                 if is_drag_released {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .commit_drag(axis_tag, values[idx]);
                     committed_axis_out = Some(idx);
                     if !is_editing {
-                        if slot.tree.event_state.focused == Some(axis_box_id) {
-                            slot.tree.event_state.focused = None;
-                        }
-                        if axis_tag != 0 && slot.tree.event_state.focused_tag == Some(axis_tag) {
-                            slot.tree.event_state.focused_tag = None;
+                        slot.tree.event_state.focused = Some(axis_box_id);
+                        if axis_tag != 0 {
+                            slot.tree.event_state.focused_tag = Some(axis_tag);
                         }
                     }
                 }
@@ -645,6 +674,10 @@ impl<'a> UiScope<'a> {
 
                 let (reset_clicked, reset_hovered, _) = slot.check_interaction(reset_btn_id);
                 if reset_clicked {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .push_vec3(base_tag, *values, reset_val);
                     *values = reset_val;
                     any_changed = true;
                     reset_clicked_out = true;
@@ -674,6 +707,7 @@ impl<'a> UiScope<'a> {
             changed_axis: changed_axis_out,
             committed_axis: committed_axis_out,
             reset_clicked: reset_clicked_out,
+            new_values: *values,
         }
     }
 
@@ -800,20 +834,39 @@ impl<'a> UiScope<'a> {
 
                 let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
 
+                let min_val = *options.range.start();
+                let max_val = *options.range.end();
+                if let Some(restored) = slot
+                    .tree
+                    .event_state
+                    .numeric_undo
+                    .take_pending_scalar(axis_tag)
+                {
+                    let next = restored.clamp(min_val, max_val);
+                    if (next - values[idx]).abs() > f32::EPSILON {
+                        values[idx] = next;
+                        any_changed = true;
+                        changed_axis_out = Some(idx);
+                        committed_axis_out = Some(idx);
+                    }
+                }
+
                 let is_dragging = slot.tree.event_state.is_pointer_drag_active
                     && (slot.tree.event_state.pointer_capture == Some(axis_box_id)
                         || (axis_tag != 0
                             && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
 
                 if let Some(delta) = drag_delta {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .begin_drag(axis_tag, values[idx]);
                     let step = options.curve.compute_delta_f32(
                         delta.x,
                         options.speed,
                         options.pixels_per_step,
                         &slot.tree.event_state,
                     );
-                    let min_val = *options.range.start();
-                    let max_val = *options.range.end();
                     let next = (values[idx] + step).clamp(min_val, max_val);
                     if (next - values[idx]).abs() > f32::EPSILON {
                         values[idx] = next;
@@ -827,12 +880,14 @@ impl<'a> UiScope<'a> {
                     && axis_tag != 0)
                     || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
                 if is_drag_released {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .commit_drag(axis_tag, values[idx]);
                     committed_axis_out = Some(idx);
-                    if slot.tree.event_state.focused == Some(axis_box_id) {
-                        slot.tree.event_state.focused = None;
-                    }
-                    if axis_tag != 0 && slot.tree.event_state.focused_tag == Some(axis_tag) {
-                        slot.tree.event_state.focused_tag = None;
+                    slot.tree.event_state.focused = Some(axis_box_id);
+                    if axis_tag != 0 {
+                        slot.tree.event_state.focused_tag = Some(axis_tag);
                     }
                 }
 
@@ -967,12 +1022,38 @@ impl<'a> UiScope<'a> {
                 );
 
                 let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
+                if let Some(restored) = slot
+                    .tree
+                    .event_state
+                    .numeric_undo
+                    .take_pending_scalar(axis_tag)
+                {
+                    let next = restored.clamp(0.0, 1.0);
+                    if (next - rgb[idx]).abs() > f32::EPSILON {
+                        rgb[idx] = next;
+                        any_changed = true;
+                    }
+                }
                 if let Some(delta) = drag_delta {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .begin_drag(axis_tag, rgb[idx]);
                     let next = (rgb[idx] + delta.x * speed).clamp(0.0, 1.0);
                     if (next - rgb[idx]).abs() > f32::EPSILON {
                         rgb[idx] = next;
                         any_changed = true;
                     }
+                }
+                let is_drag_released = (slot.tree.event_state.frame_drag_released_tag
+                    == Some(axis_tag)
+                    && axis_tag != 0)
+                    || slot.tree.event_state.frame_drag_released_id == Some(axis_box_id);
+                if is_drag_released {
+                    slot.tree
+                        .event_state
+                        .numeric_undo
+                        .commit_drag(axis_tag, rgb[idx]);
                 }
                 any_clicked |= clicked;
                 any_hovered |= hovered;

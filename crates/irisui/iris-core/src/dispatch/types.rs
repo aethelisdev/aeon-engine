@@ -8,6 +8,7 @@
 
 use std::time::Instant;
 
+use crate::dispatch::numeric_undo::NumericUndoStack;
 use crate::dispatch::undo::{TextSnapshot, TextUndoStack};
 use crate::event::{KeyCode, MouseButton};
 use crate::geometry::Point;
@@ -158,6 +159,12 @@ pub struct EventState {
     pub hovered_file: Option<(std::path::PathBuf, Point)>,
     /// OS files dropped onto a target widget during the current dispatch cycle: `(target_id, target_tag, paths, point)`.
     pub frame_dropped_files: Option<(Option<WidgetId>, u64, Vec<std::path::PathBuf>, Point)>,
+    /// Retained continuous Euler angle representation `(tag, [rx, ry, rz])` for quaternion-bound rotation widgets,
+    /// preventing gimbal-lock pitch wrapping past +/-90 degrees across consecutive frames.
+    pub cached_euler: Option<(u64, [f32; 3])>,
+    /// Autonomous bounded undo/redo stack for committed scalar and vector numeric transitions
+    /// (drag scrubbing releases, post-`Enter` or focus-loss numeric expression commits, and vector resets).
+    pub numeric_undo: NumericUndoStack,
 }
 
 impl EventState {
@@ -203,7 +210,15 @@ impl EventState {
             active_tooltip: None,
             hovered_file: None,
             frame_dropped_files: None,
+            cached_euler: None,
+            numeric_undo: NumericUndoStack::new(),
         }
+    }
+
+    /// Sets the retained continuous Euler angle representation `(tag, [rx, ry, rz])` for a quaternion rotation widget.
+    #[inline]
+    pub fn set_cached_euler(&mut self, tag: u64, euler: [f32; 3]) {
+        self.cached_euler = Some((tag, euler));
     }
 
     /// Resets transient interaction states while preserving persistent focus.

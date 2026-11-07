@@ -97,8 +97,6 @@ impl ComponentCategory {
 pub enum InspectorAction {
     /// Renames the specified entity in the ECS world.
     RenameEntity(hecs::Entity, String),
-    /// Resets a specific transform axis (Position, Rotation, or Scale) on an entity.
-    ResetTransform(hecs::Entity, TransformAxisType),
     /// Applies an object color change from the Appearance card to an entity.
     SetObjectColor(hecs::Entity, Color),
     /// Signals that interactive color picker dragging has begun on an entity, snapshotting pre-edit color.
@@ -147,17 +145,6 @@ pub enum InspectorAction {
     ToggleAudioPlayback(hecs::Entity),
     /// Unparents the specified entity from its parent.
     Unparent(hecs::Entity),
-}
-
-/// Transform axis group for reset actions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransformAxisType {
-    /// Resets Position to (0, 0, 0).
-    Position,
-    /// Resets Rotation Euler to (0, 0, 0) degrees.
-    Rotation,
-    /// Resets Scale to (1, 1, 1).
-    Scale,
 }
 
 /// Input parameters supplied to the Inspector panel layout builder.

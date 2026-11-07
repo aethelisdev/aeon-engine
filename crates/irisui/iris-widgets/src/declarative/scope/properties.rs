@@ -16,6 +16,7 @@ pub mod numeric_input;
 pub mod rows;
 pub mod sliders;
 pub mod text;
+pub mod vec3_bind;
 pub mod vectors;
 
 pub use crate::declarative::scope::input::ComboRowLayout;
@@ -24,6 +25,9 @@ pub use color::PropertyColorResponse;
 pub use numeric_input::{NumericEditConfig, NumericEditResult, handle_numeric_edit_interaction};
 pub use sliders::PropertySliderOptions;
 pub use text::{PropertyTextOptions, PropertyTextResponse};
+pub use vec3_bind::{
+    euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
+};
 pub use vectors::{
     PropertyVec2Options, PropertyVec2Response, PropertyVec3Options, PropertyVec3Response,
     PropertyVec3Target, property_vec2_axis_tag, property_vec3_axis_tag, property_vec3_reset_tag,

@@ -141,6 +141,14 @@ impl<'a> UiScope<'a> {
 
             let mut changed = false;
             let mut submitted = false;
+            if let Some(restored) = row.tree.event_state.numeric_undo.take_pending_scalar(tag) {
+                let next = restored.clamp(options.min, options.max);
+                if (next - *value).abs() > f32::EPSILON {
+                    *value = next;
+                    changed = true;
+                }
+                submitted = true;
+            }
             if let Some(ref res) = edit_res {
                 if res.value_changed {
                     changed = true;
@@ -177,11 +185,17 @@ impl<'a> UiScope<'a> {
                     {
                         let next = parsed.clamp(options.min, options.max);
                         if (next - *value).abs() > f32::EPSILON {
+                            row.tree.event_state.numeric_undo.push_scalar(
+                                num_box_tag,
+                                *value,
+                                next,
+                            );
                             *value = next;
                             changed = true;
                         }
                     }
                 } else if is_track_pressed || track_clicked {
+                    row.tree.event_state.numeric_undo.begin_drag(tag, *value);
                     let track_rect = if tag != 0
                         && let Some(r) = row.tree.tag_rect(tag)
                         && r.width > 10.0
@@ -209,6 +223,9 @@ impl<'a> UiScope<'a> {
                             .clamp(0.0, 1.0);
                         let next = options.min + norm * (options.max - options.min);
                         if (next - *value).abs() > f32::EPSILON {
+                            if track_clicked && !is_track_pressed {
+                                row.tree.event_state.numeric_undo.commit_drag(tag, next);
+                            }
                             *value = next;
                             changed = true;
                         }
@@ -221,6 +238,7 @@ impl<'a> UiScope<'a> {
                         }
                     }
                 } else if let Some(delta) = track_drag {
+                    row.tree.event_state.numeric_undo.begin_drag(tag, *value);
                     let next = (*value + delta.x * options.speed).clamp(options.min, options.max);
                     if (next - *value).abs() > f32::EPSILON {
                         *value = next;
@@ -370,6 +388,7 @@ impl<'a> UiScope<'a> {
 
             let mut resp = WidgetResponse::new(active_id, clicked, hovered, changed);
             if is_drag_released {
+                row.tree.event_state.numeric_undo.commit_drag(tag, *value);
                 resp = resp.with_drag_released(true);
             }
             if submitted {
@@ -503,12 +522,26 @@ impl<'a> UiScope<'a> {
 
             let (clicked, hovered, drag_delta) = slot.check_interaction(drag_id);
             let mut changed = false;
+            if let Some(restored) = slot.tree.event_state.numeric_undo.take_pending_scalar(tag) {
+                let next = restored.clamp(min, max);
+                if (next - *value).abs() > f32::EPSILON {
+                    *value = next;
+                    changed = true;
+                }
+            }
             if let Some(delta) = drag_delta {
+                slot.tree.event_state.numeric_undo.begin_drag(tag, *value);
                 let next = (*value + delta.x * speed).clamp(min, max);
                 if (next - *value).abs() > f32::EPSILON {
                     *value = next;
                     changed = true;
                 }
+            }
+            let is_drag_released = (slot.tree.event_state.frame_drag_released_tag == Some(tag)
+                && tag != 0)
+                || slot.tree.event_state.frame_drag_released_id == Some(drag_id);
+            if is_drag_released {
+                slot.tree.event_state.numeric_undo.commit_drag(tag, *value);
             }
 
             response = WidgetResponse::new(drag_id, clicked, hovered, changed);

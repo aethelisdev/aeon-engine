@@ -73,7 +73,7 @@ impl InputArbiter {
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
-                self.handle_keyboard_input(engine, key_event);
+                self.handle_keyboard_input(engine, key_event, consumed);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 self.handle_mouse_wheel(engine, delta, consumed);
@@ -138,7 +138,12 @@ impl InputArbiter {
     }
 
     /// Routes keyboard input, handling global editor mode hotkeys and gameplay forwarding.
-    fn handle_keyboard_input(&mut self, engine: &mut AeEngine, key_event: &KeyEvent) {
+    fn handle_keyboard_input(
+        &mut self,
+        engine: &mut AeEngine,
+        key_event: &KeyEvent,
+        consumed: bool,
+    ) {
         let PhysicalKey::Code(key) = key_event.physical_key else {
             return;
         };
@@ -164,10 +169,11 @@ impl InputArbiter {
             engine.process_ui_actions(vec![EngineUiAction::ChangeMode(EngineMode::Edit)]);
         }
 
-        // Forward keys to gameplay if Escape, in Play mode, or UI is not capturing keyboard input
-        if key == winit::keyboard::KeyCode::Escape
-            || engine.mode == EngineMode::Play
-            || !engine.ui.wants_keyboard_input()
+        // Forward keys to gameplay if not consumed by UI and (Escape, in Play mode, or UI is not capturing keyboard input)
+        if !consumed
+            && (key == winit::keyboard::KeyCode::Escape
+                || engine.mode == EngineMode::Play
+                || !engine.ui.wants_keyboard_input())
         {
             engine.input.process_key_event(key, state);
         }

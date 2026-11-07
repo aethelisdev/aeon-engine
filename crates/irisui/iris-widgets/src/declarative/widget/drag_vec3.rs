@@ -38,6 +38,10 @@ pub struct Vec3Response {
     pub axes: [WidgetId; 3],
     /// Allocated widget identifier for the axis reset button, if enabled.
     pub reset_btn: Option<WidgetId>,
+    /// Pre-interaction `[x, y, z]` vector snapshot captured at the start of the frame.
+    pub old_values: [f32; 3],
+    /// Post-interaction `[x, y, z]` vector snapshot captured after frame evaluation and range clamping.
+    pub new_values: [f32; 3],
 }
 
 impl Deref for Vec3Response {
@@ -55,6 +59,15 @@ impl Vec3Response {
     #[must_use]
     pub fn changed(&self) -> bool {
         self.response.changed() || self.changed_axis.is_some()
+    }
+
+    /// Returns whether any vector scalar component numerically differs between `old_values` and `new_values`.
+    #[inline]
+    #[must_use]
+    pub fn value_changed(&self) -> bool {
+        (self.new_values[0] - self.old_values[0]).abs() > f32::EPSILON
+            || (self.new_values[1] - self.old_values[1]).abs() > f32::EPSILON
+            || (self.new_values[2] - self.old_values[2]).abs() > f32::EPSILON
     }
 
     /// Returns whether the overall row or its reset button was clicked during this frame.
@@ -94,6 +107,57 @@ impl Vec3Response {
     pub const fn committed_axis(&self) -> Option<usize> {
         self.committed_axis
     }
+
+    /// Invokes `f(old_values, new_values)` if the dedicated reset button was clicked during this frame.
+    #[inline]
+    pub fn on_reset(self, f: impl FnOnce([f32; 3], [f32; 3])) -> Self {
+        if self.reset_clicked {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f(old_values, new_values)` if any vector component changed or the reset button was clicked.
+    #[inline]
+    pub fn on_change(self, f: impl FnOnce([f32; 3], [f32; 3])) -> Self {
+        if self.value_changed() || self.reset_clicked {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f(old_values, new_values)` during an un-committed live interaction (such as active pointer dragging).
+    #[inline]
+    pub fn on_live_edit(self, f: impl FnOnce([f32; 3], [f32; 3])) -> Self {
+        if !self.reset_clicked && self.value_changed() && !self.committed() {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f(old_values, new_values)` when an edit is atomically committed (via reset button click, Enter confirmation, or drag release with delta).
+    #[inline]
+    pub fn on_commit_edit(self, f: impl FnOnce([f32; 3], [f32; 3])) -> Self {
+        if self.reset_clicked || (self.value_changed() && self.committed()) {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f()` when an interaction session is committed on a frame without value delta (such as pointer drag release after prior live drag frames).
+    #[inline]
+    pub fn on_release(self, f: impl FnOnce()) -> Self {
+        if !self.reset_clicked && !self.value_changed() && self.committed() {
+            f();
+        }
+        self
+    }
+}
+
+/// Internal storage target for [`DragVec3`], supporting both mutable borrows and owned value expressions.
+enum Vec3Target<'a> {
+    Borrowed(&'a mut [f32; 3]),
+    Owned([f32; 3]),
 }
 
 /// Declarative 3D coordinate vector property drag builder implementing [`Widget`].
@@ -115,7 +179,7 @@ impl Vec3Response {
 /// ```
 pub struct DragVec3<'a> {
     label: &'a str,
-    values: &'a mut [f32; 3],
+    values: Vec3Target<'a>,
     speed: f32,
     range: RangeInclusive<f32>,
     decimals: usize,
@@ -134,7 +198,29 @@ impl<'a> DragVec3<'a> {
     pub fn new(label: &'a str, values: &'a mut [f32; 3]) -> Self {
         Self {
             label,
-            values,
+            values: Vec3Target::Borrowed(values),
+            speed: 0.1,
+            range: -10000.0..=10000.0,
+            decimals: 3,
+            reset_value: None,
+            label_width: 52.0,
+            edit_states: [None, None, None],
+            curve: DragCurve::Linear,
+            pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
+        }
+    }
+
+    /// Creates a new [`DragVec3`] builder initialized from an owned `[f32; 3]` value expression.
+    ///
+    /// Enables pure declarative binding without intermediate local `let mut` buffers when paired
+    /// with [`Vec3Response::on_change`], [`Vec3Response::on_live_edit`], [`Vec3Response::on_commit_edit`],
+    /// and [`Vec3Response::on_reset`].
+    #[inline]
+    #[must_use]
+    pub fn from_val(label: &'a str, values: [f32; 3]) -> Self {
+        Self {
+            label,
+            values: Vec3Target::Owned(values),
             speed: 0.1,
             range: -10000.0..=10000.0,
             decimals: 3,
@@ -230,7 +316,7 @@ impl<'a> DragVec3<'a> {
 impl<'a> Widget for DragVec3<'a> {
     type Response = Vec3Response;
 
-    fn ui(self, scope: &mut UiScope<'_>) -> Self::Response {
+    fn ui(mut self, scope: &mut UiScope<'_>) -> Self::Response {
         let is_any_editing = self.edit_states.iter().any(|s| s.is_some());
         let mut opts = PropertyVec3Options::new(self.speed)
             .with_decimals(self.decimals)
@@ -246,10 +332,17 @@ impl<'a> Widget for DragVec3<'a> {
         let min_val = *self.range.start();
         let max_val = *self.range.end();
 
-        let prop_resp = scope.property_vec3_with_options(self.label, self.values, opts);
-        for v in self.values.iter_mut() {
+        let val_ref: &mut [f32; 3] = match &mut self.values {
+            Vec3Target::Borrowed(r) => r,
+            Vec3Target::Owned(arr) => arr,
+        };
+        let old_values = *val_ref;
+
+        let prop_resp = scope.property_vec3_with_options(self.label, val_ref, opts);
+        for v in val_ref.iter_mut() {
             *v = v.clamp(min_val, max_val);
         }
+        let new_values = *val_ref;
 
         Vec3Response {
             response: prop_resp.response,
@@ -259,6 +352,8 @@ impl<'a> Widget for DragVec3<'a> {
             editing_text: is_any_editing,
             axes: prop_resp.axes,
             reset_btn: prop_resp.reset_btn,
+            old_values,
+            new_values,
         }
     }
 }
@@ -350,5 +445,51 @@ mod tests {
         assert_eq!(resp.changed_axis(), Some(1));
         assert_eq!(resp.committed_axis(), Some(1));
         assert!(tree.event_state.active_text_edit.is_none());
+    }
+
+    #[test]
+    fn test_drag_vec3_from_val_and_fluent_callbacks_on_reset_and_commit() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+
+        let label = "Position";
+        let base_tag = {
+            let scope = UiScope::new(&mut tree, root);
+            scope.tag_for(label)
+        };
+        let reset_tag =
+            crate::declarative::scope::properties::vectors::property_vec3_reset_tag(base_tag);
+
+        tree.event_state.frame_clicked_tag = Some(reset_tag);
+
+        let mut observed_change = None;
+        let mut observed_commit = None;
+        let mut observed_reset = None;
+        let mut observed_live = false;
+
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .add(
+                DragVec3::from_val(label, [3.0, 4.0, 5.0])
+                    .speed(0.1)
+                    .reset([0.0, 0.0, 0.0]),
+            )
+            .on_change(|old_v, new_v| {
+                observed_change = Some((old_v, new_v));
+            })
+            .on_reset(|old_v, new_v| {
+                observed_reset = Some((old_v, new_v));
+            })
+            .on_live_edit(|_, _| {
+                observed_live = true;
+            })
+            .on_commit_edit(|old_v, new_v| {
+                observed_commit = Some((old_v, new_v));
+            });
+
+        assert_eq!(observed_change, Some(([3.0, 4.0, 5.0], [0.0, 0.0, 0.0])));
+        assert_eq!(observed_reset, Some(([3.0, 4.0, 5.0], [0.0, 0.0, 0.0])));
+        assert_eq!(observed_commit, Some(([3.0, 4.0, 5.0], [0.0, 0.0, 0.0])));
+        assert!(!observed_live);
     }
 }

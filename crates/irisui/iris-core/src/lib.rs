@@ -31,8 +31,8 @@ pub use canvas::CanvasPrimitive;
 pub use color::Color;
 pub use dirty::DirtyFlags;
 pub use dispatch::{
-    ActiveTextEditSession, DispatchResult, EventState, PopupMenuState, TextSnapshot, TextUndoStack,
-    UndoActionKind,
+    ActiveTextEditSession, DispatchResult, EventState, NumericUndoEntry, NumericUndoStack,
+    PendingNumericRestore, PopupMenuState, TextSnapshot, TextUndoStack, UndoActionKind,
 };
 pub use error::IrisCoreError;
 pub use event::{

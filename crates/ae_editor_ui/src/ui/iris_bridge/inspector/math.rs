@@ -53,9 +53,39 @@ pub fn euler_deg_to_quaternion(rx_deg: f32, ry_deg: f32, rz_deg: f32) -> ae_core
     }
 }
 
+/// Resolves Euler angles in degrees from an entity's quaternion rotation,
+/// preserving the cached Euler representation when its corresponding quaternion
+/// matches `world_rot` within gimbal-lock equivalence tolerance (`|dot| > 0.999`).
+#[must_use]
+pub fn resolve_euler_deg(
+    world_rot: &ae_core::ecs::Rotation,
+    cached_euler: Option<&[f32; 3]>,
+) -> [f32; 3] {
+    if let Some(euler) = cached_euler {
+        let cached_quat = euler_deg_to_quaternion(euler[0], euler[1], euler[2]);
+        let dot = (cached_quat.x * world_rot.x
+            + cached_quat.y * world_rot.y
+            + cached_quat.z * world_rot.z
+            + cached_quat.w * world_rot.w)
+            .abs();
+        if dot > 0.999 {
+            return *euler;
+        }
+    }
+    quaternion_to_euler_deg(world_rot)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_resolve_euler_deg_preserves_cached_past_90_deg() {
+        let cached = [-34.0, 120.0, 0.0];
+        let quat = euler_deg_to_quaternion(cached[0], cached[1], cached[2]);
+        assert_eq!(resolve_euler_deg(&quat, Some(&cached)), cached);
+        assert_ne!(resolve_euler_deg(&quat, None), cached);
+    }
 
     #[test]
     fn test_euler_z_rotation_roundtrip() {

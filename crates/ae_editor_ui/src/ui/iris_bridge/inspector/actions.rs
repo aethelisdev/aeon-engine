@@ -7,4 +7,3 @@
 //! executing numeric scrub and drag edits, color pickers, and transform resets.
 
 pub mod dispatch;
-pub mod transform;

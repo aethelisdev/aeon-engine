@@ -90,6 +90,15 @@ pub fn handle_numeric_edit_interaction(
     let mut value_changed = false;
     let mut submitted = false;
 
+    if let Some(restored) = scope.tree.event_state.numeric_undo.take_pending_scalar(tag) {
+        let next = restored.clamp(min_val, max_val);
+        if (next - *value).abs() > f32::EPSILON {
+            *value = next;
+            value_changed = true;
+        }
+        submitted = true;
+    }
+
     let mut is_editing = scope
         .tree
         .event_state
@@ -144,6 +153,11 @@ pub fn handle_numeric_edit_interaction(
             {
                 let next = parsed.clamp(min_val, max_val);
                 if (next - *value).abs() > f32::EPSILON {
+                    scope
+                        .tree
+                        .event_state
+                        .numeric_undo
+                        .push_scalar(tag, *value, next);
                     *value = next;
                     value_changed = true;
                 }
@@ -179,13 +193,25 @@ pub fn handle_numeric_edit_interaction(
                     {
                         let next = parsed.clamp(min_val, max_val);
                         if (next - *value).abs() > f32::EPSILON {
+                            scope
+                                .tree
+                                .event_state
+                                .numeric_undo
+                                .push_scalar(tag, *value, next);
                             *value = next;
                             value_changed = true;
                         }
                         submitted = true;
                     }
                     scope.tree.event_state.clear_text_edit();
-                    scope.tree.event_state.clear_focus();
+                    if res.should_clear_focus {
+                        scope.tree.event_state.clear_focus();
+                    } else {
+                        scope.tree.event_state.focused = Some(node_id);
+                        if tag != 0 {
+                            scope.tree.event_state.focused_tag = Some(tag);
+                        }
+                    }
                     is_editing = false;
                 } else {
                     scope.tree.event_state.active_text_edit = Some(session);

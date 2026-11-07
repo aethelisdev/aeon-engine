@@ -1102,6 +1102,58 @@ fn handle_mouse_scroll(
     DispatchResult::ignored()
 }
 
+/// Evaluates `Ctrl+Z`, `Ctrl+Y`, and `Ctrl+Shift+Z` shortcuts against the autonomous [`crate::dispatch::NumericUndoStack`]
+/// when no inline text buffer session is currently active.
+fn try_handle_numeric_undo_shortcut(
+    tree: &mut UiTree,
+    key: KeyCode,
+    text: Option<&str>,
+    is_pressed: bool,
+    ctrl_held: bool,
+    shift_held: bool,
+) -> Option<DispatchResult> {
+    if !is_pressed || !ctrl_held || tree.event_state.active_text_edit.is_some() {
+        return None;
+    }
+
+    let ch = match key {
+        KeyCode::Character(c) => Some(c.to_ascii_lowercase()),
+        _ => text.and_then(|s| s.chars().next().map(|c| c.to_ascii_lowercase())),
+    };
+
+    let target_tag = if !shift_held && ch == Some('z') {
+        tree.event_state.numeric_undo.undo()?
+    } else if (!shift_held && ch == Some('y')) || (shift_held && ch == Some('z')) {
+        tree.event_state.numeric_undo.redo()?
+    } else {
+        return None;
+    };
+
+    let target_id = tree
+        .find_node_by_tag(target_tag)
+        .or(tree.event_state.focused);
+    tree.event_state.focused = target_id;
+    tree.event_state.focused_tag = Some(target_tag);
+    let rect = target_id
+        .and_then(|id| tree.get(id).map(|n| n.computed_rect))
+        .unwrap_or(crate::geometry::Rect::ZERO);
+    let flags = ResponseFlags::FOCUSED | ResponseFlags::CHANGED | ResponseFlags::SUBMITTED;
+
+    Some(DispatchResult {
+        consumed: true,
+        needs_redraw: true,
+        target: target_id,
+        target_tag,
+        cursor: None,
+        response: target_id.map(|id| WidgetResponse::from_flags(id, rect, flags)),
+        scroll_delta: (0.0, 0.0),
+        key: Some(key),
+        is_key_pressed: true,
+        text_input: None,
+        next_timeout: None,
+    })
+}
+
 /// Routes keyboard navigation and text inputs to the currently focused widget.
 fn handle_keyboard(
     tree: &mut UiTree,
@@ -1125,6 +1177,17 @@ fn handle_keyboard(
             is_key_pressed: true,
             ..Default::default()
         };
+    }
+
+    if let Some(res) = try_handle_numeric_undo_shortcut(
+        tree,
+        key,
+        text.as_deref(),
+        is_pressed,
+        ctrl_held,
+        shift_held,
+    ) {
+        return res;
     }
 
     let target_id = tree.event_state.focused.or_else(|| {
