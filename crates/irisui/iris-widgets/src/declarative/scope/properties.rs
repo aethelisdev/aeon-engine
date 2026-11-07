@@ -11,6 +11,7 @@
 //! All primitives support the `##` label/tag separator and hierarchical [`UiScope::with_id`]
 //! seed isolation without per-frame heap allocations.
 
+pub mod action_row;
 pub mod color;
 pub mod numeric_input;
 pub mod rows;
@@ -21,8 +22,10 @@ pub mod vectors;
 
 pub use crate::declarative::scope::input::ComboRowLayout;
 pub use crate::declarative::widget::ComboBoxResponse;
+pub use action_row::PropertyActionRow;
 pub use color::PropertyColorResponse;
 pub use numeric_input::{NumericEditConfig, NumericEditResult, handle_numeric_edit_interaction};
+pub use rows::ComboBoxActionResponse;
 pub use sliders::PropertySliderOptions;
 pub use text::{PropertyTextOptions, PropertyTextResponse};
 pub use vec3_bind::{

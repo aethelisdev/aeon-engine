@@ -61,11 +61,13 @@ impl IrisEditorOverlay {
             blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
         };
 
-        build_inspector_panel(
+        if let Some(ui_action) = build_inspector_panel(
             scope,
             &insp_params,
             &mut self.inspector.interactions.actions,
-        );
+        ) {
+            self.pending_actions.push(ui_action);
+        }
         self.inspector.inspected_entity = params.scene.selected_entity;
         self.inspector.inspector_euler = *params.panel_data.inspector_euler;
         if let Some(entity) = params.scene.selected_entity {

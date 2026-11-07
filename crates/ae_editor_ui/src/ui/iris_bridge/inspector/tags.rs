@@ -35,21 +35,6 @@ pub fn is_inspector_tag(tag: u64) -> bool {
 /// Semantic tag for the `➕ Add Component` button in the Inspector footer.
 pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = TAG_INSPECTOR_ACTION_BASE + 1;
 
-/// Semantic tag for the `💾 Save as Prefab` button in the Inspector footer.
-pub const TAG_INSPECTOR_SAVE_PREFAB: u64 = TAG_INSPECTOR_ACTION_BASE + 2;
-
-/// Semantic tag for the `↺ Preset` reset button in the Physics Material card.
-pub const TAG_INSPECTOR_PRESET_RESET: u64 = TAG_INSPECTOR_ACTION_BASE + 3;
-
-/// Semantic tag for the audio file picker `📁` button in the AudioSource card.
-pub const TAG_INSPECTOR_AUDIO_PICK: u64 = TAG_INSPECTOR_ACTION_BASE + 4;
-
-/// Semantic tag for the audio play/stop preview toggle button in the AudioSource card.
-pub const TAG_INSPECTOR_AUDIO_PLAY: u64 = TAG_INSPECTOR_ACTION_BASE + 5;
-
-/// Semantic tag for the `❌ Unparent` button in the Parenting card.
-pub const TAG_INSPECTOR_UNPARENT: u64 = TAG_INSPECTOR_ACTION_BASE + 6;
-
 /// Semantic tag for the interactive object color swatch button in the Appearance card.
 pub const TAG_INSPECTOR_COLOR_SWATCH: u64 = TAG_INSPECTOR_ACTION_BASE + 7;
 
@@ -144,41 +129,6 @@ pub fn resolve_component_delete_tag(tag: u64) -> Option<&'static str> {
 #[must_use]
 pub const fn resolve_add_component_btn_tag(tag: u64) -> bool {
     tag == TAG_INSPECTOR_ADD_COMPONENT
-}
-
-/// Resolves whether a semantic tag corresponds to the `💾 Save as Prefab` footer button.
-#[inline]
-#[must_use]
-pub const fn resolve_save_prefab_btn_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_SAVE_PREFAB
-}
-
-/// Resolves whether a semantic tag corresponds to the Physics Material preset reset button.
-#[inline]
-#[must_use]
-pub const fn resolve_preset_reset_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_PRESET_RESET
-}
-
-/// Resolves whether a semantic tag corresponds to the audio file picker button.
-#[inline]
-#[must_use]
-pub const fn resolve_audio_pick_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_AUDIO_PICK
-}
-
-/// Resolves whether a semantic tag corresponds to the audio playback preview toggle button.
-#[inline]
-#[must_use]
-pub const fn resolve_audio_play_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_AUDIO_PLAY
-}
-
-/// Resolves whether a semantic tag corresponds to the unparenting action button.
-#[inline]
-#[must_use]
-pub const fn resolve_unparent_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_UNPARENT
 }
 
 /// Checks whether a semantic tag corresponds to the 2D HSV Color Picker card container.

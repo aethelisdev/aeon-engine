@@ -6,7 +6,10 @@
 //! Provides interactive push buttons, icon buttons, styled variants, and toggle pill
 //! widgets returning immediate [`WidgetResponse`] interaction states.
 
+pub mod action_bar;
 pub mod icon;
 pub mod pills;
 pub mod push;
 pub mod toolbar;
+
+pub use action_bar::{ActionBarButton, DualActionBarResponse};

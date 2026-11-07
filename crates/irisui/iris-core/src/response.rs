@@ -444,6 +444,32 @@ impl WidgetResponse {
         self
     }
 
+    /// Evaluates `f` and returns `Some(T)` if this widget was clicked with the primary mouse button
+    /// without being a double-click or active drag gesture, or `None` otherwise.
+    ///
+    /// Enables pure functional mapping from widget clicks to domain actions without intermediate `let` bindings.
+    #[inline]
+    #[must_use]
+    pub fn map_click<T>(self, f: impl FnOnce() -> T) -> Option<T> {
+        if self.clicked() && !self.double_clicked() && !self.dragged() {
+            Some(f())
+        } else {
+            None
+        }
+    }
+
+    /// Evaluates `f` and returns its `Option<T>` result if this widget was clicked with the primary mouse button
+    /// without being a double-click or active drag gesture, or `None` otherwise.
+    #[inline]
+    #[must_use]
+    pub fn then_click<T>(self, f: impl FnOnce() -> Option<T>) -> Option<T> {
+        if self.clicked() && !self.double_clicked() && !self.dragged() {
+            f()
+        } else {
+            None
+        }
+    }
+
     /// Executes the provided closure if this widget was clicked with the secondary (right) mouse button
     /// without an active drag gesture.
     ///
@@ -632,6 +658,10 @@ mod tests {
         assert!(!changed);
         assert!(hovered);
         assert_eq!(resp.id, id);
+        assert_eq!(resp.map_click(|| 77), Some(77));
+        assert_eq!(resp.then_click(|| Some("ok")), Some("ok"));
+        assert_eq!(WidgetResponse::empty(id).map_click(|| 77), None);
+        assert_eq!(WidgetResponse::empty(id).then_click(|| Some("ok")), None);
     }
 
     #[test]

@@ -172,7 +172,7 @@ fn test_parent_card_declarative_structure() {
 
     let has_unparent = tree
         .iter()
-        .any(|(_, n)| ae_editor_ui::ui::iris_bridge::inspector::resolve_unparent_tag(n.tag));
+        .any(|(_, n)| n.name.as_deref() == Some("UnparentBtn") && n.tag != 0);
     assert!(has_unparent, "Unparent button must be tagged");
 
     let has_parent_lbl = tree.iter().any(|(_, n)| {

@@ -3,182 +3,77 @@
 
 //! # Inspector Bottom Action Bar Builder
 //!
-//! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope`].
+//! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope::dual_action_bar`].
 
-use super::tags::{TAG_INSPECTOR_ADD_COMPONENT, TAG_INSPECTOR_SAVE_PREFAB};
+use super::tags::TAG_INSPECTOR_ADD_COMPONENT;
 use super::types::{InspectorAction, InspectorPanelParams};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
-use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
 
-/// Output node handles created during Inspector footer construction.
-/// Builds the Inspector bottom action bar declaratively into the parent [`UiScope`].
+/// Resolves the sanitized prefab file path for the specified entity from its ECS [`ae_core::ecs::Name`] component.
+///
+/// Replaces non-alphanumeric characters (other than `_` and `-`) with `_` and falls back to `"prefab"`
+/// when the entity has no name or its sanitized name is empty.
+#[must_use]
+pub fn prefab_file_path_for_entity(
+    world: &hecs::World,
+    entity: hecs::Entity,
+) -> std::path::PathBuf {
+    std::path::PathBuf::from(format!(
+        "assets/prefabs/{}.prefab.json",
+        world
+            .get::<&ae_core::ecs::Name>(entity)
+            .ok()
+            .map(|n| {
+                n.0.trim()
+                    .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_")
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "prefab".to_string())
+    ))
+}
+
+/// Builds the Inspector bottom action bar declaratively into the parent [`UiScope`],
+/// returning [`EngineUiAction::SaveEntityAsPrefab`] directly when the `💾 Save as Prefab`
+/// button is clicked.
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     actions: &mut Vec<InspectorAction>,
-) {
-    let padding_x = 8.0;
-    let footer_h = 24.0;
-    let btn_gap = 8.0;
-    let available_w = (params.panel_rect.width - padding_x * 2.0 - btn_gap).max(0.0);
-    let btn_w = (available_w * 0.5).floor();
-
-    let (add_bg, add_border, add_text_col) = if params.is_add_menu_open {
-        (
-            Color::rgba(0.118, 0.125, 0.145, 1.0),
-            Color::rgba(0.353, 0.376, 0.439, 0.95),
-            Color::WHITE,
+) -> Option<EngineUiAction> {
+    scope
+        .dual_action_bar(
+            "InspectorFooter",
+            params.panel_rect.width,
+            ActionBarButton::new("AddComponentBtn", "Add Component")
+                .with_icon(
+                    "AddComponentPlusIcon",
+                    crate::ui::iris_bridge::icons::ICON_PLUS,
+                )
+                .with_text_name("AddComponentBtnText")
+                .with_text_align(TextAlign::Left)
+                .with_padding(Insets::new(0.0, 6.0, 0.0, 6.0))
+                .with_active(params.is_add_menu_open)
+                .with_tag(TAG_INSPECTOR_ADD_COMPONENT),
+            ActionBarButton::new("SavePrefabBtn", "💾 Save as Prefab")
+                .with_text_name("SavePrefabBtnText")
+                .with_text_align(TextAlign::Center),
         )
-    } else {
-        (
-            Color::rgba(0.157, 0.165, 0.188, 0.98),
-            Color::rgba(0.212, 0.220, 0.259, 0.85),
-            Color::rgba(0.886, 0.894, 0.918, 1.0),
-        )
-    };
-
-    let (save_bg, save_border, save_text_col) = (
-        Color::rgba(0.157, 0.165, 0.188, 0.98),
-        Color::rgba(0.212, 0.220, 0.259, 0.85),
-        Color::rgba(0.886, 0.894, 0.918, 1.0),
-    );
-
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .gap(btn_gap)
-        .height(34.0)
-        .flex_shrink(0.0)
-        .margin_insets(Insets::new(4.0, padding_x, 6.0, padding_x));
-
-    scope.container_named("InspectorFooter", row_style, |row| {
-        // 1. `➕ Add Component` Button
-        let mut add_btn_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .gap(5.0)
-            .width(btn_w)
-            .flex_grow(1.0)
-            .height(footer_h)
-            .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-            .background(add_bg)
-            .border(1.0, add_border)
-            .border_radius(5.0);
-
-        let is_add_pressed =
-            row.tree().event_state.pressed_tag == Some(TAG_INSPECTOR_ADD_COMPONENT);
-
-        if is_add_pressed {
-            add_btn_style = add_btn_style
-                .background(Color::rgba(0.090, 0.098, 0.118, 1.0))
-                .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
-        } else if !params.is_add_menu_open {
-            add_btn_style = add_btn_style
-                .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
-                .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
-        }
-
-        let add_resp = row.container_tagged_resp(
-            "AddComponentBtn",
-            add_btn_style,
-            WidgetRole::Button,
-            TAG_INSPECTOR_ADD_COMPONENT,
-            |btn| {
-                if params.is_add_menu_open {
-                    btn.icon_named(
-                        "AddComponentPlusIcon",
-                        crate::ui::iris_bridge::icons::ICON_PLUS,
-                        add_text_col,
-                        11.0,
-                    );
-                    btn.label_styled_passive_wrapped(
-                        "AddComponentBtnText",
-                        "Add Component",
-                        WrappedLabelDescriptor::new(
-                            11.0,
-                            add_text_col,
-                            Style::new().height(footer_h),
-                        )
-                        .align(TextAlign::Left)
-                        .wrap(TextWrap::None),
-                    );
-                } else {
-                    btn.icon_hover_named(
-                        "AddComponentPlusIcon",
-                        crate::ui::iris_bridge::icons::ICON_PLUS,
-                        add_text_col,
-                        Color::WHITE,
-                        11.0,
-                    );
-                    btn.label_styled_passive_wrapped(
-                        "AddComponentBtnText",
-                        "Add Component",
-                        WrappedLabelDescriptor::new(
-                            11.0,
-                            add_text_col,
-                            Style::new().height(footer_h),
-                        )
-                        .align(TextAlign::Left)
-                        .wrap(TextWrap::None)
-                        .hover_color(Color::WHITE),
-                    );
-                }
-            },
-        );
-        if add_resp.clicked() {
+        .on_primary_click(|| {
             if params.is_add_menu_open {
                 actions.push(InspectorAction::CloseAddComponentMenu);
             } else {
                 actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
             }
-        }
-
-        // 2. `💾 Save as Prefab` Button
-        let is_save_pressed = row.tree().event_state.pressed_tag == Some(TAG_INSPECTOR_SAVE_PREFAB);
-
-        let mut save_btn_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .gap(5.0)
-            .width(btn_w)
-            .flex_grow(1.0)
-            .height(footer_h)
-            .background(save_bg)
-            .border(1.0, save_border)
-            .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
-            .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95))
-            .border_radius(5.0);
-
-        if is_save_pressed {
-            save_btn_style = save_btn_style
-                .background(Color::rgba(0.090, 0.098, 0.118, 1.0))
-                .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
-        }
-
-        let save_resp = row.container_tagged_resp(
-            "SavePrefabBtn",
-            save_btn_style,
-            WidgetRole::Button,
-            TAG_INSPECTOR_SAVE_PREFAB,
-            |btn| {
-                btn.label_styled_passive_wrapped(
-                    "SavePrefabBtnText",
-                    "💾 Save as Prefab",
-                    WrappedLabelDescriptor::new(11.0, save_text_col, Style::new().height(footer_h))
-                        .align(TextAlign::Center)
-                        .wrap(TextWrap::None)
-                        .hover_color(Color::WHITE),
-                );
-            },
-        );
-        if save_resp.clicked()
-            && let Some(entity) = params.selected_entity
-        {
-            actions.push(InspectorAction::SaveAsPrefab(entity));
-        }
-    });
+        })
+        .then_secondary(|| {
+            params.selected_entity.map(|entity| {
+                EngineUiAction::SaveEntityAsPrefab(
+                    entity,
+                    prefab_file_path_for_entity(params.world, entity),
+                )
+            })
+        })
 }
 
 #[cfg(test)]
@@ -186,21 +81,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_declarative_inspector_footer_layout_and_tags() {
+    fn test_declarative_inspector_footer_layout_and_direct_prefab_action() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let world = hecs::World::new();
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Name("Hero Guard".to_string()),));
 
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
             world: &world,
-            selected_entity: None,
+            selected_entity: Some(entity),
             inspector_euler: &euler,
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
-            cursor_pos: Point::new(12.0, 775.0), // Hover over Add Component button
+            cursor_pos: Point::new(12.0, 775.0),
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
@@ -211,31 +107,26 @@ mod tests {
             blink_caret: false,
         };
 
-        let mut scope = UiScope::new(&mut tree, root);
         let mut actions = Vec::new();
-        build_inspector_footer(&mut scope, &params, &mut actions);
-        scope.finish_layout(params.panel_rect);
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.configure_container("TestRoot", Style::new().flex_col(), false);
+            let ui_action = build_inspector_footer(&mut scope, &params, &mut actions);
+            assert!(ui_action.is_none());
+            scope.finish_layout(params.panel_rect);
+        }
 
-        let add_btn = tree
-            .iter()
-            .find(|(_, n)| n.tag == TAG_INSPECTOR_ADD_COMPONENT)
-            .map(|(_, n)| n)
-            .expect("Add button must exist");
-        let save_btn = tree
-            .iter()
-            .find(|(_, n)| n.tag == TAG_INSPECTOR_SAVE_PREFAB)
-            .map(|(_, n)| n)
-            .expect("Save button must exist");
+        let add_btn = tree.assert_node("AddComponentBtn", WidgetRole::Button);
+        let save_btn = tree.assert_node("SavePrefabBtn", WidgetRole::Button);
 
         assert_eq!(add_btn.tag, TAG_INSPECTOR_ADD_COMPONENT);
-        assert_eq!(save_btn.tag, TAG_INSPECTOR_SAVE_PREFAB);
+        assert_ne!(save_btn.tag, 0);
 
-        assert!(add_btn.computed_rect.width > 100.0);
+        assert_eq!(add_btn.computed_rect.width, 148.0);
         assert_eq!(add_btn.computed_rect.height, 24.0);
-        assert!(save_btn.computed_rect.width > 100.0);
+        assert_eq!(save_btn.computed_rect.width, 148.0);
         assert_eq!(save_btn.computed_rect.height, 24.0);
 
-        // Verify button declarative hover state
         assert_eq!(
             add_btn.style.hover_background,
             Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
@@ -244,5 +135,31 @@ mod tests {
             save_btn.style.hover_background,
             Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
         );
+
+        // Simulate clicking SavePrefabBtn and verify direct EngineUiAction::SaveEntityAsPrefab emission
+        let save_rect = tree.assert_node_rect("SavePrefabBtn");
+        let click_pt = Point::new(save_rect.x + 10.0, save_rect.y + 10.0);
+        let _ = tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: click_pt,
+        });
+        let _ = tree.dispatch_event(&UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: click_pt,
+        });
+
+        let emitted = {
+            let mut scope = UiScope::new(&mut tree, root);
+            build_inspector_footer(&mut scope, &params, &mut actions)
+        };
+        let Some(EngineUiAction::SaveEntityAsPrefab(ent, path)) = emitted else {
+            panic!("Expected EngineUiAction::SaveEntityAsPrefab");
+        };
+        assert_eq!(ent, entity);
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("assets/prefabs/Hero_Guard.prefab.json")
+        );
+        assert!(actions.is_empty());
     }
 }

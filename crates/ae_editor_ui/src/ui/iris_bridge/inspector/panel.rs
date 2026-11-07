@@ -14,12 +14,12 @@ use super::types::InspectorPanelParams;
 use super::ui_transform;
 use irisui::prelude::*;
 
-/// Builds the complete Scene Inspector layout and returns root handle.
+/// Builds the complete Scene Inspector layout and returns any direct [`crate::ui::types::EngineUiAction`] emitted.
 pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     actions: &mut Vec<super::types::InspectorAction>,
-) {
+) -> Option<crate::ui::types::EngineUiAction> {
     let padding_x = 6.0;
     let card_w = params.panel_rect.width - padding_x * 2.0;
 
@@ -32,7 +32,7 @@ pub fn build_inspector_panel(
             // 1. Check if an entity is selected
             let Some(entity) = params.selected_entity.filter(|e| params.world.contains(*e)) else {
                 render_empty_selection_view(panel_scope, params);
-                return;
+                return None;
             };
 
             // 2. Top Entity Name Header
@@ -57,36 +57,45 @@ pub fn build_inspector_panel(
                 card_w,
             );
 
-            panel_scope.scroll_area(
-                "InspectorCardsContainer",
-                super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
-                None,
-                |cards_scope| {
-                    // 4. Primary Transform / Layout Card
-                    let is_ui_element = ctx
-                        .world
-                        .get::<&ae_core::ecs::UiElement>(ctx.entity)
-                        .is_ok();
-                    if is_ui_element {
-                        ui_transform::build_ui_transform_card(cards_scope, &mut ctx);
-                    } else {
-                        transform::build_transform_card(cards_scope, &mut ctx);
-                        appearance::build_appearance_card(cards_scope, &mut ctx);
-                    }
-
-                    // 5. Extensible Registry Component Cards
-                    let registry = InspectorRegistry::global();
-                    for handler in registry.handlers() {
-                        if handler.has_component(ctx.world, ctx.entity) {
-                            handler.render_card(cards_scope, &mut ctx);
+            panel_scope
+                .scroll_area(
+                    "InspectorCardsContainer",
+                    super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
+                    None,
+                    |cards_scope| {
+                        // 4. Primary Transform / Layout Card
+                        if ctx
+                            .world
+                            .get::<&ae_core::ecs::UiElement>(ctx.entity)
+                            .is_ok()
+                        {
+                            ui_transform::build_ui_transform_card(cards_scope, &mut ctx);
+                        } else {
+                            transform::build_transform_card(cards_scope, &mut ctx);
+                            appearance::build_appearance_card(cards_scope, &mut ctx);
                         }
-                    }
-                },
-            );
 
-            // 6. Bottom Action Bar (Fixed at bottom)
-            footer::build_inspector_footer(panel_scope, params, actions);
-        });
+                        // 5. Extensible Registry Component Cards
+                        for handler in InspectorRegistry::global().handlers() {
+                            if handler.category() != super::types::ComponentCategory::Hierarchy
+                                && handler.has_component(ctx.world, ctx.entity)
+                            {
+                                handler.render_card(cards_scope, &mut ctx);
+                            }
+                        }
+
+                        // 6. Hierarchy / Parenting Card
+                        super::components::hierarchy::draw_parent_card_if_present(
+                            cards_scope,
+                            ctx.world,
+                            ctx.entity,
+                        )
+                    },
+                )
+                .inner
+                .or(footer::build_inspector_footer(panel_scope, params, actions))
+        })
+        .inner
 }
 
 /// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)

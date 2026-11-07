@@ -21,14 +21,15 @@ pub use layout::{
     measure_height_constrained, measure_width,
 };
 pub use scope::{
-    CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse,
-    ContainerResponseExt, ContextMenuExt, InputBoxProps, PopupExt, PopupPlacement,
-    PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, TooltipExt, TreeNodeProps,
-    TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, WrappedLabelDescriptor,
-    calculate_visible_slice_and_caret, measure_text_advance, property_vec3_axis_tag,
-    property_vec3_reset_tag, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
-    resolve_property_vec3_tag,
+    ActionBarButton, AssetSlotConfig, AssetSlotResponse, CONTEXT_MENU_DEFAULT_WIDTH,
+    CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse, ComboBoxActionResponse,
+    ContainerResponseExt, ContextMenuExt, DualActionBarResponse, InputBoxProps, PopupExt,
+    PopupPlacement, PropertyActionRow, PropertySliderOptions, PropertyTextOptions,
+    PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, PropertyVec3Target,
+    ScrollAreaConfig, TooltipExt, TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig,
+    TreeViewProps, UiScope, WrappedLabelDescriptor, calculate_visible_slice_and_caret,
+    measure_text_advance, property_vec3_axis_tag, property_vec3_reset_tag,
+    resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };
 pub use subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use types::{

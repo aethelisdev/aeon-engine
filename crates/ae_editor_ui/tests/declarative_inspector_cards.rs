@@ -16,10 +16,7 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::ShapeHandle
 use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::tags::{
-    resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_delete_tag,
-    resolve_preset_reset_tag,
-};
+use ae_editor_ui::ui::iris_bridge::inspector::tags::resolve_component_delete_tag;
 use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use irisui::prelude::*;
 
@@ -501,8 +498,10 @@ fn test_physics_material_card_declarative_structure() {
         .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
     assert!(has_combo, "SurfaceType dropdown ComboPill must be present");
 
-    let has_preset = tree.iter().any(|(_, n)| resolve_preset_reset_tag(n.tag));
-    assert!(has_preset, "Preset reset button must be tagged");
+    let has_preset = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("PresetBtn") && n.role == WidgetRole::Button);
+    assert!(has_preset, "Preset reset button must exist");
 
     let numeric_pills = tree
         .iter()
@@ -565,11 +564,15 @@ fn test_audio_cards_declarative_structure() {
             .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("AudioSource"));
         assert!(has_delete, "AudioSource delete button must be tagged");
 
-        let has_pick = tree.iter().any(|(_, n)| resolve_audio_pick_tag(n.tag));
-        let has_play = tree.iter().any(|(_, n)| resolve_audio_play_tag(n.tag));
+        let has_pick = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("AudioPickBtn") && n.role == WidgetRole::Button
+        });
+        let has_play = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("AudioPlayToggleBtn") && n.role == WidgetRole::Button
+        });
         assert!(
             has_pick && has_play,
-            "Audio pick and play buttons must be tagged"
+            "Audio pick and play buttons must be present"
         );
 
         let numeric_pills = tree

@@ -7,6 +7,7 @@
 //! Supports immediate interaction responses ([`WidgetResponse`]), automatic flow layout,
 //! and strongly typed property inspection primitives partitioned across domain submodules.
 
+pub mod asset_slot;
 pub mod buttons;
 pub mod collapsing;
 pub mod compass;
@@ -46,6 +47,8 @@ pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
+pub use asset_slot::{AssetSlotConfig, AssetSlotResponse};
+pub use buttons::{ActionBarButton, DualActionBarResponse};
 pub use containers::{
     CardBuilder, CardHeaderResponse, CardOptions, CardResponse, ColumnBuilder,
     ContainerResponseExt, InnerResponse, RowBuilder,
@@ -53,11 +56,12 @@ pub use containers::{
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
-pub use input::{AssetSlotConfig, ComboRowLayout};
+pub use input::ComboRowLayout;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use menu::{PopupExt, PopupPlacement};
 pub use properties::{
-    PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag, property_vec3_reset_tag,
-    resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
+    ComboBoxActionResponse, PropertyActionRow, PropertySliderOptions, PropertyTextOptions,
+    PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, PropertyVec3Target,
+    property_vec3_axis_tag, property_vec3_reset_tag, resolve_property_vec3_for_seed,
+    resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };

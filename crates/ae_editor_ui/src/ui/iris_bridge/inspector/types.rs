@@ -119,8 +119,6 @@ pub enum InspectorAction {
     RemoveComponent(hecs::Entity, &'static str),
     /// Adds a new component to the specified entity from the Add Menu.
     AddComponent(hecs::Entity, &'static str),
-    /// Saves the specified entity and its entire hierarchy as a reusable Prefab file.
-    SaveAsPrefab(hecs::Entity),
     /// Opens the 8-category Add Component cascading menu.
     OpenAddComponentMenu(Point),
     /// Closes the Add Component menu.
@@ -129,8 +127,6 @@ pub enum InspectorAction {
     OpenAddSubmenu(ComponentCategory),
     /// Closes the active Add Component subcategory flyout menu.
     CloseAddSubmenu,
-    /// Resets Physics Material properties to the active SurfaceType preset on an entity.
-    ResetPhysMatPreset(hecs::Entity),
     /// Signals that editing has begun on a named component of an entity, optionally supplying pre-edit snapshot bytes.
     StartComponentEdit(hecs::Entity, &'static str, Option<Vec<u8>>),
     /// Signals that editing has completed on a named component of an entity, committing undo history if state changed.
@@ -139,12 +135,6 @@ pub enum InspectorAction {
     CommitComponentModify(hecs::Entity, &'static str, Vec<u8>, Vec<u8>),
     /// Synchronizes authoritatively inspected Euler rotation angles [rx, ry, rz] in degrees.
     SyncInspectorEuler(f32, f32, f32),
-    /// Opens native file dialog to select sound asset for AudioSource on an entity.
-    PickAudioFile(hecs::Entity),
-    /// Toggles play/stop preview playback for AudioSource on an entity.
-    ToggleAudioPlayback(hecs::Entity),
-    /// Unparents the specified entity from its parent.
-    Unparent(hecs::Entity),
 }
 
 /// Input parameters supplied to the Inspector panel layout builder.

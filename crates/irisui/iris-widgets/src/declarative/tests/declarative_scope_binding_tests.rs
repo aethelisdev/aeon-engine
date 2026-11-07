@@ -207,6 +207,74 @@ fn test_declarative_scope_asset_slot_row() {
 
     let has_stop_icon = tree.iter().any(|(_, n)| n.text.as_deref() == Some("⏹"));
     assert!(has_stop_icon);
+
+    // Test AssetSlotResponse fluent on_pick, on_play_toggle, and on_change callbacks
+    let pick_id = tree.find_node_by_tag(101).expect("Pick button exists");
+    let play_id = tree.find_node_by_tag(102).expect("Play button exists");
+    if let Some(node) = tree.get_mut(pick_id) {
+        node.computed_rect = Rect::new(200.0, 10.0, 20.0, 20.0);
+    }
+    if let Some(node) = tree.get_mut(play_id) {
+        node.computed_rect = Rect::new(224.0, 10.0, 20.0, 20.0);
+    }
+
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(205.0, 15.0),
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(205.0, 15.0),
+    });
+
+    let mut picked = false;
+    let mut changed = false;
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope
+            .asset_slot_row(
+                AssetSlotConfig::new("Sound:", "assets/audio/test.wav", "Select sound...", 101)
+                    .with_play(102, true),
+            )
+            .on_pick(|| {
+                picked = true;
+            })
+            .on_change(|| {
+                changed = true;
+            });
+        assert!(resp.pick_clicked());
+        assert!(!resp.play_clicked());
+        assert!(resp.changed());
+    }
+    assert!(picked);
+    assert!(changed);
+
+    // Click play toggle button and verify on_play_toggle / play_clicked
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(230.0, 15.0),
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(230.0, 15.0),
+    });
+
+    let mut is_playing = true;
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope
+            .asset_slot_row(
+                AssetSlotConfig::new("Sound:", "assets/audio/test.wav", "Select sound...", 101)
+                    .with_play(102, is_playing),
+            )
+            .on_play_toggle(|| {
+                is_playing = !is_playing;
+            });
+        assert!(resp.play_clicked());
+        assert!(!resp.pick_clicked());
+        assert!(resp.changed());
+    }
+    assert!(!is_playing, "Clicking play toggle must invert is_playing");
 }
 
 #[test]
@@ -368,6 +436,79 @@ fn test_declarative_scope_prop_combobox_and_prop_combobox_mapped() {
         );
         assert!(!resp_mapped_styled.changed());
         assert_eq!(light_enum, TestLightType::Point);
+    }
+
+    // 5. Test prop_combobox_mapped_with_action and fluent on_action / on_change callbacks
+    {
+        let mut action_triggered = false;
+        let mut change_triggered = false;
+
+        let preset_btn_id = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope
+                .prop_combobox_mapped_with_action(
+                    "Surface Type:",
+                    1,
+                    &light_options,
+                    "↺ Preset",
+                    &mut light_enum,
+                    |idx| match idx {
+                        0 => TestLightType::Directional,
+                        1 => TestLightType::Point,
+                        _ => TestLightType::Spot,
+                    },
+                )
+                .on_action(|| {
+                    action_triggered = true;
+                })
+                .on_change(|| {
+                    change_triggered = true;
+                });
+            assert!(!resp.changed());
+            assert!(!resp.action_clicked());
+            resp.action.id
+        };
+        assert!(!action_triggered);
+        assert!(!change_triggered);
+
+        if let Some(node) = tree.get_mut(preset_btn_id) {
+            node.computed_rect = Rect::new(200.0, 10.0, 62.0, 22.0);
+        }
+
+        let _ = tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: Point::new(210.0, 15.0),
+        });
+        let _ = tree.dispatch_event(&UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: Point::new(210.0, 15.0),
+        });
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .prop_combobox_mapped_with_action(
+                    "Surface Type:",
+                    1,
+                    &light_options,
+                    "↺ Preset",
+                    &mut light_enum,
+                    |idx| match idx {
+                        0 => TestLightType::Directional,
+                        1 => TestLightType::Point,
+                        _ => TestLightType::Spot,
+                    },
+                )
+                .on_action(|| {
+                    action_triggered = true;
+                })
+                .on_change(|| {
+                    change_triggered = true;
+                });
+        }
+
+        assert!(action_triggered, "Clicking PresetBtn must invoke on_action");
+        assert!(change_triggered, "Clicking PresetBtn must invoke on_change");
     }
 }
 

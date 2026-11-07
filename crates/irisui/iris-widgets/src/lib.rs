@@ -31,7 +31,8 @@ pub mod tree_view;
 pub use clipboard::SystemClipboard;
 pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
 pub use declarative::scope::{
-    AssetSlotConfig, ComboRowLayout, MultilineEditorProps, TabBarResponse, UiScope,
+    ActionBarButton, AssetSlotConfig, AssetSlotResponse, ComboRowLayout, DualActionBarResponse,
+    MultilineEditorProps, PropertyActionRow, TabBarResponse, UiScope,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -56,7 +57,9 @@ pub use scroll_area::ScrollArea;
 pub mod prelude {
     // 1. Declarative Core & Scope
     pub use crate::declarative::scope::{
-        AssetSlotConfig, ComboRowLayout, MultilineEditorProps, TabBarResponse, UiScope,
+        ActionBarButton, AssetSlotConfig, AssetSlotResponse, ComboBoxActionResponse,
+        ComboRowLayout, DualActionBarResponse, MultilineEditorProps, PropertyActionRow,
+        TabBarResponse, UiScope,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

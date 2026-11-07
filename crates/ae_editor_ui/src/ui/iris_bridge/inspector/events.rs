@@ -11,11 +11,7 @@ use super::appearance::{
     resolve_appearance_color_swatch_tag, resolve_appearance_palette_swatch_tag,
 };
 use super::header::resolve_entity_name_input_tag;
-use super::tags::{
-    resolve_add_component_btn_tag, resolve_audio_pick_tag, resolve_audio_play_tag,
-    resolve_component_delete_tag, resolve_preset_reset_tag, resolve_save_prefab_btn_tag,
-    resolve_unparent_tag,
-};
+use super::tags::{resolve_add_component_btn_tag, resolve_component_delete_tag};
 use super::types::InspectorAction;
 use irisui::prelude::*;
 
@@ -30,13 +26,6 @@ pub fn resolve_inspector_tag_click(
     out_actions: &mut Vec<InspectorAction>,
 ) -> bool {
     if resolve_add_component_btn_tag(hit_tag) {
-        return true;
-    }
-
-    if resolve_save_prefab_btn_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::SaveAsPrefab(entity));
-        }
         return true;
     }
 
@@ -70,34 +59,6 @@ pub fn resolve_inspector_tag_click(
                 entity,
                 Color::rgba(col[0], col[1], col[2], col[3]),
             ));
-        }
-        return true;
-    }
-
-    if resolve_preset_reset_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::ResetPhysMatPreset(entity));
-        }
-        return true;
-    }
-
-    if resolve_audio_pick_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::PickAudioFile(entity));
-        }
-        return true;
-    }
-
-    if resolve_audio_play_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::ToggleAudioPlayback(entity));
-        }
-        return true;
-    }
-
-    if resolve_unparent_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::Unparent(entity));
         }
         return true;
     }

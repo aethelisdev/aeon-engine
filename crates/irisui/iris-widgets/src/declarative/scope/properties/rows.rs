@@ -14,6 +14,53 @@ use iris_core::{
     AlignItems, Color, Insets, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
 };
 
+/// Composite interaction response returned by [`UiScope::prop_combobox_mapped_with_action`].
+///
+/// Combines the [`ComboBoxResponse`] of the dropdown selection widget with the [`WidgetResponse`]
+/// of the adjacent action button (e.g. `"↺ Preset"`), exposing fluent `.on_action(...)` and
+/// `.on_change(...)` callback chains without requiring intermediate `let` bindings in view code.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ComboBoxActionResponse {
+    /// Interaction response from the dropdown combobox selector.
+    pub combo: ComboBoxResponse,
+    /// Interaction response from the trailing action button.
+    pub action: WidgetResponse,
+}
+
+impl ComboBoxActionResponse {
+    /// Returns `true` if either a new dropdown option was selected or the trailing action button was clicked.
+    #[inline]
+    #[must_use]
+    pub const fn changed(&self) -> bool {
+        self.combo.changed() || self.action.clicked()
+    }
+
+    /// Returns `true` if the trailing action button was clicked in the current frame.
+    #[inline]
+    #[must_use]
+    pub const fn action_clicked(&self) -> bool {
+        self.action.clicked()
+    }
+
+    /// Invokes `f` when the trailing action button is clicked, returning `self` for fluent chaining.
+    #[inline]
+    pub fn on_action(self, f: impl FnOnce()) -> Self {
+        if self.action.clicked() {
+            f();
+        }
+        self
+    }
+
+    /// Invokes `f` when either the dropdown selection changes or the trailing action button is clicked.
+    #[inline]
+    pub fn on_change(self, f: impl FnOnce()) -> Self {
+        if self.changed() {
+            f();
+        }
+        self
+    }
+}
+
 impl<'a> UiScope<'a> {
     /// Emits a standardized horizontal property row with a left-aligned label and a left-aligned control slot.
     ///
@@ -328,6 +375,84 @@ impl<'a> UiScope<'a> {
             *target = map_fn(idx);
         }
         resp
+    }
+
+    /// Emits a declarative two-way bound dropdown combobox property row paired with a trailing action button.
+    ///
+    /// Renders a horizontal row (`"SurfaceTypeRow"`, height `22.0`, gap `4.0`) containing the mapped
+    /// dropdown combobox alongside an interactive action button (`"PresetBtn"`, width `62.0`, height `22.0`)
+    /// displaying `action_label`. Returns a [`ComboBoxActionResponse`] supporting fluent `.on_action(...)`
+    /// and `.on_change(...)` callback chains without requiring intermediate `let` bindings in view callers.
+    ///
+    /// # Arguments
+    /// * `label` - Human-readable property description displayed on the left (supports `##` separator).
+    /// * `current_idx` - Current zero-based index of the active option.
+    /// * `options` - List of selectable option string labels.
+    /// * `action_label` - Display text for the trailing action button (e.g. `"↺ Preset"`).
+    /// * `target` - Target domain value or enum modified in-place upon dropdown selection.
+    /// * `map_fn` - Closure mapping the newly selected index to the domain target value.
+    pub fn prop_combobox_mapped_with_action<T>(
+        &mut self,
+        label: &str,
+        current_idx: usize,
+        options: &[&str],
+        action_label: &str,
+        target: &mut T,
+        map_fn: impl FnOnce(usize) -> T,
+    ) -> ComboBoxActionResponse {
+        let row_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(22.0)
+            .gap(4.0);
+
+        let mut combo_resp = ComboBoxResponse::default();
+        let mut action_resp = WidgetResponse::default();
+
+        self.container_named("SurfaceTypeRow", row_style, |row| {
+            combo_resp = row.prop_combobox_mapped_styled(
+                label,
+                current_idx,
+                options,
+                ComboRowLayout::default(),
+                target,
+                map_fn,
+            );
+
+            let preset_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .width(62.0)
+                .height(22.0)
+                .background(Color::rgba(0.16, 0.17, 0.20, 0.95))
+                .border(1.0, Color::rgba(0.24, 0.26, 0.30, 0.85))
+                .border_radius(4.0);
+
+            let action_tag = row.tag_for(action_label);
+            let preset_container = row.container_tagged(
+                "PresetBtn",
+                preset_style,
+                WidgetRole::Button,
+                action_tag,
+                |btn| {
+                    btn.label_styled_passive(
+                        "PresetText",
+                        action_label,
+                        10.5,
+                        btn.theme().text_secondary,
+                        TextAlign::Center,
+                        Style::new().width(62.0).height(22.0),
+                    );
+                },
+            );
+            action_resp = preset_container.response;
+        });
+
+        ComboBoxActionResponse {
+            combo: combo_resp,
+            action: action_resp,
+        }
     }
 
     /// Emits an interactive property dropdown selection trigger row.

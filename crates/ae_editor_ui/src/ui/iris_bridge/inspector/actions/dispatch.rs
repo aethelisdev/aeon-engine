@@ -18,6 +18,7 @@ impl EngineUi {
         world: &hecs::World,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
+        ui_actions.append(&mut self.iris_overlay.pending_actions);
         for action in self.iris_overlay.take_inspector_actions() {
             match action {
                 InspectorAction::RenameEntity(entity, name) => {
@@ -94,27 +95,6 @@ impl EngineUi {
                 InspectorAction::AddComponent(entity, comp_name) => {
                     ui_actions.push(EngineUiAction::AddComponent(entity, comp_name));
                 }
-                InspectorAction::SaveAsPrefab(entity) => {
-                    let raw_name = world
-                        .get::<&ae_core::ecs::Name>(entity)
-                        .map(|n| n.0.clone())
-                        .unwrap_or_else(|_| "prefab".to_string());
-                    let clean_name = raw_name
-                        .trim()
-                        .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_");
-                    let safe_name = if clean_name.is_empty() {
-                        "prefab".to_string()
-                    } else {
-                        clean_name
-                    };
-                    ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
-                        entity,
-                        std::path::PathBuf::from(format!(
-                            "assets/prefabs/{}.prefab.json",
-                            safe_name
-                        )),
-                    ));
-                }
                 InspectorAction::StartComponentEdit(entity, comp_name, explicit_bytes) => {
                     if self.iris_overlay.inspector.edit_start_snapshot.is_none() {
                         let old_bytes = explicit_bytes.or_else(|| {
@@ -156,50 +136,6 @@ impl EngineUi {
                 }
                 InspectorAction::SyncInspectorEuler(rx, ry, rz) => {
                     self.inspector_euler = [rx, ry, rz];
-                }
-                InspectorAction::ResetPhysMatPreset(entity) => {
-                    let comp_name = "PhysicsMaterial";
-                    let registry = ae_core::registry::ComponentRegistry::global();
-                    let old_bytes = registry
-                        .get_by_name(comp_name)
-                        .and_then(|h| h.capture(world, entity));
-                    let surf = world
-                        .get::<&ae_core::ecs::PhysicsMaterial>(entity)
-                        .map(|m| m.surface_type)
-                        .unwrap_or(ae_core::ecs::SurfaceType::Default);
-                    if let Ok(mut m) = world.get::<&mut ae_core::ecs::PhysicsMaterial>(entity) {
-                        *m = ae_core::ecs::PhysicsMaterial::from_preset(surf);
-                    }
-                    let new_bytes = registry
-                        .get_by_name(comp_name)
-                        .and_then(|h| h.capture(world, entity));
-                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                        && old != new
-                    {
-                        ui_actions.push(EngineUiAction::CommitComponentModify(
-                            entity, comp_name, old, new,
-                        ));
-                    }
-                }
-                InspectorAction::PickAudioFile(entity) => {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Audio Files", &["wav", "ogg", "mp3", "flac"])
-                        .pick_file()
-                    {
-                        let path_str = path.to_string_lossy().to_string();
-                        if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
-                            a.sound_path = path_str;
-                            a.is_playing = true;
-                        }
-                    }
-                }
-                InspectorAction::ToggleAudioPlayback(entity) => {
-                    if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
-                        a.is_playing = !a.is_playing;
-                    }
-                }
-                InspectorAction::Unparent(entity) => {
-                    ui_actions.push(EngineUiAction::UnparentEntity(entity));
                 }
                 InspectorAction::OpenAddComponentMenu(_) => {
                     self.iris_overlay.inspector.is_add_menu_open = true;

@@ -3,13 +3,71 @@
 
 //! # Hierarchy & Parenting Inspector Card
 //!
-//! Provides inspection and management for entity parent-child relationships.
+//! Provides declarative inspection and unparenting actions for entity parent-child relationships.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::tags::TAG_INSPECTOR_UNPARENT;
 use super::super::types::ComponentCategory;
-use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+
+/// Resolves the formatted parent label string (e.g. `"Parent: RootSceneNode"`)
+/// if `entity` currently holds a [`ae_core::ecs::Parent`] component.
+#[must_use]
+pub fn parent_display_label(world: &hecs::World, entity: hecs::Entity) -> Option<String> {
+    world
+        .get::<&ae_core::ecs::Parent>(entity)
+        .ok()
+        .map(|parent| {
+            world
+                .get::<&ae_core::ecs::Name>(parent.0)
+                .map(|n| format!("Parent: {}", n.0))
+                .unwrap_or_else(|_| format!("Parent: Entity {:?}", parent.0))
+        })
+}
+
+/// Renders the Parent / Hierarchy card declaratively and returns [`EngineUiAction::UnparentEntity`]
+/// directly when the `"❌ Unparent"` button is clicked.
+pub fn draw_parent_card(
+    scope: &mut UiScope<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+) -> Option<EngineUiAction> {
+    scope
+        .card_builder("Parent / Hierarchy")
+        .name("ParentingCard")
+        .icon("🔗")
+        .color(Color::rgba(0.98, 0.80, 0.08, 1.0))
+        .show(|card| {
+            card.prop_optional_action_row(
+                PropertyActionRow::optional(
+                    parent_display_label(world, entity),
+                    "Parent: None (Root Entity)",
+                    "❌ Unparent",
+                )
+                .with_names(
+                    "ParentRow",
+                    "ParentLbl",
+                    "UnparentBtn",
+                    "UnparentTxt",
+                    "ParentRootLbl",
+                ),
+            )
+            .map_click(|| EngineUiAction::UnparentEntity(entity))
+        })
+        .into_inner()
+}
+
+/// Renders the Parent / Hierarchy card if `entity` participates in a parent or child relationship.
+pub fn draw_parent_card_if_present(
+    scope: &mut UiScope<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+) -> Option<EngineUiAction> {
+    (world.get::<&ae_core::ecs::Parent>(entity).is_ok()
+        || world.get::<&ae_core::ecs::Children>(entity).is_ok())
+    .then(|| draw_parent_card(scope, world, entity))
+    .flatten()
+}
 
 /// Inspector handler for entity hierarchy and parenting relationships.
 pub struct ParentHandler;
@@ -45,89 +103,56 @@ impl ComponentInspectorHandler for ParentHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let parent_entity = ctx
-            .world
-            .get::<&ae_core::ecs::Parent>(ctx.entity)
-            .ok()
-            .map(|p| p.0);
-
-        scope.card_panel("ParentingCard", |card| {
-            build_declarative_card_header(
-                card,
-                ComponentHeaderProps {
-                    atlas_icon: None,
-                    icon: self.icon(),
-                    display_title: self.display_title(),
-                    header_color: self.header_color(),
-                    component_name: self.component_name(),
-                },
-                true, // can_remove is false, so disable/hide delete button
-            );
-
-            if let Some(parent) = parent_entity {
-                let parent_name = ctx
-                    .world
-                    .get::<&ae_core::ecs::Name>(parent)
-                    .map(|n| n.0.clone())
-                    .unwrap_or_else(|_| format!("Entity {:?}", parent));
-
-                let row_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::SpaceBetween)
-                    .height(22.0);
-
-                card.container_named("ParentRow", row_style, |row| {
-                    row.label_styled_passive(
-                        "ParentLbl",
-                        format!("Parent: {}", parent_name),
-                        11.0,
-                        row.theme().text_primary,
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0).height(20.0),
-                    );
-
-                    let unparent_style = Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center)
-                        .width(80.0)
-                        .height(20.0)
-                        .background(row.theme().button_idle_bg)
-                        .border(1.0, row.theme().button_border)
-                        .border_radius(row.theme().corner_radius_md);
-
-                    row.container_tagged(
-                        "UnparentBtn",
-                        unparent_style,
-                        WidgetRole::Button,
-                        TAG_INSPECTOR_UNPARENT,
-                        |btn| {
-                            btn.label_styled_passive(
-                                "UnparentTxt",
-                                "❌ Unparent",
-                                10.0,
-                                btn.theme().text_secondary,
-                                TextAlign::Center,
-                                Style::new().width(80.0).height(20.0),
-                            );
-                        },
-                    );
-                });
-            } else {
-                card.label_styled_passive(
-                    "ParentRootLbl",
-                    "Parent: None (Root Entity)",
-                    11.0,
-                    card.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().height(20.0),
-                );
-            }
-        });
+        drop(draw_parent_card(scope, ctx.world, ctx.entity));
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::Children::default());
+        drop(world.insert_one(entity, ae_core::ecs::Children::default()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_parent_card_emits_unparent_entity_directly_on_click() {
+        let mut world = hecs::World::new();
+        let parent = world.spawn((ae_core::ecs::Name("RootSceneNode".to_string()),));
+        let child = world.spawn((ae_core::ecs::Parent(parent),));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.configure_container("TestRoot", Style::new().flex_col(), false);
+            let action = draw_parent_card(&mut scope, &world, child);
+            assert!(action.is_none());
+            scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 120.0));
+        }
+
+        let unparent_btn = tree.assert_node("UnparentBtn", WidgetRole::Button);
+        assert_ne!(unparent_btn.tag, 0);
+
+        let btn_rect = tree.assert_node_rect("UnparentBtn");
+        let click_pt = Point::new(btn_rect.x + 10.0, btn_rect.y + 10.0);
+        let _ = tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: click_pt,
+        });
+        let _ = tree.dispatch_event(&UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: click_pt,
+        });
+
+        let emitted = {
+            let mut scope = UiScope::new(&mut tree, root);
+            draw_parent_card(&mut scope, &world, child)
+        };
+        let Some(EngineUiAction::UnparentEntity(ent)) = emitted else {
+            panic!("Expected EngineUiAction::UnparentEntity");
+        };
+        assert_eq!(ent, child);
     }
 }
