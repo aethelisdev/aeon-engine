@@ -7,13 +7,12 @@
 //! and component life-cycle commands via direct zero-allocation [`UiTree`] hit-testing.
 
 use super::appearance::{
-    resolve_appearance_add_palette_tag, resolve_appearance_clear_palette_tag,
-    resolve_appearance_color_swatch_tag, resolve_appearance_palette_swatch_tag,
+    resolve_appearance_color_swatch_tag, resolve_appearance_hex_input_tag,
+    resolve_appearance_palette_swatch_tag,
 };
 use super::header::resolve_entity_name_input_tag;
 use super::tags::{resolve_add_component_btn_tag, resolve_component_delete_tag};
 use super::types::InspectorAction;
-use irisui::prelude::*;
 
 /// Resolves semantic tag click input over the Inspector panel.
 ///
@@ -22,7 +21,7 @@ use irisui::prelude::*;
 pub fn resolve_inspector_tag_click(
     hit_tag: u64,
     entity_opt: Option<hecs::Entity>,
-    saved_swatches: &[[f32; 4]],
+    _saved_swatches: &[[f32; 4]],
     out_actions: &mut Vec<InspectorAction>,
 ) -> bool {
     if resolve_add_component_btn_tag(hit_tag) {
@@ -36,34 +35,11 @@ pub fn resolve_inspector_tag_click(
         return true;
     }
 
-    if resolve_appearance_color_swatch_tag(hit_tag) {
-        out_actions.push(InspectorAction::ToggleColorPicker);
-        return true;
-    }
-
-    if resolve_appearance_add_palette_tag(hit_tag) {
-        out_actions.push(InspectorAction::AddColorToPalette(Color::TRANSPARENT));
-        return true;
-    }
-
-    if resolve_appearance_clear_palette_tag(hit_tag) {
-        out_actions.push(InspectorAction::ClearCustomPalette);
-        return true;
-    }
-
-    if let Some(swatch_idx) = resolve_appearance_palette_swatch_tag(hit_tag) {
-        if let Some(entity) = entity_opt
-            && let Some(col) = saved_swatches.get(swatch_idx)
-        {
-            out_actions.push(InspectorAction::SetObjectColor(
-                entity,
-                Color::rgba(col[0], col[1], col[2], col[3]),
-            ));
-        }
-        return true;
-    }
-
-    if resolve_entity_name_input_tag(hit_tag) {
+    if resolve_appearance_color_swatch_tag(hit_tag)
+        || resolve_appearance_hex_input_tag(hit_tag)
+        || resolve_appearance_palette_swatch_tag(hit_tag).is_some()
+        || resolve_entity_name_input_tag(hit_tag)
+    {
         return true;
     }
 

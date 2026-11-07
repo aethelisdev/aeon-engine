@@ -41,12 +41,6 @@ pub const TAG_INSPECTOR_COLOR_SWATCH: u64 = TAG_INSPECTOR_ACTION_BASE + 7;
 /// Semantic tag for the hexadecimal color text input box in the Appearance card.
 pub const TAG_INSPECTOR_COLOR_HEX: u64 = TAG_INSPECTOR_ACTION_BASE + 8;
 
-/// Semantic tag for the `[+] Add` color palette swatch button in the Appearance card.
-pub const TAG_INSPECTOR_ADD_PALETTE: u64 = TAG_INSPECTOR_ACTION_BASE + 9;
-
-/// Semantic tag for the `[Clr] Clear` color palette button in the Appearance card.
-pub const TAG_INSPECTOR_CLEAR_PALETTE: u64 = TAG_INSPECTOR_ACTION_BASE + 10;
-
 /// Semantic tag for the floating 2D HSV Color Picker popup card container.
 pub const TAG_INSPECTOR_COLOR_PICKER_CARD: u64 = TAG_INSPECTOR_ACTION_BASE + 11;
 

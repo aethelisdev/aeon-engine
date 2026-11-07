@@ -13,9 +13,13 @@
 
 pub mod action_row;
 pub mod color;
+pub mod color_popup;
 pub mod numeric_input;
+pub mod palette;
+pub mod palette_card;
 pub mod rows;
 pub mod sliders;
+pub mod swatch_row;
 pub mod text;
 pub mod vec3_bind;
 pub mod vectors;
@@ -24,9 +28,15 @@ pub use crate::declarative::scope::input::ComboRowLayout;
 pub use crate::declarative::widget::ComboBoxResponse;
 pub use action_row::PropertyActionRow;
 pub use color::PropertyColorResponse;
+pub use color_popup::{
+    ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, resolve_hsv_from_color,
+};
 pub use numeric_input::{NumericEditConfig, NumericEditResult, handle_numeric_edit_interaction};
+pub use palette::{PropertyPaletteConfig, PropertyPaletteResponse};
+pub use palette_card::ColorPaletteCardConfig;
 pub use rows::ComboBoxActionResponse;
 pub use sliders::PropertySliderOptions;
+pub use swatch_row::{PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse};
 pub use text::{PropertyTextOptions, PropertyTextResponse};
 pub use vec3_bind::{
     euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,

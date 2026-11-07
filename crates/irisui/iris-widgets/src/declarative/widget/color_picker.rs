@@ -234,6 +234,7 @@ impl<'a> Widget for ColorPicker<'a> {
             if let Some(point) = sv_resp
                 .pointer_pos
                 .or(row_scope.tree.event_state.last_pointer_pos)
+                .or(row_scope.tree.event_state.frame_clicked_pos)
             {
                 let sv_rect = row_scope
                     .tree
@@ -262,6 +263,7 @@ impl<'a> Widget for ColorPicker<'a> {
             && let Some(point) = hue_resp
                 .pointer_pos
                 .or(row_scope.tree.event_state.last_pointer_pos)
+                .or(row_scope.tree.event_state.frame_clicked_pos)
         {
             let hue_rect = row_scope
                 .tree
@@ -284,7 +286,12 @@ impl<'a> Widget for ColorPicker<'a> {
             }
         }
 
-        let drag_released = sv_resp.drag_released()
+        let is_click_released = sv_resp.clicked()
+            || hue_resp.clicked()
+            || row_scope.tree.event_state.frame_clicked_tag == Some(sv_tag)
+            || row_scope.tree.event_state.frame_clicked_tag == Some(hue_tag);
+        let drag_released = is_click_released
+            || sv_resp.drag_released()
             || hue_resp.drag_released()
             || row_scope.tree.event_state.frame_drag_released_id == Some(sv_id)
             || row_scope.tree.event_state.frame_drag_released_id == Some(hue_id)

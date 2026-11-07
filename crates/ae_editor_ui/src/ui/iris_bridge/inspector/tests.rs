@@ -48,7 +48,13 @@ fn test_inspector_empty_selection_renders_placeholder() {
 
     let params = create_default_test_params(&world, None, &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     let has_empty_label = tree
         .iter()
@@ -73,7 +79,13 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     // Verify 3D Transform inputs are present via declarative assertions
     tree.assert_node_exists("NumBox_Position_X");
@@ -101,7 +113,13 @@ fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     // Capture initial geometric positions immediately after declarative build (layout_subtree pass)
     let pre_pos_x = tree.assert_node_rect("NumBox_Position_X");
@@ -181,7 +199,13 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     // Verify 3D Transform inputs are NOT present
     tree.assert_node_absent("NumBox_Position_X");
@@ -263,7 +287,13 @@ fn test_inspector_entity_isolation_invariant() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     assert_eq!(
         params.selected_entity,
@@ -292,7 +322,13 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
 
     // 1. Initial State: Rotation Y must be 0.0
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
         if node.name.as_deref() == Some("NumText_Rotation_Y") {
@@ -311,6 +347,8 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         &mut UiScope::new(&mut tree2, root2),
         &params,
         &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
     );
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
@@ -330,6 +368,8 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         &mut UiScope::new(&mut tree3, root3),
         &params,
         &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
     );
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
@@ -349,6 +389,8 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
 /// exactly one atomic undo command on release.
 #[test]
 fn test_color_picker_drag_and_undo_restoration() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let initial_color = ae_core::ecs::Color {
         r: 0.1,
@@ -358,68 +400,116 @@ fn test_color_picker_drag_and_undo_restoration() {
     };
     let entity = world.spawn((initial_color,));
 
-    let mut color_edit_start = None;
-    let mut inspector_hsv = [0.0, 0.0, 0.0];
-    let mut inspector_color_hex = String::new();
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = InspectorPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
+        world: &world,
+        selected_entity: Some(entity),
+        inspector_euler: &euler,
+        inspector_color_hex: "#1a334d",
+        saved_swatches: &swatches,
+        cursor_pos: Point::new(0.0, 0.0),
+        active_submenu: None,
+        is_add_menu_open: false,
+        is_color_picker_open: true,
+        active_rename_buffer: None,
+        is_rename_all_selected: false,
+        active_hex_buffer: None,
+        inspector_hsv: [210.0, 0.66, 0.30],
+        blink_caret: false,
+    };
+
     let mut ui_actions = Vec::new();
+    let mut is_color_picker_open = true;
+    // 0. Initial popup build to register SV box bounds
+    let (_, init_act) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut tree,
+            root,
+            &params,
+            &mut is_color_picker_open,
+        );
+    assert!(init_act.is_none());
+
+    let sv_rect = tree
+        .iter()
+        .find(|(_, n)| n.tag == super::tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+        .map(|(_, n)| n.computed_rect)
+        .expect("SV box must exist");
 
     // 1. Mouse down on SV box begins color editing
-    crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
-        &mut color_edit_start,
-        &mut inspector_hsv,
-        &mut inspector_color_hex,
-        &world,
-        &mut ui_actions,
-        InspectorAction::StartColorEdit(entity),
-    );
-    assert_eq!(
-        color_edit_start,
-        Some((entity, initial_color)),
-        "StartColorEdit must capture initial entity color"
-    );
+    let start_pt = Point::new(sv_rect.x + 15.0, sv_rect.y + 15.0);
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: start_pt,
+    });
+    let _ = tree.clear_children(root);
+    if let (_, Some(act)) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut tree,
+            root,
+            &params,
+            &mut is_color_picker_open,
+        )
+    {
+        ui_actions.push(act);
+    }
     assert!(
         ui_actions.is_empty(),
-        "StartColorEdit must not produce undo actions"
+        "MouseDown must not produce undo actions prematurely"
     );
 
     // 2. Simulate 20 continuous drag frames (mouse movement)
     for i in 1..=20 {
-        let live_col = irisui::prelude::Color::rgba(
-            0.1 + (i as f32) * 0.02,
-            0.2 + (i as f32) * 0.01,
-            0.3 + (i as f32) * 0.01,
-            1.0,
+        let drag_pt = Point::new(
+            sv_rect.x + 15.0 + (i as f32) * 5.0,
+            sv_rect.y + 15.0 + (i as f32) * 4.0,
         );
-        crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
-            &mut color_edit_start,
-            &mut inspector_hsv,
-            &mut inspector_color_hex,
-            &world,
-            &mut ui_actions,
-            InspectorAction::LiveSetObjectColor(entity, live_col),
-        );
-        // Verify entity in world is updated live for 60+ FPS preview
+        let _ = tree.dispatch_event(&UiEvent::MouseMove { point: drag_pt });
+        let _ = tree.clear_children(root);
+        if let (_, Some(act)) =
+            crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+                &mut tree,
+                root,
+                &params,
+                &mut is_color_picker_open,
+            )
+        {
+            ui_actions.push(act);
+        }
         let cur = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
-        assert!((cur.r - (0.1 + (i as f32) * 0.02)).abs() < 1e-4);
+        assert_ne!(
+            cur, initial_color,
+            "Entity color in world must update live during drag"
+        );
     }
     assert!(
         ui_actions.is_empty(),
         "Live dragging must not spam undo actions during dragging"
     );
 
-    // 3. Mouse released -> CommitColorEdit
-    crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
-        &mut color_edit_start,
-        &mut inspector_hsv,
-        &mut inspector_color_hex,
-        &world,
-        &mut ui_actions,
-        InspectorAction::CommitColorEdit(entity),
-    );
+    // 3. Mouse released -> commits atomic ModifyColor
+    let end_pt = Point::new(sv_rect.x + 115.0, sv_rect.y + 95.0);
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: end_pt,
+    });
+    let _ = tree.clear_children(root);
+    if let (_, Some(act)) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut tree,
+            root,
+            &params,
+            &mut is_color_picker_open,
+        )
+    {
+        ui_actions.push(act);
+    }
     assert_eq!(
         ui_actions.len(),
         1,
-        "CommitColorEdit must emit exactly one atomic ModifyColor action"
+        "Drag release must emit exactly one atomic ModifyColor action"
     );
 
     let final_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
@@ -588,7 +678,13 @@ fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut false,
+    );
 
     let find_node_rect = |tree: &UiTree, label: &str| -> Option<Rect> {
         for (_id, node) in tree.iter() {

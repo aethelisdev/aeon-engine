@@ -69,7 +69,14 @@ fn test_property_label_width_alignment_across_cards() {
     let params = create_test_params(&world, Some(entity), &euler, &swatches);
 
     let mut actions = Vec::new();
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut is_color_picker_open = false;
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut actions,
+        &mut Vec::new(),
+        &mut is_color_picker_open,
+    );
 
     // Verify canonical default label width constant is 105px
     assert_eq!(DEFAULT_INSPECTOR_LABEL_WIDTH, 105.0);

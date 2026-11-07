@@ -215,12 +215,15 @@ impl IrisEditorOverlay {
                     blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 };
 
-                inspector::build_inspector_overlays(
+                if let (_, Some(ui_action)) = inspector::build_inspector_overlays_with_action(
                     &mut self.tree,
                     root,
                     &insp_params,
                     &mut inspector_overlay_actions,
-                );
+                    &mut self.inspector.is_color_picker_open,
+                ) {
+                    self.pending_actions.push(ui_action);
+                }
 
                 self.inspector
                     .actions

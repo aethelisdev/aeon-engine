@@ -22,8 +22,6 @@ pub struct InspectorPanelState {
     pub active_submenu: Option<ComponentCategory>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
-    /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
-    pub color_edit_start: Option<(hecs::Entity, ae_core::ecs::Color)>,
     /// Live entity rename TextInputState session if currently focused.
     pub rename_input: Option<(hecs::Entity, irisui::prelude::TextInputState)>,
     /// Whether the active entity rename buffer has its full text selected in blue.

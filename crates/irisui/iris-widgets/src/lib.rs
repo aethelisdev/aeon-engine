@@ -31,8 +31,10 @@ pub mod tree_view;
 pub use clipboard::SystemClipboard;
 pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
 pub use declarative::scope::{
-    ActionBarButton, AssetSlotConfig, AssetSlotResponse, ComboRowLayout, DualActionBarResponse,
-    MultilineEditorProps, PropertyActionRow, TabBarResponse, UiScope,
+    ActionBarButton, AssetSlotConfig, AssetSlotResponse, ColorPickerPopupConfig,
+    ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout, DualActionBarResponse,
+    MultilineEditorProps, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
+    PropertyPaletteResponse, TabBarResponse, UiScope,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -57,8 +59,11 @@ pub use scroll_area::ScrollArea;
 pub mod prelude {
     // 1. Declarative Core & Scope
     pub use crate::declarative::scope::{
-        ActionBarButton, AssetSlotConfig, AssetSlotResponse, ComboBoxActionResponse,
-        ComboRowLayout, DualActionBarResponse, MultilineEditorProps, PropertyActionRow,
+        ActionBarButton, AssetSlotConfig, AssetSlotResponse, ColorPaletteCardConfig,
+        ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags,
+        ComboBoxActionResponse, ComboRowLayout, DualActionBarResponse, MultilineEditorProps,
+        PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
+        PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
         TabBarResponse, UiScope,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};

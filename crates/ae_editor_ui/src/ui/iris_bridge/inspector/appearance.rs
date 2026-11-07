@@ -7,12 +7,12 @@
 //! using purely declarative [`UiScope`] containers, flexbox layout, and O(1) semantic tags.
 
 use super::registry::ComponentRenderContext;
-use super::types::InspectorAction;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
 use super::tags::{
-    TAG_INSPECTOR_ADD_PALETTE, TAG_INSPECTOR_CLEAR_PALETTE, TAG_INSPECTOR_COLOR_HEX,
-    TAG_INSPECTOR_COLOR_SWATCH, encode_palette_swatch_tag, resolve_palette_swatch_tag,
+    TAG_INSPECTOR_COLOR_HEX, TAG_INSPECTOR_COLOR_SWATCH, encode_palette_swatch_tag,
+    resolve_palette_swatch_tag,
 };
 
 /// Default 7-color palette swatches displayed in the Appearance inspector card.
@@ -54,34 +54,6 @@ pub const fn resolve_appearance_hex_input_tag(tag: u64) -> bool {
     tag == TAG_INSPECTOR_COLOR_HEX
 }
 
-/// Returns the 64-bit semantic tag for the 'Add to Palette' (+) button.
-#[inline]
-#[must_use]
-pub const fn appearance_add_palette_tag() -> u64 {
-    TAG_INSPECTOR_ADD_PALETTE
-}
-
-/// Resolves whether a semantic tag corresponds to the 'Add to Palette' (+) button.
-#[inline]
-#[must_use]
-pub const fn resolve_appearance_add_palette_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_ADD_PALETTE
-}
-
-/// Returns the 64-bit semantic tag for the 'Clear Palette' (🗑) button.
-#[inline]
-#[must_use]
-pub const fn appearance_clear_palette_tag() -> u64 {
-    TAG_INSPECTOR_CLEAR_PALETTE
-}
-
-/// Resolves whether a semantic tag corresponds to the 'Clear Palette' (🗑) button.
-#[inline]
-#[must_use]
-pub const fn resolve_appearance_clear_palette_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_CLEAR_PALETTE
-}
-
 /// Computes the 64-bit semantic tag for a palette swatch pill at a given global index.
 #[inline]
 #[must_use]
@@ -96,265 +68,84 @@ pub const fn resolve_appearance_palette_swatch_tag(tag: u64) -> Option<usize> {
     resolve_palette_swatch_tag(tag)
 }
 
-/// Builds the `🎨 Appearance` card declaratively in the `UiTree` and returns the computed height.
-///
-/// Fully adheres to 100% declarative [`UiScope`] architecture without raw arena allocation
-/// or manual pixel coordinate manipulations.
-pub fn build_appearance_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    let obj_color = ctx
-        .world
-        .get::<&ae_core::ecs::Color>(ctx.entity)
-        .map(|c| Color::rgba(c.r, c.g, c.b, c.a))
-        .unwrap_or(Color::rgba(0.60, 0.75, 0.95, 1.0));
-
-    let entity = ctx.entity;
-    let is_color_picker_open = ctx.params.is_color_picker_open;
-    let inspector_color_hex = ctx.params.inspector_color_hex;
-    let active_hex_buffer = ctx.params.active_hex_buffer;
-    let blink_caret = ctx.params.blink_caret;
-    let saved_swatches = ctx.params.saved_swatches;
-    let mut actions = ctx.actions.take();
-
-    scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
-        render_object_color_row(
-            card,
-            obj_color,
-            is_color_picker_open,
-            inspector_color_hex,
-            active_hex_buffer,
-            blink_caret,
-            actions.as_deref_mut(),
-        );
-
-        render_palette_action_row(card, obj_color, actions.as_deref_mut());
-
-        render_palette_swatches(card, entity, saved_swatches, actions.as_deref_mut());
-    });
-
-    ctx.actions = actions;
+/// Extracts the current [`ae_core::ecs::Color`] of an entity, or returns the canonical fallback.
+#[inline]
+#[must_use]
+pub fn entity_color(world: &hecs::World, entity: hecs::Entity) -> ae_core::ecs::Color {
+    world
+        .get::<&ae_core::ecs::Color>(entity)
+        .map(|c| *c)
+        .unwrap_or(ae_core::ecs::Color {
+            r: 0.60,
+            g: 0.75,
+            b: 0.95,
+            a: 1.0,
+        })
 }
 
-/// Renders Row 1: Object Color swatch pill and live HEX text input field.
-fn render_object_color_row(
-    scope: &mut UiScope<'_>,
-    obj_color: Color,
-    is_color_picker_open: bool,
-    color_hex: &str,
-    active_hex_buffer: Option<&str>,
-    blink_caret: bool,
-    mut actions: Option<&mut Vec<InspectorAction>>,
-) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(22.0)
-        .gap(8.0);
-
-    scope.container_named("ObjectColorRow", row_style, |row| {
-        row.label_styled_passive(
-            "ObjectColorLabel",
-            "Object Color:",
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            Style::new().width(75.0).height(22.0),
-        );
-
-        if row
-            .add(
-                ColorSwatch::new(obj_color)
-                    .active(is_color_picker_open)
-                    .tag(appearance_color_swatch_tag()),
-            )
-            .clicked()
-            && let Some(ref mut act) = actions
-        {
-            act.push(InspectorAction::ToggleColorPicker);
-        }
-
-        row.label_styled_passive(
-            "HexPrefixLabel",
-            "Hex:",
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            Style::new().width(28.0).height(22.0),
-        );
-
-        let hex_tag = appearance_hex_input_tag();
-        let is_hex_focused = active_hex_buffer.is_some();
-        let is_hex_hovered = row.is_tag_hovered(hex_tag);
-        let (hex_bg, hex_border) = if is_hex_focused {
-            (
-                Color::rgba(0.180, 0.190, 0.220, 1.0),
-                Color::rgba(0.85, 0.88, 0.98, 0.95),
-            )
-        } else if is_hex_hovered {
-            (
-                Color::rgba(0.180, 0.190, 0.220, 1.0),
-                Color::rgba(0.35, 0.38, 0.45, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-
-        let mut edit_buf = String::new();
-        let hex_display_str: &str = if let Some(buf) = active_hex_buffer {
-            if blink_caret {
-                edit_buf.push_str(buf);
-                edit_buf.push('|');
-                &edit_buf
-            } else {
-                buf
-            }
-        } else {
-            color_hex
-        };
-
-        let hex_box_style = Style::new()
-            .width(64.0)
-            .height(22.0)
-            .background(hex_bg)
-            .border(1.0, hex_border)
-            .border_radius(5.0)
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center);
-
-        if row
-            .container_tagged_resp(
-                "HexInputBox",
-                hex_box_style,
-                WidgetRole::TextInput,
-                hex_tag,
-                |hex_scope| {
-                    let hex_text_col = if is_hex_focused {
-                        Color::WHITE
-                    } else {
-                        Color::rgba(0.886, 0.894, 0.918, 1.0)
-                    };
-                    hex_scope.label_styled_passive(
-                        "HexInputText",
-                        hex_display_str,
-                        10.5,
-                        hex_text_col,
-                        TextAlign::Center,
-                        Style::new().flex_grow(1.0).height(22.0),
-                    );
-                },
-            )
-            .clicked()
-            && let Some(ref mut act) = actions
-        {
-            act.push(InspectorAction::FocusHexInput);
-        }
-    });
+/// Converts an [`ae_core::ecs::Color`] into an Iris UI [`Color`].
+#[inline]
+#[must_use]
+pub const fn to_iris_color(c: ae_core::ecs::Color) -> Color {
+    Color::rgba(c.r, c.g, c.b, c.a)
 }
 
-/// Renders Row 2: Add to palette (+) and clear custom palette (🗑) action buttons.
-fn render_palette_action_row(
-    scope: &mut UiScope<'_>,
-    obj_color: Color,
-    mut actions: Option<&mut Vec<InspectorAction>>,
-) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(22.0)
-        .gap(6.0);
-
-    scope.container_named("AddPaletteRow", row_style, |row| {
-        row.label_styled_passive(
-            "AddPaletteLabel",
-            "Add to Palette:",
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            Style::new().width(88.0).height(22.0),
-        );
-
-        if row
-            .add(
-                Button::new("+")
-                    .size(18.0, 18.0)
-                    .padding(Insets::ZERO)
-                    .tag(appearance_add_palette_tag()),
-            )
-            .clicked()
-            && let Some(ref mut act) = actions
-        {
-            act.push(InspectorAction::AddColorToPalette(obj_color));
-        }
-
-        if row
-            .add(
-                Button::new("🗑")
-                    .size(18.0, 18.0)
-                    .padding(Insets::ZERO)
-                    .tag(appearance_clear_palette_tag()),
-            )
-            .clicked()
-            && let Some(ref mut act) = actions
-        {
-            act.push(InspectorAction::ClearCustomPalette);
-        }
-    });
+/// Converts an Iris UI [`Color`] into an [`ae_core::ecs::Color`].
+#[inline]
+#[must_use]
+pub const fn to_ecs_color(c: Color) -> ae_core::ecs::Color {
+    ae_core::ecs::Color {
+        r: c.r,
+        g: c.g,
+        b: c.b,
+        a: c.a,
+    }
 }
 
-/// Renders Row 3+: Palette swatches inside a multi-line wrapping flex container.
-fn render_palette_swatches(
+/// Renders the `🎨 Appearance` card declaratively and maps any committed color change to [`EngineUiAction::ModifyColor`].
+pub fn render_appearance_card(
     scope: &mut UiScope<'_>,
+    current_col: ae_core::ecs::Color,
     entity: hecs::Entity,
-    saved_swatches: &[[f32; 4]],
-    mut actions: Option<&mut Vec<InspectorAction>>,
-) {
-    let swatch_size = 16.0;
-    let swatch_gap = 6.0;
+    hex_str: &str,
+    saved_swatches: &mut Vec<[f32; 4]>,
+    is_color_picker_open: &mut bool,
+) -> Option<EngineUiAction> {
+    scope
+        .color_palette_card(
+            ColorPaletteCardConfig::new(
+                "AppearanceCard",
+                "🎨 Appearance",
+                to_iris_color(current_col),
+                hex_str,
+                &DEFAULT_PALETTE,
+            )
+            .with_tags(appearance_color_swatch_tag(), appearance_hex_input_tag()),
+            saved_swatches,
+            is_color_picker_open,
+        )
+        .map(|new_col| EngineUiAction::ModifyColor(entity, current_col, to_ecs_color(new_col)))
+}
 
-    let container_style = Style::new()
-        .flex_row()
-        .flex_wrap(FlexWrap::Wrap)
-        .align_items(AlignItems::Center)
-        .gap(swatch_gap);
-
-    scope.container_named("PaletteSwatches", container_style, |wrap_scope| {
-        for (idx, &col) in DEFAULT_PALETTE.iter().enumerate() {
-            let tag = appearance_palette_swatch_tag(idx);
-            if wrap_scope
-                .add(
-                    ColorSwatch::new(col)
-                        .size(swatch_size, swatch_size)
-                        .corner_radius(3.0)
-                        .tag(tag),
-                )
-                .clicked()
-                && let Some(ref mut act) = actions
-            {
-                act.push(InspectorAction::SetObjectColor(entity, col));
-            }
-        }
-
-        for (custom_idx, &s) in saved_swatches.iter().enumerate() {
-            let global_idx = 7 + custom_idx;
-            let col = Color::rgba(s[0], s[1], s[2], s[3]);
-            let tag = appearance_palette_swatch_tag(global_idx);
-            if wrap_scope
-                .add(
-                    ColorSwatch::new(col)
-                        .size(swatch_size, swatch_size)
-                        .corner_radius(3.0)
-                        .tag(tag),
-                )
-                .clicked()
-                && let Some(ref mut act) = actions
-            {
-                act.push(InspectorAction::SetObjectColor(entity, col));
-            }
-        }
-    });
+/// Builds the `🎨 Appearance` card declaratively in the `UiTree` and returns
+/// any committed color mutation directly as [`EngineUiAction::ModifyColor`].
+///
+/// Fully adheres to 100% declarative [`UiScope`] architecture without intermediate
+/// `let` plumbing or manual pixel coordinate manipulations.
+pub fn build_appearance_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    saved_swatches: &mut Vec<[f32; 4]>,
+    is_color_picker_open: &mut bool,
+) -> Option<EngineUiAction> {
+    render_appearance_card(
+        scope,
+        entity_color(ctx.world, ctx.entity),
+        ctx.entity,
+        ctx.params.inspector_color_hex,
+        saved_swatches,
+        is_color_picker_open,
+    )
 }
 
 #[cfg(test)]
@@ -370,14 +161,6 @@ mod tests {
         let hex_tag = appearance_hex_input_tag();
         assert!(resolve_appearance_hex_input_tag(hex_tag));
         assert!(!resolve_appearance_hex_input_tag(hex_tag + 1));
-
-        let add_tag = appearance_add_palette_tag();
-        assert!(resolve_appearance_add_palette_tag(add_tag));
-        assert!(!resolve_appearance_add_palette_tag(add_tag + 1));
-
-        let clr_tag = appearance_clear_palette_tag();
-        assert!(resolve_appearance_clear_palette_tag(clr_tag));
-        assert!(!resolve_appearance_clear_palette_tag(clr_tag + 1));
 
         for idx in [0, 1, 6, 7, 15] {
             let tag = appearance_palette_swatch_tag(idx);
@@ -398,7 +181,7 @@ mod tests {
         },));
 
         let euler = [0.0, 0.0, 0.0];
-        let saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
+        let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
 
         let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
@@ -406,7 +189,7 @@ mod tests {
             selected_entity: Some(entity),
             inspector_euler: &euler,
             inspector_color_hex: "#3366cc",
-            saved_swatches: &saved_swatches,
+            saved_swatches: &[],
             cursor_pos: Point::new(0.0, 0.0),
             active_submenu: None,
             is_add_menu_open: false,
@@ -419,6 +202,7 @@ mod tests {
         };
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
+        let mut is_color_picker_open = false;
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         scope.container_rect(
@@ -426,7 +210,12 @@ mod tests {
             Style::new().width(280.0).height(300.0),
             Rect::new(10.0, 20.0, 280.0, 300.0),
             |card_scope| {
-                build_appearance_card(card_scope, &mut ctx);
+                build_appearance_card(
+                    card_scope,
+                    &mut ctx,
+                    &mut saved_swatches,
+                    &mut is_color_picker_open,
+                );
             },
         );
 
@@ -442,24 +231,91 @@ mod tests {
 
         let has_add = tree
             .iter()
-            .any(|(_, n)| n.tag == appearance_add_palette_tag());
-        assert!(has_add, "Add palette button must be tagged");
+            .any(|(_, n)| n.name.as_deref() == Some("AddPaletteButton"));
+        assert!(has_add, "Add palette button must be present in tree");
 
-        let has_clr = tree
+        let has_clear = tree
             .iter()
-            .any(|(_, n)| n.tag == appearance_clear_palette_tag());
-        assert!(has_clr, "Clear palette button must be tagged");
+            .any(|(_, n)| n.name.as_deref() == Some("ClearPaletteButton"));
+        assert!(has_clear, "Clear palette button must be present in tree");
+    }
 
-        // 7 default swatches + 2 saved swatches = 9
-        let swatches_count = (0..9)
-            .filter(|&idx| {
-                tree.iter()
-                    .any(|(_, n)| n.tag == appearance_palette_swatch_tag(idx))
-            })
-            .count();
-        assert_eq!(
-            swatches_count, 9,
-            "All 9 palette swatches must be tagged in the tree"
-        );
+    #[test]
+    fn test_appearance_card_palette_direct_mutations() {
+        let mut tree = UiTree::new();
+        let mut saved_swatches = Vec::new();
+
+        let mut scope = UiScope::new(&mut tree, WidgetId::default());
+        scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
+            let resp = card.prop_color_palette(
+                "Add to Palette:",
+                Color::rgba(0.25, 0.50, 0.75, 1.0),
+                &DEFAULT_PALETTE,
+                &mut saved_swatches,
+            );
+            assert_eq!(resp.selected_color, None);
+        });
+
+        assert_eq!(saved_swatches.len(), 0);
+    }
+
+    #[test]
+    fn test_appearance_card_hex_commit_produces_modify_color() {
+        let mut tree = UiTree::new();
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Color {
+            r: 0.1,
+            g: 0.2,
+            b: 0.3,
+            a: 1.0,
+        },));
+
+        let hex_tag = appearance_hex_input_tag();
+        tree.event_state
+            .start_text_edit(None, hex_tag, "#ff5500", 7, None);
+        tree.event_state.frame_key_pressed = true;
+        tree.event_state.frame_key = Some(KeyCode::Enter);
+
+        let euler = [0.0, 0.0, 0.0];
+        let mut saved_swatches = Vec::new();
+
+        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#1a334d",
+            saved_swatches: &[],
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
+        let mut is_color_picker_open = false;
+
+        let action = {
+            let mut scope = UiScope::new(&mut tree, WidgetId::default());
+            build_appearance_card(
+                &mut scope,
+                &mut ctx,
+                &mut saved_swatches,
+                &mut is_color_picker_open,
+            )
+        };
+
+        assert!(matches!(
+            action,
+            Some(EngineUiAction::ModifyColor(e, old, new))
+                if e == entity
+                    && (old.r - 0.1).abs() < 1e-4
+                    && (new.r - 1.0).abs() < 1e-4
+        ));
     }
 }

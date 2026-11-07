@@ -34,18 +34,18 @@ mod tests;
 mod tests_popups;
 
 pub use appearance::{
-    DEFAULT_PALETTE, appearance_add_palette_tag, appearance_clear_palette_tag,
-    appearance_color_swatch_tag, appearance_hex_input_tag, appearance_palette_swatch_tag,
-    resolve_appearance_add_palette_tag, resolve_appearance_clear_palette_tag,
-    resolve_appearance_color_swatch_tag, resolve_appearance_hex_input_tag,
-    resolve_appearance_palette_swatch_tag,
+    DEFAULT_PALETTE, appearance_color_swatch_tag, appearance_hex_input_tag,
+    appearance_palette_swatch_tag, resolve_appearance_color_swatch_tag,
+    resolve_appearance_hex_input_tag, resolve_appearance_palette_swatch_tag,
 };
 pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
 pub use events::resolve_inspector_tag_click;
 pub use header::{entity_name_input_tag, resolve_entity_name_input_tag};
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
-pub use panel::{build_inspector_overlays, build_inspector_panel};
+pub use panel::{
+    build_inspector_overlays, build_inspector_overlays_with_action, build_inspector_panel,
+};
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use state::{
     InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_widget_descendant_of,

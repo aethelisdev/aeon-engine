@@ -115,6 +115,8 @@ impl IrisEditorOverlay {
                             || n.tag == super::viewport_hud::TAG_VIEWPORT_CAMERA_MODE
                             || n.tag == super::viewport_hud::TAG_VIEWPORT_SHADING_MODE
                             || n.tag == super::viewport_hud::TAG_SNAP_GRID_DROPDOWN
+                            || n.tag == super::inspector::appearance_color_swatch_tag()
+                            || n.tag == super::inspector::TAG_INSPECTOR_ADD_COMPONENT
                     })
             });
             if !is_over_popup && self.close_active_popups() {
@@ -197,14 +199,14 @@ impl IrisEditorOverlay {
                 }
             }
 
-            // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal),
-            // escalate to global shell invalidation (STRICTLY for discrete structural gestures, never continuous motion)
+            // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal, Popup),
+            // escalate to global shell invalidation (for discrete gestures or active popup dragging, never idle hover motion)
             let is_continuous_motion = matches!(
                 event,
                 irisui::core::UiEvent::MouseMove { .. } | irisui::core::UiEvent::FileHovered { .. }
             );
             let is_pointer_dragging = self.tree.event_state.is_pointer_drag_active;
-            if !routed_to_panel && !is_continuous_motion && !is_pointer_dragging {
+            if !routed_to_panel && (!is_continuous_motion || is_pointer_dragging) {
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
             }

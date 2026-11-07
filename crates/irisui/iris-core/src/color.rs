@@ -92,35 +92,46 @@ impl Color {
     ///
     /// Supports 3, 4, 6, and 8 hex digits, with or without a leading `#`.
     pub fn hex(hex_str: &str) -> Self {
+        Self::try_from_hex(hex_str).unwrap_or(Self::BLACK)
+    }
+
+    /// Safely parses a hexadecimal color string (e.g. `"#1e1e24"`, `"#ffffff"`, `"ceba00"`).
+    ///
+    /// Supports 3, 4, 6, and 8 hex digits, with or without a leading `#`. Returns `None`
+    /// if the string contains invalid hexadecimal digits or an unsupported character count.
+    pub fn try_from_hex(hex_str: &str) -> Option<Self> {
         let clean = hex_str.trim().trim_start_matches('#');
+        if !clean.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
         match clean.len() {
             3 => {
-                let r = u8::from_str_radix(&clean[0..1].repeat(2), 16).unwrap_or(0);
-                let g = u8::from_str_radix(&clean[1..2].repeat(2), 16).unwrap_or(0);
-                let b = u8::from_str_radix(&clean[2..3].repeat(2), 16).unwrap_or(0);
-                Self::from_u8(r, g, b, 255)
+                let r = u8::from_str_radix(&clean[0..1].repeat(2), 16).ok()?;
+                let g = u8::from_str_radix(&clean[1..2].repeat(2), 16).ok()?;
+                let b = u8::from_str_radix(&clean[2..3].repeat(2), 16).ok()?;
+                Some(Self::from_u8(r, g, b, 255))
             }
             4 => {
-                let r = u8::from_str_radix(&clean[0..1].repeat(2), 16).unwrap_or(0);
-                let g = u8::from_str_radix(&clean[1..2].repeat(2), 16).unwrap_or(0);
-                let b = u8::from_str_radix(&clean[2..3].repeat(2), 16).unwrap_or(0);
-                let a = u8::from_str_radix(&clean[3..4].repeat(2), 16).unwrap_or(255);
-                Self::from_u8(r, g, b, a)
+                let r = u8::from_str_radix(&clean[0..1].repeat(2), 16).ok()?;
+                let g = u8::from_str_radix(&clean[1..2].repeat(2), 16).ok()?;
+                let b = u8::from_str_radix(&clean[2..3].repeat(2), 16).ok()?;
+                let a = u8::from_str_radix(&clean[3..4].repeat(2), 16).ok()?;
+                Some(Self::from_u8(r, g, b, a))
             }
             6 => {
-                let r = u8::from_str_radix(&clean[0..2], 16).unwrap_or(0);
-                let g = u8::from_str_radix(&clean[2..4], 16).unwrap_or(0);
-                let b = u8::from_str_radix(&clean[4..6], 16).unwrap_or(0);
-                Self::from_u8(r, g, b, 255)
+                let r = u8::from_str_radix(&clean[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&clean[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&clean[4..6], 16).ok()?;
+                Some(Self::from_u8(r, g, b, 255))
             }
             8 => {
-                let r = u8::from_str_radix(&clean[0..2], 16).unwrap_or(0);
-                let g = u8::from_str_radix(&clean[2..4], 16).unwrap_or(0);
-                let b = u8::from_str_radix(&clean[4..6], 16).unwrap_or(0);
-                let a = u8::from_str_radix(&clean[6..8], 16).unwrap_or(255);
-                Self::from_u8(r, g, b, a)
+                let r = u8::from_str_radix(&clean[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&clean[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&clean[4..6], 16).ok()?;
+                let a = u8::from_str_radix(&clean[6..8], 16).ok()?;
+                Some(Self::from_u8(r, g, b, a))
             }
-            _ => Self::BLACK,
+            _ => None,
         }
     }
 
@@ -198,6 +209,11 @@ mod tests {
     fn test_color_hex_and_lerp() {
         let red = Color::hex("#ff0000");
         assert_eq!(red, Color::new(1.0, 0.0, 0.0, 1.0));
+
+        let parsed = Color::try_from_hex("#ceba00");
+        assert!(parsed.is_some());
+        assert_eq!(Color::try_from_hex("invalid"), None);
+        assert_eq!(Color::try_from_hex("#12"), None);
 
         let dark = Color::hex("#121218");
         assert!(dark.r > 0.05 && dark.r < 0.1);

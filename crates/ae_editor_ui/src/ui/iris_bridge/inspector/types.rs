@@ -97,24 +97,6 @@ impl ComponentCategory {
 pub enum InspectorAction {
     /// Renames the specified entity in the ECS world.
     RenameEntity(hecs::Entity, String),
-    /// Applies an object color change from the Appearance card to an entity.
-    SetObjectColor(hecs::Entity, Color),
-    /// Signals that interactive color picker dragging has begun on an entity, snapshotting pre-edit color.
-    StartColorEdit(hecs::Entity),
-    /// Live modifies object color in ECS for real-time viewport preview without spamming undo history.
-    LiveSetObjectColor(hecs::Entity, Color),
-    /// Signals that interactive color picker dragging has finished on an entity, committing a single atomic undo entry.
-    CommitColorEdit(hecs::Entity),
-    /// Focuses the HEX color text input for typing.
-    FocusHexInput,
-    /// Toggles the floating Color Picker popup.
-    ToggleColorPicker,
-    /// Adds the current object color into the user's saved palette.
-    AddColorToPalette(Color),
-    /// Clears custom user-saved swatches from the palette.
-    ClearCustomPalette,
-    /// Removes a color swatch from the saved palette by index.
-    RemoveColorFromPalette(usize),
     /// Removes an entire component from the specified entity.
     RemoveComponent(hecs::Entity, &'static str),
     /// Adds a new component to the specified entity from the Add Menu.

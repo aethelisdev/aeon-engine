@@ -7,7 +7,6 @@
 //! executing mutations on the ECS world and issuing Undo/Redo actions.
 
 use crate::ui::iris_bridge::inspector::InspectorAction;
-use crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action;
 use crate::ui::types::EngineUiAction;
 use crate::ui::workbench::state::EngineUi;
 
@@ -27,67 +26,6 @@ impl EngineUi {
                         .map(|n| n.0.clone())
                         .unwrap_or_default();
                     ui_actions.push(EngineUiAction::ModifyName(entity, old_name, name));
-                }
-                InspectorAction::StartColorEdit(..)
-                | InspectorAction::LiveSetObjectColor(..)
-                | InspectorAction::CommitColorEdit(..) => {
-                    handle_color_edit_action(
-                        &mut self.iris_overlay.inspector.color_edit_start,
-                        &mut self.iris_overlay.inspector.hsv,
-                        &mut self.inspector_color_hex,
-                        world,
-                        ui_actions,
-                        action,
-                    );
-                }
-                InspectorAction::SetObjectColor(entity, col) => {
-                    self.iris_overlay.inspector.color_edit_start = None;
-                    let old_col = world
-                        .get::<&ae_core::ecs::Color>(entity)
-                        .map(|c| *c)
-                        .unwrap_or(ae_core::ecs::Color {
-                            r: 1.0,
-                            g: 1.0,
-                            b: 1.0,
-                            a: 1.0,
-                        });
-                    let new_col = ae_core::ecs::Color {
-                        r: col.r,
-                        g: col.g,
-                        b: col.b,
-                        a: col.a,
-                    };
-                    let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
-                    let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
-                    let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
-                    self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
-                    let (h, s, v) =
-                        irisui::prelude::HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
-                    self.iris_overlay.inspector.hsv = [h, s, v];
-                    ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
-                }
-                InspectorAction::AddColorToPalette(col) => {
-                    if let Some(entity) = self.selected_entity {
-                        let arr = if col == irisui::prelude::Color::TRANSPARENT {
-                            world
-                                .get::<&ae_core::ecs::Color>(entity)
-                                .map(|c| [c.r, c.g, c.b, c.a])
-                                .unwrap_or([0.60, 0.75, 0.95, 1.0])
-                        } else {
-                            [col.r, col.g, col.b, col.a]
-                        };
-                        if !self.saved_swatches.contains(&arr) && self.saved_swatches.len() < 28 {
-                            self.saved_swatches.push(arr);
-                        }
-                    }
-                }
-                InspectorAction::ClearCustomPalette => {
-                    self.saved_swatches.clear();
-                }
-                InspectorAction::RemoveColorFromPalette(idx) => {
-                    if idx < self.saved_swatches.len() {
-                        self.saved_swatches.remove(idx);
-                    }
                 }
                 InspectorAction::RemoveComponent(entity, comp_name) => {
                     ui_actions.push(EngineUiAction::RemoveComponent(entity, comp_name));
@@ -153,29 +91,6 @@ impl EngineUi {
                     self.iris_overlay.inspector.active_submenu = Some(category);
                     self.iris_overlay.notifier.tag_all();
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
-                }
-                InspectorAction::ToggleColorPicker => {
-                    self.iris_overlay.inspector.is_color_picker_open =
-                        !self.iris_overlay.inspector.is_color_picker_open;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
-                }
-                InspectorAction::FocusHexInput => {
-                    if let Some(entity) = self.selected_entity {
-                        let c = world
-                            .get::<&ae_core::ecs::Color>(entity)
-                            .map(|col| [col.r, col.g, col.b, col.a])
-                            .unwrap_or([0.60, 0.75, 0.95, 1.0]);
-                        let hex = format!(
-                            "#{:02x}{:02x}{:02x}",
-                            (c[0] * 255.0).round() as u8,
-                            (c[1] * 255.0).round() as u8,
-                            (c[2] * 255.0).round() as u8
-                        );
-                        self.iris_overlay.inspector.hex_buffer = Some((entity, hex));
-                        self.iris_overlay.notifier.tag_all();
-                        self.iris_overlay.chrome.needs_layout_rebuild = true;
-                    }
                 }
                 InspectorAction::CloseAddSubmenu => {
                     self.iris_overlay.inspector.active_submenu = None;

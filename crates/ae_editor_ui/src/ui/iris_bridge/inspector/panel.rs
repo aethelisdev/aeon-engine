@@ -19,6 +19,8 @@ pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     actions: &mut Vec<super::types::InspectorAction>,
+    saved_swatches: &mut Vec<[f32; 4]>,
+    is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
     let padding_x = 6.0;
     let card_w = params.panel_rect.width - padding_x * 2.0;
@@ -63,32 +65,21 @@ pub fn build_inspector_panel(
                     super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
                     None,
                     |cards_scope| {
-                        // 4. Primary Transform / Layout Card
-                        if ctx
-                            .world
-                            .get::<&ae_core::ecs::UiElement>(ctx.entity)
-                            .is_ok()
-                        {
-                            ui_transform::build_ui_transform_card(cards_scope, &mut ctx);
-                        } else {
-                            transform::build_transform_card(cards_scope, &mut ctx);
-                            appearance::build_appearance_card(cards_scope, &mut ctx);
-                        }
-
-                        // 5. Extensible Registry Component Cards
-                        for handler in InspectorRegistry::global().handlers() {
-                            if handler.category() != super::types::ComponentCategory::Hierarchy
-                                && handler.has_component(ctx.world, ctx.entity)
+                        combine_card_actions(
+                            render_primary_cards(
+                                cards_scope,
+                                &mut ctx,
+                                saved_swatches,
+                                is_color_picker_open,
+                            ),
                             {
-                                handler.render_card(cards_scope, &mut ctx);
-                            }
-                        }
-
-                        // 6. Hierarchy / Parenting Card
-                        super::components::hierarchy::draw_parent_card_if_present(
-                            cards_scope,
-                            ctx.world,
-                            ctx.entity,
+                                render_registry_cards(cards_scope, &mut ctx);
+                                super::components::hierarchy::draw_parent_card_if_present(
+                                    cards_scope,
+                                    ctx.world,
+                                    ctx.entity,
+                                )
+                            },
                         )
                     },
                 )
@@ -96,6 +87,32 @@ pub fn build_inspector_panel(
                 .or(footer::build_inspector_footer(panel_scope, params, actions))
         })
         .inner
+}
+
+/// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
+/// directly into the designated overlay or portal tree, returning `(Option<Rect>, Option<EngineUiAction>)`.
+pub fn build_inspector_overlays_with_action(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &InspectorPanelParams<'_>,
+    actions: &mut Vec<super::types::InspectorAction>,
+    is_color_picker_open: &mut bool,
+) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
+    if params.is_add_menu_open {
+        (
+            add_menu::build_add_component_menu(tree, parent_id, params, actions),
+            None,
+        )
+    } else if params.is_color_picker_open {
+        color_picker_popup::build_color_picker_popup_with_action(
+            tree,
+            parent_id,
+            params,
+            is_color_picker_open,
+        )
+    } else {
+        (None, None)
+    }
 }
 
 /// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
@@ -107,13 +124,48 @@ pub fn build_inspector_overlays(
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
     actions: &mut Vec<super::types::InspectorAction>,
+    is_color_picker_open: &mut bool,
 ) -> Option<Rect> {
-    if params.is_add_menu_open {
-        add_menu::build_add_component_menu(tree, parent_id, params, actions)
-    } else if params.is_color_picker_open {
-        color_picker_popup::build_color_picker_popup(tree, parent_id, params, actions)
-    } else {
+    build_inspector_overlays_with_action(tree, parent_id, params, actions, is_color_picker_open).0
+}
+
+/// Combines two optional UI actions, evaluating both child branches.
+#[inline]
+pub fn combine_card_actions(
+    primary: Option<crate::ui::types::EngineUiAction>,
+    hierarchy: Option<crate::ui::types::EngineUiAction>,
+) -> Option<crate::ui::types::EngineUiAction> {
+    primary.or(hierarchy)
+}
+
+/// Renders the primary transform or UI layout card followed by the appearance card.
+pub fn render_primary_cards(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    saved_swatches: &mut Vec<[f32; 4]>,
+    is_color_picker_open: &mut bool,
+) -> Option<crate::ui::types::EngineUiAction> {
+    if ctx
+        .world
+        .get::<&ae_core::ecs::UiElement>(ctx.entity)
+        .is_ok()
+    {
+        ui_transform::build_ui_transform_card(scope, ctx);
         None
+    } else {
+        transform::build_transform_card(scope, ctx);
+        appearance::build_appearance_card(scope, ctx, saved_swatches, is_color_picker_open)
+    }
+}
+
+/// Renders the dynamically registered non-hierarchy component inspector cards.
+pub fn render_registry_cards(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+    for handler in InspectorRegistry::global().handlers() {
+        if handler.category() != super::types::ComponentCategory::Hierarchy
+            && handler.has_component(ctx.world, ctx.entity)
+        {
+            handler.render_card(scope, ctx);
+        }
     }
 }
 

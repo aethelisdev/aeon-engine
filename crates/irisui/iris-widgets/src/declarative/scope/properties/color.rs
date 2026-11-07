@@ -15,8 +15,8 @@ use iris_core::{
     AlignItems, Color, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
 };
 
-use crate::color_picker::HsvColorPickerState;
 use crate::declarative::scope::core::UiScope;
+use crate::declarative::scope::properties::color_popup::resolve_hsv_from_color;
 use crate::declarative::types::combine_seeds;
 use crate::declarative::widget::DEFAULT_PROPERTY_LABEL_WIDTH;
 use crate::declarative::widget::color_picker::ColorPicker;
@@ -35,6 +35,8 @@ pub struct PropertyColorResponse {
     pub changed: bool,
     /// Whether dragging ended this frame (triggering an Undo/Redo commit snapshot).
     pub committed: bool,
+    /// Optional atomic `(old_color, new_color)` transition emitted when an edit gesture commits.
+    pub committed_change: Option<(Color, Color)>,
     /// Active concrete [`Color`] value.
     pub color: Color,
     /// Whether the elevated floating color picker popup is currently open.
@@ -67,9 +69,18 @@ impl PropertyColorResponse {
             swatch_id,
             changed,
             committed,
+            committed_change: None,
             color,
             is_open,
         }
+    }
+
+    /// Attaches an explicit `(old_color, new_color)` commit transition to this response.
+    #[inline]
+    #[must_use]
+    pub const fn with_committed_change(mut self, committed_change: Option<(Color, Color)>) -> Self {
+        self.committed_change = committed_change;
+        self
     }
 
     /// Returns `true` if the color channels changed during this interaction frame.
@@ -84,6 +95,23 @@ impl PropertyColorResponse {
     #[must_use]
     pub const fn committed(&self) -> bool {
         self.committed
+    }
+
+    /// Invokes `f(old_color, new_color)` if an edit gesture was committed on this frame.
+    #[inline]
+    pub fn on_commit<F: FnOnce(Color, Color)>(self, f: F) -> Self {
+        if let Some((old_col, new_col)) = self.committed_change {
+            f(old_col, new_col);
+        }
+        self
+    }
+
+    /// Maps a committed `(old_color, new_color)` transition into an optional action value `T`.
+    #[inline]
+    #[must_use]
+    pub fn map_commit<T, F: FnOnce(Color, Color) -> T>(self, f: F) -> Option<T> {
+        self.committed_change
+            .map(|(old_col, new_col)| f(old_col, new_col))
     }
 
     /// Returns the active concrete [`Color`].
@@ -116,6 +144,23 @@ impl<'a> UiScope<'a> {
         self.prop_color_styled(label, color, None, None)
     }
 
+    /// Emits a declarative two-way bound color property row modifying split RGBA float references in-place.
+    pub fn prop_color_rgba(
+        &mut self,
+        label: &str,
+        rgba: (&mut f32, &mut f32, &mut f32, &mut f32),
+    ) -> PropertyColorResponse {
+        let mut col = Color::rgba(*rgba.0, *rgba.1, *rgba.2, *rgba.3);
+        let resp = self.prop_color_styled(label, &mut col, None, None);
+        if resp.changed {
+            *rgba.0 = col.r;
+            *rgba.1 = col.g;
+            *rgba.2 = col.b;
+            *rgba.3 = col.a;
+        }
+        resp
+    }
+
     /// Emits a declarative two-way bound color property row with custom column width and swatch width.
     ///
     /// # Arguments
@@ -135,9 +180,11 @@ impl<'a> UiScope<'a> {
         let mut is_open = was_open;
         let mut changed = false;
         let mut committed = false;
+        let mut committed_change = None;
         let mut response = WidgetResponse::default();
         let mut slot_swatch_id = WidgetId::default();
         let mut slot_executed = false;
+        let initial_color = *color;
 
         let lbl_w = label_width.unwrap_or(DEFAULT_PROPERTY_LABEL_WIDTH);
         let swatch_w = swatch_width.unwrap_or(72.0);
@@ -224,6 +271,8 @@ impl<'a> UiScope<'a> {
 
                 let popup_w = 196.0;
                 let root_id = slot.tree.root().unwrap_or(slot.parent);
+                let cached_hsv = slot.tree.event_state.cached_color_hsv_for(base_tag);
+                let mut hsv = resolve_hsv_from_color(*color, cached_hsv);
                 let mut root_scope = slot.child_scope(root_id);
 
                 let popup_resp = root_scope.popup_anchored_named(
@@ -231,7 +280,6 @@ impl<'a> UiScope<'a> {
                     anchor_rect,
                     popup_w,
                     |popup| {
-                        let mut hsv = HsvColorPickerState::from_color(*color);
                         let picker_resp = popup.add(
                             ColorPicker::new(&mut hsv)
                                 .sv_size(150.0, 110.0)
@@ -247,11 +295,27 @@ impl<'a> UiScope<'a> {
 
                 let (picker_changed, drag_released, new_col) = popup_resp.inner;
                 if picker_changed {
+                    let _ = slot
+                        .tree
+                        .event_state
+                        .begin_or_get_color_edit_origin(base_tag, initial_color);
                     *color = new_col;
                     changed = true;
                 }
+                slot.tree
+                    .event_state
+                    .set_cached_color_hsv(base_tag, [hsv.hue, hsv.saturation, hsv.value]);
+
                 if drag_released {
                     committed = true;
+                    let start_col = slot
+                        .tree
+                        .event_state
+                        .take_color_edit_origin(base_tag)
+                        .unwrap_or(initial_color);
+                    if start_col != *color {
+                        committed_change = Some((start_col, *color));
+                    }
                 }
 
                 let popup_rect = popup_resp.response.rect;
@@ -287,5 +351,6 @@ impl<'a> UiScope<'a> {
             *color,
             is_open,
         )
+        .with_committed_change(committed_change)
     }
 }

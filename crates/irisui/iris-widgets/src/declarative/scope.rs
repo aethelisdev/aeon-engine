@@ -60,8 +60,11 @@ pub use input::ComboRowLayout;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use menu::{PopupExt, PopupPlacement};
 pub use properties::{
-    ComboBoxActionResponse, PropertyActionRow, PropertySliderOptions, PropertyTextOptions,
-    PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, PropertyVec3Target,
-    property_vec3_axis_tag, property_vec3_reset_tag, resolve_property_vec3_for_seed,
-    resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
+    ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags,
+    ComboBoxActionResponse, PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
+    PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
+    PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
+    PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag, property_vec3_reset_tag,
+    resolve_hsv_from_color, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
+    resolve_property_vec3_tag,
 };

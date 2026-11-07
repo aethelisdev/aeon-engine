@@ -162,8 +162,13 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     }
 
     // Build color picker popup via declarative UiScope
-    let mut actions = Vec::new();
-    color_picker_popup::build_color_picker_popup(&mut tree, root, &params, &mut actions);
+    let mut is_color_picker_open = true;
+    color_picker_popup::build_color_picker_popup(
+        &mut tree,
+        root,
+        &params,
+        &mut is_color_picker_open,
+    );
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;
@@ -210,5 +215,76 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     assert_eq!(
         hit.rect, sv_node.computed_rect,
         "Hit rect must match the full SV box container, not an internal cell"
+    );
+}
+
+#[test]
+fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let mut world = hecs::World::new();
+    let entity = world.spawn((Position::default(),));
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+
+    let mut actions = Vec::new();
+    let mut is_color_picker_open = false;
+    let _ = panel::build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut actions,
+        &mut Vec::new(),
+        &mut is_color_picker_open,
+    );
+    let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
+
+    let swatch_rect = tree
+        .node_rect_tagged(appearance_color_swatch_tag(), Point::ZERO)
+        .expect("Color swatch must exist in Inspector panel");
+    let click_pt = Point::new(swatch_rect.x + 4.0, swatch_rect.y + 4.0);
+
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        point: click_pt,
+        button: MouseButton::Left,
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        point: click_pt,
+        button: MouseButton::Left,
+    });
+
+    let clicked_tag = tree
+        .event_state
+        .frame_clicked_tag
+        .expect("Swatch click tag");
+    let mut click_actions = Vec::new();
+    assert!(resolve_inspector_tag_click(
+        clicked_tag,
+        Some(entity),
+        &swatches,
+        &mut click_actions,
+    ));
+    assert!(
+        click_actions.is_empty(),
+        "resolve_inspector_tag_click must not duplicate ToggleColorPicker before declarative panel rebuild"
+    );
+
+    tree.clear();
+    let root2 = tree.create_root().expect("root2");
+    let _ = panel::build_inspector_panel(
+        &mut UiScope::new(&mut tree, root2),
+        &params,
+        &mut click_actions,
+        &mut Vec::new(),
+        &mut is_color_picker_open,
+    );
+
+    assert!(
+        is_color_picker_open,
+        "Clicking Object Color swatch must directly toggle is_color_picker_open to true"
+    );
+    assert!(
+        click_actions.is_empty(),
+        "No ToggleColorPicker action should be emitted"
     );
 }

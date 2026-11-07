@@ -162,6 +162,12 @@ pub struct EventState {
     /// Retained continuous Euler angle representation `(tag, [rx, ry, rz])` for quaternion-bound rotation widgets,
     /// preventing gimbal-lock pitch wrapping past +/-90 degrees across consecutive frames.
     pub cached_euler: Option<(u64, [f32; 3])>,
+    /// Retained continuous HSV representation `(tag, [hue, saturation, value])` for active color picker widgets,
+    /// preserving chosen hue and saturation when color channels reach grayscale (`s == 0`) or black (`v == 0`).
+    pub cached_color_hsv: Option<(u64, [f32; 3])>,
+    /// Pre-edit initial [`crate::color::Color`] snapshot `(tag, start_color)` captured when an interactive
+    /// color picker drag session begins, enabling atomic `(start_color, final_color)` commits on release.
+    pub color_edit_origin: Option<(u64, crate::color::Color)>,
     /// Autonomous bounded undo/redo stack for committed scalar and vector numeric transitions
     /// (drag scrubbing releases, post-`Enter` or focus-loss numeric expression commits, and vector resets).
     pub numeric_undo: NumericUndoStack,
@@ -211,6 +217,8 @@ impl EventState {
             hovered_file: None,
             frame_dropped_files: None,
             cached_euler: None,
+            cached_color_hsv: None,
+            color_edit_origin: None,
             numeric_undo: NumericUndoStack::new(),
         }
     }
@@ -219,6 +227,49 @@ impl EventState {
     #[inline]
     pub fn set_cached_euler(&mut self, tag: u64, euler: [f32; 3]) {
         self.cached_euler = Some((tag, euler));
+    }
+
+    /// Sets the retained continuous HSV representation `(tag, [hue, saturation, value])` for a color picker widget.
+    #[inline]
+    pub fn set_cached_color_hsv(&mut self, tag: u64, hsv: [f32; 3]) {
+        self.cached_color_hsv = Some((tag, hsv));
+    }
+
+    /// Returns the retained HSV `[hue, saturation, value]` for `tag` if currently cached.
+    #[inline]
+    #[must_use]
+    pub fn cached_color_hsv_for(&self, tag: u64) -> Option<[f32; 3]> {
+        self.cached_color_hsv
+            .and_then(|(t, hsv)| (t == tag).then_some(hsv))
+    }
+
+    /// Captures `current` as the pre-edit starting color for `tag` if no edit session is active for `tag`,
+    /// returning the active starting color for the session.
+    #[inline]
+    pub fn begin_or_get_color_edit_origin(
+        &mut self,
+        tag: u64,
+        current: crate::color::Color,
+    ) -> crate::color::Color {
+        if let Some((active_tag, origin)) = self.color_edit_origin
+            && active_tag == tag
+        {
+            return origin;
+        }
+        self.color_edit_origin = Some((tag, current));
+        current
+    }
+
+    /// Takes and clears the pre-edit starting color for `tag` when a color drag gesture finishes.
+    #[inline]
+    pub fn take_color_edit_origin(&mut self, tag: u64) -> Option<crate::color::Color> {
+        if let Some((active_tag, origin)) = self.color_edit_origin
+            && active_tag == tag
+        {
+            self.color_edit_origin = None;
+            return Some(origin);
+        }
+        None
     }
 
     /// Resets transient interaction states while preserving persistent focus.

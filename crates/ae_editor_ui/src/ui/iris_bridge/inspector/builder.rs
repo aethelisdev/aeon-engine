@@ -65,6 +65,8 @@ impl IrisEditorOverlay {
             scope,
             &insp_params,
             &mut self.inspector.interactions.actions,
+            &mut self.inspector.saved_swatches,
+            &mut self.inspector.is_color_picker_open,
         ) {
             self.pending_actions.push(ui_action);
         }
