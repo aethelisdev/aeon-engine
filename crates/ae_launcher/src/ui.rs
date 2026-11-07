@@ -13,4 +13,4 @@ pub use builder::build_launcher_ui;
 pub use new_project::build_new_project_view;
 pub use recent_projects::build_recent_projects_view;
 pub use sidebar::build_sidebar;
-pub use types::{LauncherAction, LauncherTab, LauncherUiState, ViewLayoutContext};
+pub use types::{LauncherAction, LauncherTab, LauncherUiState};

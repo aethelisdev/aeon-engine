@@ -1,174 +1,194 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+//! # Launcher Declarative Sidebar Navigation
+//!
+//! Renders the left navigation sidebar rail using pure declarative [`UiScope`] primitives,
+//! assembling the product branding header, active tab navigation buttons, and version footer.
+
 use irisui::prelude::*;
 
 use crate::icons::{ICON_FOLDER, ICON_PLUS, ICON_WIREFRAME, ICON_WORLD};
-use crate::ui::types::{LauncherTab, LauncherUiState};
+use crate::ui::builder::LAUNCHER_SIDEBAR_WIDTH;
+use crate::ui::types::{LauncherAction, LauncherTab, LauncherUiState};
 
-/// Builds the left sidebar navigation hierarchy into the UI tree.
+/// Semantic tag assigned to the "Recent Projects" navigation button.
+pub const TAG_NAV_RECENT_PROJECTS: u64 = 0xA101;
+
+/// Semantic tag assigned to the "New Project" navigation button.
+pub const TAG_NAV_NEW_PROJECT: u64 = 0xA102;
+
+/// Builds the left sidebar navigation hierarchy into the declarative [`UiScope`].
 ///
-/// Assembles the logo badge, navigation tab buttons ("Recent Projects" and "New Project"),
-/// hover/active state visual feedback, and version footer metadata.
-pub fn build_sidebar(
-    tree: &mut UiTree,
-    root_id: WidgetId,
-    state: &LauncherUiState,
-    cursor_pos: Point,
-    content_h: f32,
-    sidebar_w: f32,
-) -> WidgetId {
-    let sidebar_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sidebar_id) {
-        node.set_name("LauncherSidebar");
-        node.computed_rect = Rect::new(0.0, 0.0, sidebar_w, content_h);
-        node.style = Style::new()
+/// Features branding logo typography, tab selector buttons with active/hover styling,
+/// and engine versioning metadata, returning any tab-switch action triggered in the frame.
+pub fn build_sidebar(scope: &mut UiScope<'_>, state: &LauncherUiState) -> Option<LauncherAction> {
+    scope.container_named(
+        "LauncherSidebar",
+        Style::new()
+            .flex_col()
+            .justify_content(JustifyContent::SpaceBetween)
+            .width(LAUNCHER_SIDEBAR_WIDTH)
+            .flex_grow(1.0)
+            .padding_insets(Insets::new(18.0, 12.0, 16.0, 12.0))
             .background(Color::hex("#12141a"))
-            .border(1.0, Color::hex("#1e222d"));
+            .border(1.0, Color::hex("#1e222d")),
+        |sidebar| {
+            sidebar.container_named(
+                "SidebarTopSection",
+                Style::new().flex_col().gap(18.0),
+                |top| {
+                    render_sidebar_header(top);
+                    render_sidebar_navigation(top, state);
+                },
+            );
+            render_sidebar_footer(sidebar);
+        },
+    );
+
+    eval_sidebar_action(scope)
+}
+
+/// Renders the sidebar header badge containing the world icon and product title.
+fn render_sidebar_header(scope: &mut UiScope<'_>) {
+    scope.container_named(
+        "SidebarHeader",
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .gap(10.0)
+            .padding_insets(Insets::new(0.0, 4.0, 6.0, 4.0)),
+        |header| {
+            header.icon_named("SidebarLogoIcon", ICON_WORLD, Color::hex("#00e5ff"), 20.0);
+            header.label_styled_passive(
+                "SidebarTitle",
+                "AEON HUB",
+                14.0,
+                Color::hex("#ffffff"),
+                TextAlign::Left,
+                Style::new().width(150.0).height(20.0),
+            );
+        },
+    );
+}
+
+/// Renders navigation rail items using declarative [`NavItemConfig`] builders.
+fn render_sidebar_navigation(scope: &mut UiScope<'_>, state: &LauncherUiState) {
+    scope.container_named("SidebarNavGroup", Style::new().flex_col().gap(6.0), |nav| {
+        nav.nav_item(
+            "NavRecentProjects",
+            NavItemConfig::new("Recent Projects")
+                .atlas_icon(ICON_FOLDER)
+                .active(state.active_tab == LauncherTab::RecentProjects)
+                .active_color(Color::hex("#ffd166"))
+                .tag(TAG_NAV_RECENT_PROJECTS),
+        );
+        nav.nav_item(
+            "NavNewProject",
+            NavItemConfig::new("New Project")
+                .atlas_icon(ICON_PLUS)
+                .active(state.active_tab == LauncherTab::NewProject)
+                .active_color(Color::hex("#00e5ff"))
+                .tag(TAG_NAV_NEW_PROJECT),
+        );
+    });
+}
+
+/// Evaluates navigation button click events and maps them to semantic tab switch actions.
+pub fn eval_sidebar_action(scope: &mut UiScope<'_>) -> Option<LauncherAction> {
+    scope
+        .map_tag_clicked(TAG_NAV_RECENT_PROJECTS, || {
+            LauncherAction::SwitchTab(LauncherTab::RecentProjects)
+        })
+        .or_else(|| {
+            scope.map_tag_clicked(TAG_NAV_NEW_PROJECT, || {
+                LauncherAction::SwitchTab(LauncherTab::NewProject)
+            })
+        })
+}
+
+/// Renders the engine version and wireframe icon footer at the bottom of the rail.
+fn render_sidebar_footer(scope: &mut UiScope<'_>) {
+    scope.container_named(
+        "SidebarFooter",
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .gap(8.0)
+            .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0)),
+        |footer| {
+            footer.icon_named(
+                "SidebarVersionIcon",
+                ICON_WIREFRAME,
+                Color::hex("#525866"),
+                14.0,
+            );
+            footer.label_styled_passive(
+                "SidebarVersionText",
+                "Aeon Core v0.9.0",
+                10.0,
+                Color::hex("#525866"),
+                TextAlign::Left,
+                Style::new().width(150.0).height(16.0),
+            );
+        },
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_sidebar_creates_navigation_hierarchy() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let state = LauncherUiState::default();
+
+        let action = build_sidebar(&mut UiScope::new(&mut tree, root), &state);
+
+        assert_eq!(action, None);
+
+        let has_sidebar = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("LauncherSidebar"));
+        let has_header = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("SidebarHeader"));
+        let has_title = tree
+            .iter()
+            .any(|(_, n)| n.text.as_deref() == Some("AEON HUB"));
+        let has_recent_btn = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("NavRecentProjects"));
+        let has_new_btn = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("NavNewProject"));
+        let has_footer = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("SidebarFooter"));
+
+        assert!(has_sidebar, "LauncherSidebar container must exist");
+        assert!(has_header, "SidebarHeader must exist");
+        assert!(has_title, "AEON HUB title must exist");
+        assert!(has_recent_btn, "NavRecentProjects button must exist");
+        assert!(has_new_btn, "NavNewProject button must exist");
+        assert!(has_footer, "SidebarFooter must exist");
     }
-    let _ = tree.add_child(root_id, sidebar_id);
 
-    // Sidebar Header: Logo + "Aeon Engine"
-    let logo_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(logo_card_id) {
-        node.set_name("SidebarHeader");
-        node.computed_rect = Rect::new(16.0, 18.0, sidebar_w - 32.0, 42.0);
+    #[test]
+    fn test_build_sidebar_click_dispatches_switch_tab_action() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let state = LauncherUiState::default();
+
+        tree.event_state.frame_clicked_tag = Some(TAG_NAV_NEW_PROJECT);
+
+        let action = build_sidebar(&mut UiScope::new(&mut tree, root), &state);
+
+        assert_eq!(
+            action,
+            Some(LauncherAction::SwitchTab(LauncherTab::NewProject))
+        );
     }
-    let _ = tree.add_child(sidebar_id, logo_card_id);
-
-    let logo_icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(logo_icon_id) {
-        node.set_name("SidebarLogoIcon");
-        node.computed_rect = Rect::new(16.0, 26.0, 20.0, 20.0);
-        node.set_texture_uv(ICON_WORLD);
-        node.set_texture_tint(Color::hex("#00e5ff"));
-    }
-    let _ = tree.add_child(sidebar_id, logo_icon_id);
-
-    let title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(title_id) {
-        node.set_name("SidebarTitle");
-        node.set_text("AEON HUB");
-        node.font_size = 14.0;
-        node.text_color = Color::hex("#ffffff");
-        node.computed_rect = Rect::new(44.0, 27.0, 150.0, 20.0);
-    }
-    let _ = tree.add_child(sidebar_id, title_id);
-
-    // Sidebar Navigation Buttons
-    let mut btn_y = 80.0;
-
-    // Tab 1: Recent Projects (uses ICON_FOLDER quad)
-    let is_recent_active = state.active_tab == LauncherTab::RecentProjects;
-    let recent_rect = Rect::new(12.0, btn_y, sidebar_w - 24.0, 36.0);
-    let is_recent_hovered = recent_rect.contains_point(cursor_pos);
-
-    let recent_btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(recent_btn_id) {
-        node.set_name("NavRecentProjects");
-        node.computed_rect = recent_rect;
-        let bg = if is_recent_active {
-            Color::hex("#1a202c")
-        } else if is_recent_hovered {
-            Color::hex("#161a22")
-        } else {
-            Color::TRANSPARENT
-        };
-        node.style = Style::new().background(bg).border_radius(6.0);
-    }
-    let _ = tree.add_child(sidebar_id, recent_btn_id);
-
-    let recent_icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(recent_icon_id) {
-        node.computed_rect = Rect::new(24.0, btn_y + 10.0, 16.0, 16.0);
-        node.set_texture_uv(ICON_FOLDER);
-        let tint = if is_recent_active {
-            Color::hex("#ffd166")
-        } else {
-            Color::hex("#8a8f9d")
-        };
-        node.set_texture_tint(tint);
-    }
-    let _ = tree.add_child(sidebar_id, recent_icon_id);
-
-    let recent_lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(recent_lbl_id) {
-        node.set_text("Recent Projects");
-        node.font_size = 12.0;
-        node.text_color = if is_recent_active {
-            Color::hex("#ffffff")
-        } else {
-            Color::hex("#a0a5b5")
-        };
-        node.computed_rect = Rect::new(48.0, btn_y + 9.0, 140.0, 18.0);
-    }
-    let _ = tree.add_child(sidebar_id, recent_lbl_id);
-
-    btn_y += 44.0;
-
-    // Tab 2: New Project (uses ICON_PLUS quad)
-    let is_new_active = state.active_tab == LauncherTab::NewProject;
-    let new_rect = Rect::new(12.0, btn_y, sidebar_w - 24.0, 36.0);
-    let is_new_hovered = new_rect.contains_point(cursor_pos);
-
-    let new_btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(new_btn_id) {
-        node.set_name("NavNewProject");
-        node.computed_rect = new_rect;
-        let bg = if is_new_active {
-            Color::hex("#1a202c")
-        } else if is_new_hovered {
-            Color::hex("#161a22")
-        } else {
-            Color::TRANSPARENT
-        };
-        node.style = Style::new().background(bg).border_radius(6.0);
-    }
-    let _ = tree.add_child(sidebar_id, new_btn_id);
-
-    let new_icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(new_icon_id) {
-        node.computed_rect = Rect::new(24.0, btn_y + 10.0, 16.0, 16.0);
-        node.set_texture_uv(ICON_PLUS);
-        let tint = if is_new_active {
-            Color::hex("#00e5ff")
-        } else {
-            Color::hex("#8a8f9d")
-        };
-        node.set_texture_tint(tint);
-    }
-    let _ = tree.add_child(sidebar_id, new_icon_id);
-
-    let new_lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(new_lbl_id) {
-        node.set_text("New Project");
-        node.font_size = 12.0;
-        node.text_color = if is_new_active {
-            Color::hex("#ffffff")
-        } else {
-            Color::hex("#a0a5b5")
-        };
-        node.computed_rect = Rect::new(48.0, btn_y + 9.0, 140.0, 18.0);
-    }
-    let _ = tree.add_child(sidebar_id, new_lbl_id);
-
-    // Sidebar Footer: Version & Wireframe Icon (uses ICON_WIREFRAME quad)
-    let version_icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(version_icon_id) {
-        node.computed_rect = Rect::new(16.0, content_h - 32.0, 14.0, 14.0);
-        node.set_texture_uv(ICON_WIREFRAME);
-        node.set_texture_tint(Color::hex("#525866"));
-    }
-    let _ = tree.add_child(sidebar_id, version_icon_id);
-
-    let ver_id = tree.create_node();
-    if let Some(node) = tree.get_mut(ver_id) {
-        node.set_text("Aeon Core v0.9.0");
-        node.font_size = 10.0;
-        node.text_color = Color::hex("#525866");
-        node.computed_rect = Rect::new(36.0, content_h - 33.0, 160.0, 16.0);
-    }
-    let _ = tree.add_child(sidebar_id, ver_id);
-
-    sidebar_id
 }

@@ -8,6 +8,9 @@
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+
 use crate::command::BoundarySlice;
 use crate::quad::QuadInstance;
 use iris_core::id::WidgetId;

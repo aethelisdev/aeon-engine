@@ -258,12 +258,7 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
         .frame_clicked_tag
         .expect("Swatch click tag");
     let mut click_actions = Vec::new();
-    assert!(resolve_inspector_tag_click(
-        clicked_tag,
-        Some(entity),
-        &swatches,
-        &mut click_actions,
-    ));
+    assert!(resolve_inspector_tag_click(clicked_tag));
     assert!(
         click_actions.is_empty(),
         "resolve_inspector_tag_click must not duplicate ToggleColorPicker before declarative panel rebuild"

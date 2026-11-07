@@ -3,8 +3,9 @@
 
 //! # Inspector Event Handling and Semantic Tag Hit-Testing
 //!
-//! Resolves mouse clicks, number input edits, color palette picks,
-//! and component life-cycle commands via direct zero-allocation [`UiTree`] hit-testing.
+//! Classifies clicked semantic tags that belong to the Inspector panel so the event loop can
+//! consume the click and schedule an Inspector redraw. The redraw rebuilds the declarative
+//! panel, whose widgets map the persisted frame click directly into `EngineUiAction`s.
 
 use super::appearance::{
     resolve_appearance_color_swatch_tag, resolve_appearance_hex_input_tag,
@@ -12,36 +13,19 @@ use super::appearance::{
 };
 use super::header::resolve_entity_name_input_tag;
 use super::tags::{resolve_add_component_btn_tag, resolve_component_delete_tag};
-use super::types::InspectorAction;
 
-/// Resolves semantic tag click input over the Inspector panel.
+/// Returns `true` when `hit_tag` belongs to an interactive Inspector widget.
 ///
-/// Converts a persistent 64-bit widget hit tag into discrete [`InspectorAction`]s
-/// without spatial search loops or rectangular allocations.
-pub fn resolve_inspector_tag_click(
-    hit_tag: u64,
-    entity_opt: Option<hecs::Entity>,
-    _saved_swatches: &[[f32; 4]],
-    out_actions: &mut Vec<InspectorAction>,
-) -> bool {
-    if resolve_add_component_btn_tag(hit_tag) {
-        return true;
-    }
-
-    if let Some(comp_name) = resolve_component_delete_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::RemoveComponent(entity, comp_name));
-        }
-        return true;
-    }
-
-    if resolve_appearance_color_swatch_tag(hit_tag)
+/// The caller consumes the click and tags the Inspector panel for redraw; no action is queued
+/// here. Actions are produced exactly once by the declarative panel rebuild (for example a card
+/// delete button maps to `EngineUiAction::RemoveComponent` in `panel.rs`), which prevents the
+/// duplicate dispatch that a second, event-time action queue would cause.
+#[must_use]
+pub fn resolve_inspector_tag_click(hit_tag: u64) -> bool {
+    resolve_add_component_btn_tag(hit_tag)
+        || resolve_component_delete_tag(hit_tag).is_some()
+        || resolve_appearance_color_swatch_tag(hit_tag)
         || resolve_appearance_hex_input_tag(hit_tag)
         || resolve_appearance_palette_swatch_tag(hit_tag).is_some()
         || resolve_entity_name_input_tag(hit_tag)
-    {
-        return true;
-    }
-
-    false
 }

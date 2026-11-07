@@ -396,11 +396,13 @@ impl<'a> UiScope<'a> {
                 Color::rgba(0.92, 0.94, 0.98, 1.0)
             };
             node.focus_text_color = Some(Color::rgba(0.92, 0.94, 0.98, 1.0));
+            let text_w = if width > 16.0 { width - 16.0 } else { 300.0 };
             node.set_style(
                 Style::new()
                     .position_absolute()
                     .left(8.0)
                     .top(0.0)
+                    .width(text_w)
                     .height(24.0),
             );
         }

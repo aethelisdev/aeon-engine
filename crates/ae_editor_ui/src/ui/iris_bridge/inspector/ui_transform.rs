@@ -53,6 +53,14 @@ pub fn index_to_anchor(idx: usize) -> UiAnchor {
     }
 }
 
+/// Canonical component identifier of the 2D screen transform card (`ae_core::ecs::UiElement`).
+///
+/// Shared by the card header (delete button tag derivation through
+/// [`super::tags::encode_component_delete_tag`]) and by the Inspector panel, which maps a click
+/// on that tag into `EngineUiAction::RemoveComponent`. Both sides must use this single constant
+/// so the encoded tag and the removed component name can never diverge.
+pub const UI_ELEMENT_COMPONENT_NAME: &str = "UiElement";
+
 /// Builds the `📐 2D Screen Transform` card inside the declarative [`UiScope`].
 pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
     let Ok(mut u) = ctx.world.get::<&mut UiElement>(ctx.entity) else {
@@ -69,7 +77,7 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
                 icon: "📐",
                 display_title: "2D Screen Transform",
                 header_color: card.theme().accent,
-                component_name: "UiElement",
+                component_name: UI_ELEMENT_COMPONENT_NAME,
             },
             false,
         );

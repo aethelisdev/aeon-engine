@@ -3,8 +3,6 @@
 
 use std::path::PathBuf;
 
-use irisui::prelude::Point;
-
 /// Primary active navigation tab in the launcher sidebar.
 ///
 /// Controls whether the launcher presents the list of recently opened projects
@@ -49,6 +47,17 @@ pub enum LauncherAction {
 
     /// Removes a project path from the recent list.
     RemoveRecent(String),
+
+    /// Sets or clears keyboard focus for the project name input text box.
+    FocusNameInput(bool),
+
+    /// Selects active dimension mode and optionally provides transient status feedback.
+    SelectDimensionMode {
+        /// Selected dimension mode (`"2D"` or `"3D"`).
+        mode: String,
+        /// Optional transient status message.
+        status_message: Option<String>,
+    },
 }
 
 /// Mutable interactive state of the Launcher UI.
@@ -98,21 +107,4 @@ impl Default for LauncherUiState {
             status_message: None,
         }
     }
-}
-
-/// Layout context descriptor for assembling launcher sub-views.
-///
-/// Passes geometric boundaries, cursor coordinates, and action receiver
-/// to sub-view builders without parameter sprawl.
-pub struct ViewLayoutContext<'a> {
-    /// Horizontal offset where sidebar ends and content begins.
-    pub start_x: f32,
-    /// Usable width of the content area.
-    pub content_w: f32,
-    /// Usable height of the content area.
-    pub content_h: f32,
-    /// Active cursor position for hover testing.
-    pub cursor_pos: Point,
-    /// Mutable reference to capture dispatched user actions.
-    pub action: &'a mut LauncherAction,
 }

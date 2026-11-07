@@ -7,6 +7,7 @@
 //! Supports immediate interaction responses ([`WidgetResponse`]), automatic flow layout,
 //! and strongly typed property inspection primitives partitioned across domain submodules.
 
+pub mod action_card;
 pub mod asset_slot;
 pub mod buttons;
 pub mod collapsing;
@@ -18,27 +19,38 @@ pub mod display;
 pub mod hover;
 pub mod input;
 pub mod input_box;
+pub mod labeled_input;
 pub mod menu;
 pub mod menu_bar;
 pub mod modal;
 pub mod multiline;
+pub mod nav_item;
 pub mod panel;
+pub mod primary_button;
 pub mod progress;
 pub mod properties;
+pub mod root;
 pub mod scroll_area;
+pub mod selection_card;
 pub mod spacing;
 pub mod tabs;
+pub mod tag_events;
 pub mod title_bar;
 pub mod tooltip;
 pub mod tree_view;
 
+pub use action_card::{ActionCardButton, ActionCardConfig};
 pub use collapsing::{CollapsingBuilder, CollapsingResponse};
+pub use labeled_input::{LabeledInputButton, LabeledInputConfig};
 pub use menu_bar::{
     MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
 };
 pub use multiline::MultilineEditorProps;
+pub use nav_item::NavItemConfig;
 pub use panel::PanelBuilder;
+pub use primary_button::PrimaryButtonConfig;
 pub use scroll_area::ScrollAreaConfig;
+pub use selection_card::SelectionCardConfig;
 pub use tabs::TabBarResponse;
 pub use title_bar::TitleBarBuilder;
 pub use tooltip::TooltipExt;

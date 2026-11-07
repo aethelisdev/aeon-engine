@@ -185,16 +185,18 @@ impl<'a> UiScope<'a> {
         align: TextAlign,
     ) {
         let text_str = text.into();
-        let est_w = (text_str.len() as f32 * font_size * 0.65).ceil().max(16.0);
+        let char_count = text_str.chars().count().max(1);
+        let est_w = (char_count as f32 * font_size * 0.65).ceil().max(16.0);
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.role = WidgetRole::Default;
             node.set_text(text_str);
             node.text_color = color;
             node.font_size = font_size;
-            node.line_height = (font_size * 1.3).max(14.0).round();
+            let line_h = (font_size * 1.3).max(14.0).round();
+            node.line_height = line_h;
             node.text_align = align;
-            node.set_style(Style::new().width(est_w));
+            node.set_style(Style::new().width(est_w).height(line_h));
         }
         let _ = self.tree.add_child(self.parent, node_id);
     }

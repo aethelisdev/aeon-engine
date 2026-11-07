@@ -97,8 +97,6 @@ impl ComponentCategory {
 pub enum InspectorAction {
     /// Renames the specified entity in the ECS world.
     RenameEntity(hecs::Entity, String),
-    /// Removes an entire component from the specified entity.
-    RemoveComponent(hecs::Entity, &'static str),
     /// Adds a new component to the specified entity from the Add Menu.
     AddComponent(hecs::Entity, &'static str),
     /// Opens the 8-category Add Component cascading menu.

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use irisui::core::geometry::{Point, Rect};
+use irisui::core::geometry::{Point, Size};
 use irisui::core::tree::UiTree;
+use irisui::layout::LayoutEngine;
 use irisui::text::{TextRenderer, TextSection, TextSystem};
 use irisui::wgpu_backend::{DrawCommandList, IrisRenderer};
 use winit::application::ApplicationHandler;
@@ -16,7 +17,7 @@ use winit::window::{Window, WindowId};
 
 use crate::project::ProjectRegistry;
 use crate::spawner::launch_engine_and_exit;
-use crate::ui::{LauncherTab, LauncherUiState, build_launcher_ui};
+use crate::ui::{LauncherAction, LauncherUiState, build_launcher_ui};
 
 /// Main application controller managing Winit event loop, WGPU surface, and Iris UI rendering for the launcher.
 pub struct LauncherApp {
@@ -27,6 +28,7 @@ pub struct LauncherApp {
     surface_config: Option<wgpu::SurfaceConfiguration>,
 
     tree: UiTree,
+    layout_engine: LayoutEngine,
     renderer: Option<IrisRenderer>,
     text_system: TextSystem,
     text_renderer: Option<TextRenderer>,
@@ -38,6 +40,7 @@ pub struct LauncherApp {
     registry: ProjectRegistry,
     state: LauncherUiState,
     start_time: std::time::Instant,
+    winit_state: irisui::winit::state::WinitState,
 }
 
 impl Default for LauncherApp {
@@ -50,6 +53,7 @@ impl Default for LauncherApp {
             surface_config: None,
 
             tree: UiTree::new(),
+            layout_engine: LayoutEngine::new(),
             renderer: None,
             text_system: TextSystem::new(),
             text_renderer: None,
@@ -61,6 +65,7 @@ impl Default for LauncherApp {
             registry: ProjectRegistry::load_from_disk(),
             state: LauncherUiState::default(),
             start_time: std::time::Instant::now(),
+            winit_state: irisui::winit::state::WinitState::new(1.0),
         }
     }
 }
@@ -216,177 +221,117 @@ impl LauncherApp {
     /// Returns `CursorIcon::Text` when hovering over editable text inputs, `CursorIcon::Pointer` when
     /// hovering over clickable cards/buttons, and `CursorIcon::Default` elsewhere.
     fn compute_cursor_icon(&self) -> winit::window::CursorIcon {
-        let p = self.cursor_pos;
-        let sidebar_w = 220.0;
-
-        // Sidebar buttons
-        let recent_tab_rect = Rect::new(12.0, 80.0, sidebar_w - 24.0, 36.0);
-        let new_tab_rect = Rect::new(12.0, 124.0, sidebar_w - 24.0, 36.0);
-        if recent_tab_rect.contains_point(p) || new_tab_rect.contains_point(p) {
-            return winit::window::CursorIcon::Pointer;
-        }
-
-        match self.state.active_tab {
-            LauncherTab::RecentProjects => {
-                let start_x = sidebar_w;
-                let mut card_y = 90.0;
-                let card_w = self.screen_size.x - sidebar_w - 64.0;
-                let card_h = 56.0;
-
-                for _ in 0..self.registry.recent_projects.len().min(10) {
-                    let card_rect = Rect::new(start_x + 32.0, card_y, card_w, card_h);
-                    if card_rect.contains_point(p) {
-                        return winit::window::CursorIcon::Pointer;
-                    }
-                    card_y += card_h + 10.0;
-                }
+        if let Some(target) = self.tree.hit_test_target(self.cursor_pos) {
+            match target.role {
+                irisui::core::WidgetRole::Button => winit::window::CursorIcon::Pointer,
+                irisui::core::WidgetRole::TextInput => winit::window::CursorIcon::Text,
+                _ => winit::window::CursorIcon::Default,
             }
-            LauncherTab::NewProject => {
-                let start_x = sidebar_w;
-                let name_box_rect = Rect::new(start_x + 32.0, 122.0, 420.0, 36.0);
-                if name_box_rect.contains_point(p) {
-                    return winit::window::CursorIcon::Text;
-                }
-
-                let loc_box_rect = Rect::new(start_x + 32.0, 198.0, 372.0, 36.0);
-                let browse_rect = Rect::new(start_x + 32.0 + 380.0, 198.0, 40.0, 36.0);
-                let mode_2d_rect = Rect::new(start_x + 32.0, 276.0, 204.0, 84.0);
-                let mode_3d_rect = Rect::new(start_x + 248.0, 276.0, 204.0, 84.0);
-                let create_rect = Rect::new(start_x + 32.0, 386.0, 420.0, 42.0);
-
-                if loc_box_rect.contains_point(p)
-                    || browse_rect.contains_point(p)
-                    || mode_2d_rect.contains_point(p)
-                    || mode_3d_rect.contains_point(p)
-                    || create_rect.contains_point(p)
-                {
-                    return winit::window::CursorIcon::Pointer;
-                }
-            }
+        } else {
+            winit::window::CursorIcon::Default
         }
-
-        winit::window::CursorIcon::Default
     }
 
     fn handle_click(&mut self) {
-        let click_pos = self.cursor_pos;
-        let sidebar_w = 220.0;
-
-        // Check sidebar navigation clicks
-        let recent_tab_rect = Rect::new(12.0, 80.0, sidebar_w - 24.0, 36.0);
-        if recent_tab_rect.contains_point(click_pos) {
-            self.state.active_tab = LauncherTab::RecentProjects;
-            self.state.is_name_focused = false;
-            return;
+        if let Some(target) = self.tree.hit_test_target(self.cursor_pos) {
+            self.tree.event_state.frame_clicked_tag = Some(target.tag);
         }
+    }
 
-        let new_tab_rect = Rect::new(12.0, 124.0, sidebar_w - 24.0, 36.0);
-        if new_tab_rect.contains_point(click_pos) {
-            self.state.active_tab = LauncherTab::NewProject;
-            self.state.is_name_focused = false;
-            return;
-        }
-
-        match self.state.active_tab {
-            LauncherTab::RecentProjects => {
+    fn handle_action(&mut self, action: LauncherAction) {
+        match action {
+            LauncherAction::None => {}
+            LauncherAction::SwitchTab(tab) => {
+                self.state.active_tab = tab;
                 self.state.is_name_focused = false;
-                let start_x = sidebar_w;
-                let mut card_y = 90.0;
-                let card_w = self.screen_size.x - sidebar_w - 64.0;
-                let card_h = 56.0;
-
-                for (idx, project) in self.registry.recent_projects.clone().iter().enumerate() {
-                    if idx >= 10 {
-                        break;
-                    }
-
-                    let btn_w = 78.0;
-                    let btn_h = 28.0;
-                    let btn_rect = Rect::new(
-                        start_x + 32.0 + card_w - btn_w - 14.0,
-                        card_y + (card_h - btn_h) * 0.5,
-                        btn_w,
-                        btn_h,
-                    );
-                    let card_rect = Rect::new(start_x + 32.0, card_y, card_w, card_h);
-
-                    if btn_rect.contains_point(click_pos) || card_rect.contains_point(click_pos) {
-                        let path = PathBuf::from(&project.path);
-                        self.registry.add_or_touch(project.clone());
-                        let _ = launch_engine_and_exit(&path, &project.dimension_mode);
-                        return;
-                    }
-
-                    card_y += card_h + 10.0;
+            }
+            LauncherAction::BrowseDirectory => {
+                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                    self.state.new_project_dir = folder.to_string_lossy().to_string();
                 }
             }
-            LauncherTab::NewProject => {
-                let start_x = sidebar_w;
-
-                // 1. Name input box focus
-                let name_box_rect = Rect::new(start_x + 32.0, 122.0, 420.0, 36.0);
-                if name_box_rect.contains_point(click_pos) {
-                    self.state.is_name_focused = true;
-                    self.state.cursor_blink_visible = true;
-                    return;
+            LauncherAction::OpenProject(path, mode) => {
+                self.registry.add_or_touch(crate::project::ProjectConfig {
+                    name: path
+                        .file_name()
+                        .map_or("Project".into(), |n| n.to_string_lossy().into()),
+                    path: path.to_string_lossy().into(),
+                    dimension_mode: mode.clone(),
+                    ..Default::default()
+                });
+                let _ = launch_engine_and_exit(&path, &mode);
+            }
+            LauncherAction::CreateAndLaunch {
+                name,
+                parent_dir,
+                mode,
+            } => match ProjectRegistry::create_project(&name, &parent_dir, &mode) {
+                Ok(config) => {
+                    self.registry.add_or_touch(config.clone());
+                    let path = PathBuf::from(&config.path);
+                    let _ = launch_engine_and_exit(&path, &config.dimension_mode);
                 }
-
-                // Any click outside the text box within NewProject clears focus
-                self.state.is_name_focused = false;
-
-                // 2. Browse button or Location input click
-                let loc_box_rect = Rect::new(start_x + 32.0, 198.0, 372.0, 36.0);
-                let browse_rect = Rect::new(start_x + 32.0 + 380.0, 198.0, 40.0, 36.0);
-                if browse_rect.contains_point(click_pos) || loc_box_rect.contains_point(click_pos) {
-                    if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                        self.state.new_project_dir = folder.to_string_lossy().to_string();
-                    }
-                    return;
+                Err(e) => {
+                    self.state.status_message = Some(format!("Error: {}", e));
                 }
-
-                // 3. 2D mode card click (Locked - Closed Beta)
-                let mode_2d_rect = Rect::new(start_x + 32.0, 276.0, 204.0, 84.0);
-                if mode_2d_rect.contains_point(click_pos) {
-                    self.state.selected_mode = "3D".to_string();
-                    self.state.status_message = Some(
-                        "2D Sprite Engine is currently in Closed Beta. Only 3D Spatial Engine is available in this release."
-                            .to_string(),
-                    );
-                    return;
-                }
-
-                // 4. 3D mode card click
-                let mode_3d_rect = Rect::new(start_x + 248.0, 276.0, 204.0, 84.0);
-                if mode_3d_rect.contains_point(click_pos) {
-                    self.state.selected_mode = "3D".to_string();
-                    self.state.status_message = None;
-                    return;
-                }
-
-                // 5. Create & Launch button click
-                let create_rect = Rect::new(start_x + 32.0, 386.0, 420.0, 42.0);
-                if create_rect.contains_point(click_pos) {
-                    let parent = Path::new(&self.state.new_project_dir);
-                    match ProjectRegistry::create_project(
-                        &self.state.new_project_name,
-                        parent,
-                        &self.state.selected_mode,
-                    ) {
-                        Ok(config) => {
-                            self.registry.add_or_touch(config.clone());
-                            let path = PathBuf::from(&config.path);
-                            let _ = launch_engine_and_exit(&path, &config.dimension_mode);
-                        }
-                        Err(e) => {
-                            self.state.status_message = Some(format!("Error: {}", e));
-                        }
-                    }
-                }
+            },
+            LauncherAction::FocusNameInput(focused) => {
+                self.state.is_name_focused = focused;
+                self.state.cursor_blink_visible = true;
+            }
+            LauncherAction::SelectDimensionMode {
+                mode,
+                status_message,
+            } => {
+                self.state.selected_mode = mode;
+                self.state.status_message = status_message;
+            }
+            LauncherAction::RemoveRecent(path) => {
+                self.registry.remove(&path);
             }
         }
     }
 
     fn render(&mut self) {
+        // Compute cursor blink phase: 530ms visible, 530ms hidden (~1Hz pulse)
+        self.state.cursor_blink_visible =
+            (self.start_time.elapsed().as_millis() / 530).is_multiple_of(2);
+
+        self.tree.clear();
+        let action = build_launcher_ui(
+            &mut self.tree,
+            &mut self.state,
+            &self.registry,
+            self.screen_size,
+            self.cursor_pos,
+        );
+
+        let _ = self.layout_engine.compute_layout(
+            &mut self.tree,
+            Size::new(self.screen_size.x, self.screen_size.y),
+        );
+
+        if action != LauncherAction::None {
+            self.handle_action(action);
+            self.tree.clear();
+            let _ = build_launcher_ui(
+                &mut self.tree,
+                &mut self.state,
+                &self.registry,
+                self.screen_size,
+                self.cursor_pos,
+            );
+            let _ = self.layout_engine.compute_layout(
+                &mut self.tree,
+                Size::new(self.screen_size.x, self.screen_size.y),
+            );
+            if let Some(ref win) = self.window {
+                win.request_redraw();
+            }
+        }
+
+        self.tree.clear_frame_clicks();
+
         let (Some(device), Some(queue), Some(surface), Some(renderer), Some(text_renderer)) = (
             self.device.as_ref(),
             self.queue.as_ref(),
@@ -415,19 +360,6 @@ impl LauncherApp {
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
-        // Compute cursor blink phase: 530ms visible, 530ms hidden (~1Hz pulse)
-        self.state.cursor_blink_visible =
-            (self.start_time.elapsed().as_millis() / 530).is_multiple_of(2);
-
-        self.tree.clear();
-        build_launcher_ui(
-            &mut self.tree,
-            &self.state,
-            &self.registry,
-            self.screen_size,
-            self.cursor_pos,
-        );
 
         // Collect quads and text sections
         self.command_list.clear();
@@ -542,6 +474,16 @@ impl ApplicationHandler for LauncherApp {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        let ui_event = self.winit_state.on_window_event(&event);
+        if let Some(ref ui_ev) = ui_event {
+            let dispatch = self.tree.dispatch_event(ui_ev);
+            if (dispatch.is_consumed() || self.tree.event_state.active_text_edit.is_some())
+                && let Some(ref win) = self.window
+            {
+                win.request_redraw();
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -586,41 +528,6 @@ impl ApplicationHandler for LauncherApp {
                     win.request_redraw();
                 }
             }
-            WindowEvent::KeyboardInput {
-                event:
-                    winit::event::KeyEvent {
-                        state: ElementState::Pressed,
-                        logical_key,
-                        text,
-                        ..
-                    },
-                ..
-            } => {
-                if self.state.active_tab == LauncherTab::NewProject && self.state.is_name_focused {
-                    match logical_key {
-                        winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) => {
-                            self.state.new_project_name.pop();
-                            if let Some(ref win) = self.window {
-                                win.request_redraw();
-                            }
-                        }
-                        _ => {
-                            if let Some(chars) = text {
-                                for c in chars.chars() {
-                                    if !c.is_control()
-                                        && (c.is_alphanumeric() || c == '_' || c == '-' || c == ' ')
-                                    {
-                                        self.state.new_project_name.push(c);
-                                    }
-                                }
-                                if let Some(ref win) = self.window {
-                                    win.request_redraw();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             WindowEvent::RedrawRequested => {
                 self.render();
             }
@@ -633,7 +540,7 @@ impl ApplicationHandler for LauncherApp {
     /// When the text input box is focused, wakes up every 100ms to drive the smooth ~1Hz text cursor
     /// blink animation. When unfocused, drops to `ControlFlow::Wait` for zero CPU consumption.
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_name_focused {
+        if self.tree.event_state.active_text_edit.is_some() || self.state.is_name_focused {
             event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
                 std::time::Instant::now() + std::time::Duration::from_millis(100),
             ));

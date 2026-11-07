@@ -32,6 +32,8 @@ pub mod ui_transform;
 mod tests;
 #[cfg(test)]
 mod tests_popups;
+#[cfg(test)]
+mod tests_remove_component;
 
 pub use appearance::{
     DEFAULT_PALETTE, appearance_color_swatch_tag, appearance_hex_input_tag,

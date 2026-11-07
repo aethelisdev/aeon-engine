@@ -27,9 +27,6 @@ impl EngineUi {
                         .unwrap_or_default();
                     ui_actions.push(EngineUiAction::ModifyName(entity, old_name, name));
                 }
-                InspectorAction::RemoveComponent(entity, comp_name) => {
-                    ui_actions.push(EngineUiAction::RemoveComponent(entity, comp_name));
-                }
                 InspectorAction::AddComponent(entity, comp_name) => {
                     ui_actions.push(EngineUiAction::AddComponent(entity, comp_name));
                 }

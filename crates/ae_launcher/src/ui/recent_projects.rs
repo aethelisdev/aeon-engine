@@ -1,180 +1,240 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+//! # Launcher Recent Projects Declarative View
+//!
+//! Renders the list of recently opened projects using pure declarative [`UiScope`] primitives,
+//! offering dimension indicators, project directory paths, and launch interaction triggers.
+
+use std::path::PathBuf;
+
 use irisui::prelude::*;
 
 use crate::icons::{ICON_CUBE, ICON_FOLDER, ICON_SELECT};
-use crate::project::ProjectRegistry;
-use crate::ui::types::ViewLayoutContext;
+use crate::project::{ProjectConfig, ProjectRegistry};
+use crate::ui::types::LauncherAction;
 
-/// Builds the Recent Projects tab content view into the UI tree.
-///
-/// Iterates over recent projects stored in the registry, constructs project cards,
-/// badges (2D vs 3D icon indicator), file paths, and launch action buttons.
+/// Semantic tag base offset for project card click triggers.
+pub const TAG_PROJECT_CARD_BASE: u64 = 0xB000;
+
+/// Semantic tag base offset for explicit project open button click triggers.
+pub const TAG_PROJECT_OPEN_BASE: u64 = 0xC000;
+
+/// Builds the Recent Projects tab content view into the declarative [`UiScope`].
 pub fn build_recent_projects_view(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    ctx: ViewLayoutContext<'_>,
+    scope: &mut UiScope<'_>,
     registry: &ProjectRegistry,
-) {
-    let start_x = ctx.start_x;
-    let content_w = ctx.content_w;
-    let cursor_pos = ctx.cursor_pos;
+) -> Option<LauncherAction> {
+    scope.container_named(
+        "RecentProjectsContent",
+        Style::new()
+            .flex_col()
+            .padding_insets(Insets::new(24.0, 32.0, 24.0, 32.0))
+            .gap(16.0),
+        |view| {
+            render_projects_header(view);
+            render_projects_list(view, registry);
+        },
+    );
 
-    // Header title
-    let header_id = tree.create_node();
-    if let Some(node) = tree.get_mut(header_id) {
-        node.set_text("Projects");
-        node.font_size = 20.0;
-        node.text_color = Color::hex("#ffffff");
-        node.computed_rect = Rect::new(start_x + 32.0, 24.0, 200.0, 28.0);
-    }
-    let _ = tree.add_child(parent_id, header_id);
+    eval_projects_action(scope, registry)
+}
 
-    let subhead_id = tree.create_node();
-    if let Some(node) = tree.get_mut(subhead_id) {
-        node.set_text("Select a recent project to launch the editor.");
-        node.font_size = 11.5;
-        node.text_color = Color::hex("#73798c");
-        node.computed_rect = Rect::new(start_x + 32.0, 54.0, 400.0, 20.0);
-    }
-    let _ = tree.add_child(parent_id, subhead_id);
+/// Renders section heading and description typography.
+fn render_projects_header(scope: &mut UiScope<'_>) {
+    scope.container_named(
+        "ProjectsHeaderGroup",
+        Style::new().flex_col().gap(6.0),
+        |header| {
+            header.label_styled_passive(
+                "ProjectsTitle",
+                "Projects",
+                20.0,
+                header.theme().text_primary,
+                TextAlign::Left,
+                Style::new().width(200.0).height(28.0),
+            );
+            header.label_styled_passive(
+                "ProjectsSubtitle",
+                "Select a recent project to launch the editor.",
+                11.5,
+                header.theme().text_secondary,
+                TextAlign::Left,
+                Style::new().width(400.0).height(20.0),
+            );
+        },
+    );
+}
 
-    let mut card_y = 90.0;
-    let card_w = content_w - 64.0;
-    let card_h = 56.0;
-
+/// Renders the list of recent project cards or an empty state placeholder.
+fn render_projects_list(scope: &mut UiScope<'_>, registry: &ProjectRegistry) {
     if registry.recent_projects.is_empty() {
-        let empty_id = tree.create_node();
-        if let Some(node) = tree.get_mut(empty_id) {
-            node.set_text("No recent projects found. Click 'New Project' to create one.");
-            node.font_size = 12.0;
-            node.text_color = Color::hex("#525866");
-            node.computed_rect = Rect::new(start_x + 32.0, card_y + 20.0, 500.0, 24.0);
-        }
-        let _ = tree.add_child(parent_id, empty_id);
+        render_empty_state(scope);
         return;
     }
 
-    for (idx, project) in registry.recent_projects.iter().enumerate() {
-        if idx >= 10 {
-            break;
-        }
-
-        let card_rect = Rect::new(start_x + 32.0, card_y, card_w, card_h);
-        let is_hovered = card_rect.contains_point(cursor_pos);
-
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.computed_rect = card_rect;
-            let bg = if is_hovered {
-                Color::hex("#181c25")
-            } else {
-                Color::hex("#13161d")
-            };
-            let border = if is_hovered {
-                Color::hex("#283040")
-            } else {
-                Color::hex("#1e222d")
-            };
-            node.style = Style::new()
-                .background(bg)
-                .border_radius(8.0)
-                .border(1.0, border);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        // Project Mode Badge: 2D (🟩 Emerald) vs 3D (🟦 Cyan Cube)
-        let is_2d = project.dimension_mode.to_uppercase() == "2D";
-        let badge_icon_id = tree.create_node();
-        if let Some(node) = tree.get_mut(badge_icon_id) {
-            node.computed_rect = Rect::new(start_x + 48.0, card_y + 18.0, 20.0, 20.0);
-            if is_2d {
-                node.set_texture_uv(ICON_FOLDER);
-                node.set_texture_tint(Color::hex("#2ecc71"));
-            } else {
-                node.set_texture_uv(ICON_CUBE);
-                node.set_texture_tint(Color::hex("#00e5ff"));
+    scope.container_named(
+        "ProjectsCardList",
+        Style::new().flex_col().gap(10.0),
+        |list| {
+            for (idx, project) in registry.recent_projects.iter().take(10).enumerate() {
+                render_project_card(list, idx, project);
             }
-        }
-        let _ = tree.add_child(card_id, badge_icon_id);
+        },
+    );
+}
 
-        // Project Name
-        let name_id = tree.create_node();
-        if let Some(node) = tree.get_mut(name_id) {
-            node.set_text(&project.name);
-            node.font_size = 13.0;
-            node.text_color = Color::hex("#ffffff");
-            node.computed_rect = Rect::new(start_x + 78.0, card_y + 11.0, 300.0, 18.0);
-        }
-        let _ = tree.add_child(card_id, name_id);
+/// Renders the placeholder label when no recent projects are registered.
+fn render_empty_state(scope: &mut UiScope<'_>) {
+    scope.label_styled_passive(
+        "EmptyProjectsLabel",
+        "No recent projects found. Click 'New Project' to create one.",
+        12.0,
+        scope.theme().text_muted,
+        TextAlign::Left,
+        Style::new().width(500.0).height(24.0),
+    );
+}
 
-        // Project Path & Mode Badge Text
-        let detail_text = format!(
-            "[{}] • {}",
-            if is_2d { "2D Sprite" } else { "3D Spatial" },
-            project.path
+/// Renders an individual project card using the declarative [`ActionCardConfig`] primitive.
+fn render_project_card(scope: &mut UiScope<'_>, idx: usize, project: &ProjectConfig) {
+    scope.action_card(
+        "ProjectCard",
+        ActionCardConfig::new(&project.name)
+            .subtitle(format_project_detail(project))
+            .atlas_icon(project_mode_icon(project))
+            .icon_tint(project_mode_tint(project, &scope.theme()))
+            .tag(TAG_PROJECT_CARD_BASE + idx as u64)
+            .action_button("Open", ICON_SELECT, TAG_PROJECT_OPEN_BASE + idx as u64),
+    );
+}
+
+/// Resolves the GPU SDF atlas icon coordinates matching the project dimension mode.
+#[inline]
+fn project_mode_icon(project: &ProjectConfig) -> [f32; 4] {
+    if project.dimension_mode.eq_ignore_ascii_case("2D") {
+        ICON_FOLDER
+    } else {
+        ICON_CUBE
+    }
+}
+
+/// Resolves the visual indicator tint color matching the project dimension mode.
+#[inline]
+fn project_mode_tint(project: &ProjectConfig, theme: &Theme) -> Color {
+    if project.dimension_mode.eq_ignore_ascii_case("2D") {
+        Color::hex("#2ecc71")
+    } else {
+        theme.accent
+    }
+}
+
+/// Evaluates card and open button clicks across the recent projects list.
+pub fn eval_projects_action(
+    scope: &mut UiScope<'_>,
+    registry: &ProjectRegistry,
+) -> Option<LauncherAction> {
+    registry
+        .recent_projects
+        .iter()
+        .take(10)
+        .enumerate()
+        .find_map(|(idx, project)| {
+            (scope.tag_clicked(TAG_PROJECT_CARD_BASE + idx as u64)
+                || scope.tag_clicked(TAG_PROJECT_OPEN_BASE + idx as u64))
+            .then(|| {
+                LauncherAction::OpenProject(
+                    PathBuf::from(&project.path),
+                    project.dimension_mode.clone(),
+                )
+            })
+        })
+}
+
+/// Formats the project detail description string with dimension tag and absolute path.
+fn format_project_detail(project: &ProjectConfig) -> String {
+    if project.dimension_mode.eq_ignore_ascii_case("2D") {
+        format!("[2D Sprite] • {}", project.path)
+    } else {
+        format!("[3D Spatial] • {}", project.path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_recent_projects_view_renders_cards() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let mut registry = ProjectRegistry::default();
+        registry.recent_projects.push(ProjectConfig {
+            name: "AlphaProject".to_string(),
+            path: "/tmp/alpha".to_string(),
+            dimension_mode: "3D".to_string(),
+            last_opened: 100,
+            ..Default::default()
+        });
+
+        let action = build_recent_projects_view(&mut UiScope::new(&mut tree, root), &registry);
+
+        assert_eq!(action, None);
+
+        let has_content = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("RecentProjectsContent"));
+        let has_card = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("ProjectCard"));
+        let has_name = tree
+            .iter()
+            .any(|(_, n)| n.text.as_deref() == Some("AlphaProject"));
+
+        assert!(has_content, "RecentProjectsContent container must exist");
+        assert!(has_card, "ProjectCard container must exist");
+        assert!(has_name, "AlphaProject name label must exist");
+    }
+
+    #[test]
+    fn test_build_recent_projects_view_empty_state() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let registry = ProjectRegistry::default();
+
+        let action = build_recent_projects_view(&mut UiScope::new(&mut tree, root), &registry);
+
+        assert_eq!(action, None);
+
+        let has_empty = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("EmptyProjectsLabel"));
+        assert!(has_empty, "EmptyProjectsLabel must exist when empty");
+    }
+
+    #[test]
+    fn test_eval_projects_action_click_dispatches_open_project() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let mut registry = ProjectRegistry::default();
+        registry.recent_projects.push(ProjectConfig {
+            name: "BetaProject".to_string(),
+            path: "/tmp/beta".to_string(),
+            dimension_mode: "3D".to_string(),
+            last_opened: 200,
+            ..Default::default()
+        });
+
+        tree.event_state.frame_clicked_tag = Some(TAG_PROJECT_OPEN_BASE);
+
+        let action = build_recent_projects_view(&mut UiScope::new(&mut tree, root), &registry);
+
+        assert_eq!(
+            action,
+            Some(LauncherAction::OpenProject(
+                PathBuf::from("/tmp/beta"),
+                "3D".to_string(),
+            ))
         );
-        let path_id = tree.create_node();
-        if let Some(node) = tree.get_mut(path_id) {
-            node.set_text(&detail_text);
-            node.font_size = 10.5;
-            node.text_color = Color::hex("#6b7280");
-            node.computed_rect = Rect::new(start_x + 78.0, card_y + 30.0, card_w - 200.0, 16.0);
-        }
-        let _ = tree.add_child(card_id, path_id);
-
-        // Launch Button on right side of card
-        let btn_w = 78.0;
-        let btn_h = 28.0;
-        let btn_rect = Rect::new(
-            start_x + 32.0 + card_w - btn_w - 14.0,
-            card_y + (card_h - btn_h) * 0.5,
-            btn_w,
-            btn_h,
-        );
-        let btn_hovered = btn_rect.contains_point(cursor_pos);
-
-        let launch_btn_id = tree.create_node();
-        if let Some(node) = tree.get_mut(launch_btn_id) {
-            node.computed_rect = btn_rect;
-            node.style = Style::new()
-                .background(if btn_hovered {
-                    Color::hex("#00c4db")
-                } else {
-                    Color::hex("#00e5ff")
-                })
-                .border_radius(5.0);
-        }
-        let _ = tree.add_child(card_id, launch_btn_id);
-
-        let launch_icon_id = tree.create_node();
-        if let Some(node) = tree.get_mut(launch_icon_id) {
-            node.computed_rect = Rect::new(
-                start_x + 32.0 + card_w - btn_w + 8.0,
-                card_y + (card_h - btn_h) * 0.5 + 7.0,
-                14.0,
-                14.0,
-            );
-            node.set_texture_uv(ICON_SELECT);
-            node.set_texture_tint(Color::hex("#0a0c10"));
-        }
-        let _ = tree.add_child(card_id, launch_icon_id);
-
-        let launch_lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(launch_lbl_id) {
-            node.set_text("Open");
-            node.font_size = 11.0;
-            node.text_color = Color::hex("#0a0c10");
-            node.computed_rect = Rect::new(
-                start_x + 32.0 + card_w - btn_w + 26.0,
-                card_y + (card_h - btn_h) * 0.5 + 6.0,
-                46.0,
-                16.0,
-            );
-        }
-        let _ = tree.add_child(card_id, launch_lbl_id);
-
-        card_y += card_h + 10.0;
     }
 }

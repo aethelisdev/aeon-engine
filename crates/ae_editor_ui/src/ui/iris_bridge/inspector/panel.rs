@@ -8,7 +8,7 @@ use super::appearance;
 use super::color_picker_popup;
 use super::footer;
 use super::header;
-use super::registry::{ComponentRenderContext, InspectorRegistry};
+use super::registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 use super::transform;
 use super::types::InspectorPanelParams;
 use super::ui_transform;
@@ -72,14 +72,13 @@ pub fn build_inspector_panel(
                                 saved_swatches,
                                 is_color_picker_open,
                             ),
-                            {
-                                render_registry_cards(cards_scope, &mut ctx);
+                            render_registry_cards(cards_scope, &mut ctx).or(
                                 super::components::hierarchy::draw_parent_card_if_present(
                                     cards_scope,
                                     ctx.world,
                                     ctx.entity,
-                                )
-                            },
+                                ),
+                            ),
                         )
                     },
                 )
@@ -151,22 +150,60 @@ pub fn render_primary_cards(
         .is_ok()
     {
         ui_transform::build_ui_transform_card(scope, ctx);
-        None
+        component_delete_action(scope, ctx.entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
         transform::build_transform_card(scope, ctx);
         appearance::build_appearance_card(scope, ctx, saved_swatches, is_color_picker_open)
     }
 }
 
-/// Renders the dynamically registered non-hierarchy component inspector cards.
-pub fn render_registry_cards(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    for handler in InspectorRegistry::global().handlers() {
-        if handler.category() != super::types::ComponentCategory::Hierarchy
-            && handler.has_component(ctx.world, ctx.entity)
-        {
-            handler.render_card(scope, ctx);
-        }
-    }
+/// Renders the dynamically registered non-hierarchy component inspector cards and returns the
+/// first [`crate::ui::types::EngineUiAction::RemoveComponent`] whose card delete button was
+/// clicked in this frame.
+///
+/// Every visible card is always rendered: `Option::or` evaluates its argument eagerly, so the
+/// fold never short-circuits the remaining cards after an action has been found.
+pub fn render_registry_cards(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+) -> Option<crate::ui::types::EngineUiAction> {
+    InspectorRegistry::global()
+        .handlers()
+        .iter()
+        .fold(None, |action, handler| {
+            action.or(render_registry_card(scope, ctx, handler.as_ref()))
+        })
+}
+
+/// Renders one registry card when its component is present on the inspected entity (hierarchy
+/// cards are drawn separately), then maps a click on its delete button into `RemoveComponent`.
+fn render_registry_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    handler: &dyn ComponentInspectorHandler,
+) -> Option<crate::ui::types::EngineUiAction> {
+    (handler.category() != super::types::ComponentCategory::Hierarchy
+        && handler.has_component(ctx.world, ctx.entity))
+    .then(|| handler.render_card(scope, ctx))
+    .and_then(|()| component_delete_action(scope, ctx.entity, handler.component_name()))
+}
+
+/// Maps a click on the card delete button of `component_name` during the active frame directly
+/// into [`crate::ui::types::EngineUiAction::RemoveComponent`].
+///
+/// The delete button carries the persistent tag produced by
+/// [`super::tags::encode_component_delete_tag`], so the click survives the retained subtree
+/// rebuild and is resolved in `O(1)` through [`UiScope::map_tag_clicked`] without any
+/// intermediate `InspectorAction` queue.
+fn component_delete_action(
+    scope: &UiScope<'_>,
+    entity: hecs::Entity,
+    component_name: &'static str,
+) -> Option<crate::ui::types::EngineUiAction> {
+    scope.map_tag_clicked(
+        super::tags::encode_component_delete_tag(component_name),
+        || crate::ui::types::EngineUiAction::RemoveComponent(entity, component_name),
+    )
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor,
