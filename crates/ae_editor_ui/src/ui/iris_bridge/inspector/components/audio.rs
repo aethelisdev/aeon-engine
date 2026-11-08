@@ -32,6 +32,9 @@ pub fn apply_picked_audio_path(
 
 /// Renders the declarative Audio Source component card with asset file slot, volume/pitch scrubbers,
 /// and spatial/looping/play-on-start checkboxes.
+///
+/// Modifies `audio` fields in-place via [`UiScope::prop_f32`], [`UiScope::prop_checkbox`], and [`UiScope::asset_slot_row`],
+/// automatically recording atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
 pub fn draw_audio_source_card(
     scope: &mut UiScope<'_>,
     ctx: &mut ComponentRenderContext<'_>,
@@ -54,36 +57,35 @@ pub fn draw_audio_source_card(
             audio.is_playing = !audio.is_playing;
         });
 
-        ctx.prop_f32(
-            card,
-            "AudioSource",
-            "Volume:",
-            &mut audio.volume,
-            0.0..=1.0,
-            0.02,
-        );
-        ctx.prop_f32(
-            card,
-            "AudioSource",
-            "Pitch:",
-            &mut audio.pitch,
-            0.1..=10.0,
-            0.05,
-        );
+        card.prop_f32("Volume:", &mut audio.volume, 0.0..=1.0, 0.02)
+            .on_commit(|_| {
+                ctx.begin_edit("AudioSource");
+                ctx.commit_edit("AudioSource");
+            });
 
-        ctx.prop_checkbox(
-            card,
-            "AudioSource",
-            "Spatial 3D Audio",
-            &mut audio.is_spatial,
-        );
-        ctx.prop_checkbox(card, "AudioSource", "Looping", &mut audio.looping);
-        ctx.prop_checkbox(
-            card,
-            "AudioSource",
-            "Play on Start",
-            &mut audio.play_on_start,
-        );
+        card.prop_f32("Pitch:", &mut audio.pitch, 0.1..=10.0, 0.05)
+            .on_commit(|_| {
+                ctx.begin_edit("AudioSource");
+                ctx.commit_edit("AudioSource");
+            });
+
+        card.prop_checkbox("Spatial 3D Audio", &mut audio.is_spatial)
+            .on_click(|| {
+                ctx.begin_edit("AudioSource");
+                ctx.commit_edit("AudioSource");
+            });
+
+        card.prop_checkbox("Looping", &mut audio.looping)
+            .on_click(|| {
+                ctx.begin_edit("AudioSource");
+                ctx.commit_edit("AudioSource");
+            });
+
+        card.prop_checkbox("Play on Start", &mut audio.play_on_start)
+            .on_click(|| {
+                ctx.begin_edit("AudioSource");
+                ctx.commit_edit("AudioSource");
+            });
     });
 }
 
@@ -116,14 +118,33 @@ impl ComponentInspectorHandler for AudioSourceHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        if let Ok(mut audio) = ctx.world.get::<&mut ae_audio::AudioSource>(ctx.entity) {
-            draw_audio_source_card(scope, ctx, &mut audio);
-        }
+        scope.when_ok(
+            ctx.world.get::<&mut ae_audio::AudioSource>(ctx.entity),
+            |card, mut audio| {
+                draw_audio_source_card(card, ctx, &mut audio);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         drop(world.insert_one(entity, ae_audio::AudioSource::default()));
     }
+}
+
+/// Renders the declarative Audio Listener component card displaying the 3D spatial microphone status.
+pub fn draw_audio_listener_card(scope: &mut UiScope<'_>) {
+    scope.card_panel("AudioListenerCard", |card| {
+        AudioListenerHandler.render_header(card);
+
+        card.label_styled_passive(
+            "AudioListenerDesc",
+            "Active 3D spatial microphone & ear for scene audio.",
+            10.5,
+            card.theme().text_muted,
+            TextAlign::Left,
+            Style::new().height(20.0),
+        );
+    });
 }
 
 /// Inspector handler for `👂 AudioListener` component.
@@ -154,19 +175,11 @@ impl ComponentInspectorHandler for AudioListenerHandler {
         world.get::<&ae_audio::AudioListener>(entity).is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        scope.card_panel("AudioListenerCard", |card| {
-            self.render_header(card);
-
-            card.label_styled_passive(
-                "AudioListenerDesc",
-                "Active 3D spatial microphone & ear for scene audio.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        });
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+        scope.when(
+            self.has_component(ctx.world, ctx.entity),
+            draw_audio_listener_card,
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -331,6 +344,90 @@ mod tests {
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "AudioListener card must tag delete button with semantic delete tag"
+        );
+    }
+
+    #[test]
+    fn test_draw_audio_source_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_audio::AudioSource::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+
+        let mut audio = ae_audio::AudioSource::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_audio_source_card(&mut scope, &mut ctx, &mut audio);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AudioSourceCard")),
+            "AudioSourceCard container must be rendered"
+        );
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "AudioSource must emit exactly 2 numeric pills (Volume, Pitch)"
+        );
+        let checkboxes = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("Checkbox"))
+            .count();
+        assert_eq!(
+            checkboxes, 3,
+            "AudioSource must emit exactly 3 checkboxes (Spatial, Looping, Play on Start)"
+        );
+    }
+
+    #[test]
+    fn test_draw_audio_listener_card_standalone() {
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_audio_listener_card(&mut scope);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AudioListenerCard")),
+            "AudioListenerCard container must be rendered"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AudioListenerDesc")),
+            "AudioListenerDesc passive label must be rendered"
         );
     }
 }

@@ -63,10 +63,13 @@ pub fn draw_parent_card_if_present(
     world: &hecs::World,
     entity: hecs::Entity,
 ) -> Option<EngineUiAction> {
-    (world.get::<&ae_core::ecs::Parent>(entity).is_ok()
-        || world.get::<&ae_core::ecs::Children>(entity).is_ok())
-    .then(|| draw_parent_card(scope, world, entity))
-    .flatten()
+    scope
+        .when(
+            world.get::<&ae_core::ecs::Parent>(entity).is_ok()
+                || world.get::<&ae_core::ecs::Children>(entity).is_ok(),
+            |s| draw_parent_card(s, world, entity),
+        )
+        .flatten()
 }
 
 /// Inspector handler for entity hierarchy and parenting relationships.
@@ -103,7 +106,7 @@ impl ComponentInspectorHandler for ParentHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        drop(draw_parent_card(scope, ctx.world, ctx.entity));
+        drop(draw_parent_card_if_present(scope, ctx.world, ctx.entity));
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -154,5 +157,57 @@ mod tests {
             panic!("Expected EngineUiAction::UnparentEntity");
         };
         assert_eq!(ent, child);
+    }
+
+    #[test]
+    fn test_draw_parent_card_root_entity_display() {
+        let mut world = hecs::World::new();
+        let root_ent = world.spawn((ae_core::ecs::Children(vec![]),));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let action = draw_parent_card(&mut scope, &world, root_ent);
+        assert!(action.is_none());
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ParentingCard")),
+            "ParentingCard must be rendered"
+        );
+        let has_root_lbl = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("ParentRootLbl")
+                && n.text
+                    .as_deref()
+                    .is_some_and(|t| t.contains("Parent: None (Root Entity)"))
+        });
+        assert!(has_root_lbl, "ParentRootLbl must display Root Entity");
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UnparentBtn")),
+            "Unparent button must not exist for root entity"
+        );
+    }
+
+    #[test]
+    fn test_draw_parent_card_if_present_skips_orphan() {
+        let mut world = hecs::World::new();
+        let orphan = world.spawn((ae_core::ecs::Name("Orphan".to_string()),));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let action = draw_parent_card_if_present(&mut scope, &world, orphan);
+        assert!(action.is_none());
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ParentingCard")),
+            "ParentingCard must not be rendered for non-participating entity"
+        );
     }
 }

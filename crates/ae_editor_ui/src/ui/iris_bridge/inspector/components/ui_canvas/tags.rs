@@ -10,8 +10,23 @@
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
-
 use irisui::prelude::*;
+
+/// Renders the declarative PlayerHealthBarTag HUD marker component card.
+pub fn draw_player_health_bar_tag_card(scope: &mut UiScope<'_>) {
+    scope.card_panel("PlayerHealthBarTagCard", |card| {
+        PlayerHealthBarTagHandler.render_header(card);
+
+        card.label_styled_passive(
+            "HealthBarTagDesc",
+            "Links this UI progress bar to active player health events.",
+            10.5,
+            card.theme().text_muted,
+            TextAlign::Left,
+            Style::new().height(20.0),
+        );
+    });
+}
 
 /// Inspector handler for `PlayerHealthBarTag` HUD marker component.
 pub struct PlayerHealthBarTagHandler;
@@ -43,24 +58,32 @@ impl ComponentInspectorHandler for PlayerHealthBarTagHandler {
             .is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        scope.card_panel("PlayerHealthBarTagCard", |card| {
-            self.render_header(card);
-
-            card.label_styled_passive(
-                "HealthBarTagDesc",
-                "Links this UI progress bar to active player health events.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        });
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+        scope.when(
+            self.has_component(ctx.world, ctx.entity),
+            draw_player_health_bar_tag_card,
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::PlayerHealthBarTag);
+        drop(world.insert_one(entity, ae_core::ecs::PlayerHealthBarTag));
     }
+}
+
+/// Renders the declarative ScoreDisplayTag HUD marker component card.
+pub fn draw_score_display_tag_card(scope: &mut UiScope<'_>) {
+    scope.card_panel("ScoreDisplayTagCard", |card| {
+        ScoreDisplayTagHandler.render_header(card);
+
+        card.label_styled_passive(
+            "ScoreDisplayTagDesc",
+            "Links this UI text to active player score events.",
+            10.5,
+            card.theme().text_muted,
+            TextAlign::Left,
+            Style::new().height(20.0),
+        );
+    });
 }
 
 /// Inspector handler for `🏆 ScoreDisplayTag` HUD marker component.
@@ -91,24 +114,32 @@ impl ComponentInspectorHandler for ScoreDisplayTagHandler {
         world.get::<&ae_core::ecs::ScoreDisplayTag>(entity).is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        scope.card_panel("ScoreDisplayTagCard", |card| {
-            self.render_header(card);
-
-            card.label_styled_passive(
-                "ScoreDisplayTagDesc",
-                "Links this UI text to active player score events.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        });
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+        scope.when(
+            self.has_component(ctx.world, ctx.entity),
+            draw_score_display_tag_card,
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::ScoreDisplayTag);
+        drop(world.insert_one(entity, ae_core::ecs::ScoreDisplayTag));
     }
+}
+
+/// Renders the declarative ReticleTag HUD marker component card.
+pub fn draw_reticle_tag_card(scope: &mut UiScope<'_>) {
+    scope.card_panel("ReticleTagCard", |card| {
+        ReticleTagHandler.render_header(card);
+
+        card.label_styled_passive(
+            "ReticleTagDesc",
+            "Marks this UI element as the primary crosshair reticle.",
+            10.5,
+            card.theme().text_muted,
+            TextAlign::Left,
+            Style::new().height(20.0),
+        );
+    });
 }
 
 /// Inspector handler for `🎯 ReticleTag` HUD marker component.
@@ -139,22 +170,76 @@ impl ComponentInspectorHandler for ReticleTagHandler {
         world.get::<&ae_core::ecs::ReticleTag>(entity).is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        scope.card_panel("ReticleTagCard", |card| {
-            self.render_header(card);
-
-            card.label_styled_passive(
-                "ReticleTagDesc",
-                "Marks this UI element as the primary crosshair reticle.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        });
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+        scope.when(
+            self.has_component(ctx.world, ctx.entity),
+            draw_reticle_tag_card,
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::ReticleTag);
+        drop(world.insert_one(entity, ae_core::ecs::ReticleTag));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_player_health_bar_tag_card_standalone() {
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_player_health_bar_tag_card(&mut scope);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("PlayerHealthBarTagCard")),
+            "PlayerHealthBarTagCard container must be rendered"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("HealthBarTagDesc")),
+            "HealthBarTagDesc label must be rendered"
+        );
+    }
+
+    #[test]
+    fn test_draw_score_display_tag_card_standalone() {
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_score_display_tag_card(&mut scope);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ScoreDisplayTagCard")),
+            "ScoreDisplayTagCard container must be rendered"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ScoreDisplayTagDesc")),
+            "ScoreDisplayTagDesc label must be rendered"
+        );
+    }
+
+    #[test]
+    fn test_draw_reticle_tag_card_standalone() {
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_reticle_tag_card(&mut scope);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ReticleTagCard")),
+            "ReticleTagCard container must be rendered"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ReticleTagDesc")),
+            "ReticleTagDesc label must be rendered"
+        );
     }
 }

@@ -11,7 +11,6 @@
 //! - `UiButton`
 //! - `UiImage`
 
-use super::super::super::context::{PropComboMapConfig, PropComboRowLayout};
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
 use ae_core::ui::UiTextAlignment;
@@ -51,8 +50,34 @@ impl ComponentInspectorHandler for UiElementHandler {
     fn render_card(&self, _scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {}
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiElement::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiElement::default()));
     }
+}
+
+/// Renders the declarative UI Background Panel component card with border width and corner radius.
+///
+/// Modifies `p.border_width` and `p.corner_radius` in-place via [`UiScope::prop_f32`], automatically
+/// recording atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
+pub fn draw_ui_panel_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    p: &mut ae_core::ecs::UiPanel,
+) {
+    scope.card_panel("UiPanelCard", |card| {
+        UiPanelHandler.render_header(card);
+
+        card.prop_f32("Border Width:", &mut p.border_width, 0.0..=50.0, 0.5)
+            .on_commit(|_| {
+                ctx.begin_edit("UiPanel");
+                ctx.commit_edit("UiPanel");
+            });
+
+        card.prop_f32("Corner Radius:", &mut p.corner_radius, 0.0..=100.0, 0.5)
+            .on_commit(|_| {
+                ctx.begin_edit("UiPanel");
+                ctx.commit_edit("UiPanel");
+            });
+    });
 }
 
 /// Inspector handler for `🔲 UiPanel` background container component.
@@ -84,36 +109,64 @@ impl ComponentInspectorHandler for UiPanelHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut p) = ctx.world.get::<&mut ae_core::ecs::UiPanel>(ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("UiPanelCard", |card| {
-            self.render_header(card);
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Border Width:",
-                &mut p.border_width,
-                0.0..=50.0,
-                0.5,
-            );
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Corner Radius:",
-                &mut p.corner_radius,
-                0.0..=100.0,
-                0.5,
-            );
-        });
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::UiPanel>(ctx.entity),
+            |card, mut p| {
+                draw_ui_panel_card(card, ctx, &mut p);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiPanel::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiPanel::default()));
     }
+}
+
+/// Renders the declarative UI Text Label component card with text content, font size, and alignment.
+///
+/// Modifies `t.text`, `t.font_size`, and `t.alignment` in-place via [`UiScope::prop_text`],
+/// [`UiScope::prop_f32`], and [`UiScope::prop_combobox_mapped_styled`], recording atomic Undo/Redo
+/// sessions without intermediate imperative plumbing.
+pub fn draw_ui_text_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    t: &mut ae_core::ecs::UiText,
+) {
+    scope.card_panel("UiTextCard", |card| {
+        UiTextHandler.render_header(card);
+
+        // Row 1: Text string property editor
+        card.prop_text("Text", &mut t.text);
+
+        // Row 2: Font Size
+        card.prop_f32("Font Size:", &mut t.font_size, 6.0..=128.0, 0.5)
+            .on_commit(|_| {
+                ctx.begin_edit("UiText");
+                ctx.commit_edit("UiText");
+            });
+
+        // Row 3: Text Alignment Dropdown
+        card.prop_combobox_mapped_styled(
+            "Align:",
+            match t.alignment {
+                UiTextAlignment::Left => 0,
+                UiTextAlignment::Center => 1,
+                UiTextAlignment::Right => 2,
+            },
+            &["Left", "Center", "Right"],
+            ComboRowLayout::new(52.0, 80.0),
+            &mut t.alignment,
+            |idx| match idx {
+                0 => UiTextAlignment::Left,
+                1 => UiTextAlignment::Center,
+                _ => UiTextAlignment::Right,
+            },
+        )
+        .on_change(|| {
+            ctx.begin_edit("UiText");
+            ctx.commit_edit("UiText");
+        });
+    });
 }
 
 /// Inspector handler for `🔤 UiText` label component.
@@ -145,53 +198,63 @@ impl ComponentInspectorHandler for UiTextHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut t) = ctx.world.get::<&mut ae_core::ecs::UiText>(ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("UiTextCard", |card| {
-            self.render_header(card);
-
-            // Row 1: Text string property editor
-            card.prop_text("Text", &mut t.text);
-
-            // Row 2: Font Size
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Font Size:",
-                &mut t.font_size,
-                6.0..=128.0,
-                0.5,
-            );
-
-            // Row 3: Text Alignment Dropdown
-            ctx.prop_combobox_mapped(
-                card,
-                self.component_name(),
-                PropComboMapConfig::new(
-                    "Align:",
-                    match t.alignment {
-                        UiTextAlignment::Left => 0,
-                        UiTextAlignment::Center => 1,
-                        UiTextAlignment::Right => 2,
-                    },
-                    &["Left", "Center", "Right"],
-                    PropComboRowLayout::new(52.0, 80.0),
-                ),
-                &mut t.alignment,
-                |idx| match idx {
-                    0 => UiTextAlignment::Left,
-                    1 => UiTextAlignment::Center,
-                    _ => UiTextAlignment::Right,
-                },
-            );
-        });
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::UiText>(ctx.entity),
+            |card, mut t| {
+                draw_ui_text_card(card, ctx, &mut t);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiText::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiText::default()));
     }
+}
+
+/// Renders the declarative UI Progress Bar component card with min, max, value scrubbers and visual track.
+///
+/// Modifies `pb.min`, `pb.max`, and `pb.value` in-place via [`UiScope::prop_f32`], automatically
+/// recording atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
+pub fn draw_ui_progress_bar_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    pb: &mut ae_core::ecs::UiProgressBar,
+) {
+    scope.card_panel("UiProgressBarCard", |card| {
+        UiProgressBarHandler.render_header(card);
+
+        card.prop_f32("Min:", &mut pb.min, -100_000.0..=100_000.0, 1.0)
+            .on_commit(|_| {
+                ctx.begin_edit("UiProgressBar");
+                ctx.commit_edit("UiProgressBar");
+            });
+
+        card.prop_f32("Max:", &mut pb.max, -100_000.0..=100_000.0, 1.0)
+            .on_commit(|_| {
+                ctx.begin_edit("UiProgressBar");
+                ctx.commit_edit("UiProgressBar");
+            });
+
+        card.prop_f32("Value:", &mut pb.value, pb.min..=pb.max, 1.0)
+            .on_commit(|_| {
+                ctx.begin_edit("UiProgressBar");
+                ctx.commit_edit("UiProgressBar");
+            });
+
+        // Visual Mini Progress Bar track + fill
+        card.progress_bar_named(
+            "MiniBarTrack",
+            "MiniBarFill",
+            (ctx.card_w - 20.0).max(10.0),
+            10.0,
+            if pb.max > pb.min {
+                ((pb.value - pb.min) / (pb.max - pb.min)).clamp(0.0, 1.0)
+            } else {
+                0.0
+            },
+            card.theme().accent,
+        );
+    });
 }
 
 /// Inspector handler for `📊 UiProgressBar`.
@@ -223,78 +286,38 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut pb) = ctx
-            .world
-            .get::<&mut ae_core::ecs::UiProgressBar>(ctx.entity)
-        else {
-            return;
-        };
-
-        let min = pb.min;
-        let max = pb.max;
-        let val_range = min..=max;
-        let frac = if max > min {
-            ((pb.value - min) / (max - min)).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-
-        scope.card_panel("UiProgressBarCard", |card| {
-            self.render_header(card);
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Min:",
-                &mut pb.min,
-                -100_000.0..=100_000.0,
-                1.0,
-            );
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Max:",
-                &mut pb.max,
-                -100_000.0..=100_000.0,
-                1.0,
-            );
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Value:",
-                &mut pb.value,
-                val_range,
-                1.0,
-            );
-
-            // Visual Mini Progress Bar track + fill
-            let track_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(10.0)
-                .background(card.theme().scrollbar_track)
-                .border(1.0, card.theme().card_border)
-                .border_radius(card.theme().corner_radius_sm);
-
-            card.container_named("MiniBarTrack", track_style, |track| {
-                if frac > 0.001 {
-                    let fill_w = ((ctx.card_w - 20.0) * frac).max(2.0);
-                    let fill_style = Style::new()
-                        .width(fill_w)
-                        .height(10.0)
-                        .background(track.theme().accent)
-                        .border_radius(track.theme().corner_radius_sm);
-                    track.empty_box_passive_named("MiniBarFill", fill_style);
-                }
-            });
-        });
+        scope.when_ok(
+            ctx.world
+                .get::<&mut ae_core::ecs::UiProgressBar>(ctx.entity),
+            |card, mut pb| {
+                draw_ui_progress_bar_card(card, ctx, &mut pb);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiProgressBar::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiProgressBar::default()));
     }
+}
+
+/// Renders the declarative Interactive Button component card with enable toggle.
+///
+/// Modifies `b.is_enabled` in-place via [`UiScope::prop_checkbox`], automatically
+/// recording atomic Undo/Redo sessions on user click without intermediate imperative plumbing.
+pub fn draw_ui_button_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    b: &mut ae_core::ecs::UiButton,
+) {
+    scope.card_panel("UiButtonCard", |card| {
+        UiButtonHandler.render_header(card);
+
+        card.prop_checkbox("Enabled", &mut b.is_enabled)
+            .on_click(|| {
+                ctx.begin_edit("UiButton");
+                ctx.commit_edit("UiButton");
+            });
+    });
 }
 
 /// Inspector handler for `🔘 UiButton`.
@@ -326,20 +349,42 @@ impl ComponentInspectorHandler for UiButtonHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut b) = ctx.world.get::<&mut ae_core::ecs::UiButton>(ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("UiButtonCard", |card| {
-            self.render_header(card);
-
-            ctx.prop_checkbox(card, self.component_name(), "Enabled", &mut b.is_enabled);
-        });
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::UiButton>(ctx.entity),
+            |card, mut b| {
+                draw_ui_button_card(card, ctx, &mut b);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiButton::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiButton::default()));
     }
+}
+
+/// Renders the declarative UI Sprite Image component card with slice mode display.
+pub fn draw_ui_image_card(
+    scope: &mut UiScope<'_>,
+    _ctx: &mut ComponentRenderContext<'_>,
+    img: &ae_core::ecs::UiImage,
+) {
+    scope.card_panel("UiImageCard", |card| {
+        UiImageHandler.render_header(card);
+
+        card.label_styled_passive(
+            "UiImageMode",
+            match img.slice_mode {
+                ae_core::ecs::UiSliceMode::Stretch => "Slice Mode: Stretch",
+                ae_core::ecs::UiSliceMode::Fit => "Slice Mode: Fit",
+                ae_core::ecs::UiSliceMode::NineSlice => "Slice Mode: NineSlice",
+                ae_core::ecs::UiSliceMode::Tile => "Slice Mode: Tile",
+            },
+            11.0,
+            card.theme().text_primary,
+            TextAlign::Left,
+            Style::new().height(20.0),
+        );
+    });
 }
 
 /// Inspector handler for `🖼️ UiImage` sprite component.
@@ -370,33 +415,17 @@ impl ComponentInspectorHandler for UiImageHandler {
         world.get::<&ae_core::ecs::UiImage>(entity).is_ok()
     }
 
-    fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(img) = _ctx.world.get::<&ae_core::ecs::UiImage>(_ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("UiImageCard", |card| {
-            self.render_header(card);
-
-            let mode_str = match img.slice_mode {
-                ae_core::ecs::UiSliceMode::Stretch => "Slice Mode: Stretch",
-                ae_core::ecs::UiSliceMode::Fit => "Slice Mode: Fit",
-                ae_core::ecs::UiSliceMode::NineSlice => "Slice Mode: NineSlice",
-                ae_core::ecs::UiSliceMode::Tile => "Slice Mode: Tile",
-            };
-            card.label_styled_passive(
-                "UiImageMode",
-                mode_str,
-                11.0,
-                card.theme().text_primary,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        });
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+        scope.when_ok(
+            ctx.world.get::<&ae_core::ecs::UiImage>(ctx.entity),
+            |card, img| {
+                draw_ui_image_card(card, ctx, &img);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::UiImage::default());
+        drop(world.insert_one(entity, ae_core::ecs::UiImage::default()));
     }
 }
 
@@ -404,6 +433,31 @@ impl ComponentInspectorHandler for UiImageHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+
+    fn create_dummy_params<'a>(
+        world: &'a hecs::World,
+        entity: hecs::Entity,
+        euler: &'a [f32; 3],
+        swatches: &'a [[f32; 4]],
+    ) -> InspectorPanelParams<'a> {
+        InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world,
+            selected_entity: Some(entity),
+            inspector_euler: euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        }
+    }
 
     fn create_test_context<'a>(
         world: &'a hecs::World,
@@ -427,23 +481,7 @@ mod tests {
         let root = tree.create_root().expect("root node");
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
 
         let mut actions = Vec::new();
         let mut ctx = create_test_context(&world, entity, &params, &mut actions);
@@ -465,6 +503,113 @@ mod tests {
     }
 
     #[test]
+    fn test_draw_ui_panel_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiPanel::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        let mut panel = ae_core::ecs::UiPanel::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_panel_card(&mut scope, &mut ctx, &mut panel);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiPanelCard")),
+            "UiPanelCard container must be rendered"
+        );
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 2,
+            "UiPanel must emit 2 numeric drag pills (Border Width, Corner Radius)"
+        );
+    }
+
+    #[test]
+    fn test_draw_ui_text_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiText::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        let mut text = ae_core::ecs::UiText::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_text_card(&mut scope, &mut ctx, &mut text);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiTextCard")),
+            "UiTextCard container must be rendered"
+        );
+        assert!(
+            tree.iter().any(|(_, n)| n.role == WidgetRole::TextInput),
+            "TextInput must be rendered"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ComboPill")),
+            "ComboPill must be rendered for Alignment"
+        );
+    }
+
+    #[test]
+    fn test_draw_ui_progress_bar_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiProgressBar::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        let mut pb = ae_core::ecs::UiProgressBar {
+            value: 50.0,
+            min: 0.0,
+            max: 100.0,
+            ..Default::default()
+        };
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_progress_bar_card(&mut scope, &mut ctx, &mut pb);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiProgressBarCard")),
+            "UiProgressBarCard container must be rendered"
+        );
+        let numeric_pills = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .count();
+        assert_eq!(
+            numeric_pills, 3,
+            "UiProgressBar must emit 3 numeric pills (Min, Max, Value)"
+        );
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("MiniBarTrack")),
+            "MiniBarTrack must be rendered"
+        );
+    }
+
+    #[test]
     fn test_ui_button_toggle_mutation() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::UiButton {
@@ -476,23 +621,7 @@ mod tests {
         let root = tree.create_root().expect("root node");
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
 
         let mut actions = Vec::new();
         let mut ctx = create_test_context(&world, entity, &params, &mut actions);
@@ -508,5 +637,65 @@ mod tests {
         }
         let btn = world.get::<&ae_core::ecs::UiButton>(entity).unwrap();
         assert!(!btn.is_enabled);
+    }
+
+    #[test]
+    fn test_draw_ui_button_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiButton::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        let mut btn = ae_core::ecs::UiButton::default();
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_button_card(&mut scope, &mut ctx, &mut btn);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiButtonCard")),
+            "UiButtonCard container must be rendered"
+        );
+        assert!(
+            tree.iter().any(|(_, n)| n.role == WidgetRole::Checkbox),
+            "UiButton checkbox must be rendered"
+        );
+    }
+
+    #[test]
+    fn test_draw_ui_image_card_standalone() {
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let world = hecs::World::new();
+        let entity = hecs::Entity::DANGLING;
+        let params = create_dummy_params(&world, entity, &euler, &swatches);
+
+        let mut actions = Vec::new();
+        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
+
+        let img = ae_core::ecs::UiImage {
+            slice_mode: ae_core::ui::UiSliceMode::NineSlice,
+            ..Default::default()
+        };
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_image_card(&mut scope, &mut ctx, &img);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiImageCard")),
+            "UiImageCard container must be rendered"
+        );
+        let has_mode = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("UiImageMode")
+                && n.text.as_deref().is_some_and(|t| t.contains("NineSlice"))
+        });
+        assert!(has_mode, "UiImageMode label must display NineSlice");
     }
 }

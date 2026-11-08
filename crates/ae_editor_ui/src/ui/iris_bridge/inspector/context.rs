@@ -3,75 +3,15 @@
 
 //! # Component Render Context & Declarative Property Binders
 //!
-//! Provides the rendering execution context and high-level two-way property
-//! bindings (`prop_f32`, `prop_combobox_mapped`, `prop_checkbox`) with automatic
-//! Undo/Redo command session snapshotting for inspected entities.
+//! Provides the rendering execution context and transitional two-way property
+//! bindings (`prop_f32`, `prop_vec2`, `prop_i32`, `prop_combobox_mapped`, `prop_checkbox`)
+//! with automatic Undo/Redo command session snapshotting for inspected entities.
 
 use super::types::InspectorPanelParams;
 use irisui::widgets::declarative::scope::ComboRowLayout;
 
 /// Canonical default column width in logical pixels allocated for Inspector property labels.
 pub const DEFAULT_INSPECTOR_LABEL_WIDTH: f32 = irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH;
-
-/// Layout and boundary configuration for floating-point scalar properties.
-#[derive(Debug, Clone)]
-pub struct PropF32Config {
-    /// Inclusive bounds constraint for valid scalar values.
-    pub range: std::ops::RangeInclusive<f32>,
-    /// Drag sensitivity multiplier applied per pointer displacement pixel.
-    pub speed: f32,
-    /// Column width in pixels for the left-aligned label.
-    pub label_width: f32,
-    /// Fixed width in pixels for the numeric pill box.
-    pub box_width: f32,
-}
-
-impl PropF32Config {
-    /// Constructs a standard property configuration with explicit label and box widths.
-    #[inline]
-    #[must_use]
-    pub const fn new(
-        range: std::ops::RangeInclusive<f32>,
-        speed: f32,
-        label_width: f32,
-        box_width: f32,
-    ) -> Self {
-        Self {
-            range,
-            speed,
-            label_width,
-            box_width,
-        }
-    }
-
-    /// Constructs a standard property configuration with default 105px label width and 48px box width.
-    #[inline]
-    #[must_use]
-    pub const fn standard(range: std::ops::RangeInclusive<f32>, speed: f32) -> Self {
-        Self {
-            range,
-            speed,
-            label_width: DEFAULT_INSPECTOR_LABEL_WIDTH,
-            box_width: 48.0,
-        }
-    }
-
-    /// Constructs a property configuration with a custom label width and standard 48px box width.
-    #[inline]
-    #[must_use]
-    pub const fn labeled(
-        range: std::ops::RangeInclusive<f32>,
-        speed: f32,
-        label_width: f32,
-    ) -> Self {
-        Self {
-            range,
-            speed,
-            label_width,
-            box_width: 48.0,
-        }
-    }
-}
 
 /// Configuration descriptor for 2D coordinate vector property rows.
 #[derive(Debug, Clone, Copy)]
@@ -101,38 +41,6 @@ impl<'a> PropVec2Config<'a> {
             speed,
             decimals,
             unit,
-        }
-    }
-}
-
-/// Configuration descriptor for 3D coordinate vector property rows.
-#[derive(Debug, Clone, Copy)]
-pub struct PropVec3Config {
-    /// Multiplier applied to continuous pointer drag displacement.
-    pub speed: f32,
-    /// Display precision decimals for formatted floating-point values.
-    pub decimals: usize,
-    /// Optional canonical reset vector restored when reset button `🔄` is triggered.
-    pub reset_val: Option<[f32; 3]>,
-    /// Response curve for pointer drag scrubbing.
-    pub curve: irisui::prelude::DragCurve,
-}
-
-impl PropVec3Config {
-    /// Constructs a standard 3D vector configuration descriptor.
-    #[inline]
-    #[must_use]
-    pub const fn new(
-        speed: f32,
-        decimals: usize,
-        reset_val: Option<[f32; 3]>,
-        curve: irisui::prelude::DragCurve,
-    ) -> Self {
-        Self {
-            speed,
-            decimals,
-            reset_val,
-            curve,
         }
     }
 }
@@ -262,35 +170,8 @@ impl<'a> ComponentRenderContext<'a> {
         range: std::ops::RangeInclusive<f32>,
         speed: f32,
     ) {
-        self.prop_f32_styled(
-            scope,
-            comp_name,
-            label,
-            value,
-            PropF32Config::standard(range, speed),
-        );
-    }
-
-    /// Binds an autonomous floating-point property with explicit label and box widths.
-    ///
-    /// Modifies `*value` in-place, triggering `begin_edit` when interaction starts and `commit_edit` on release.
-    pub fn prop_f32_styled(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        comp_name: &'static str,
-        label: &str,
-        value: &mut f32,
-        cfg: PropF32Config,
-    ) {
         let old_val = *value;
-        let resp = scope.drag_f32_styled(
-            label,
-            value,
-            cfg.range,
-            cfg.speed,
-            cfg.label_width,
-            cfg.box_width,
-        );
+        let resp = scope.drag_f32_ranged(label, value, range, speed);
         let new_val = *value;
         let changed = (new_val - old_val).abs() > f32::EPSILON;
 
@@ -351,45 +232,6 @@ impl<'a> ComponentRenderContext<'a> {
         }
     }
 
-    /// Binds an autonomous 3D coordinate vector property with dedicated axis inputs and automatic undo snapshotting.
-    ///
-    /// Modifies `values` (`[x, y, z]`) in-place, triggering `begin_edit` when interaction begins and `commit_edit` on release.
-    /// Supports optional canonical reset button and response curves.
-    pub fn prop_vec3(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        comp_name: &'static str,
-        label: &str,
-        values: &mut [f32; 3],
-        cfg: PropVec3Config,
-    ) {
-        let old_vals = *values;
-        let mut builder = irisui::prelude::DragVec3::new(label, values)
-            .speed(cfg.speed)
-            .decimals(cfg.decimals)
-            .curve(cfg.curve);
-        if let Some(reset_val) = cfg.reset_val {
-            builder = builder.reset(reset_val);
-        }
-        let resp = scope.add(builder);
-        let changed = (values[0] - old_vals[0]).abs() > f32::EPSILON
-            || (values[1] - old_vals[1]).abs() > f32::EPSILON
-            || (values[2] - old_vals[2]).abs() > f32::EPSILON;
-
-        if resp.clicked() || resp.response.pressed() {
-            self.begin_edit(comp_name);
-        }
-
-        if resp.reset_clicked() || (changed && resp.committed()) {
-            self.begin_edit(comp_name);
-            self.commit_edit(comp_name);
-        } else if changed {
-            self.begin_edit(comp_name);
-        } else if resp.committed() {
-            self.commit_edit(comp_name);
-        }
-    }
-
     /// Binds an autonomous signed integer property with automatic undo snapshotting.
     ///
     /// Modifies `*value` in-place, triggering `begin_edit` on value change and `commit_edit` on release.
@@ -410,50 +252,6 @@ impl<'a> ComponentRenderContext<'a> {
         }
         if resp.committed() {
             *value = f_val.round() as i32;
-            self.commit_edit(comp_name);
-        }
-    }
-
-    /// Binds an autonomous dropdown combobox with automatic undo snapshotting.
-    ///
-    /// Modifies `*selected` index in-place, triggering `begin_edit` and `commit_edit` automatically upon option selection.
-    pub fn prop_combobox(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        comp_name: &'static str,
-        label: Option<&str>,
-        selected: &mut usize,
-        options: &[&str],
-        width: f32,
-    ) {
-        let resp = scope.combobox_styled(label, selected, options, width);
-        if resp.changed() {
-            self.begin_edit(comp_name);
-            self.commit_edit(comp_name);
-        }
-    }
-
-    /// Binds an autonomous dropdown combobox row with explicit label and pill widths.
-    ///
-    /// Modifies `*selected` index in-place, triggering `begin_edit` and `commit_edit` automatically upon option selection.
-    pub fn prop_combobox_row(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        comp_name: &'static str,
-        label: &str,
-        selected: &mut usize,
-        options: &[&str],
-        layout: ComboRowLayout,
-    ) {
-        let resp = scope.combobox_row(
-            label,
-            layout.label_width,
-            selected,
-            options,
-            layout.button_width,
-        );
-        if resp.changed() {
-            self.begin_edit(comp_name);
             self.commit_edit(comp_name);
         }
     }

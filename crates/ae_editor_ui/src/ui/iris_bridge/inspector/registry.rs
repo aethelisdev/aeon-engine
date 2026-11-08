@@ -7,8 +7,7 @@
 //! component inspector handlers in deterministic order.
 
 pub use super::context::{
-    ComponentRenderContext, PropComboMapConfig, PropComboRowLayout, PropF32Config, PropVec2Config,
-    PropVec3Config,
+    ComponentRenderContext, PropComboMapConfig, PropComboRowLayout, PropVec2Config,
 };
 pub use super::handler::ComponentInspectorHandler;
 use super::types::ComponentCategory;
