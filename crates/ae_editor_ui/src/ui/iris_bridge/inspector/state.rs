@@ -85,6 +85,15 @@ impl InspectorTransformSnapshot {
     }
 }
 
+/// Checks whether a semantic tag belongs to the Inspector subsystem (including the root panel container).
+#[inline]
+#[must_use]
+pub fn is_inspector_tag(tag: u64) -> bool {
+    tag == super::panel::TAG_INSPECTOR_PANEL_ROOT
+        || tag == super::panel::TAG_INSPECTOR_CARDS_CONTAINER
+        || (0xD000_0000..0xE000_0000).contains(&tag)
+}
+
 /// Traverses widget parent pointers to test whether `widget_id` is identical to or a descendant of `ancestor_id`.
 #[inline]
 pub fn is_widget_descendant_of(

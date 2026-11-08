@@ -5,7 +5,8 @@
 //!
 //! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope::dual_action_bar`].
 
-use super::tags::TAG_INSPECTOR_ADD_COMPONENT;
+/// Semantic tag for the `➕ Add Component` button in the Inspector footer.
+pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = 0xDA00_0001;
 use super::types::{ComponentCategory, InspectorPanelParams};
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;

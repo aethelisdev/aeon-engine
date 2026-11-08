@@ -69,7 +69,6 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 mod tests {
     use super::*;
 
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -124,7 +123,7 @@ mod tests {
             "Combobox must render chevron down when closed"
         );
 
-        let del_tag = encode_component_delete_tag("RigidBody");
+        let del_tag = UiScope::action_tag("RigidBody");
         let has_del = tree.iter().any(|(_, n)| n.tag == del_tag);
         assert!(has_del, "RigidBody delete button must be tagged");
     }

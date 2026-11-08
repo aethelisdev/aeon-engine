@@ -196,7 +196,6 @@ impl ComponentInspectorHandler for PlayerTagHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -231,7 +230,7 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("PlayerTag");
+        let del_tag = UiScope::action_tag("PlayerTag");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "PlayerTag card must tag its delete button with semantic delete tag"
@@ -286,7 +285,7 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("CharacterController");
+        let del_tag = UiScope::action_tag("CharacterController");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "CharacterController card must tag its delete button with semantic delete tag"

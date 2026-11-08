@@ -77,7 +77,6 @@ impl ComponentInspectorHandler for CharacterActionHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -120,7 +119,7 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("CharacterAction");
+        let del_tag = UiScope::action_tag("CharacterAction");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "CharacterAction card must tag delete button with semantic delete tag"

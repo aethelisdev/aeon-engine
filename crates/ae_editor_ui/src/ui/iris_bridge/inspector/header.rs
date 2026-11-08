@@ -16,12 +16,6 @@ pub fn entity_name_input_tag() -> u64 {
     hash_label_with_seed(0, "InspectorEntityName")
 }
 
-/// Resolves whether a semantic tag corresponds to the entity name rename input box.
-#[inline]
-pub fn resolve_entity_name_input_tag(tag: u64) -> bool {
-    tag == hash_label_with_seed(0, "InspectorEntityName")
-}
-
 /// Builds the top Entity Name header declaratively into the parent [`UiScope`].
 ///
 /// Encapsulates the entity name editor within a pure declarative [`UiScope`] property row,

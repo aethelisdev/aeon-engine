@@ -226,7 +226,6 @@ impl ComponentInspectorHandler for ShapeHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -272,7 +271,7 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("Light");
+        let del_tag = UiScope::action_tag("Light");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "Light card must tag delete button with semantic delete tag"
@@ -337,7 +336,7 @@ mod tests {
         let handler = ShapeHandler;
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("Shape");
+        let del_tag = UiScope::action_tag("Shape");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "Shape delete button must be tagged"

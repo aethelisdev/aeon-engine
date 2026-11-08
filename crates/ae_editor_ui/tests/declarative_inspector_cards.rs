@@ -16,7 +16,6 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::ShapeHandle
 use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::tags::resolve_component_delete_tag;
 use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use irisui::prelude::*;
 
@@ -54,7 +53,7 @@ fn test_player_tag_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("PlayerTag"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("PlayerTag"));
     assert!(has_delete, "PlayerTag delete button must be tagged");
 
     let has_desc = tree.iter().any(|(_, n)| {
@@ -103,7 +102,7 @@ fn test_velocity_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("Velocity"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("Velocity"));
     assert!(has_delete, "Velocity delete button must be tagged");
 
     let numeric_pills = tree
@@ -156,7 +155,7 @@ fn test_shape_card_declarative_structure_and_chevron() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("Shape"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("Shape"));
     assert!(has_delete, "Shape delete button must be tagged");
 
     let has_combo = tree
@@ -233,7 +232,7 @@ fn test_character_controller_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("CharacterController"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("CharacterController"));
     assert!(
         has_delete,
         "CharacterController delete button must be tagged"
@@ -344,7 +343,7 @@ fn test_gameplay_cards_declarative_structure() {
         MovingPlatformHandler.render_card(&mut scope, &mut ctx);
         let has_delete = tree
             .iter()
-            .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("MovingPlatform"));
+            .any(|(_, n)| n.tag == UiScope::action_tag("MovingPlatform"));
         assert!(has_delete, "MovingPlatform delete button must be tagged");
         let has_speed = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("PlatformSpeedLbl")
@@ -490,7 +489,7 @@ fn test_physics_material_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("PhysicsMaterial"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("PhysicsMaterial"));
     assert!(has_delete, "PhysicsMaterial delete button must be tagged");
 
     let has_combo = tree
@@ -561,7 +560,7 @@ fn test_audio_cards_declarative_structure() {
 
         let has_delete = tree
             .iter()
-            .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("AudioSource"));
+            .any(|(_, n)| n.tag == UiScope::action_tag("AudioSource"));
         assert!(has_delete, "AudioSource delete button must be tagged");
 
         let has_pick = tree.iter().any(|(_, n)| {
@@ -605,7 +604,7 @@ fn test_audio_cards_declarative_structure() {
 
         let has_delete = tree
             .iter()
-            .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("AudioListener"));
+            .any(|(_, n)| n.tag == UiScope::action_tag("AudioListener"));
         assert!(has_delete, "AudioListener delete button must be tagged");
 
         let has_desc = tree.iter().any(|(_, n)| {

@@ -15,7 +15,6 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::{
 use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::tags::resolve_component_delete_tag;
 use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use ae_editor_ui::ui::iris_bridge::inspector::ui_transform::build_ui_transform_card;
 use irisui::prelude::*;
@@ -73,7 +72,7 @@ fn test_ui_transform_card_declarative_structure() {
     // Delete button tag
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiElement"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiElement"));
     assert!(has_delete, "UiElement delete button must be tagged");
 
     // 2D Screen Transform inputs via DragVec2
@@ -117,7 +116,7 @@ fn test_ui_panel_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiPanel"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiPanel"));
     assert!(has_delete, "UiPanel delete button must be tagged");
 
     // Direct in-place mutation verification
@@ -155,7 +154,7 @@ fn test_ui_text_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiText"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiText"));
     assert!(has_delete, "UiText delete button must be tagged");
 
     let has_text_input = tree.iter().any(|(_, n)| n.role == WidgetRole::TextInput);
@@ -191,7 +190,7 @@ fn test_ui_progress_bar_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiProgressBar"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiProgressBar"));
     assert!(has_delete, "UiProgressBar delete button must be tagged");
 
     // In-place mutation verification
@@ -227,7 +226,7 @@ fn test_ui_button_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiButton"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiButton"));
     assert!(has_delete, "UiButton delete button must be tagged");
 
     let has_interactable = tree.iter().any(|(_, n)| n.role == WidgetRole::Checkbox);
@@ -259,7 +258,7 @@ fn test_ui_image_card_declarative_structure() {
 
     let has_delete = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiImage"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiImage"));
     assert!(has_delete, "UiImage delete button must be tagged");
 }
 
@@ -301,17 +300,17 @@ fn test_ui_controls_declarative_structure() {
 
     let has_slider_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiSlider"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiSlider"));
     assert!(has_slider_del, "UiSlider delete button must be tagged");
 
     let has_cb_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiCheckbox"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiCheckbox"));
     assert!(has_cb_del, "UiCheckbox delete button must be tagged");
 
     let has_input_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("UiTextInput"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiTextInput"));
     assert!(has_input_del, "UiTextInput delete button must be tagged");
 
     let has_placeholder_label = tree
@@ -355,7 +354,7 @@ fn test_ui_hud_tags_declarative_structure() {
 
     let has_health_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("PlayerHealthBarTag"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("PlayerHealthBarTag"));
     assert!(
         has_health_del,
         "PlayerHealthBarTag delete button must be tagged"
@@ -363,7 +362,7 @@ fn test_ui_hud_tags_declarative_structure() {
 
     let has_score_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("ScoreDisplayTag"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("ScoreDisplayTag"));
     assert!(
         has_score_del,
         "ScoreDisplayTag delete button must be tagged"
@@ -371,6 +370,6 @@ fn test_ui_hud_tags_declarative_structure() {
 
     let has_reticle_del = tree
         .iter()
-        .any(|(_, n)| resolve_component_delete_tag(n.tag) == Some("ReticleTag"));
+        .any(|(_, n)| n.tag == UiScope::action_tag("ReticleTag"));
     assert!(has_reticle_del, "ReticleTag delete button must be tagged");
 }

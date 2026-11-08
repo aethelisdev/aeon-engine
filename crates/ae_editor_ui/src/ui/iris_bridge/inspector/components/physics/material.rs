@@ -142,7 +142,6 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
 mod tests {
     use super::*;
 
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -183,7 +182,7 @@ mod tests {
 
         let has_del = tree
             .iter()
-            .any(|(_, n)| n.tag == encode_component_delete_tag("PhysicsMaterial"));
+            .any(|(_, n)| n.tag == UiScope::action_tag("PhysicsMaterial"));
         assert!(has_del, "Delete button must be tagged");
 
         let has_preset = tree

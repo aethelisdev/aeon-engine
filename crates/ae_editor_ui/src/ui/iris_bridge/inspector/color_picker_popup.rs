@@ -8,10 +8,17 @@
 //! [`UiScope::color_picker_popup_rgba`] and [`UiScope::color_picker_popup_detached`].
 
 use super::appearance::appearance_color_swatch_tag;
-use super::tags::{
-    TAG_INSPECTOR_COLOR_PICKER_CARD, TAG_INSPECTOR_COLOR_PICKER_CLOSE,
-    TAG_INSPECTOR_COLOR_PICKER_HUE_BAR, TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
-};
+/// Semantic tag for the floating 2D HSV Color Picker popup card container.
+pub const TAG_INSPECTOR_COLOR_PICKER_CARD: u64 = 0xDA00_000B;
+
+/// Semantic tag for the floating 2D HSV Color Picker close `✖` button.
+pub const TAG_INSPECTOR_COLOR_PICKER_CLOSE: u64 = 0xDA00_000C;
+
+/// Semantic tag for the floating 2D HSV Color Picker 2D Saturation-Value box.
+pub const TAG_INSPECTOR_COLOR_PICKER_SV_BOX: u64 = 0xDA00_000D;
+
+/// Semantic tag for the floating 2D HSV Color Picker vertical rainbow Hue spectrum bar.
+pub const TAG_INSPECTOR_COLOR_PICKER_HUE_BAR: u64 = 0xDA00_000E;
 use super::types::InspectorPanelParams;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;

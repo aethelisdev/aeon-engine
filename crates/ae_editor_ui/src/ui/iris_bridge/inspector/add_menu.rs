@@ -11,8 +11,11 @@
 
 use std::ops::BitXor;
 
+use super::footer::TAG_INSPECTOR_ADD_COMPONENT;
 use super::registry::InspectorRegistry;
-use super::tags::{TAG_ADD_MENU_COMPONENT_BASE, TAG_INSPECTOR_ADD_COMPONENT};
+
+/// Base numeric domain for attachable component items inside the Add Component menu.
+pub const TAG_ADD_MENU_COMPONENT_BASE: u64 = 0xDB00_0000;
 use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
 use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};

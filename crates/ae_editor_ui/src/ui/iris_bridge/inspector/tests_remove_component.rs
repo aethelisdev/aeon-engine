@@ -38,8 +38,7 @@ fn test_params<'a>(
 }
 
 /// Builds the panel, clicks the delete button of `component_name` through the dispatcher, then
-/// rebuilds the panel (as the redraw scheduled by `resolve_inspector_tag_click` does) and
-/// returns the emitted action together with any queued legacy `InspectorAction`s.
+/// rebuilds the panel and returns the directly emitted declarative action.
 fn click_delete_and_rebuild(
     world: &hecs::World,
     entity: hecs::Entity,
@@ -68,7 +67,7 @@ fn click_delete_and_rebuild(
     );
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
 
-    let delete_tag = encode_component_delete_tag(component_name);
+    let delete_tag = UiScope::action_tag(component_name);
     let rect = tree
         .node_rect_tagged(delete_tag, Point::ZERO)
         .expect("Card delete button must carry the component delete tag");
@@ -82,7 +81,6 @@ fn click_delete_and_rebuild(
         button: MouseButton::Left,
     });
     assert_eq!(tree.event_state.frame_clicked_tag, Some(delete_tag));
-    assert!(resolve_inspector_tag_click(delete_tag));
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");

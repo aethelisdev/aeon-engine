@@ -56,7 +56,7 @@ pub fn index_to_anchor(idx: usize) -> UiAnchor {
 /// Canonical component identifier of the 2D screen transform card (`ae_core::ecs::UiElement`).
 ///
 /// Shared by the card header (delete button tag derivation through
-/// [`super::tags::encode_component_delete_tag`]) and by the Inspector panel, which maps a click
+/// [`UiScope::action_tag`]) and by the Inspector panel, which maps a click
 /// on that tag into `EngineUiAction::RemoveComponent`. Both sides must use this single constant
 /// so the encoded tag and the removed component name can never diverge.
 pub const UI_ELEMENT_COMPONENT_NAME: &str = "UiElement";

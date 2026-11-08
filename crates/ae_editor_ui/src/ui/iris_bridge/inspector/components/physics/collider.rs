@@ -219,7 +219,6 @@ mod tests {
     use super::*;
     use crate::ui::iris_bridge::icons::ICON_WIREFRAME;
 
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -280,7 +279,7 @@ mod tests {
             "Collider Shape combobox must render chevron down when closed"
         );
 
-        let del_tag = encode_component_delete_tag("Collider");
+        let del_tag = UiScope::action_tag("Collider");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "Collider delete button must be tagged"

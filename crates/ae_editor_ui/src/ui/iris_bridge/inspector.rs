@@ -13,7 +13,6 @@ pub mod color_picker_popup;
 pub mod components;
 pub mod context;
 pub mod dynamic_reflection;
-pub mod events;
 pub mod footer;
 pub mod handler;
 pub mod header;
@@ -22,7 +21,6 @@ pub mod math_eval;
 pub mod panel;
 pub mod registry;
 pub mod state;
-pub mod tags;
 pub mod transform;
 pub mod types;
 pub mod ui_transform;
@@ -36,25 +34,25 @@ mod tests_remove_component;
 
 pub use appearance::{
     DEFAULT_PALETTE, appearance_color_swatch_tag, appearance_hex_input_tag,
-    appearance_palette_swatch_tag, resolve_appearance_color_swatch_tag,
-    resolve_appearance_hex_input_tag, resolve_appearance_palette_swatch_tag,
+    appearance_palette_swatch_tag,
+};
+pub use color_picker_popup::{
+    TAG_INSPECTOR_COLOR_PICKER_CARD, TAG_INSPECTOR_COLOR_PICKER_CLOSE,
+    TAG_INSPECTOR_COLOR_PICKER_HUE_BAR, TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
 };
 pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
-pub use events::resolve_inspector_tag_click;
-pub use header::{entity_name_input_tag, resolve_entity_name_input_tag};
+pub use footer::TAG_INSPECTOR_ADD_COMPONENT;
+pub use header::entity_name_input_tag;
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::{
-    build_inspector_overlays, build_inspector_overlays_with_action, build_inspector_panel,
+    TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_overlays,
+    build_inspector_overlays_with_action, build_inspector_panel,
 };
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use state::{
-    InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_widget_descendant_of,
-};
-pub use tags::{
-    TAG_COMPONENT_DELETE_BASE, TAG_INSPECTOR_ACTION_BASE, TAG_INSPECTOR_ADD_COMPONENT,
-    TAG_INSPECTOR_PANEL_ROOT, encode_component_delete_tag, is_inspector_tag,
-    resolve_add_component_btn_tag, resolve_component_delete_tag,
+    InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_inspector_tag,
+    is_widget_descendant_of,
 };
 pub use transform::{build_transform_card, draw_transform_card};
 pub use types::{

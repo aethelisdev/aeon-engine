@@ -183,15 +183,15 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
 
     for (id, node) in tree.iter() {
         if tree.effective_layer(id) == UiLayer::Popup {
-            if node.tag == tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX {
+            if node.tag == color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX {
                 sv_box_found = true;
                 assert!(node.computed_rect.width >= 150.0);
                 assert!(node.computed_rect.height >= 120.0);
-            } else if node.tag == tags::TAG_INSPECTOR_COLOR_PICKER_HUE_BAR {
+            } else if node.tag == color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_HUE_BAR {
                 hue_bar_found = true;
                 assert!(node.computed_rect.width >= 15.0);
                 assert!(node.computed_rect.height >= 120.0);
-            } else if node.tag == tags::TAG_INSPECTOR_COLOR_PICKER_CLOSE {
+            } else if node.tag == color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_CLOSE {
                 close_btn_found = true;
             }
         }
@@ -204,7 +204,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     // Verify hardware hit-testing hits the SV box and returns the full container's bounding rectangle
     let (_, sv_node) = tree
         .iter()
-        .find(|(_, n)| n.tag == tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+        .find(|(_, n)| n.tag == color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
         .expect("SV box must exist");
     let test_point = Point::new(
         sv_node.computed_rect.x + 20.0,
@@ -215,7 +215,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
         .expect("SV box point must hit a target");
     assert_eq!(
         hit.tag,
-        tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
+        color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
         "Clicking inside SV box must hit TAG_INSPECTOR_COLOR_PICKER_SV_BOX"
     );
     assert_eq!(
@@ -263,11 +263,11 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
         button: MouseButton::Left,
     });
 
-    let clicked_tag = tree
-        .event_state
-        .frame_clicked_tag
-        .expect("Swatch click tag");
-    assert!(resolve_inspector_tag_click(clicked_tag));
+    assert_eq!(
+        tree.event_state.frame_clicked_tag,
+        Some(appearance_color_swatch_tag()),
+        "Swatch click must record semantic appearance_color_swatch_tag in event state"
+    );
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");

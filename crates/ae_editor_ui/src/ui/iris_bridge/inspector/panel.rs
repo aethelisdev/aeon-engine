@@ -14,6 +14,12 @@ use super::types::InspectorPanelParams;
 use super::ui_transform;
 use irisui::prelude::*;
 
+/// Semantic tag for the Inspector root scroll panel container.
+pub const TAG_INSPECTOR_PANEL_ROOT: u64 = 0xDAFF_0000;
+
+/// Semantic tag for the Inspector scrollable cards container viewport.
+pub const TAG_INSPECTOR_CARDS_CONTAINER: u64 = 0xDAFF_0001;
+
 /// Builds the complete Scene Inspector layout and returns any direct [`crate::ui::types::EngineUiAction`] emitted.
 pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
@@ -22,7 +28,7 @@ pub fn build_inspector_panel(
 ) -> Option<crate::ui::types::EngineUiAction> {
     scope
         .panel("InspectorPanelRoot")
-        .tagged(super::tags::TAG_INSPECTOR_PANEL_ROOT)
+        .tagged(TAG_INSPECTOR_PANEL_ROOT)
         .bounds(params.panel_rect)
         .background_themed(|t| t.panel_bg)
         .show(
@@ -55,7 +61,7 @@ fn render_inspected_entity(
         scope
             .scroll_area(
                 "InspectorCardsContainer",
-                super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
+                TAG_INSPECTOR_CARDS_CONTAINER,
                 None,
                 |cards_scope| {
                     render_inspector_cards(
@@ -232,19 +238,16 @@ fn render_registry_card(
 /// Maps a click on the card delete button of `component_name` during the active frame directly
 /// into [`crate::ui::types::EngineUiAction::RemoveComponent`].
 ///
-/// The delete button carries the persistent tag produced by
-/// [`super::tags::encode_component_delete_tag`], so the click survives the retained subtree
-/// rebuild and is resolved in `O(1)` through [`UiScope::map_tag_clicked`] without any
-/// intermediate `InspectorAction` queue.
+/// The delete button carries the persistent semantic action tag resolved in `O(1)` through
+/// [`UiScope::map_action_clicked`] without intermediate state queues or magic encoding schemes.
 fn component_delete_action(
     scope: &UiScope<'_>,
     entity: hecs::Entity,
     component_name: &'static str,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    scope.map_tag_clicked(
-        super::tags::encode_component_delete_tag(component_name),
-        || crate::ui::types::EngineUiAction::RemoveComponent(entity, component_name),
-    )
+    scope.map_action_clicked(component_name, || {
+        crate::ui::types::EngineUiAction::RemoveComponent(entity, component_name)
+    })
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor,

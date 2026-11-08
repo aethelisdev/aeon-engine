@@ -482,7 +482,7 @@ fn test_color_picker_drag_and_undo_restoration() {
 
     let sv_rect = tree
         .iter()
-        .find(|(_, n)| n.tag == super::tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+        .find(|(_, n)| n.tag == super::color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
         .map(|(_, n)| n.computed_rect)
         .expect("SV box must exist");
 

@@ -177,7 +177,6 @@ impl ComponentInspectorHandler for AudioListenerHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
@@ -232,7 +231,7 @@ mod tests {
             scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 600.0));
         }
 
-        let del_tag = encode_component_delete_tag("AudioSource");
+        let del_tag = UiScope::action_tag("AudioSource");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "AudioSource card must tag delete button with semantic delete tag"
@@ -328,7 +327,7 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
-        let del_tag = encode_component_delete_tag("AudioListener");
+        let del_tag = UiScope::action_tag("AudioListener");
         assert!(
             tree.iter().any(|(_, n)| n.tag == del_tag),
             "AudioListener card must tag delete button with semantic delete tag"

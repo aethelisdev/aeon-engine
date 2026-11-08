@@ -62,10 +62,9 @@ fn test_light_card_declarative_structure() {
     let mut scope = UiScope::new(&mut tree, root);
     handler.render_card(&mut scope, &mut ctx);
 
-    let has_delete = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_component_delete_tag(n.tag)
-            == Some("Light")
-    });
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("Light"));
     assert!(has_delete, "Light delete button must be tagged");
 
     let numeric_pills = tree
@@ -94,10 +93,9 @@ fn test_model_mesh_card_declarative_structure() {
     let mut scope = UiScope::new(&mut tree, root);
     handler.render_card(&mut scope, &mut ctx);
 
-    let has_delete = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_component_delete_tag(n.tag)
-            == Some("ModelId")
-    });
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("ModelId"));
     assert!(has_delete, "ModelId delete button must be tagged");
 
     let has_info = tree.iter().any(|(_, n)| {
@@ -131,10 +129,9 @@ fn test_lod_group_card_declarative_structure() {
     let mut scope = UiScope::new(&mut tree, root);
     handler.render_card(&mut scope, &mut ctx);
 
-    let has_delete = tree.iter().any(|(_, n)| {
-        ae_editor_ui::ui::iris_bridge::inspector::resolve_component_delete_tag(n.tag)
-            == Some("LodGroup")
-    });
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("LodGroup"));
     assert!(has_delete, "LodGroup delete button must be tagged");
 
     let has_slots = tree.iter().any(|(_, n)| {

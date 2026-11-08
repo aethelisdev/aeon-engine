@@ -146,7 +146,25 @@ impl ApplicationHandler for AeApp {
             );
 
             // Initialize Core Engine State
-            let engine = pollster::block_on(AeEngine::new(window.clone(), self.cli_args.clone()));
+            let engine = match pollster::block_on(AeEngine::new(
+                window.clone(),
+                self.cli_args.clone(),
+            )) {
+                Ok(eng) => eng,
+                Err(err) => {
+                    log::error!("[AeonEngine] Critical initialization failure: {err}");
+                    eprintln!(
+                        "\n==================================================================\n\
+                         ❌ [Aeon Engine Critical Startup Error]\n\
+                         Failed to initialize GPU or graphics backend:\n\n\
+                         {}\n\n\
+                         Please verify your graphics driver (Vulkan / DX12 / Metal) and reboot if needed.\n\
+                         ==================================================================\n",
+                        err
+                    );
+                    std::process::exit(1);
+                }
+            };
             window.set_visible(true);
             self.engine = Some(engine);
             self.last_frame_time = std::time::Instant::now();

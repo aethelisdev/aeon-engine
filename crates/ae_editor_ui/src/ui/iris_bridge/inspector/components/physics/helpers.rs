@@ -6,7 +6,6 @@
 //! Provides reusable helper routines for drawing standardized headers
 //! inside Iris UI Inspector component cards.
 
-use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
 use irisui::prelude::*;
 
 /// Parameters for rendering a component card header.
@@ -27,7 +26,7 @@ pub struct ComponentHeaderProps {
 /// Renders a standardized component inspector card header in a declarative [`UiScope`].
 ///
 /// Features hardware texture atlas quad icon rendering, title typography,
-/// and a top-right deletion action button tagged with [`encode_component_delete_tag`]
+/// and a top-right deletion action button tagged with [`UiScope::action_tag`]
 /// for zero-search direct hit-testing.
 ///
 /// # Arguments
@@ -94,7 +93,7 @@ pub fn build_declarative_card_header(
             "ComponentDeleteBtn",
             del_style,
             WidgetRole::Button,
-            encode_component_delete_tag(props.component_name),
+            UiScope::action_tag(props.component_name),
             |btn| {
                 btn.label_styled_passive(
                     "DeleteGlyph",

@@ -36,6 +36,30 @@ impl UiScope<'_> {
     pub fn map_tag_clicked<T>(&self, tag: u64, f: impl FnOnce() -> T) -> Option<T> {
         self.tag_clicked(tag).then(f)
     }
+
+    /// Computes a deterministic non-zero 64-bit semantic tag for an action or identifier label.
+    ///
+    /// Uses FNV-1a hashing with a guaranteed non-zero result to avoid colliding with the
+    /// untagged sentinel (`0`).
+    #[inline]
+    #[must_use]
+    pub fn action_tag(label: &str) -> u64 {
+        let tag = crate::declarative::types::hash_label(label);
+        if tag == 0 { 1 } else { tag }
+    }
+
+    /// Returns `true` when the action or widget carrying the semantic label was clicked during the active frame.
+    #[inline]
+    #[must_use]
+    pub fn action_clicked(&self, label: &str) -> bool {
+        self.tag_clicked(Self::action_tag(label))
+    }
+
+    /// Maps a completed click on the semantic label during the active frame into `Some(f())`.
+    #[inline]
+    pub fn map_action_clicked<T>(&self, label: &str, f: impl FnOnce() -> T) -> Option<T> {
+        self.action_clicked(label).then(f)
+    }
 }
 
 #[cfg(test)]
@@ -70,5 +94,20 @@ mod tests {
             UiScope::new(&mut tree, root).map_tag_clicked(0, || "never"),
             None
         );
+    }
+
+    #[test]
+    fn test_action_tag_and_action_clicked() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let tag = UiScope::action_tag("DeleteComponent");
+        assert_ne!(tag, 0);
+
+        tree.event_state.frame_clicked_tag = Some(tag);
+        let scope = UiScope::new(&mut tree, root);
+        assert!(scope.action_clicked("DeleteComponent"));
+        assert!(!scope.action_clicked("OtherAction"));
+        assert_eq!(scope.map_action_clicked("DeleteComponent", || 42), Some(42));
+        assert_eq!(scope.map_action_clicked("OtherAction", || 42), None);
     }
 }

@@ -10,10 +10,14 @@ use super::registry::ComponentRenderContext;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
-use super::tags::{
-    TAG_INSPECTOR_COLOR_HEX, TAG_INSPECTOR_COLOR_SWATCH, encode_palette_swatch_tag,
-    resolve_palette_swatch_tag,
-};
+/// Semantic tag for the interactive object color swatch button.
+pub const TAG_APPEARANCE_COLOR_SWATCH: u64 = 0xDA00_0007;
+
+/// Semantic tag for the hexadecimal color text input box.
+pub const TAG_APPEARANCE_COLOR_HEX: u64 = 0xDA00_0008;
+
+/// Base numeric domain for color palette swatch buttons.
+pub const TAG_APPEARANCE_PALETTE_BASE: u64 = 0xDF20_0000;
 
 /// Default 7-color palette swatches displayed in the Appearance inspector card.
 pub const DEFAULT_PALETTE: [Color; 7] = [
@@ -30,42 +34,21 @@ pub const DEFAULT_PALETTE: [Color; 7] = [
 #[inline]
 #[must_use]
 pub const fn appearance_color_swatch_tag() -> u64 {
-    TAG_INSPECTOR_COLOR_SWATCH
-}
-
-/// Resolves whether a semantic tag corresponds to the primary object color swatch button.
-#[inline]
-#[must_use]
-pub const fn resolve_appearance_color_swatch_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_COLOR_SWATCH
+    TAG_APPEARANCE_COLOR_SWATCH
 }
 
 /// Returns the 64-bit semantic tag for the HEX text input box.
 #[inline]
 #[must_use]
 pub const fn appearance_hex_input_tag() -> u64 {
-    TAG_INSPECTOR_COLOR_HEX
-}
-
-/// Resolves whether a semantic tag corresponds to the HEX text input box.
-#[inline]
-#[must_use]
-pub const fn resolve_appearance_hex_input_tag(tag: u64) -> bool {
-    tag == TAG_INSPECTOR_COLOR_HEX
+    TAG_APPEARANCE_COLOR_HEX
 }
 
 /// Computes the 64-bit semantic tag for a palette swatch pill at a given global index.
 #[inline]
 #[must_use]
 pub const fn appearance_palette_swatch_tag(idx: usize) -> u64 {
-    encode_palette_swatch_tag(idx)
-}
-
-/// Resolves whether a semantic tag corresponds to a palette swatch pill, returning its index.
-#[inline]
-#[must_use]
-pub const fn resolve_appearance_palette_swatch_tag(tag: u64) -> Option<usize> {
-    resolve_palette_swatch_tag(tag)
+    TAG_APPEARANCE_PALETTE_BASE + idx as u64
 }
 
 /// Extracts the current [`ae_core::ecs::Color`] of an entity, or returns the canonical fallback.
@@ -154,19 +137,14 @@ mod tests {
 
     #[test]
     fn test_appearance_semantic_tags() {
-        let swatch_tag = appearance_color_swatch_tag();
-        assert!(resolve_appearance_color_swatch_tag(swatch_tag));
-        assert!(!resolve_appearance_color_swatch_tag(swatch_tag + 1));
-
-        let hex_tag = appearance_hex_input_tag();
-        assert!(resolve_appearance_hex_input_tag(hex_tag));
-        assert!(!resolve_appearance_hex_input_tag(hex_tag + 1));
-
+        assert_eq!(appearance_color_swatch_tag(), TAG_APPEARANCE_COLOR_SWATCH);
+        assert_eq!(appearance_hex_input_tag(), TAG_APPEARANCE_COLOR_HEX);
         for idx in [0, 1, 6, 7, 15] {
-            let tag = appearance_palette_swatch_tag(idx);
-            assert_eq!(resolve_appearance_palette_swatch_tag(tag), Some(idx));
+            assert_eq!(
+                appearance_palette_swatch_tag(idx),
+                TAG_APPEARANCE_PALETTE_BASE + idx as u64
+            );
         }
-        assert_eq!(resolve_appearance_palette_swatch_tag(0), None);
     }
 
     #[test]
