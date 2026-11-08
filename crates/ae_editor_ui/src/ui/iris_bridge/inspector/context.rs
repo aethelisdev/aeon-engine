@@ -390,57 +390,6 @@ impl<'a> ComponentRenderContext<'a> {
         }
     }
 
-    /// Binds the 3D linear velocity vector with dedicated X, Y, Z axis scrubbers and automatic undo snapshotting.
-    ///
-    /// Modifies `velocity` in-place, recording atomic undo/redo operations when confirmed via Enter, blur, or drag release.
-    pub fn prop_velocity(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        velocity: &mut ae_core::ecs::Velocity,
-    ) {
-        let mut vel = [velocity.x, velocity.y, velocity.z];
-        let old_vel = vel;
-        let resp = scope.add(
-            irisui::prelude::DragVec3::new("Linear", &mut vel)
-                .speed(0.05)
-                .decimals(2)
-                .curve(irisui::prelude::DragCurve::quadratic())
-                .reset([0.0, 0.0, 0.0]),
-        );
-        let changed = (vel[0] - old_vel[0]).abs() > f32::EPSILON
-            || (vel[1] - old_vel[1]).abs() > f32::EPSILON
-            || (vel[2] - old_vel[2]).abs() > f32::EPSILON;
-
-        let old_bytes = serde_json::to_vec(&ae_core::ecs::Velocity {
-            x: old_vel[0],
-            y: old_vel[1],
-            z: old_vel[2],
-        })
-        .unwrap_or_default();
-
-        if resp.clicked() || resp.response.pressed() {
-            self.begin_edit_with_snapshot("Velocity", old_bytes.clone());
-        }
-
-        if resp.reset_clicked() {
-            *velocity = ae_core::ecs::Velocity::zero();
-            let new_bytes = serde_json::to_vec(velocity).unwrap_or_default();
-            self.commit_modify("Velocity", old_bytes, new_bytes);
-        } else if changed {
-            velocity.x = vel[0];
-            velocity.y = vel[1];
-            velocity.z = vel[2];
-            if resp.committed() {
-                let new_bytes = serde_json::to_vec(velocity).unwrap_or_default();
-                self.commit_modify("Velocity", old_bytes, new_bytes);
-            } else {
-                self.begin_edit_with_snapshot("Velocity", old_bytes);
-            }
-        } else if resp.committed() {
-            self.commit_edit("Velocity");
-        }
-    }
-
     /// Binds an autonomous signed integer property with automatic undo snapshotting.
     ///
     /// Modifies `*value` in-place, triggering `begin_edit` on value change and `commit_edit` on release.

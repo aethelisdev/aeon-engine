@@ -340,25 +340,60 @@ fn test_declarative_scope_prop_bool_and_prop_checkbox() {
 
     let mut is_sensor = false;
 
-    {
+    // 1. Initial render: unchecked
+    let tag = {
         let mut scope = UiScope::new(&mut tree, root);
+        let tag = scope.tag_for("Is Sensor:");
         let resp = scope.prop_bool("Is Sensor:", &mut is_sensor);
         assert!(!is_sensor);
         assert!(!resp.changed());
-    }
+        assert!(!resp.clicked());
+        tag
+    };
 
+    // 2. Simulated mouse click via event state tag matching
+    tree.event_state.frame_clicked_tag = Some(tag);
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp_alias = scope.prop_checkbox("Trigger:", &mut is_sensor);
-        assert!(!is_sensor);
-        assert!(!resp_alias.changed());
+        let resp = scope.prop_checkbox("Is Sensor:", &mut is_sensor);
+        assert!(
+            is_sensor,
+            "Checkbox click must toggle is_sensor in-place to true"
+        );
+        assert!(
+            resp.clicked(),
+            "WidgetResponse::clicked must be true on click"
+        );
+        assert!(
+            resp.changed(),
+            "WidgetResponse::changed must be true on click"
+        );
     }
 
+    // 3. Next frame (unclicked): must preserve true and render checkmark
+    tree.event_state.frame_clicked_tag = None;
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp_styled = scope.prop_checkbox_styled("Active:", &mut is_sensor, Some(90.0));
-        assert!(!is_sensor);
-        assert!(!resp_styled.changed());
+        let resp = scope.prop_checkbox("Is Sensor:", &mut is_sensor);
+        assert!(
+            is_sensor,
+            "is_sensor must stay true across subsequent frames"
+        );
+        assert!(!resp.clicked());
+        assert!(!resp.changed());
+    }
+
+    // 4. Toggle back to false
+    tree.event_state.frame_clicked_tag = Some(tag);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.prop_checkbox_styled("Is Sensor:", &mut is_sensor, Some(90.0));
+        assert!(
+            !is_sensor,
+            "Second click must toggle is_sensor back to false"
+        );
+        assert!(resp.clicked());
+        assert!(resp.changed());
     }
 }
 

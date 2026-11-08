@@ -493,4 +493,83 @@ mod tests {
             assert!(has_card, "ColliderCard must render for shape {:?}", shape);
         }
     }
+
+    #[test]
+    fn test_draw_collider_card_sensor_checkbox_click_toggle() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [1.0, 1.0, 1.0],
+            },
+            friction: 0.5,
+            restitution: 0.0,
+            is_sensor: false,
+        },));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let euler = [0.0; 3];
+        let swatches = Vec::new();
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
+        let tag = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
+            draw_collider_card(&mut scope, &mut ctx, &mut c);
+            scope.tag_for("Is Sensor (Trigger)")
+        };
+        assert!(
+            !world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor
+        );
+
+        // Click toggle
+        tree.event_state.frame_clicked_tag = Some(tag);
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
+            draw_collider_card(&mut scope, &mut ctx, &mut c);
+        }
+        assert!(
+            world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor,
+            "Click must set is_sensor=true in ECS"
+        );
+
+        // Next frame unclicked: must stay true
+        tree.event_state.frame_clicked_tag = None;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
+            draw_collider_card(&mut scope, &mut ctx, &mut c);
+        }
+        assert!(
+            world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor,
+            "is_sensor must persist as true"
+        );
+    }
 }

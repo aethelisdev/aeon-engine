@@ -430,6 +430,63 @@ impl<'a> UiScope<'a> {
         });
     }
 
+    /// Emits a styled status pill row with a named container and passive text label.
+    ///
+    /// Eliminates deeply nested container closures and multi-level indentation pyramids
+    /// when rendering status indicators and state readouts in inspector cards.
+    ///
+    /// # Arguments
+    /// * `container_name` - Descriptive debug identifier for the pill container node.
+    /// * `label_name` - Descriptive debug identifier for the inner text label node.
+    /// * `text` - Display status text string.
+    /// * `color` - Status text foreground color.
+    pub fn status_pill(
+        &mut self,
+        container_name: impl Into<String>,
+        label_name: impl Into<String>,
+        text: impl Into<String>,
+        color: Color,
+    ) {
+        self.status_pill_styled(container_name, label_name, text, 10.5, color, 18.0);
+    }
+
+    /// Emits a styled status pill row with custom font size, text color, and row height.
+    ///
+    /// Eliminates deeply nested container closures and multi-level indentation pyramids
+    /// while granting total layout freedom over typographic scale and capsule height.
+    ///
+    /// # Arguments
+    /// * `container_name` - Descriptive debug identifier for the pill container node.
+    /// * `label_name` - Descriptive debug identifier for the inner text label node.
+    /// * `text` - Display status text string.
+    /// * `font_size` - Typographic point size for the label.
+    /// * `color` - Status text foreground color.
+    /// * `height` - Vertical height of the status capsule row in physical pixels.
+    pub fn status_pill_styled(
+        &mut self,
+        container_name: impl Into<String>,
+        label_name: impl Into<String>,
+        text: impl Into<String>,
+        font_size: f32,
+        color: Color,
+        height: f32,
+    ) {
+        let style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(height);
+        self.container_named(container_name, style, |scope| {
+            scope.label_styled_passive(
+                label_name,
+                text,
+                font_size,
+                color,
+                TextAlign::Left,
+                Style::new().height(height),
+            );
+        });
+    }
+
     /// Emits a clickable text hyperlink with persistent tag and automatic hover styling.
     ///
     /// Changes text color dynamically on hover and returns an interactive [`WidgetResponse`].

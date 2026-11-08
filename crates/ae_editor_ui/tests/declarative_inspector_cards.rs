@@ -327,12 +327,16 @@ fn test_gameplay_cards_declarative_structure() {
         RotatorHandler.render_card(&mut scope, &mut ctx);
         let numeric_pills = tree
             .iter()
-            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .filter(|(_, n)| n.role == irisui::core::WidgetRole::NumericInput)
             .count();
         assert_eq!(
             numeric_pills, 4,
-            "Rotator must emit 4 numeric drag pills (Speed, Axis X, Y, Z)"
+            "Rotator must emit 4 numeric inputs (1 Speed + 3 Axis axes)"
         );
+        let has_axis_x = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("NumBox_Axis:_X"));
+        assert!(has_axis_x, "Rotator must render NumBox_Axis:_X");
     }
 
     // MovingPlatform
@@ -345,11 +349,13 @@ fn test_gameplay_cards_declarative_structure() {
             .iter()
             .any(|(_, n)| n.tag == UiScope::action_tag("MovingPlatform"));
         assert!(has_delete, "MovingPlatform delete button must be tagged");
-        let has_speed = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("PlatformSpeedLbl")
-                && n.text.as_deref().is_some_and(|t| t.contains("2.5 m/s"))
-        });
-        assert!(has_speed);
+        let has_target = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("NumBox_Target Pos:_X"));
+        assert!(
+            has_target,
+            "MovingPlatform must render NumBox_Target Pos:_X"
+        );
     }
 
     // TriggerZone

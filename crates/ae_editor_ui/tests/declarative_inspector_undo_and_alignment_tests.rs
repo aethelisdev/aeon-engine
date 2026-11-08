@@ -152,7 +152,9 @@ fn test_velocity_and_rigidbody_declarative_binding_and_undo() {
 
     // 1. Test Velocity binding
     let mut vel = *world.get::<&Velocity>(entity).unwrap();
-    ctx.prop_velocity(&mut scope, &mut vel);
+    ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::velocity::draw_velocity_card(
+        &mut scope, &mut ctx, &mut vel,
+    );
 
     // 2. Test RigidBody binding
     let mut rb = *world.get::<&RigidBody>(entity).unwrap();

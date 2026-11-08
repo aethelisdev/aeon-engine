@@ -210,6 +210,24 @@ fn test_declarative_label_customization() {
 }
 
 #[test]
+fn test_declarative_status_pill() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    scope.status_pill(
+        "GroundedStatusPill",
+        "GroundedStatusText",
+        "🛡 Grounded",
+        iris_core::Color::rgba(0.2, 0.8, 0.4, 1.0),
+    );
+
+    assert!(tree.has_node_named("GroundedStatusPill"));
+    assert!(tree.has_node_named("GroundedStatusText"));
+    tree.assert_node_text("GroundedStatusText", "🛡 Grounded");
+}
+
+#[test]
 fn test_declarative_key_value_and_number_formatting() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root should be created");
@@ -283,6 +301,31 @@ fn test_declarative_progress_bar_layout() {
     assert_eq!(slug_node.computed_rect.x, 0.0);
     assert_eq!(slug_node.computed_rect.width, 150.0);
     assert_eq!(slug_node.computed_rect.height, 4.0);
+}
+
+#[test]
+fn test_declarative_progress_bar_named() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    scope.progress_bar_named(
+        "HealthBarTrack",
+        "HealthBarFill",
+        200.0,
+        10.0,
+        0.5,
+        iris_core::Color::RED,
+    );
+
+    assert!(
+        tree.has_node_named("HealthBarTrack"),
+        "HealthBarTrack must exist"
+    );
+    assert!(
+        tree.has_node_named("HealthBarFill"),
+        "HealthBarFill must exist"
+    );
 }
 
 #[test]

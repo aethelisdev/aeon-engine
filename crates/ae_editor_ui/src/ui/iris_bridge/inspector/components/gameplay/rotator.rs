@@ -11,6 +11,29 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
+/// Renders the declarative Rotator component card with continuous rotation speed and 3D rotational axis vector.
+pub fn draw_rotator_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    r: &mut ae_core::ecs::Rotator,
+) {
+    scope.card_panel("RotatorCard", |card| {
+        RotatorHandler.render_header(card);
+
+        card.prop_f32("Speed (rad/s):", &mut r.speed, -100.0..=100.0, 0.05)
+            .on_commit(|_| {
+                ctx.begin_edit("Rotator");
+                ctx.commit_edit("Rotator");
+            });
+
+        card.prop_vec3("Axis:", &mut r.axis, 0.05, Some([0.0, 1.0, 0.0]))
+            .on_commit(|_| {
+                ctx.begin_edit("Rotator");
+                ctx.commit_edit("Rotator");
+            });
+    });
+}
+
 /// Inspector handler for `🔄 Rotator`.
 pub struct RotatorHandler;
 
@@ -40,56 +63,20 @@ impl ComponentInspectorHandler for RotatorHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut r) = ctx.world.get::<&mut ae_core::ecs::Rotator>(ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("RotatorCard", |card| {
-            self.render_header(card);
-
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Speed (rad/s):",
-                &mut r.speed,
-                -100.0..=100.0,
-                0.05,
-            );
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Axis X:",
-                &mut r.axis[0],
-                -1.0..=1.0,
-                0.05,
-            );
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Axis Y:",
-                &mut r.axis[1],
-                -1.0..=1.0,
-                0.05,
-            );
-            ctx.prop_f32(
-                card,
-                self.component_name(),
-                "Axis Z:",
-                &mut r.axis[2],
-                -1.0..=1.0,
-                0.05,
-            );
-        });
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::Rotator>(ctx.entity),
+            |s, mut r| draw_rotator_card(s, ctx, &mut r),
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(
+        drop(world.insert_one(
             entity,
             ae_core::ecs::Rotator {
                 speed: 1.5,
                 axis: [0.0, 1.0, 0.0],
             },
-        );
+        ));
     }
 }
 
@@ -106,7 +93,7 @@ mod tests {
             axis: [0.0, 1.0, 0.0],
         },));
         let mut tree = UiTree::new();
-        let root = WidgetId::default();
+        let root = tree.create_root().expect("Root node");
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
         let params = InspectorPanelParams {
@@ -149,11 +136,11 @@ mod tests {
 
         let numeric_pills = tree
             .iter()
-            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .filter(|(_, n)| n.role == irisui::core::WidgetRole::NumericInput)
             .count();
         assert_eq!(
             numeric_pills, 4,
-            "Rotator card must emit 4 numeric pills (Speed, Axis X, Axis Y, Axis Z)"
+            "Rotator card must emit 4 numeric inputs (1 Speed + 3 Axis axes)"
         );
 
         // Test in-place mutation and undo snapshotting
@@ -170,5 +157,67 @@ mod tests {
             assert_eq!(r.speed, 2.5);
             assert_eq!(r.axis, [1.0, 0.0, 0.0]);
         }
+    }
+
+    #[test]
+    fn test_draw_rotator_card_direct_structure() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Rotator {
+            speed: 1.5,
+            axis: [0.0, 1.0, 0.0],
+        },));
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut r = world.get::<&mut ae_core::ecs::Rotator>(entity).unwrap();
+
+        draw_rotator_card(&mut scope, &mut ctx, &mut r);
+
+        assert!(
+            tree.has_node_named("RotatorCard"),
+            "RotatorCard container must be rendered"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Axis:_X"),
+            "NumBox_Axis:_X must be present"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Axis:_Y"),
+            "NumBox_Axis:_Y must be present"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Axis:_Z"),
+            "NumBox_Axis:_Z must be present"
+        );
     }
 }

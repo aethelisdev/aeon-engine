@@ -11,6 +11,28 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
+/// Renders the declarative Velocity component card with 3D linear velocity coordinate vector (X, Y, Z).
+pub fn draw_velocity_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    v: &mut ae_core::ecs::Velocity,
+) {
+    scope.card_panel("VelocityCard", |card| {
+        VelocityHandler.render_header(card);
+
+        card.prop_vec3_xyz(
+            "Linear",
+            (&mut v.x, &mut v.y, &mut v.z),
+            0.05,
+            Some([0.0, 0.0, 0.0]),
+        )
+        .on_commit(|_| {
+            ctx.begin_edit("Velocity");
+            ctx.commit_edit("Velocity");
+        });
+    });
+}
+
 /// Inspector handler for `📎 Velocity`.
 pub struct VelocityHandler;
 
@@ -40,25 +62,21 @@ impl ComponentInspectorHandler for VelocityHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut v) = ctx.world.get::<&mut ae_core::ecs::Velocity>(ctx.entity) else {
-            return;
-        };
-
-        scope.card_panel("VelocityCard", |card| {
-            self.render_header(card);
-            ctx.prop_velocity(card, &mut v);
-        });
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::Velocity>(ctx.entity),
+            |s, mut v| draw_velocity_card(s, ctx, &mut v),
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(
+        drop(world.insert_one(
             entity,
             ae_core::ecs::Velocity {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
             },
-        );
+        ));
     }
 }
 
@@ -76,7 +94,7 @@ mod tests {
             z: 3.0,
         },));
         let mut tree = UiTree::new();
-        let root = WidgetId::default();
+        let root = tree.create_root().expect("Root node");
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
         let params = InspectorPanelParams {
@@ -148,5 +166,68 @@ mod tests {
             assert_eq!(v.y, -4.2);
             assert_eq!(v.z, 10.0);
         }
+    }
+
+    #[test]
+    fn test_draw_velocity_card_direct_structure() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Velocity {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },));
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut ctx = ComponentRenderContext::with_actions(
+            entity,
+            &world,
+            &params,
+            &mut actions,
+            10.0,
+            20.0,
+            260.0,
+        );
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut v = world.get::<&mut ae_core::ecs::Velocity>(entity).unwrap();
+
+        draw_velocity_card(&mut scope, &mut ctx, &mut v);
+
+        assert!(
+            tree.has_node_named("VelocityCard"),
+            "VelocityCard container must be rendered"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Linear_X"),
+            "NumBox_Linear_X must be present"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Linear_Y"),
+            "NumBox_Linear_Y must be present"
+        );
+        assert!(
+            tree.has_node_named("NumBox_Linear_Z"),
+            "NumBox_Linear_Z must be present"
+        );
     }
 }

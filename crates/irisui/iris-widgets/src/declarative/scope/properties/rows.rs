@@ -183,61 +183,7 @@ impl<'a> UiScope<'a> {
         let mut slot_executed = false;
 
         let row_id = self.property_row_styled(label, label_width, |slot| {
-            let check_id = slot.tree.create_node();
-            if let Some(node) = slot.tree.get_mut(check_id) {
-                node.set_name("PropertyCheckbox");
-                node.interactive = true;
-                node.role = WidgetRole::Checkbox;
-                node.tag = tag;
-                node.cursor = Some(WidgetCursor::Pointer);
-                node.font_size = 12.0;
-                node.line_height = 14.0;
-                node.text_align = TextAlign::Center;
-
-                let (bg_color, text_color, symbol) = if *checked {
-                    (
-                        Color::rgba(0.0, 0.65, 0.85, 0.25),
-                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                        "✓",
-                    )
-                } else {
-                    (
-                        Color::rgba(0.12, 0.13, 0.16, 0.90),
-                        Color::rgba(0.40, 0.42, 0.48, 1.0),
-                        "",
-                    )
-                };
-
-                node.set_text(symbol);
-                node.text_color = text_color;
-                node.set_style(
-                    Style::new()
-                        .width(18.0)
-                        .height(18.0)
-                        .background(bg_color)
-                        .border(
-                            1.0,
-                            if *checked {
-                                Color::rgba(0.0, 0.80, 1.0, 0.80)
-                            } else {
-                                Color::rgba(0.24, 0.26, 0.32, 0.80)
-                            },
-                        )
-                        .border_radius(3.0)
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center),
-                );
-            }
-            let _ = slot.tree.add_child(slot.parent, check_id);
-
-            let (clicked, hovered, _) = slot.check_interaction(check_id);
-            let mut changed = false;
-            if clicked {
-                *checked = !*checked;
-                changed = true;
-            }
-
-            response = WidgetResponse::new(check_id, clicked, hovered, changed);
+            response = slot.checkbox_tagged("", tag, checked);
             slot_executed = true;
         });
 

@@ -215,7 +215,7 @@ impl PropertyVec3Response {
     #[inline]
     #[must_use]
     pub const fn committed(&self) -> bool {
-        self.committed_axis.is_some()
+        self.committed_axis.is_some() || self.reset_clicked
     }
 
     /// Returns `true` if any vector axis value was modified or the reset button was clicked during this frame.
