@@ -14,6 +14,61 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
+/// Maps a [`ae_core::ecs::RigidBodyType`] variant to its zero-based combobox option index.
+#[inline]
+#[must_use]
+pub const fn body_type_to_index(bt: ae_core::ecs::RigidBodyType) -> usize {
+    match bt {
+        ae_core::ecs::RigidBodyType::Dynamic => 0,
+        ae_core::ecs::RigidBodyType::Kinematic => 1,
+        ae_core::ecs::RigidBodyType::Static => 2,
+    }
+}
+
+/// Maps a zero-based combobox option index to its corresponding [`ae_core::ecs::RigidBodyType`] variant.
+#[inline]
+#[must_use]
+pub const fn index_to_body_type(idx: usize) -> ae_core::ecs::RigidBodyType {
+    match idx {
+        0 => ae_core::ecs::RigidBodyType::Dynamic,
+        1 => ae_core::ecs::RigidBodyType::Kinematic,
+        _ => ae_core::ecs::RigidBodyType::Static,
+    }
+}
+
+/// Renders the declarative RigidBody component card with two-way bound body type dropdown
+/// and mass/gravity numeric scrubbers with automatic undo/redo session tracking.
+pub fn draw_rigidbody_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    rb: &mut ae_core::ecs::RigidBody,
+) {
+    scope.card_panel("RigidBodyCard", |card| {
+        RigidBodyHandler.render_header(card);
+        card.prop_combobox_mapped(
+            "Type:",
+            body_type_to_index(rb.body_type),
+            &["Dynamic", "Kinematic", "Static"],
+            &mut rb.body_type,
+            index_to_body_type,
+        )
+        .on_change(|| {
+            ctx.begin_edit("RigidBody");
+            ctx.commit_edit("RigidBody");
+        });
+        card.prop_f32("Mass:", &mut rb.mass, 0.001..=100_000.0, 0.1)
+            .on_commit(|_| {
+                ctx.begin_edit("RigidBody");
+                ctx.commit_edit("RigidBody");
+            });
+        card.prop_f32("Gravity:", &mut rb.gravity_scale, -100.0..=100.0, 0.1)
+            .on_commit(|_| {
+                ctx.begin_edit("RigidBody");
+                ctx.commit_edit("RigidBody");
+            });
+    });
+}
+
 /// Inspector handler for `⚙ RigidBody`.
 pub struct RigidBodyHandler;
 
@@ -51,10 +106,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
             return;
         };
 
-        scope.card_panel("RigidBodyCard", |card| {
-            self.render_header(card);
-            ctx.prop_rigidbody(card, &mut rb);
-        });
+        draw_rigidbody_card(scope, ctx, &mut rb);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -241,5 +293,89 @@ mod tests {
         assert_eq!(rb.mass, 5.0);
         assert_eq!(rb.gravity_scale, 2.0);
         assert_eq!(rb.body_type, ae_core::ecs::RigidBodyType::Static);
+    }
+
+    #[test]
+    fn test_rigidbody_body_type_mapping_roundtrip() {
+        assert_eq!(body_type_to_index(ae_core::ecs::RigidBodyType::Dynamic), 0);
+        assert_eq!(
+            body_type_to_index(ae_core::ecs::RigidBodyType::Kinematic),
+            1
+        );
+        assert_eq!(body_type_to_index(ae_core::ecs::RigidBodyType::Static), 2);
+
+        assert_eq!(index_to_body_type(0), ae_core::ecs::RigidBodyType::Dynamic);
+        assert_eq!(
+            index_to_body_type(1),
+            ae_core::ecs::RigidBodyType::Kinematic
+        );
+        assert_eq!(index_to_body_type(2), ae_core::ecs::RigidBodyType::Static);
+        assert_eq!(index_to_body_type(99), ae_core::ecs::RigidBodyType::Static);
+    }
+
+    #[test]
+    fn test_draw_rigidbody_card_renders_mass_and_gravity_labels() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::RigidBody::default(),));
+
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut rb = ae_core::ecs::RigidBody {
+            body_type: ae_core::ecs::RigidBodyType::Kinematic,
+            mass: 12.0,
+            gravity_scale: 0.5,
+        };
+
+        draw_rigidbody_card(&mut scope, &mut ctx, &mut rb);
+
+        let has_mass_label = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("NumLbl") && n.text.as_deref() == Some("Mass:")
+        });
+        assert!(has_mass_label, "Must render Mass: label");
+
+        let has_gravity_label = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("NumLbl") && n.text.as_deref() == Some("Gravity:")
+        });
+        assert!(has_gravity_label, "Must render Gravity: label");
+
+        let has_combo_pill = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+        assert!(has_combo_pill, "Must render ComboPill for body type");
+
+        let numeric_pills: Vec<_> = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+            .collect();
+        assert_eq!(numeric_pills.len(), 2, "Must render 2 NumericDrag pills");
+        for (_, pill) in numeric_pills {
+            assert_eq!(
+                pill.style.width,
+                Some(48.0),
+                "NumericDrag pill must default to 48.0 width"
+            );
+        }
     }
 }

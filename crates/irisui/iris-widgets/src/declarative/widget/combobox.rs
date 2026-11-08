@@ -64,6 +64,44 @@ impl ComboBoxResponse {
     pub const fn is_open(&self) -> bool {
         self.is_open
     }
+
+    /// Invokes `f` if an option was clicked and selected during this frame.
+    ///
+    /// Enables 100% pure declarative method chaining and closure scopes without intermediate `let` statements.
+    #[inline]
+    pub fn on_change(self, f: impl FnOnce()) -> Self {
+        if self.changed {
+            f();
+        }
+        self
+    }
+
+    /// Invokes `f(selected_index)` if an option was clicked and selected during this frame.
+    ///
+    /// Enables 100% pure declarative method chaining and closure scopes without intermediate `let` statements.
+    #[inline]
+    pub fn on_select(self, f: impl FnOnce(usize)) -> Self {
+        if let Some(idx) = self.selected_index {
+            f(idx);
+        }
+        self
+    }
+
+    /// Evaluates and returns `Some(f())` if an option was clicked and selected during this frame, or `None` otherwise.
+    ///
+    /// Enables clean functional mapping in declarative expressions without imperative branch statements.
+    #[inline]
+    pub fn map_change<T>(self, f: impl FnOnce() -> T) -> Option<T> {
+        self.changed.then(f)
+    }
+
+    /// Evaluates and returns `Some(f(selected_index))` if an option was clicked and selected during this frame, or `None` otherwise.
+    ///
+    /// Enables clean functional mapping in declarative expressions without imperative branch statements.
+    #[inline]
+    pub fn map_select<T>(self, f: impl FnOnce(usize) -> T) -> Option<T> {
+        self.selected_index.map(f)
+    }
 }
 
 /// Custom closure type for rendering the trailing dropdown indicator icon.
@@ -417,5 +455,42 @@ mod tests {
             tree.active_combobox_tag, None,
             "active_combobox_tag must be cleared"
         );
+    }
+
+    #[test]
+    fn test_combobox_response_fluent_combinators() {
+        let mut on_change_called = false;
+        let mut on_select_idx = None;
+
+        let resp_changed = ComboBoxResponse {
+            response: WidgetResponse::default(),
+            changed: true,
+            selected_index: Some(2),
+            is_open: false,
+        };
+
+        resp_changed
+            .on_change(|| on_change_called = true)
+            .on_select(|idx| on_select_idx = Some(idx));
+
+        assert!(on_change_called);
+        assert_eq!(on_select_idx, Some(2));
+        assert_eq!(resp_changed.map_change(|| 42), Some(42));
+        assert_eq!(resp_changed.map_select(|i| i * 10), Some(20));
+
+        let resp_unchanged = ComboBoxResponse {
+            response: WidgetResponse::default(),
+            changed: false,
+            selected_index: None,
+            is_open: true,
+        };
+
+        let mut unchanged_called = false;
+        resp_unchanged
+            .on_change(|| unchanged_called = true)
+            .on_select(|_| unchanged_called = true);
+        assert!(!unchanged_called);
+        assert_eq!(resp_unchanged.map_change(|| 42), None);
+        assert_eq!(resp_unchanged.map_select(|i| i * 10), None);
     }
 }

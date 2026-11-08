@@ -341,4 +341,20 @@ impl UiTree {
     pub fn clear_all_canvas_primitives(&mut self) {
         self.volatile_canvas_commands.clear();
     }
+
+    /// Returns whether the autonomous numeric undo/redo stack is enabled.
+    #[inline]
+    #[must_use]
+    pub const fn is_numeric_undo_enabled(&self) -> bool {
+        self.event_state.numeric_undo.is_enabled()
+    }
+
+    /// Enables or disables the autonomous numeric undo/redo stack across all numeric controls.
+    ///
+    /// When set to `false`, dragging and inline expression submissions will not record undo transitions,
+    /// and `Ctrl+Z` / `Ctrl+Y` shortcuts will be ignored for numeric widgets.
+    #[inline]
+    pub fn set_numeric_undo_enabled(&mut self, enabled: bool) {
+        self.event_state.numeric_undo.set_enabled(enabled);
+    }
 }

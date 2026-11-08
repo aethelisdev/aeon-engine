@@ -612,22 +612,11 @@ impl<'a> UiScope<'a> {
                 let (_raw_value_str, display_str, is_all_selected) =
                     if let Some(s) = options.edit_states[idx] {
                         let buf = s.buffer;
-                        let cursor = s.cursor_idx.min(buf.len());
-                        let (left, right) = buf.split_at(cursor);
-                        let (raw_val, str) = if s.is_all_selected {
-                            (buf.to_string(), format!("{}{}", prefix, buf))
-                        } else if s.blink_caret {
-                            (
-                                format!("{}|{}", left, right),
-                                format!("{}{}|{}", prefix, left, right),
-                            )
-                        } else {
-                            (
-                                format!("{}{}", left, right),
-                                format!("{}{}{}", prefix, left, right),
-                            )
-                        };
-                        (raw_val, str, s.is_all_selected)
+                        (
+                            buf.to_string(),
+                            format!("{}{}", prefix, buf),
+                            s.is_all_selected,
+                        )
                     } else if let Some(ref res) = edit_res {
                         let is_all = res
                             .selection
@@ -671,7 +660,70 @@ impl<'a> UiScope<'a> {
 
                 {
                     let mut pill_scope = slot.child_scope(axis_box_id);
-                    if is_all_selected {
+                    if let Some(ref res) = edit_res {
+                        if let Some((s_idx, e_idx)) = res.selection {
+                            let raw = &res.raw_text;
+                            if !raw.is_empty() {
+                                let font_size = 10.5;
+                                let prefix_w = iris_text::measure_text_advance(prefix, font_size);
+                                let text_w =
+                                    prefix_w + iris_text::measure_text_advance(raw, font_size);
+                                let text_start_x = ((54.0 - text_w) * 0.5).max(0.0);
+                                let s_safe = s_idx.min(raw.len());
+                                let e_safe = e_idx.min(raw.len());
+                                let min_b = s_safe.min(e_safe);
+                                let max_b = s_safe.max(e_safe);
+                                if min_b < max_b {
+                                    let start_offset =
+                                        iris_text::measure_text_advance(&raw[..min_b], font_size);
+                                    let end_offset =
+                                        iris_text::measure_text_advance(&raw[..max_b], font_size);
+                                    let sel_x = (text_start_x + prefix_w + start_offset - 1.5)
+                                        .clamp(2.0, 50.0);
+                                    let sel_w = (end_offset - start_offset + 3.0).min(52.0 - sel_x);
+                                    let sel_style = Style::new()
+                                        .position_absolute()
+                                        .left(sel_x)
+                                        .top(2.5)
+                                        .width(sel_w)
+                                        .height(15.0)
+                                        .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                                        .border_radius(3.0);
+                                    pill_scope.empty_box_passive_named(sel_name, sel_style);
+                                }
+                            }
+                        } else if is_editing {
+                            let raw = &res.raw_text;
+                            let cur_idx = res.cursor_byte_idx.min(raw.len());
+                            let font_size = 10.5;
+                            let prefix_w = iris_text::measure_text_advance(prefix, font_size);
+                            let text_w = prefix_w + iris_text::measure_text_advance(raw, font_size);
+                            let text_start_x = ((54.0 - text_w) * 0.5).max(0.0);
+                            let caret_offset =
+                                iris_text::measure_text_advance(&raw[..cur_idx], font_size);
+                            let caret_x =
+                                (text_start_x + prefix_w + caret_offset - 0.75).clamp(2.0, 51.0);
+                            let caret_id = pill_scope.tree.create_node();
+                            let caret_color = pill_scope.theme().text_caret;
+                            if let Some(node) = pill_scope.tree.get_mut(caret_id) {
+                                node.set_name("TextInputCaret");
+                                node.role = WidgetRole::TextInputCaret;
+                                node.interactive = false;
+                                node.tag = caret_offset.to_bits() as u64;
+                                node.set_style(
+                                    Style::new()
+                                        .position_absolute()
+                                        .left(caret_x)
+                                        .top(3.0)
+                                        .width(1.5)
+                                        .height(14.0)
+                                        .background(caret_color)
+                                        .border_radius(0.75),
+                                );
+                            }
+                            let _ = pill_scope.tree.add_child(axis_box_id, caret_id);
+                        }
+                    } else if is_all_selected {
                         let approx_char_w = 6.2;
                         let val_w = (display_str.len().saturating_sub(prefix.len()) as f32
                             * approx_char_w)

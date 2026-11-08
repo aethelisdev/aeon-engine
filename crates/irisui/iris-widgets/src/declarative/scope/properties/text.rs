@@ -10,7 +10,7 @@ use crate::declarative::types::{WidgetResponse, split_label_id};
 use iris_core::{AlignItems, Color, Insets, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole};
 
 /// Configuration options for text and string property rows.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PropertyTextOptions<'a> {
     /// Placeholder hint displayed when the value string is empty.
     pub placeholder: &'a str,
@@ -26,10 +26,21 @@ pub struct PropertyTextOptions<'a> {
     pub label_width: Option<f32>,
     /// Optional explicit semantic tag override. If `None`, computed via `tag_for(label)`.
     pub custom_tag: Option<u64>,
+    /// Whether clipboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled for this text row.
+    pub clipboard_shortcuts_enabled: bool,
+    /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled for this text row.
+    pub undo_shortcuts_enabled: bool,
+}
+
+impl<'a> Default for PropertyTextOptions<'a> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> PropertyTextOptions<'a> {
-    /// Creates a default text property options descriptor.
+    /// Creates a default text property options descriptor with shortcuts enabled.
     pub const fn new() -> Self {
         Self {
             placeholder: "",
@@ -39,6 +50,8 @@ impl<'a> PropertyTextOptions<'a> {
             selection: None,
             label_width: None,
             custom_tag: None,
+            clipboard_shortcuts_enabled: true,
+            undo_shortcuts_enabled: true,
         }
     }
 
@@ -76,6 +89,25 @@ impl<'a> PropertyTextOptions<'a> {
     /// Sets a custom semantic tag for interactive hit-testing and event routing.
     pub const fn with_custom_tag(mut self, tag: u64) -> Self {
         self.custom_tag = Some(tag);
+        self
+    }
+
+    /// Sets whether clipboard keyboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled.
+    pub const fn with_clipboard_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether undo and redo keyboard shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled.
+    pub const fn with_undo_shortcuts(mut self, enabled: bool) -> Self {
+        self.undo_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether both clipboard and undo/redo keyboard shortcuts are enabled.
+    pub const fn with_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self.undo_shortcuts_enabled = enabled;
         self
     }
 }
@@ -137,6 +169,35 @@ impl<'a> UiScope<'a> {
 
         let _ = self.property_row_styled(label, label_width, |slot| {
             input_resp = slot.text_input_with_width_tagged(placeholder, tag, 0.0, value);
+        });
+
+        input_resp
+    }
+
+    /// Emits a standardized two-way bound text input property row with explicit options descriptor.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed on the left.
+    /// * `value` - Mutable string reference updated in-place as characters are typed or confirmed.
+    /// * `options` - Custom configuration options controlling placeholder, label width, custom tag, and shortcuts.
+    pub fn prop_text_with_options(
+        &mut self,
+        label: &str,
+        value: &mut String,
+        options: PropertyTextOptions<'_>,
+    ) -> WidgetResponse {
+        let tag = options.custom_tag.unwrap_or_else(|| self.tag_for(label));
+        let mut input_resp = WidgetResponse::default();
+
+        let _ = self.property_row_styled(label, options.label_width, |slot| {
+            input_resp = slot.text_input_with_shortcut_options(
+                options.placeholder,
+                tag,
+                0.0,
+                options.clipboard_shortcuts_enabled,
+                options.undo_shortcuts_enabled,
+                value,
+            );
         });
 
         input_resp

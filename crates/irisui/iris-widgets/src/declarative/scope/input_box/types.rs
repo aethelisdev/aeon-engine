@@ -36,10 +36,14 @@ pub struct InputBoxProps<'a> {
     pub caret_color: Option<iris_core::Color>,
     /// Optional semantic tag for the "✖" clear button rendered inside the right edge of the input.
     pub clear_tag: Option<u64>,
+    /// Whether clipboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled for this input box.
+    pub clipboard_shortcuts_enabled: bool,
+    /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled for this input box.
+    pub undo_shortcuts_enabled: bool,
 }
 
 impl<'a> InputBoxProps<'a> {
-    /// Creates a new [`InputBoxProps`] descriptor with default horizontal layout metrics.
+    /// Creates a new [`InputBoxProps`] descriptor with default horizontal layout metrics and shortcuts enabled.
     ///
     /// # Arguments
     /// * `text` - Current text value.
@@ -70,6 +74,8 @@ impl<'a> InputBoxProps<'a> {
             cursor_byte_idx,
             caret_color: None,
             clear_tag: None,
+            clipboard_shortcuts_enabled: true,
+            undo_shortcuts_enabled: true,
         }
     }
 
@@ -107,6 +113,25 @@ impl<'a> InputBoxProps<'a> {
     /// Attaches an optional clear button tag to display a "✖" glyph on the right edge when text is non-empty.
     pub fn with_clear_tag(mut self, clear_tag: u64) -> Self {
         self.clear_tag = Some(clear_tag);
+        self
+    }
+
+    /// Sets whether clipboard keyboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled.
+    pub fn with_clipboard_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether undo and redo keyboard shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled.
+    pub fn with_undo_shortcuts(mut self, enabled: bool) -> Self {
+        self.undo_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether both clipboard and undo/redo keyboard shortcuts are enabled.
+    pub fn with_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self.undo_shortcuts_enabled = enabled;
         self
     }
 }

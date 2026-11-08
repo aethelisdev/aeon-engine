@@ -59,6 +59,19 @@ impl<'a> UiScope<'a> {
         width: f32,
         text: &mut String,
     ) -> WidgetResponse {
+        self.text_input_with_shortcut_options(placeholder, tag, width, true, true, text)
+    }
+
+    /// Emits a single-line declarative text input field with configurable clipboard and undo/redo shortcuts.
+    pub fn text_input_with_shortcut_options(
+        &mut self,
+        placeholder: impl Into<String>,
+        tag: u64,
+        width: f32,
+        clipboard_shortcuts_enabled: bool,
+        undo_shortcuts_enabled: bool,
+        text: &mut String,
+    ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         let placeholder_str = placeholder.into();
         let parent_layer = self.tree.effective_layer(self.parent);
@@ -228,7 +241,11 @@ impl<'a> UiScope<'a> {
 
         let (cursor_idx, active_selection) = if is_focused {
             let mut session = match self.tree.event_state.active_text_edit.take() {
-                Some(s) if s.tag == edit_key => s,
+                Some(mut s) if s.tag == edit_key => {
+                    s.allow_clipboard_shortcuts = clipboard_shortcuts_enabled;
+                    s.allow_undo_shortcuts = undo_shortcuts_enabled;
+                    s
+                }
                 _ => {
                     let mut stack = iris_core::dispatch::undo::TextUndoStack::new();
                     let initial_cur = text.len();
@@ -243,6 +260,8 @@ impl<'a> UiScope<'a> {
                         cursor_byte_idx: initial_cur,
                         selection: None,
                         undo_stack: stack,
+                        allow_clipboard_shortcuts: clipboard_shortcuts_enabled,
+                        allow_undo_shortcuts: undo_shortcuts_enabled,
                     }
                 }
             };
@@ -272,7 +291,9 @@ impl<'a> UiScope<'a> {
             let incoming = self.tree.event_state.frame_text_input.as_deref();
             let ctrl_held = self.tree.event_state.frame_ctrl_held;
             let shift_held = self.tree.event_state.frame_shift_held;
-            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held);
+            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held)
+                .with_clipboard_shortcuts(session.allow_clipboard_shortcuts)
+                .with_undo_shortcuts(session.allow_undo_shortcuts);
 
             let res =
                 process_text_input_keys(text, &mut cur, &mut sel, ctx, &mut session.undo_stack);

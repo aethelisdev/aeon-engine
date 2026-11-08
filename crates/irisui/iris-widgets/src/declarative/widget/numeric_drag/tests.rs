@@ -201,3 +201,128 @@ fn test_numeric_drag_exponential_and_logarithmic_curves() {
     // ratio = 2.0, ln(3)/ln(2) ~ 1.5849625, delta = 1.5849625 * 1.0 ~ 1.5849625
     assert!((log_val - 51.58496).abs() < 1e-3);
 }
+
+#[test]
+fn test_numeric_drag_undo_disabled() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node");
+
+    let tag = 8888;
+    tree.event_state.pointer_capture_tag = Some(tag);
+    tree.event_state.is_pointer_drag_active = true;
+    tree.event_state.frame_drag_delta = Some(iris_core::Point::new(10.0, 0.0));
+
+    let mut val = 10.0;
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("NoUndo", &mut val)
+                .tag(tag)
+                .undo_enabled(false)
+                .range(0.0..=100.0),
+        );
+        assert!(resp.changed());
+    }
+
+    // Because undo was disabled on the widget, nothing should have been pushed to numeric_undo
+    assert_eq!(tree.event_state.numeric_undo.active_drag_start(tag), None);
+    assert!(!tree.event_state.numeric_undo.can_undo());
+
+    // Release drag
+    tree.event_state.frame_drag_released_tag = Some(tag);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("NoUndo", &mut val)
+                .tag(tag)
+                .with_undo(false)
+                .range(0.0..=100.0),
+        );
+        assert!(resp.drag_released());
+    }
+    assert!(!tree.event_state.numeric_undo.can_undo());
+}
+
+#[test]
+fn test_numeric_drag_caret_node_creation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node");
+
+    let tag = 4455;
+    tree.event_state.active_text_edit = Some(iris_core::dispatch::ActiveTextEditSession {
+        tag,
+        buffer: "123.45".to_string(),
+        cursor_byte_idx: 3,
+        selection: None,
+        undo_stack: iris_core::dispatch::TextUndoStack::new(),
+        allow_clipboard_shortcuts: true,
+        allow_undo_shortcuts: true,
+    });
+
+    let mut val = 123.45;
+    let resp = {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.add(NumericDrag::new("Mass", &mut val).tag(tag))
+    };
+
+    let pill_id = resp.id();
+    let children = tree.get(pill_id).unwrap().children.clone();
+    let caret_node_id = children.into_iter().find(|&cid| {
+        tree.get(cid)
+            .is_some_and(|n| n.role == iris_core::WidgetRole::TextInputCaret)
+    });
+
+    assert!(
+        caret_node_id.is_some(),
+        "TextInputCaret must exist during active text editing"
+    );
+    let caret = tree.get(caret_node_id.unwrap()).unwrap();
+    assert_eq!(caret.name.as_deref(), Some("TextInputCaret"));
+    assert_eq!(caret.role, iris_core::WidgetRole::TextInputCaret);
+    assert!(!caret.interactive);
+    assert_eq!(caret.style.position, iris_core::Position::Absolute);
+    assert!(caret.style.inset_left.is_some());
+}
+
+#[test]
+fn test_numeric_drag_caret_suppressed_during_active_selection() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node");
+
+    let tag = 4456;
+    tree.event_state.active_text_edit = Some(iris_core::dispatch::ActiveTextEditSession {
+        tag,
+        buffer: "123.45".to_string(),
+        cursor_byte_idx: 6,
+        selection: Some((0, 6)),
+        undo_stack: iris_core::dispatch::TextUndoStack::new(),
+        allow_clipboard_shortcuts: true,
+        allow_undo_shortcuts: true,
+    });
+
+    let mut val = 123.45;
+    let resp = {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.add(NumericDrag::new("Mass", &mut val).tag(tag))
+    };
+
+    let pill_id = resp.id();
+    let children = tree.get(pill_id).unwrap().children.clone();
+    let caret_exists = children.iter().any(|&cid| {
+        tree.get(cid)
+            .is_some_and(|n| n.role == iris_core::WidgetRole::TextInputCaret)
+    });
+    let selection_exists = children.iter().any(|&cid| {
+        tree.get(cid)
+            .is_some_and(|n| n.name.as_deref() == Some("Numeric_Sel"))
+    });
+
+    assert!(
+        !caret_exists,
+        "TextInputCaret must NOT be rendered when text is selected"
+    );
+    assert!(
+        selection_exists,
+        "Numeric_Sel must be rendered when text is selected"
+    );
+}

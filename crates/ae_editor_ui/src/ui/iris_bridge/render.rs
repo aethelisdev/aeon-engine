@@ -45,6 +45,7 @@ impl IrisEditorOverlay {
             .with_clip(clip_rect)
             .with_hovered_tag(self.chrome.hovered_tag)
             .with_focused_tag(self.tree.event_state.focused_tag)
+            .with_focused_id(self.tree.event_state.focused)
             .with_blink_caret(self.chrome.last_blink_caret)
             .with_custom_drawer(&mut custom_drawer);
 
@@ -132,7 +133,11 @@ impl IrisEditorOverlay {
 
             let text_options = irisui::text::TextCollectionOptions {
                 hovered_tag: self.chrome.hovered_tag,
-                focused_tag: self.focus_manager.focused_tag,
+                focused_tag: self
+                    .focus_manager
+                    .focused_tag
+                    .or(self.tree.event_state.focused_tag),
+                focused_id: self.tree.event_state.focused,
                 blink_caret: self.chrome.last_blink_caret,
                 extra_occluders,
                 ..Default::default()

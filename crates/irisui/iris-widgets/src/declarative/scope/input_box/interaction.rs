@@ -115,7 +115,7 @@ impl TextInputFilter {
 /// Contextual payload describing incoming keyboard and text interaction parameters.
 ///
 /// Groups event states into a single descriptor to avoid parameter bloat.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct TextInputKeyContext<'a> {
     /// Whether a keyboard key was pressed down this frame.
     pub key_pressed: bool,
@@ -129,10 +129,30 @@ pub struct TextInputKeyContext<'a> {
     pub shift_held: bool,
     /// Input character filter mode applied to incoming typing and pasted clipboard strings.
     pub filter: TextInputFilter,
+    /// Whether clipboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled.
+    pub clipboard_shortcuts_enabled: bool,
+    /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled.
+    pub undo_shortcuts_enabled: bool,
+}
+
+impl<'a> Default for TextInputKeyContext<'a> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            key_pressed: false,
+            key: None,
+            incoming_text: None,
+            ctrl_held: false,
+            shift_held: false,
+            filter: TextInputFilter::All,
+            clipboard_shortcuts_enabled: true,
+            undo_shortcuts_enabled: true,
+        }
+    }
 }
 
 impl<'a> TextInputKeyContext<'a> {
-    /// Creates a new keyboard event context with explicit parameters and default filter.
+    /// Creates a new keyboard event context with explicit parameters, default filter, and shortcuts enabled.
     #[inline]
     pub const fn new(
         key_pressed: bool,
@@ -148,6 +168,8 @@ impl<'a> TextInputKeyContext<'a> {
             ctrl_held,
             shift_held,
             filter: TextInputFilter::All,
+            clipboard_shortcuts_enabled: true,
+            undo_shortcuts_enabled: true,
         }
     }
 
@@ -156,6 +178,31 @@ impl<'a> TextInputKeyContext<'a> {
     #[must_use]
     pub const fn with_filter(mut self, filter: TextInputFilter) -> Self {
         self.filter = filter;
+        self
+    }
+
+    /// Sets whether clipboard keyboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled.
+    #[inline]
+    #[must_use]
+    pub const fn with_clipboard_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether undo and redo keyboard shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled.
+    #[inline]
+    #[must_use]
+    pub const fn with_undo_shortcuts(mut self, enabled: bool) -> Self {
+        self.undo_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets whether both clipboard and undo/redo keyboard shortcuts are enabled.
+    #[inline]
+    #[must_use]
+    pub const fn with_shortcuts(mut self, enabled: bool) -> Self {
+        self.clipboard_shortcuts_enabled = enabled;
+        self.undo_shortcuts_enabled = enabled;
         self
     }
 }
@@ -213,7 +260,7 @@ pub fn process_text_input_keys(
         };
 
         // Autonomous Undo: Ctrl+Z (without Shift)
-        if !ctx.shift_held && ch == Some('z') {
+        if ctx.undo_shortcuts_enabled && !ctx.shift_held && ch == Some('z') {
             result.consumed = true;
             if undo_stack.undo_in_place(text, cursor_byte_idx, selection) {
                 result.changed = true;
@@ -222,7 +269,9 @@ pub fn process_text_input_keys(
         }
 
         // Autonomous Redo: Ctrl+Y (Windows/Linux) or Ctrl+Shift+Z (macOS / Modern IDE)
-        if (!ctx.shift_held && ch == Some('y')) || (ctx.shift_held && ch == Some('z')) {
+        if ctx.undo_shortcuts_enabled
+            && ((!ctx.shift_held && ch == Some('y')) || (ctx.shift_held && ch == Some('z')))
+        {
             result.consumed = true;
             if undo_stack.redo_in_place(text, cursor_byte_idx, selection) {
                 result.changed = true;
@@ -230,79 +279,81 @@ pub fn process_text_input_keys(
             return result;
         }
 
-        match ch {
-            Some('a') => {
-                result.consumed = true;
-                if !text.is_empty() {
-                    *selection = Some((0, text.len()));
-                    *cursor_byte_idx = text.len();
-                    result.changed = true;
-                }
-                return result;
-            }
-            Some('c') => {
-                result.consumed = true;
-                if !text.is_empty() {
-                    let copied = if let Some((s, e)) = *selection {
-                        &text[s..e]
-                    } else {
-                        text.as_str()
-                    };
-                    crate::input::copy_to_clipboard(copied);
-                }
-                return result;
-            }
-            Some('x') => {
-                result.consumed = true;
-                if !text.is_empty() {
-                    undo_stack.record_edit(
-                        TextSnapshot::new(text.clone(), *cursor_byte_idx, *selection),
-                        UndoActionKind::Atomic,
-                        None,
-                    );
-                    if let Some((s, e)) = selection.take() {
-                        crate::input::copy_to_clipboard(&text[s..e]);
-                        text.drain(s..e);
-                        *cursor_byte_idx = s;
-                        result.changed = true;
-                    } else {
-                        crate::input::copy_to_clipboard(text);
-                        text.clear();
-                        *cursor_byte_idx = 0;
+        if ctx.clipboard_shortcuts_enabled {
+            match ch {
+                Some('a') => {
+                    result.consumed = true;
+                    if !text.is_empty() {
+                        *selection = Some((0, text.len()));
+                        *cursor_byte_idx = text.len();
                         result.changed = true;
                     }
+                    return result;
                 }
-                return result;
-            }
-            Some('v') => {
-                result.consumed = true;
-                if let Some(pasted) = crate::input::get_clipboard_text() {
-                    let filtered: String = pasted
-                        .chars()
-                        .filter(|&c| ctx.filter.is_allowed(c))
-                        .collect();
-                    if !filtered.is_empty() {
+                Some('c') => {
+                    result.consumed = true;
+                    if !text.is_empty() {
+                        let copied = if let Some((s, e)) = *selection {
+                            &text[s..e]
+                        } else {
+                            text.as_str()
+                        };
+                        crate::input::copy_to_clipboard(copied);
+                    }
+                    return result;
+                }
+                Some('x') => {
+                    result.consumed = true;
+                    if !text.is_empty() {
                         undo_stack.record_edit(
                             TextSnapshot::new(text.clone(), *cursor_byte_idx, *selection),
                             UndoActionKind::Atomic,
                             None,
                         );
                         if let Some((s, e)) = selection.take() {
+                            crate::input::copy_to_clipboard(&text[s..e]);
                             text.drain(s..e);
-                            text.insert_str(s, &filtered);
-                            *cursor_byte_idx = s + filtered.len();
+                            *cursor_byte_idx = s;
                             result.changed = true;
                         } else {
-                            let idx = (*cursor_byte_idx).min(text.len());
-                            text.insert_str(idx, &filtered);
-                            *cursor_byte_idx += filtered.len();
+                            crate::input::copy_to_clipboard(text);
+                            text.clear();
+                            *cursor_byte_idx = 0;
                             result.changed = true;
                         }
                     }
+                    return result;
                 }
-                return result;
+                Some('v') => {
+                    result.consumed = true;
+                    if let Some(pasted) = crate::input::get_clipboard_text() {
+                        let filtered: String = pasted
+                            .chars()
+                            .filter(|&c| ctx.filter.is_allowed(c))
+                            .collect();
+                        if !filtered.is_empty() {
+                            undo_stack.record_edit(
+                                TextSnapshot::new(text.clone(), *cursor_byte_idx, *selection),
+                                UndoActionKind::Atomic,
+                                None,
+                            );
+                            if let Some((s, e)) = selection.take() {
+                                text.drain(s..e);
+                                text.insert_str(s, &filtered);
+                                *cursor_byte_idx = s + filtered.len();
+                                result.changed = true;
+                            } else {
+                                let idx = (*cursor_byte_idx).min(text.len());
+                                text.insert_str(idx, &filtered);
+                                *cursor_byte_idx += filtered.len();
+                                result.changed = true;
+                            }
+                        }
+                    }
+                    return result;
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 
@@ -401,6 +452,7 @@ pub fn process_text_input_keys(
             _ => {}
         }
     } else if ctx.key_pressed
+        && !ctx.ctrl_held
         && let Some(incoming) = ctx.incoming_text
     {
         let filtered: String = incoming
@@ -435,4 +487,35 @@ pub fn process_text_input_keys(
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shortcuts_disabled_in_context() {
+        let mut text = "hello".to_string();
+        let mut cur = 5;
+        let mut sel = None;
+        let mut undo = TextUndoStack::new();
+
+        undo.checkpoint(TextSnapshot::new("hello", 5, None));
+
+        // When undo shortcuts are disabled, Ctrl+Z is ignored
+        let ctx =
+            TextInputKeyContext::new(true, Some(KeyCode::Character('z')), Some("z"), true, false)
+                .with_undo_shortcuts(false);
+        let res = process_text_input_keys(&mut text, &mut cur, &mut sel, ctx, &mut undo);
+        assert!(!res.consumed);
+        assert!(!res.changed);
+
+        // When clipboard shortcuts are disabled, Ctrl+A is ignored
+        let ctx =
+            TextInputKeyContext::new(true, Some(KeyCode::Character('a')), Some("a"), true, false)
+                .with_clipboard_shortcuts(false);
+        let res = process_text_input_keys(&mut text, &mut cur, &mut sel, ctx, &mut undo);
+        assert!(!res.consumed);
+        assert_eq!(sel, None);
+    }
 }

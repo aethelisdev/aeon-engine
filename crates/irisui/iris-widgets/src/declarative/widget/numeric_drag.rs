@@ -149,13 +149,15 @@ pub struct NumericDrag<'a> {
     name: Option<&'a str>,
     curve: DragCurve,
     pixels_per_step: f32,
+    undo_enabled: bool,
 }
 
 impl<'a> NumericDrag<'a> {
     /// Creates a new [`NumericDrag`] builder for the given label and mutable float reference.
     ///
     /// Defaults to `speed: 0.1`, `range: -10000.0..=10000.0`, `decimals: 2`,
-    /// `label_width: None` (defaults to 55.0 when rendered), and `box_width: None` (defaults to 48.0).
+    /// `label_width: None` (defaults to 55.0 when rendered), `box_width: None` (defaults to 48.0),
+    /// and `undo_enabled: true`.
     #[inline]
     pub fn new(label: &'a str, value: &'a mut f32) -> Self {
         Self {
@@ -173,7 +175,28 @@ impl<'a> NumericDrag<'a> {
             name: None,
             curve: DragCurve::Linear,
             pixels_per_step: DEFAULT_PIXELS_PER_STEP as f32,
+            undo_enabled: true,
         }
+    }
+
+    /// Sets whether autonomous undo/redo tracking is enabled for this numeric drag control.
+    ///
+    /// Defaults to `true`. When set to `false`, dragging and inline submissions for this
+    /// widget will not record undo transitions in [`iris_core::dispatch::NumericUndoStack`].
+    #[inline]
+    #[must_use]
+    pub fn undo_enabled(mut self, enabled: bool) -> Self {
+        self.undo_enabled = enabled;
+        self
+    }
+
+    /// Sets whether autonomous undo/redo tracking is enabled for this numeric drag control.
+    ///
+    /// Alias for [`Self::undo_enabled`].
+    #[inline]
+    #[must_use]
+    pub fn with_undo(self, enabled: bool) -> Self {
+        self.undo_enabled(enabled)
     }
 
     /// Sets the non-linear response curve for pointer drag scrubbing.
@@ -358,7 +381,8 @@ impl<'a> NumericDrag<'a> {
         let mut changed = false;
         let mut submitted = false;
 
-        if self.edit_state.is_some()
+        if self.undo_enabled
+            && self.edit_state.is_some()
             && let Some(restored) = scope.tree.event_state.numeric_undo.take_pending_scalar(tag)
         {
             let next = restored.clamp(min_val, max_val);
@@ -388,21 +412,25 @@ impl<'a> NumericDrag<'a> {
                 if let Some(parsed) = crate::declarative::types::eval_numeric_expression(clean) {
                     let next = parsed.clamp(min_val, max_val);
                     if (next - *self.value).abs() > f32::EPSILON {
-                        scope
-                            .tree
-                            .event_state
-                            .numeric_undo
-                            .push_scalar(tag, *self.value, next);
+                        if self.undo_enabled {
+                            scope
+                                .tree
+                                .event_state
+                                .numeric_undo
+                                .push_scalar(tag, *self.value, next);
+                        }
                         *self.value = next;
                         changed = true;
                     }
                 }
             } else if let Some(delta) = drag_delta {
-                scope
-                    .tree
-                    .event_state
-                    .numeric_undo
-                    .begin_drag(tag, *self.value);
+                if self.undo_enabled {
+                    scope
+                        .tree
+                        .event_state
+                        .numeric_undo
+                        .begin_drag(tag, *self.value);
+                }
                 let delta_val = self.curve.compute_delta_f32(
                     delta.x,
                     self.speed,
@@ -425,17 +453,7 @@ impl<'a> NumericDrag<'a> {
                     .is_some_and(|(s, e)| s == 0 && e == res.raw_text.len());
                 (res.display_text.clone(), is_all_sel)
             } else if let Some(s) = self.edit_state {
-                let buf = s.buffer;
-                let cursor = s.cursor_idx.min(buf.len());
-                let (left, right) = buf.split_at(cursor);
-                let disp = if s.is_all_selected {
-                    buf.to_owned()
-                } else if s.blink_caret {
-                    format!("{}|{}", left, right)
-                } else {
-                    buf.to_owned()
-                };
-                (disp, s.is_all_selected)
+                (s.buffer.to_owned(), s.is_all_selected)
             } else {
                 (String::new(), false)
             }
@@ -476,14 +494,14 @@ impl<'a> NumericDrag<'a> {
             node.interactive = true;
             node.role = WidgetRole::NumericInput;
             node.tag = tag;
-            node.cursor = Some(if is_dragging {
-                WidgetCursor::EwResize
-            } else if is_editing {
+            node.cursor = Some(if is_editing {
                 WidgetCursor::Text
+            } else if is_dragging {
+                WidgetCursor::EwResize
             } else {
                 WidgetCursor::Default
             });
-            node.set_text(display_str);
+            node.set_text(display_str.clone());
             node.font_size = 10.5;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
@@ -493,36 +511,93 @@ impl<'a> NumericDrag<'a> {
                 Color::rgba(0.85, 0.88, 0.94, 1.0)
             };
 
-            let mut style = Style::new()
+            let style = Style::new()
                 .flex_row()
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center)
+                .width(box_w)
                 .height(22.0)
                 .background(bg)
                 .border(1.0, border_col)
                 .border_radius(4.0);
-            if let Some(w) = self.box_width {
-                style.width = Some(w);
-            }
             node.set_style(style);
         }
 
-        if is_all_selected {
-            let approx_char_w = 6.2;
-            let val_w = (text_len as f32 * approx_char_w).max(12.0);
-            let w = box_w;
-            let sel_x = ((w - val_w) * 0.5 - 2.0).clamp(2.0, w - 6.0);
-            let sel_w = (val_w + 4.0).min(w - 2.0 - sel_x);
-            let sel_style = Style::new()
-                .position_absolute()
-                .left(sel_x)
-                .top(3.0)
-                .width(sel_w)
-                .height(16.0)
-                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                .border_radius(3.0);
-            let mut pill_scope = scope.child_scope(pill_id);
-            pill_scope.empty_box_passive_named("Numeric_Sel", sel_style);
+        let active_selection = if let Some(ref res) = edit_res {
+            res.selection
+        } else if is_all_selected {
+            Some((0, text_len))
+        } else {
+            None
+        };
+
+        if let Some((s_idx, e_idx)) = active_selection {
+            let raw = edit_res
+                .as_ref()
+                .map(|r| r.raw_text.as_str())
+                .unwrap_or(display_str.as_str());
+            if !raw.is_empty() {
+                let font_size = 10.5;
+                let text_w = iris_text::measure_text_advance(raw, font_size);
+                let text_start_x = ((box_w - text_w) * 0.5).max(0.0);
+                let s_safe = s_idx.min(raw.len());
+                let e_safe = e_idx.min(raw.len());
+                let min_b = s_safe.min(e_safe);
+                let max_b = s_safe.max(e_safe);
+                if min_b < max_b {
+                    let start_offset = iris_text::measure_text_advance(&raw[..min_b], font_size);
+                    let end_offset = iris_text::measure_text_advance(&raw[..max_b], font_size);
+                    let sel_x = (text_start_x + start_offset - 1.5).clamp(2.0, box_w - 4.0);
+                    let sel_w = (end_offset - start_offset + 3.0).min(box_w - 2.0 - sel_x);
+                    let sel_style = Style::new()
+                        .position_absolute()
+                        .left(sel_x)
+                        .top(3.0)
+                        .width(sel_w)
+                        .height(16.0)
+                        .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                        .border_radius(3.0);
+                    let mut pill_scope = scope.child_scope(pill_id);
+                    pill_scope.empty_box_passive_named("Numeric_Sel", sel_style);
+                }
+            }
+        } else if is_editing {
+            let cur_idx = if let Some(ref res) = edit_res {
+                res.cursor_byte_idx
+            } else if let Some(s) = self.edit_state {
+                s.cursor_idx
+            } else {
+                display_str.len()
+            };
+            let raw = edit_res
+                .as_ref()
+                .map(|r| r.raw_text.as_str())
+                .unwrap_or(display_str.as_str());
+            let font_size = 10.5;
+            let text_w = iris_text::measure_text_advance(raw, font_size);
+            let text_start_x = ((box_w - text_w) * 0.5).max(0.0);
+            let caret_offset =
+                iris_text::measure_text_advance(&raw[..cur_idx.min(raw.len())], font_size);
+            let caret_x = (text_start_x + caret_offset - 0.75).clamp(2.0, box_w - 3.0);
+            let caret_id = scope.tree.create_node();
+            let caret_color = scope.theme().text_caret;
+            if let Some(node) = scope.tree.get_mut(caret_id) {
+                node.set_name("TextInputCaret");
+                node.role = WidgetRole::TextInputCaret;
+                node.interactive = false;
+                node.tag = caret_offset.to_bits() as u64;
+                node.set_style(
+                    Style::new()
+                        .position_absolute()
+                        .left(caret_x)
+                        .top(4.0)
+                        .width(1.5)
+                        .height(14.0)
+                        .background(caret_color)
+                        .border_radius(0.75),
+                );
+            }
+            let _ = scope.tree.add_child(pill_id, caret_id);
         }
 
         let is_drag_released = (scope.tree.event_state.frame_drag_released_tag == Some(tag)
@@ -533,15 +608,19 @@ impl<'a> NumericDrag<'a> {
         if is_pressed {
             resp = resp.with_pressed(true);
         }
-        if is_dragging {
+        if is_dragging && !is_editing {
             resp = resp.with_dragged(true);
         }
         let old_val = if is_drag_released {
-            let (_, start_opt) = scope
-                .tree
-                .event_state
-                .numeric_undo
-                .commit_drag_with_start(tag, *self.value);
+            let (_, start_opt) = if self.undo_enabled && !is_editing {
+                scope
+                    .tree
+                    .event_state
+                    .numeric_undo
+                    .commit_drag_with_start(tag, *self.value)
+            } else {
+                (false, None)
+            };
             resp = resp.with_drag_released(true);
             if !is_editing {
                 scope.tree.event_state.focused = Some(pill_id);
@@ -550,13 +629,15 @@ impl<'a> NumericDrag<'a> {
                 }
             }
             start_opt.unwrap_or(initial_val)
-        } else {
+        } else if self.undo_enabled && !is_editing {
             scope
                 .tree
                 .event_state
                 .numeric_undo
                 .active_drag_start(tag)
                 .unwrap_or(initial_val)
+        } else {
+            initial_val
         };
         if submitted {
             resp.flags = resp

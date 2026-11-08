@@ -97,6 +97,8 @@ pub struct NumericUndoStack {
     active_drag: Option<(u64, f32)>,
     /// Pending restoration emitted by [`Self::undo`] or [`Self::redo`] to be applied on the next frame.
     pending: Option<PendingNumericRestore>,
+    /// Whether autonomous undo/redo recording and restoration is enabled.
+    enabled: bool,
 }
 
 impl Default for NumericUndoStack {
@@ -107,7 +109,7 @@ impl Default for NumericUndoStack {
 }
 
 impl NumericUndoStack {
-    /// Creates an empty [`NumericUndoStack`] with [`DEFAULT_MAX_UNDO_DEPTH`] capacity.
+    /// Creates an empty [`NumericUndoStack`] with [`DEFAULT_MAX_UNDO_DEPTH`] capacity and enabled by default.
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
@@ -117,6 +119,27 @@ impl NumericUndoStack {
             max_depth: DEFAULT_MAX_UNDO_DEPTH,
             active_drag: None,
             pending: None,
+            enabled: true,
+        }
+    }
+
+    /// Returns whether autonomous numeric undo/redo tracking is enabled.
+    #[inline]
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Enables or disables autonomous numeric undo/redo tracking across numeric controls.
+    ///
+    /// When disabled, ongoing drags are cleared, no new transitions are recorded,
+    /// and undo/redo operations yield `None`.
+    #[inline]
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+        if !enabled {
+            self.active_drag = None;
+            self.pending = None;
         }
     }
 
@@ -126,7 +149,7 @@ impl NumericUndoStack {
     /// original pre-drag value until [`Self::commit_drag`] is called on pointer release.
     #[inline]
     pub fn begin_drag(&mut self, tag: u64, current_val: f32) {
-        if tag == 0 {
+        if !self.enabled || tag == 0 {
             return;
         }
         if self
@@ -152,6 +175,9 @@ impl NumericUndoStack {
     /// Returns `(changed, Some(start_val))` if a drag was active and tracked, or `(false, None)` otherwise.
     #[inline]
     pub fn commit_drag_with_start(&mut self, tag: u64, final_val: f32) -> (bool, Option<f32>) {
+        if !self.enabled {
+            return (false, None);
+        }
         if let Some((active_tag, start_val)) = self.active_drag
             && active_tag == tag
         {
@@ -173,6 +199,9 @@ impl NumericUndoStack {
     #[inline]
     #[must_use]
     pub const fn active_drag_start(&self, tag: u64) -> Option<f32> {
+        if !self.enabled {
+            return None;
+        }
         if let Some((active_tag, start_val)) = self.active_drag
             && active_tag == tag
         {
@@ -185,7 +214,7 @@ impl NumericUndoStack {
     /// (e.g. when committing an inline numeric expression via `Enter` or clicking outside).
     #[inline]
     pub fn push_scalar(&mut self, tag: u64, old_val: f32, new_val: f32) {
-        if tag == 0 || (new_val - old_val).abs() <= f32::EPSILON {
+        if !self.enabled || tag == 0 || (new_val - old_val).abs() <= f32::EPSILON {
             return;
         }
         self.active_drag = None;
@@ -200,7 +229,7 @@ impl NumericUndoStack {
     /// (e.g. when clicking the `🔄` reset button on a 3D vector property row).
     #[inline]
     pub fn push_vec3(&mut self, base_tag: u64, old_val: [f32; 3], new_val: [f32; 3]) {
-        if base_tag == 0 {
+        if !self.enabled || base_tag == 0 {
             return;
         }
         let changed = (new_val[0] - old_val[0]).abs() > f32::EPSILON
@@ -231,6 +260,9 @@ impl NumericUndoStack {
     /// schedules a [`PendingNumericRestore`] with `old_val`, and returns the target widget node tag.
     #[inline]
     pub fn undo(&mut self) -> Option<u64> {
+        if !self.enabled {
+            return None;
+        }
         let entry = self.undo_stack.pop_back()?;
         let target_tag = entry.target_node_tag();
         self.pending = Some(match entry {
@@ -252,6 +284,9 @@ impl NumericUndoStack {
     /// undo stack, schedules a [`PendingNumericRestore`] with `new_val`, and returns the target widget node tag.
     #[inline]
     pub fn redo(&mut self) -> Option<u64> {
+        if !self.enabled {
+            return None;
+        }
         let entry = self.redo_stack.pop()?;
         let target_tag = entry.target_node_tag();
         self.pending = Some(match entry {
@@ -275,6 +310,9 @@ impl NumericUndoStack {
     /// Consumes and returns a pending scalar restoration if it matches `tag`.
     #[inline]
     pub fn take_pending_scalar(&mut self, tag: u64) -> Option<f32> {
+        if !self.enabled {
+            return None;
+        }
         if let Some(PendingNumericRestore::Scalar {
             tag: pending_tag,
             val,
@@ -290,6 +328,9 @@ impl NumericUndoStack {
     /// Consumes and returns a pending 3D vector restoration if it matches `base_tag`.
     #[inline]
     pub fn take_pending_vec3(&mut self, base_tag: u64) -> Option<[f32; 3]> {
+        if !self.enabled {
+            return None;
+        }
         if let Some(PendingNumericRestore::Vec3 {
             base_tag: pending_tag,
             val,
@@ -362,5 +403,30 @@ mod tests {
 
         assert_eq!(stack.redo(), Some(1001));
         assert_eq!(stack.take_pending_vec3(base_tag), Some([0.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn test_disabled_undo_stack() {
+        let mut stack = NumericUndoStack::new();
+        assert!(stack.is_enabled());
+
+        stack.set_enabled(false);
+        assert!(!stack.is_enabled());
+
+        let tag = 42;
+        stack.begin_drag(tag, 10.0);
+        assert_eq!(stack.active_drag_start(tag), None);
+        assert_eq!(stack.commit_drag_with_start(tag, 25.0), (false, None));
+        assert!(!stack.can_undo());
+
+        stack.push_scalar(tag, 10.0, 20.0);
+        assert!(!stack.can_undo());
+
+        stack.push_vec3(100, [1.0, 2.0, 3.0], [0.0, 0.0, 0.0]);
+        assert!(!stack.can_undo());
+        assert_eq!(stack.undo(), None);
+        assert_eq!(stack.redo(), None);
+        assert_eq!(stack.take_pending_scalar(tag), None);
+        assert_eq!(stack.take_pending_vec3(100), None);
     }
 }

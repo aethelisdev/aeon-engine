@@ -1112,7 +1112,11 @@ fn try_handle_numeric_undo_shortcut(
     ctrl_held: bool,
     shift_held: bool,
 ) -> Option<DispatchResult> {
-    if !is_pressed || !ctrl_held || tree.event_state.active_text_edit.is_some() {
+    if !is_pressed
+        || !ctrl_held
+        || tree.event_state.active_text_edit.is_some()
+        || !tree.event_state.numeric_undo.is_enabled()
+    {
         return None;
     }
 

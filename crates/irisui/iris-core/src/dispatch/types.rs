@@ -74,6 +74,10 @@ pub struct ActiveTextEditSession {
     pub selection: Option<(usize, usize)>,
     /// Autonomous bounded history stack for undo and redo operations.
     pub undo_stack: TextUndoStack,
+    /// Whether clipboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled for this session.
+    pub allow_clipboard_shortcuts: bool,
+    /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled for this session.
+    pub allow_undo_shortcuts: bool,
 }
 
 /// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
@@ -437,7 +441,25 @@ impl EventState {
             cursor_byte_idx: cursor_idx,
             selection: safe_sel,
             undo_stack,
+            allow_clipboard_shortcuts: true,
+            allow_undo_shortcuts: true,
         });
+    }
+
+    /// Configures optional shortcut handling (clipboard and undo/redo) for the active text edit session.
+    #[inline]
+    pub fn configure_text_edit_shortcuts(
+        &mut self,
+        tag: u64,
+        allow_clipboard: bool,
+        allow_undo: bool,
+    ) {
+        if let Some(ref mut session) = self.active_text_edit
+            && session.tag == tag
+        {
+            session.allow_clipboard_shortcuts = allow_clipboard;
+            session.allow_undo_shortcuts = allow_undo;
+        }
     }
 
     /// Returns the active text edit buffer for the specified semantic tag, if currently editing.

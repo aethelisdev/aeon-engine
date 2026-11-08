@@ -283,6 +283,8 @@ impl<'a> UiScope<'a> {
                         cursor_byte_idx: props.cursor_byte_idx,
                         selection: props.selection,
                         undo_stack: stack,
+                        allow_clipboard_shortcuts: props.clipboard_shortcuts_enabled,
+                        allow_undo_shortcuts: props.undo_shortcuts_enabled,
                     }
                 }
             };
@@ -328,7 +330,9 @@ impl<'a> UiScope<'a> {
             let incoming = self.tree.event_state.frame_text_input.as_deref();
             let ctrl_held = self.tree.event_state.frame_ctrl_held;
             let shift_held = self.tree.event_state.frame_shift_held;
-            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held);
+            let ctx = TextInputKeyContext::new(key_pressed, key, incoming, ctrl_held, shift_held)
+                .with_clipboard_shortcuts(props.clipboard_shortcuts_enabled)
+                .with_undo_shortcuts(props.undo_shortcuts_enabled);
 
             let res = process_text_input_keys(
                 &mut session.buffer,

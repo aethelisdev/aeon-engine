@@ -448,63 +448,9 @@ impl<'a> ComponentRenderContext<'a> {
         scope: &mut irisui::prelude::UiScope<'_>,
         rb: &mut ae_core::ecs::RigidBody,
     ) {
-        let old_rb = *rb;
-        let mut body_type_idx = match rb.body_type {
-            ae_core::ecs::RigidBodyType::Dynamic => 0,
-            ae_core::ecs::RigidBodyType::Kinematic => 1,
-            ae_core::ecs::RigidBodyType::Static => 2,
-        };
-
-        let type_resp = scope.combobox_styled(
-            None,
-            &mut body_type_idx,
-            &["Dynamic", "Kinematic", "Static"],
-            96.0,
+        crate::ui::iris_bridge::inspector::components::physics::rigidbody::draw_rigidbody_card(
+            scope, self, rb,
         );
-        rb.body_type = match body_type_idx {
-            0 => ae_core::ecs::RigidBodyType::Dynamic,
-            1 => ae_core::ecs::RigidBodyType::Kinematic,
-            _ => ae_core::ecs::RigidBodyType::Static,
-        };
-
-        let mass_resp = scope.drag_f32_styled(
-            "Mass:",
-            &mut rb.mass,
-            0.001..=100_000.0,
-            0.1,
-            irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH,
-            48.0,
-        );
-
-        let grav_resp = scope.drag_f32_styled(
-            "Gravity:",
-            &mut rb.gravity_scale,
-            -100.0..=100.0,
-            0.1,
-            irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH,
-            48.0,
-        );
-
-        let changed = *rb != old_rb;
-        let committed = type_resp.changed() || mass_resp.committed() || grav_resp.committed();
-        let pressed = mass_resp.pressed() || grav_resp.pressed();
-
-        let old_bytes = serde_json::to_vec(&old_rb).unwrap_or_default();
-
-        if pressed {
-            self.begin_edit_with_snapshot("RigidBody", old_bytes.clone());
-        }
-
-        if changed {
-            if committed {
-                let new_bytes = serde_json::to_vec(rb).unwrap_or_default();
-                self.commit_modify("RigidBody", old_bytes, new_bytes);
-            } else {
-                self.begin_edit_with_snapshot("RigidBody", old_bytes);
-            }
-        } else if committed {
-            self.commit_edit("RigidBody");
-        }
     }
 
     /// Binds an autonomous signed integer property with automatic undo snapshotting.
