@@ -441,18 +441,6 @@ impl<'a> ComponentRenderContext<'a> {
         }
     }
 
-    /// Binds the complete RigidBody physics parameters (body type, mass, gravity scale)
-    /// with declarative dropdown, numeric drag scrubbers, and atomic undo snapshotting.
-    pub fn prop_rigidbody(
-        &mut self,
-        scope: &mut irisui::prelude::UiScope<'_>,
-        rb: &mut ae_core::ecs::RigidBody,
-    ) {
-        crate::ui::iris_bridge::inspector::components::physics::rigidbody::draw_rigidbody_card(
-            scope, self, rb,
-        );
-    }
-
     /// Binds an autonomous signed integer property with automatic undo snapshotting.
     ///
     /// Modifies `*value` in-place, triggering `begin_edit` on value change and `commit_edit` on release.

@@ -156,7 +156,9 @@ fn test_velocity_and_rigidbody_declarative_binding_and_undo() {
 
     // 2. Test RigidBody binding
     let mut rb = *world.get::<&RigidBody>(entity).unwrap();
-    ctx.prop_rigidbody(&mut scope, &mut rb);
+    ae_editor_ui::ui::iris_bridge::inspector::components::physics::rigidbody::draw_rigidbody_card(
+        &mut scope, &mut ctx, &mut rb,
+    );
 
     // Verify UI tree contains Velocity "Linear" DragVec3 and RigidBody cards
     let has_linear_x = tree

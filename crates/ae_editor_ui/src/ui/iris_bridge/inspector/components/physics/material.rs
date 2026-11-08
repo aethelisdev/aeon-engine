@@ -15,7 +15,7 @@ use irisui::prelude::*;
 /// Maps a [`ae_core::ecs::SurfaceType`] variant to its zero-based dropdown option index.
 #[inline]
 #[must_use]
-const fn surface_type_to_index(surface: ae_core::ecs::SurfaceType) -> usize {
+pub const fn surface_type_to_index(surface: ae_core::ecs::SurfaceType) -> usize {
     match surface {
         ae_core::ecs::SurfaceType::Default => 0,
         ae_core::ecs::SurfaceType::Metal => 1,
@@ -31,7 +31,7 @@ const fn surface_type_to_index(surface: ae_core::ecs::SurfaceType) -> usize {
 /// Maps a zero-based dropdown option index to its corresponding [`ae_core::ecs::SurfaceType`] variant.
 #[inline]
 #[must_use]
-const fn index_to_surface_type(idx: usize) -> ae_core::ecs::SurfaceType {
+pub const fn index_to_surface_type(idx: usize) -> ae_core::ecs::SurfaceType {
     match idx {
         0 => ae_core::ecs::SurfaceType::Default,
         1 => ae_core::ecs::SurfaceType::Metal,
@@ -65,32 +65,44 @@ pub fn draw_physics_material_card(
         )
         .on_action(|| {
             *m = ae_core::ecs::PhysicsMaterial::from_preset(m.surface_type);
+            ctx.begin_edit("PhysicsMaterial");
+            ctx.commit_edit("PhysicsMaterial");
         })
         .on_change(|| {
             ctx.begin_edit("PhysicsMaterial");
             ctx.commit_edit("PhysicsMaterial");
         });
-        ctx.prop_f32(
-            card,
-            "PhysicsMaterial",
-            "Friction:",
-            &mut m.friction,
-            0.0..=100.0,
-            0.05,
-        );
-        ctx.prop_f32(
-            card,
-            "PhysicsMaterial",
-            "Restitution:",
-            &mut m.restitution,
-            0.0..=1.0,
-            0.05,
-        );
+        card.prop_f32("Friction:", &mut m.friction, 0.0..=100.0, 0.05)
+            .on_commit(|_| {
+                ctx.begin_edit("PhysicsMaterial");
+                ctx.commit_edit("PhysicsMaterial");
+            });
+        card.prop_f32("Restitution:", &mut m.restitution, 0.0..=1.0, 0.05)
+            .on_commit(|_| {
+                ctx.begin_edit("PhysicsMaterial");
+                ctx.commit_edit("PhysicsMaterial");
+            });
     });
 }
 
 /// Inspector handler for Physics Material.
 pub struct PhysicsMaterialHandler;
+
+impl PhysicsMaterialHandler {
+    /// Maps a [`ae_core::ecs::SurfaceType`] variant to its zero-based dropdown option index.
+    #[inline]
+    #[must_use]
+    pub const fn surface_type_to_index(surface: ae_core::ecs::SurfaceType) -> usize {
+        surface_type_to_index(surface)
+    }
+
+    /// Maps a zero-based dropdown option index to its corresponding [`ae_core::ecs::SurfaceType`] variant.
+    #[inline]
+    #[must_use]
+    pub const fn index_to_surface_type(idx: usize) -> ae_core::ecs::SurfaceType {
+        index_to_surface_type(idx)
+    }
+}
 
 impl ComponentInspectorHandler for PhysicsMaterialHandler {
     fn component_name(&self) -> &'static str {
@@ -118,12 +130,13 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        if let Ok(mut m) = ctx
-            .world
-            .get::<&mut ae_core::ecs::PhysicsMaterial>(ctx.entity)
-        {
-            draw_physics_material_card(scope, ctx, &mut m);
-        }
+        scope.when_ok(
+            ctx.world
+                .get::<&mut ae_core::ecs::PhysicsMaterial>(ctx.entity),
+            |scope, mut m| {
+                draw_physics_material_card(scope, ctx, &mut m);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -277,5 +290,82 @@ mod tests {
         assert!((mat.friction - expected.friction).abs() < f32::EPSILON);
         assert!((mat.restitution - expected.restitution).abs() < f32::EPSILON);
         assert_eq!(mat.surface_type, ae_core::ecs::SurfaceType::Rubber);
+    }
+
+    #[test]
+    fn test_physics_material_surface_type_mapping_roundtrip() {
+        let types = [
+            ae_core::ecs::SurfaceType::Default,
+            ae_core::ecs::SurfaceType::Metal,
+            ae_core::ecs::SurfaceType::Wood,
+            ae_core::ecs::SurfaceType::Stone,
+            ae_core::ecs::SurfaceType::Flesh,
+            ae_core::ecs::SurfaceType::Dirt,
+            ae_core::ecs::SurfaceType::Glass,
+            ae_core::ecs::SurfaceType::Rubber,
+        ];
+        for (i, &st) in types.iter().enumerate() {
+            assert_eq!(surface_type_to_index(st), i);
+            assert_eq!(index_to_surface_type(i), st);
+            assert_eq!(PhysicsMaterialHandler::surface_type_to_index(st), i);
+            assert_eq!(PhysicsMaterialHandler::index_to_surface_type(i), st);
+        }
+    }
+
+    #[test]
+    fn test_draw_physics_material_card_all_presets_render() {
+        let presets = [
+            ae_core::ecs::SurfaceType::Default,
+            ae_core::ecs::SurfaceType::Metal,
+            ae_core::ecs::SurfaceType::Wood,
+            ae_core::ecs::SurfaceType::Stone,
+            ae_core::ecs::SurfaceType::Flesh,
+            ae_core::ecs::SurfaceType::Dirt,
+            ae_core::ecs::SurfaceType::Glass,
+            ae_core::ecs::SurfaceType::Rubber,
+        ];
+
+        for surface in presets {
+            let mut tree = UiTree::new();
+            let root = tree.create_root().expect("Root node must exist");
+            let mut world = hecs::World::new();
+            let entity = world.spawn((ae_core::ecs::PhysicsMaterial::from_preset(surface),));
+
+            let euler = [0.0, 0.0, 0.0];
+            let swatches = [];
+            let params = InspectorPanelParams {
+                panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+                world: &world,
+                selected_entity: Some(entity),
+                inspector_euler: &euler,
+                inspector_color_hex: "#ffffff",
+                saved_swatches: &swatches,
+                cursor_pos: Point::new(0.0, 0.0),
+                active_submenu: None,
+                is_add_menu_open: false,
+                is_color_picker_open: false,
+                active_rename_buffer: None,
+                is_rename_all_selected: false,
+                active_hex_buffer: None,
+                inspector_hsv: [0.0, 0.0, 1.0],
+                blink_caret: false,
+            };
+
+            let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
+            let mut scope = UiScope::new(&mut tree, root);
+            let mut m = world
+                .get::<&mut ae_core::ecs::PhysicsMaterial>(entity)
+                .unwrap();
+            draw_physics_material_card(&mut scope, &mut ctx, &mut m);
+
+            let has_card = tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("PhysicsMaterialCard"));
+            assert!(
+                has_card,
+                "PhysicsMaterialCard must render for surface {:?}",
+                surface
+            );
+        }
     }
 }

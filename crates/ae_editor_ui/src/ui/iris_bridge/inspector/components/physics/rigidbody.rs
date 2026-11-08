@@ -102,17 +102,18 @@ impl ComponentInspectorHandler for RigidBodyHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let Ok(mut rb) = ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity) else {
-            return;
-        };
-
-        draw_rigidbody_card(scope, ctx, &mut rb);
+        scope.when_ok(
+            ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity),
+            |scope, mut rb| {
+                draw_rigidbody_card(scope, ctx, &mut rb);
+            },
+        );
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        let _ = world.insert_one(entity, ae_core::ecs::RigidBody::default());
+        drop(world.insert_one(entity, ae_core::ecs::RigidBody::default()));
         if world.get::<&ae_core::ecs::Collider>(entity).is_err() {
-            let _ = world.insert_one(entity, ae_core::ecs::Collider::default());
+            drop(world.insert_one(entity, ae_core::ecs::Collider::default()));
         }
     }
 }

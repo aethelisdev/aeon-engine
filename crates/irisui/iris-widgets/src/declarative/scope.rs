@@ -12,6 +12,7 @@ pub mod asset_slot;
 pub mod buttons;
 pub mod collapsing;
 pub mod compass;
+pub mod conditional;
 pub mod containers;
 pub mod context_menu;
 pub mod core;
