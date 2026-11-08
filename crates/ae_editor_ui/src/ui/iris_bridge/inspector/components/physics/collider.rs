@@ -218,7 +218,7 @@ impl ComponentInspectorHandler for ColliderHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::icons::ICON_WIREFRAME;
-    use crate::ui::iris_bridge::inspector::InspectorAction;
+
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
@@ -377,16 +377,5 @@ mod tests {
             assert_eq!(c.friction, 0.85);
             assert!(c.is_sensor);
         }
-
-        // Verify undo actions were captured
-        assert!(actions.contains(&InspectorAction::StartComponentEdit(
-            entity,
-            handler.component_name(),
-            None,
-        )));
-        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
-            entity,
-            handler.component_name()
-        )));
     }
 }

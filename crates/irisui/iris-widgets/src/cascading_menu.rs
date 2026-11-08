@@ -123,6 +123,16 @@ impl CascadingMenuItem {
         self
     }
 
+    /// Returns the text or emoji glyph if this item's icon is a text representation, or an empty string otherwise.
+    #[inline]
+    #[must_use]
+    pub fn text_icon(&self) -> &str {
+        match self.icon {
+            Some(CascadingMenuIcon::Text(t)) => t,
+            _ => "",
+        }
+    }
+
     /// Returns `true` if this item branches into a nested child submenu.
     #[inline]
     pub fn has_submenu(&self) -> bool {

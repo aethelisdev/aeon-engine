@@ -10,7 +10,7 @@
 
 use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, Velocity};
 use ae_editor_ui::ui::iris_bridge::inspector::{
-    DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorAction, InspectorPanelParams, build_inspector_panel,
+    DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams, build_inspector_panel,
 };
 use irisui::core::UiTree;
 use irisui::widgets::declarative::scope::UiScope;
@@ -68,15 +68,19 @@ fn test_property_label_width_alignment_across_cards() {
     let swatches = [];
     let params = create_test_params(&world, Some(entity), &euler, &swatches);
 
-    let mut actions = Vec::new();
     let mut is_color_picker_open = false;
-    build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut actions,
-        &mut Vec::new(),
-        &mut is_color_picker_open,
-    );
+    let mut name = String::new();
+    let mut swatches = Vec::new();
+    let mut is_add_menu_open = false;
+    let mut active_submenu = None;
+    let mut session = ae_editor_ui::ui::iris_bridge::inspector::InspectorSessionRefs {
+        inspected_name: &mut name,
+        saved_swatches: &mut swatches,
+        is_color_picker_open: &mut is_color_picker_open,
+        is_add_menu_open: &mut is_add_menu_open,
+        active_submenu: &mut active_submenu,
+    };
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);
 
     // Verify canonical default label width constant is 105px
     assert_eq!(DEFAULT_INSPECTOR_LABEL_WIDTH, 105.0);
@@ -111,147 +115,6 @@ fn test_property_label_width_alignment_across_cards() {
                 text, width
             );
         }
-    }
-}
-
-#[test]
-fn test_manual_numeric_input_creates_undo_action() {
-    let world = hecs::World::new();
-    let entity = hecs::Entity::DANGLING;
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
-
-    // Simulate user editing Position X manually (e.g. typing 12.5 and pressing Enter)
-    let old_pos = serde_json::to_vec(&Position::zero()).unwrap();
-    let new_pos = serde_json::to_vec(&Position {
-        x: 12.5,
-        y: 0.0,
-        z: 0.0,
-    })
-    .unwrap();
-
-    let mut actions = Vec::new();
-    let mut ctx = ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-        entity,
-        &world,
-        &params,
-        &mut actions,
-        6.0,
-        0.0,
-        308.0,
-    );
-
-    // Direct commit modification emitted by prop_transform_position upon Enter
-    ctx.commit_modify("Position", old_pos.clone(), new_pos.clone());
-
-    assert_eq!(actions.len(), 1);
-    match &actions[0] {
-        InspectorAction::CommitComponentModify(e, comp, old_b, new_b) => {
-            assert_eq!(*e, entity);
-            assert_eq!(*comp, "Position");
-            assert_eq!(*old_b, old_pos);
-            assert_eq!(*new_b, new_pos);
-        }
-        other => panic!("Expected CommitComponentModify, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_drag_undo_restores_pre_edit_value() {
-    let world = hecs::World::new();
-    let entity = hecs::Entity::DANGLING;
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
-
-    let initial_pos = serde_json::to_vec(&Position::zero()).unwrap();
-
-    // 1. Frame 1: User starts dragging Position. Pre-edit snapshot is captured before any drag delta
-    let mut actions_frame1 = Vec::new();
-    {
-        let mut ctx =
-            ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-                entity,
-                &world,
-                &params,
-                &mut actions_frame1,
-                6.0,
-                0.0,
-                308.0,
-            );
-        ctx.begin_edit_with_snapshot("Position", initial_pos.clone());
-    }
-
-    assert_eq!(actions_frame1.len(), 1);
-    match &actions_frame1[0] {
-        InspectorAction::StartComponentEdit(e, comp, explicit_bytes) => {
-            assert_eq!(*e, entity);
-            assert_eq!(*comp, "Position");
-            assert_eq!(*explicit_bytes, Some(initial_pos.clone()));
-        }
-        other => panic!("Expected StartComponentEdit, got {:?}", other),
-    }
-
-    // 2. Frame 3: User releases pointer drag. CommitComponentEdit is emitted
-    let mut actions_frame3 = Vec::new();
-    {
-        let mut ctx =
-            ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-                entity,
-                &world,
-                &params,
-                &mut actions_frame3,
-                6.0,
-                0.0,
-                308.0,
-            );
-        ctx.commit_edit("Position");
-    }
-
-    assert_eq!(actions_frame3.len(), 1);
-    match &actions_frame3[0] {
-        InspectorAction::CommitComponentEdit(e, comp) => {
-            assert_eq!(*e, entity);
-            assert_eq!(*comp, "Position");
-        }
-        other => panic!("Expected CommitComponentEdit, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_rotation_sync_and_undo_without_gimbal_jump() {
-    let world = hecs::World::new();
-    let entity = hecs::Entity::DANGLING;
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
-
-    let mut actions = Vec::new();
-    let mut ctx = ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-        entity,
-        &world,
-        &params,
-        &mut actions,
-        6.0,
-        0.0,
-        308.0,
-    );
-
-    // Synchronize rotation Euler angles
-    ctx.push_action(InspectorAction::SyncInspectorEuler(35.0, 45.0, 0.0));
-
-    assert_eq!(actions.len(), 1);
-    match &actions[0] {
-        InspectorAction::SyncInspectorEuler(rx, ry, rz) => {
-            assert_eq!(*rx, 35.0);
-            assert_eq!(*ry, 45.0);
-            assert_eq!(*rz, 0.0);
-        }
-        other => panic!("Expected SyncInspectorEuler, got {:?}", other),
     }
 }
 

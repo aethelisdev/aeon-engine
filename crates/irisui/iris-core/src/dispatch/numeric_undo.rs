@@ -143,20 +143,42 @@ impl NumericUndoStack {
     /// Returns `true` if a non-trivial numeric change was recorded.
     #[inline]
     pub fn commit_drag(&mut self, tag: u64, final_val: f32) -> bool {
+        self.commit_drag_with_start(tag, final_val).0
+    }
+
+    /// Finalizes an active pointer drag gesture for `tag`, pushing a [`NumericUndoEntry::Scalar`]
+    /// onto the undo stack if `final_val` differs from the captured pre-drag value.
+    ///
+    /// Returns `(changed, Some(start_val))` if a drag was active and tracked, or `(false, None)` otherwise.
+    #[inline]
+    pub fn commit_drag_with_start(&mut self, tag: u64, final_val: f32) -> (bool, Option<f32>) {
         if let Some((active_tag, start_val)) = self.active_drag
             && active_tag == tag
         {
             self.active_drag = None;
-            if (final_val - start_val).abs() > f32::EPSILON {
+            let changed = (final_val - start_val).abs() > f32::EPSILON;
+            if changed {
                 self.push_entry(NumericUndoEntry::Scalar {
                     tag,
                     old_val: start_val,
                     new_val: final_val,
                 });
-                return true;
             }
+            return (changed, Some(start_val));
         }
-        false
+        (false, None)
+    }
+
+    /// Returns the captured starting value of the current active drag gesture for `tag`, if any.
+    #[inline]
+    #[must_use]
+    pub const fn active_drag_start(&self, tag: u64) -> Option<f32> {
+        if let Some((active_tag, start_val)) = self.active_drag
+            && active_tag == tag
+        {
+            return Some(start_val);
+        }
+        None
     }
 
     /// Records an immediate scalar value transition `(old_val -> new_val)` for `tag`

@@ -78,7 +78,7 @@ impl ComponentInspectorHandler for CharacterActionHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
-    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_character_action_render_and_in_place_mutation() {
@@ -151,15 +151,5 @@ mod tests {
             assert_eq!(a.speed, 120.0);
             assert_eq!(a.cooldown, 1.5);
         }
-
-        assert!(actions.contains(&InspectorAction::StartComponentEdit(
-            entity,
-            handler.component_name(),
-            None,
-        )));
-        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
-            entity,
-            handler.component_name()
-        )));
     }
 }

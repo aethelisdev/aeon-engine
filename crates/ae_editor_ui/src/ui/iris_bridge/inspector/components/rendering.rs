@@ -227,7 +227,7 @@ mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
-    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_light_render_and_in_place_mutation() {
@@ -303,16 +303,6 @@ mod tests {
             assert_eq!(l.color[0], 0.5);
             assert_eq!(l.color[1], 0.4);
         }
-
-        assert!(actions.contains(&InspectorAction::StartComponentEdit(
-            entity,
-            handler.component_name(),
-            None,
-        )));
-        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
-            entity,
-            handler.component_name()
-        )));
     }
 
     #[test]
@@ -481,15 +471,5 @@ mod tests {
             let s = world.get::<&ae_core::ecs::Shape>(entity).unwrap();
             assert_eq!(*s, ae_core::ecs::Shape::Sphere);
         }
-
-        assert!(actions.contains(&InspectorAction::StartComponentEdit(
-            entity,
-            handler.component_name(),
-            None,
-        )));
-        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
-            entity,
-            handler.component_name()
-        )));
     }
 }

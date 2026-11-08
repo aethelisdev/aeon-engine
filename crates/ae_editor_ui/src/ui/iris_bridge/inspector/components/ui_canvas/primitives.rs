@@ -403,13 +403,13 @@ impl ComponentInspectorHandler for UiImageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     fn create_test_context<'a>(
         world: &'a hecs::World,
         entity: hecs::Entity,
         params: &'a InspectorPanelParams<'a>,
-        actions: &'a mut Vec<InspectorAction>,
+        actions: &'a mut Vec<()>,
     ) -> ComponentRenderContext<'a> {
         ComponentRenderContext::with_actions(entity, world, params, actions, 0.0, 0.0, 260.0)
     }

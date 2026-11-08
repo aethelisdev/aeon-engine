@@ -6,16 +6,14 @@
 //! Encapsulates the persistent interactive state, input edit sessions, and localized
 //! retained-mode dirty tracking for the Scene Inspector panel overlay.
 
-use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorAction, InspectorColorDragMode,
-};
+use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorColorDragMode};
 use crate::ui::iris_bridge::types::PanelInteractionState;
 
 /// Persistent interactive state for the Scene Inspector panel overlay.
 #[derive(Debug, Default)]
 pub struct InspectorPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
-    pub interactions: PanelInteractionState<(), InspectorAction>,
+    pub interactions: PanelInteractionState<(), ()>,
     /// Whether `➕ Add Component` menu is open in Inspector.
     pub is_add_menu_open: bool,
     /// Currently open category submenu in Add Component menu.
@@ -108,7 +106,7 @@ pub fn is_widget_descendant_of(
 }
 
 impl std::ops::Deref for InspectorPanelState {
-    type Target = PanelInteractionState<(), InspectorAction>;
+    type Target = PanelInteractionState<(), ()>;
     fn deref(&self) -> &Self::Target {
         &self.interactions
     }
@@ -143,16 +141,10 @@ impl InspectorPanelState {
         &mut self,
         selected_entity: Option<hecs::Entity>,
     ) {
-        if let Some((ent, input)) = self.rename_input.take() {
-            if Some(ent) != selected_entity {
-                let final_name = input.text().trim().to_string();
-                if !final_name.is_empty() {
-                    self.actions
-                        .push(InspectorAction::RenameEntity(ent, final_name));
-                }
-            } else {
-                self.rename_input = Some((ent, input));
-            }
+        if let Some((ent, input)) = self.rename_input.take()
+            && Some(ent) == selected_entity
+        {
+            self.rename_input = Some((ent, input));
         }
     }
 }

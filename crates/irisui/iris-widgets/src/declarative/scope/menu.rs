@@ -11,8 +11,8 @@ use super::core::UiScope;
 use crate::declarative::scope::containers::InnerResponse;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
-    WidgetId, WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Point, Rect, Style, TextAlign, UiLayer,
+    WidgetCursor, WidgetId, WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
@@ -547,14 +547,18 @@ impl<'a> UiScope<'a> {
     /// * `icon` - Optional leading icon symbol.
     /// * `tag` - Semantic identifier constant assigned to this submenu branch.
     /// * `f` - Scoped closure populating items inside the child submenu popup card.
-    pub fn submenu_named<R, F>(
+    ///
+    /// Emits an autonomous cascading submenu row and executes a child builder closure if the submenu is active.
+    ///
+    /// Returns an [`InnerResponse`] containing the item row's [`WidgetResponse`] and the optional result of the child builder.
+    pub fn submenu_named_with_inner<R, F>(
         &mut self,
         popup_name: &'static str,
         label: impl Into<String>,
         icon: Option<&str>,
         tag: u64,
         f: F,
-    ) -> WidgetResponse
+    ) -> InnerResponse<Option<R>>
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
@@ -596,7 +600,7 @@ impl<'a> UiScope<'a> {
         let is_branch_active = self.tree.is_submenu_open(parent_tag, tag);
 
         // 3. If active, autonomously compute smart placement and render child popup
-        if is_branch_active {
+        let inner = if is_branch_active {
             let item_rect = self
                 .tree
                 .get(resp.id)
@@ -640,16 +644,55 @@ impl<'a> UiScope<'a> {
 
             // Submenu card node created as an elevated overlay attached to root
             let root_anchor = self.tree.root().unwrap_or(parent_card_id);
-            let mut sub_scope = UiScope::new(self.tree, root_anchor);
-            sub_scope.dropdown_menu_card_named(popup_name, sub_x, sub_y, sub_w, |card| {
-                if let Some(n) = card.tree.get_mut(card.parent) {
-                    n.tag = tag;
-                }
-                f(card)
-            });
-        }
+            let child_seed = crate::declarative::types::combine_seeds(
+                crate::declarative::types::combine_seeds(self.seed, tag),
+                crate::declarative::types::hash_label(popup_name),
+            );
+            let mut sub_scope = self.child_scope_seeded(root_anchor, child_seed);
+            let inner_res =
+                sub_scope.dropdown_menu_card_named(popup_name, sub_x, sub_y, sub_w, |card| {
+                    if let Some(n) = card.tree.get_mut(card.parent) {
+                        n.tag = tag;
+                    }
+                    f(card)
+                });
+            Some(inner_res.inner)
+        } else {
+            None
+        };
 
-        resp
+        InnerResponse::new(resp, inner)
+    }
+
+    /// Emits a cascading submenu row and executes a child builder closure if the submenu is active.
+    pub fn submenu_named<R, F>(
+        &mut self,
+        popup_name: &'static str,
+        label: impl Into<String>,
+        icon: Option<&str>,
+        tag: u64,
+        f: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.submenu_named_with_inner(popup_name, label, icon, tag, f)
+            .response
+    }
+
+    /// Emits a standard dropdown menu item row from a [`CascadingMenuItem`].
+    #[inline]
+    pub fn dropdown_menu_item(
+        &mut self,
+        item: &crate::cascading_menu::CascadingMenuItem,
+    ) -> WidgetResponse {
+        self.dropdown_item(
+            item.tag,
+            item.text_icon(),
+            &item.label,
+            item.shortcut.as_deref(),
+            item.is_enabled,
+        )
     }
 
     /// Emits an elevated, cascading branching submenu item row.
@@ -767,6 +810,27 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        self.popup_anchored_with_placement_and_height(name, anchor_rect, width, placement, None, f)
+    }
+
+    /// Emits an elevated floating popup card container with explicit placement preference,
+    /// boundary clamping, and optional expected initial height.
+    ///
+    /// Providing `expected_height` (or retrieving cached measured height from [`UiTree::tag_rect`])
+    /// eliminates the initial vertical coordinate guess for [`PopupPlacement::Above`], ensuring
+    /// child item hover hit-tests match pixel-perfect with their final rendered screen coordinates.
+    pub fn popup_anchored_with_placement_and_height<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_rect: Rect,
+        width: f32,
+        placement: PopupPlacement,
+        expected_height: Option<f32>,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
         let (window_w, window_h) = if let Some(root_id) = self.tree.root() {
             let r = self
                 .tree
@@ -788,11 +852,29 @@ impl<'a> UiScope<'a> {
             x = (anchor_rect.right() - width).clamp(6.0, window_w - width - 6.0);
         }
 
+        let name_tag = crate::declarative::types::hash_label(name);
+        let cached_h = self
+            .tree
+            .tag_rect(name_tag)
+            .map(|r| r.height)
+            .filter(|&h| h > 10.0);
+        let initial_h = expected_height.or(cached_h).unwrap_or(200.0);
+
         // Vertical initial placement: below or above
         let mut y = match placement {
             PopupPlacement::Below => anchor_rect.bottom() + 2.0,
-            PopupPlacement::Above => (anchor_rect.y - 200.0).max(6.0),
+            PopupPlacement::Above => {
+                if anchor_rect.y - initial_h - 2.0 < 6.0 {
+                    anchor_rect.bottom() + 2.0
+                } else {
+                    anchor_rect.y - initial_h - 2.0
+                }
+            }
         };
+        let max_y = window_h - 28.0;
+        if y + initial_h > max_y {
+            y = (max_y - initial_h).max(6.0);
+        }
 
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -827,7 +909,6 @@ impl<'a> UiScope<'a> {
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
 
         // Re-evaluate vertical position with accurate measured height
-        let max_y = window_h - 28.0;
         y = match placement {
             PopupPlacement::Below => {
                 if anchor_rect.bottom() + height + 4.0 > max_y {
@@ -856,11 +937,149 @@ impl<'a> UiScope<'a> {
             node.style.inset_top = Some(y);
             node.style.height = Some(height);
         }
+        self.tree.set_tag_rect(name_tag, bounds);
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
         }
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
+    }
+
+    /// Opens an anchored floating popup card positioned relative to a tagged anchor widget.
+    ///
+    /// If the tagged anchor is not found, falls back to `fallback_rect`.
+    pub fn popup_anchored_to_tag<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_tag: u64,
+        fallback_rect: Rect,
+        width: f32,
+        placement: PopupPlacement,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let anchor_rect = self
+            .tree
+            .node_rect_tagged(anchor_tag, Point::ZERO)
+            .or_else(|| self.tree.tag_rect(anchor_tag))
+            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .unwrap_or(fallback_rect);
+
+        self.popup_anchored_with_placement(name, anchor_rect, width, placement, f)
+    }
+
+    /// Opens an elevated floating cascading popup card anchored to `anchor_tag`.
+    ///
+    /// Autonomously synchronizes `active_submenu_tag` to the underlying tree and
+    /// calculates the union bounding box encompassing both the root card and any
+    /// open submenu cards for accurate hit-testing.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug name assigned to the container node.
+    /// * `anchor_tag` - Semantic tag constant mapped to an anchor widget.
+    /// * `fallback_rect` - Fallback anchor screen bounds when `anchor_tag` is not present in the tree.
+    /// * `config` - Sizing, placement, and active submenu descriptor configuration.
+    /// * `f` - Scoped closure populating items inside the popup card.
+    pub fn cascading_popup_anchored_to_tag<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_tag: u64,
+        fallback_rect: Rect,
+        config: CascadingPopupConfig,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if let Some(sub_tag) = config.active_submenu_tag {
+            self.tree
+                .set_active_submenu(crate::declarative::types::hash_label(name), sub_tag);
+        }
+
+        let anchor_rect = self
+            .tree
+            .node_rect_tagged(anchor_tag, Point::ZERO)
+            .or_else(|| self.tree.tag_rect(anchor_tag))
+            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .unwrap_or(fallback_rect);
+
+        let mut res = self.popup_anchored_with_placement_and_height(
+            name,
+            anchor_rect,
+            config.width,
+            config.placement,
+            config.expected_height,
+            f,
+        );
+
+        if let Some(sub_node) = self
+            .tree
+            .iter()
+            .find(|(_, n)| {
+                n.layer == UiLayer::Popup
+                    && n.role == WidgetRole::DropdownPopup
+                    && (n.name.as_deref().is_some_and(|nm| nm.ends_with("Submenu"))
+                        || (n.tag != 0 && config.active_submenu_tag == Some(n.tag)))
+            })
+            .map(|(_, n)| n.computed_rect)
+        {
+            res.response.rect = res.response.rect.union(sub_node);
+        }
+
+        res
+    }
+}
+
+/// Configuration descriptor for elevated cascading popup cards.
+#[derive(Debug, Clone, Copy)]
+pub struct CascadingPopupConfig {
+    /// Preferred root popup width in physical pixels.
+    pub width: f32,
+    /// Vertical orientation preference ([`PopupPlacement::Below`] or [`PopupPlacement::Above`]).
+    pub placement: PopupPlacement,
+    /// Optional semantic tag of the currently active child submenu.
+    pub active_submenu_tag: Option<u64>,
+    /// Optional expected height of the popup menu card in physical pixels.
+    pub expected_height: Option<f32>,
+}
+
+impl CascadingPopupConfig {
+    /// Creates a new cascading popup configuration with specified width and placement.
+    #[inline]
+    #[must_use]
+    pub const fn new(width: f32, placement: PopupPlacement) -> Self {
+        Self {
+            width,
+            placement,
+            active_submenu_tag: None,
+            expected_height: None,
+        }
+    }
+
+    /// Sets the active child submenu tag.
+    #[inline]
+    #[must_use]
+    pub const fn with_active_submenu(mut self, tag: Option<u64>) -> Self {
+        self.active_submenu_tag = tag;
+        self
+    }
+
+    /// Specifies an explicit expected initial height for the popup menu card in physical pixels.
+    #[inline]
+    #[must_use]
+    pub const fn with_expected_height(mut self, height: f32) -> Self {
+        self.expected_height = Some(height);
+        self
+    }
+
+    /// Computes and sets the expected initial height based on the total number of dropdown items.
+    #[inline]
+    #[must_use]
+    pub const fn with_item_count(mut self, count: usize) -> Self {
+        self.expected_height = Some(8.0 + (count as f32) * 24.0);
+        self
     }
 }
 

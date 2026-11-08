@@ -196,7 +196,9 @@ impl EngineUi {
         );
         self.process_stats_actions();
         self.process_hierarchy_actions(params.ui_actions);
-        self.process_inspector_actions(params.world, params.ui_actions);
+        params
+            .ui_actions
+            .append(&mut self.iris_overlay.pending_actions);
 
         crate::assets::scanner::rescan_assets_if_needed(
             &mut self.asset_browser,
@@ -283,7 +285,9 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
-        self.process_inspector_actions(params.world, params.ui_actions);
+        params
+            .ui_actions
+            .append(&mut self.iris_overlay.pending_actions);
         if self.iris_overlay.has_pending_actions() {
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;

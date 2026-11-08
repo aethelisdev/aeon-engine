@@ -264,6 +264,8 @@ where
 pub struct TreeRowStyle {
     /// Background color of an idle, unselected row item.
     pub normal_bg: Color,
+    /// Alternate background color for zebra striping on odd rows (`None` disables zebra striping).
+    pub alt_normal_bg: Option<Color>,
     /// Border stroke color of an idle, unselected row item.
     pub normal_border: Color,
     /// Background color when hovered and unselected.
@@ -307,6 +309,7 @@ impl TreeRowStyle {
     pub fn dark_default() -> Self {
         Self {
             normal_bg: Color::TRANSPARENT,
+            alt_normal_bg: None,
             normal_border: Color::TRANSPARENT,
             hover_bg: Color::rgba(0.14, 0.18, 0.26, 0.65),
             hover_border: Color::rgba(0.24, 0.32, 0.45, 0.50),
@@ -321,6 +324,30 @@ impl TreeRowStyle {
             chevron_hover_color: Color::WHITE,
             chevron_selected_color: Color::WHITE,
         }
+    }
+
+    /// Overrides the idle, unselected row background color.
+    #[inline]
+    pub fn with_normal_bg(mut self, color: Color) -> Self {
+        self.normal_bg = color;
+        self
+    }
+
+    /// Overrides the alternate background color for odd rows when zebra striping is enabled.
+    #[inline]
+    pub fn with_alt_normal_bg(mut self, color: Color) -> Self {
+        self.alt_normal_bg = Some(color);
+        self
+    }
+
+    /// Configures two-tone zebra striping colors for alternating tree view rows.
+    ///
+    /// Even rows will use `even_bg` while odd rows will use `odd_bg`.
+    #[inline]
+    pub fn with_zebra_striping(mut self, even_bg: Color, odd_bg: Color) -> Self {
+        self.normal_bg = even_bg;
+        self.alt_normal_bg = Some(odd_bg);
+        self
     }
 
     /// Overrides the selected pill capsule background color.
@@ -359,22 +386,28 @@ impl TreeRowStyle {
     }
 
     /// Constructs an Iris UI [`Style`] pre-configured with background, border, radius,
-    /// and interactive hover states based on whether the row is currently selected.
+    /// and interactive hover states based on whether the row is currently selected and/or alternating.
     ///
     /// # Behavior
-    /// - If `is_selected` is `true`, applies `selected_bg` and `selected_border`.
-    /// - If `is_selected` is `false`, applies `normal_bg` and attaches `hover_bg` / `hover_border`.
-    pub fn build_style(&self, is_selected: bool) -> Style {
-        let (bg, border) = if is_selected {
-            (self.selected_bg, self.selected_border)
+    /// - If `is_selected` is `true`, applies `selected_bg`, `selected_border`, and `border_radius`.
+    /// - If `is_selected` is `false` and `is_alternate` is `true` with `alt_normal_bg` present, applies `alt_normal_bg`.
+    /// - When zebra striping is enabled (`alt_normal_bg.is_some()`), unselected rows use `0.0` corner radius
+    ///   for full-width  stripes.
+    pub fn build_row_style(&self, is_selected: bool, is_alternate: bool) -> Style {
+        let (bg, border, radius) = if is_selected {
+            (self.selected_bg, self.selected_border, self.border_radius)
+        } else if is_alternate && let Some(alt_bg) = self.alt_normal_bg {
+            (alt_bg, self.normal_border, 0.0)
+        } else if self.alt_normal_bg.is_some() {
+            (self.normal_bg, self.normal_border, 0.0)
         } else {
-            (self.normal_bg, self.normal_border)
+            (self.normal_bg, self.normal_border, self.border_radius)
         };
 
         let mut style = Style::new()
             .background(bg)
             .border(self.border_width, border)
-            .border_radius(self.border_radius);
+            .border_radius(radius);
 
         if !is_selected {
             style = style
@@ -385,13 +418,37 @@ impl TreeRowStyle {
         style
     }
 
+    /// Constructs an Iris UI [`Style`] pre-configured with background, border, radius,
+    /// and interactive hover states based on whether the row is currently selected.
+    ///
+    /// # Behavior
+    /// - If `is_selected` is `true`, applies `selected_bg` and `selected_border`.
+    /// - If `is_selected` is `false`, applies `normal_bg` and attaches `hover_bg` / `hover_border`.
+    #[inline]
+    pub fn build_style(&self, is_selected: bool) -> Style {
+        self.build_row_style(is_selected, false)
+    }
+
     /// Resolves the background and border colors for the given state.
     #[inline]
     pub fn resolve_colors(&self, is_selected: bool, is_hovered: bool) -> (Color, Color) {
+        self.resolve_row_colors(is_selected, is_hovered, false)
+    }
+
+    /// Resolves the background and border colors for the given state including alternating zebra stripe state.
+    #[inline]
+    pub fn resolve_row_colors(
+        &self,
+        is_selected: bool,
+        is_hovered: bool,
+        is_alternate: bool,
+    ) -> (Color, Color) {
         if is_selected {
             (self.selected_bg, self.selected_border)
         } else if is_hovered {
             (self.hover_bg, self.hover_border)
+        } else if is_alternate && let Some(alt_bg) = self.alt_normal_bg {
+            (alt_bg, self.normal_border)
         } else {
             (self.normal_bg, self.normal_border)
         }
@@ -575,5 +632,47 @@ mod tests {
         };
         let resp_right = handle_tree_selection_event(&mut state, &right_down, target, mods, None);
         assert!(!resp_right.consumed);
+    }
+
+    #[test]
+    fn test_tree_row_style_zebra_striping() {
+        let even = Color::rgba(0.10, 0.11, 0.13, 1.0);
+        let odd = Color::rgba(0.15, 0.16, 0.19, 1.0);
+        let style = TreeRowStyle::dark_default()
+            .with_zebra_striping(even, odd)
+            .with_border_radius(4.0);
+
+        assert_eq!(style.normal_bg, even);
+        assert_eq!(style.alt_normal_bg, Some(odd));
+
+        // Even row unselected: uses even background and 0.0 radius for  stripes
+        let even_style = style.build_row_style(false, false);
+        assert_eq!(even_style.background_color, even);
+        assert_eq!(
+            even_style.corner_radii,
+            iris_core::geometry::CornerRadii::all(0.0)
+        );
+
+        // Odd row unselected: uses odd background and 0.0 radius
+        let odd_style = style.build_row_style(false, true);
+        assert_eq!(odd_style.background_color, odd);
+        assert_eq!(
+            odd_style.corner_radii,
+            iris_core::geometry::CornerRadii::all(0.0)
+        );
+
+        // Selected row: uses selected background and retains capsule border radius
+        let sel_style = style.build_row_style(true, true);
+        assert_eq!(sel_style.background_color, style.selected_bg);
+        assert_eq!(
+            sel_style.corner_radii,
+            iris_core::geometry::CornerRadii::all(4.0)
+        );
+
+        // Color resolution
+        let (bg_even, _) = style.resolve_row_colors(false, false, false);
+        let (bg_odd, _) = style.resolve_row_colors(false, false, true);
+        assert_eq!(bg_even, even);
+        assert_eq!(bg_odd, odd);
     }
 }

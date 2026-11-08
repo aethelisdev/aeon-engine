@@ -340,20 +340,5 @@ mod tests {
             assert_eq!(c.step_height, 0.40);
             assert!(!c.is_grounded);
         }
-
-        // Verify undo actions were captured
-        assert!(actions.contains(
-            &crate::ui::iris_bridge::inspector::types::InspectorAction::StartComponentEdit(
-                entity,
-                handler.component_name(),
-                None,
-            )
-        ));
-        assert!(actions.contains(
-            &crate::ui::iris_bridge::inspector::types::InspectorAction::CommitComponentEdit(
-                entity,
-                handler.component_name()
-            )
-        ));
     }
 }

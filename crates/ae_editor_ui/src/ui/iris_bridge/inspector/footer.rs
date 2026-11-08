@@ -6,7 +6,7 @@
 //! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope::dual_action_bar`].
 
 use super::tags::TAG_INSPECTOR_ADD_COMPONENT;
-use super::types::{InspectorAction, InspectorPanelParams};
+use super::types::{ComponentCategory, InspectorPanelParams};
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
@@ -39,7 +39,8 @@ pub fn prefab_file_path_for_entity(
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    actions: &mut Vec<InspectorAction>,
+    is_add_menu_open: &mut bool,
+    active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<EngineUiAction> {
     scope
         .dual_action_bar(
@@ -53,17 +54,16 @@ pub fn build_inspector_footer(
                 .with_text_name("AddComponentBtnText")
                 .with_text_align(TextAlign::Left)
                 .with_padding(Insets::new(0.0, 6.0, 0.0, 6.0))
-                .with_active(params.is_add_menu_open)
+                .with_active(*is_add_menu_open)
                 .with_tag(TAG_INSPECTOR_ADD_COMPONENT),
             ActionBarButton::new("SavePrefabBtn", "💾 Save as Prefab")
                 .with_text_name("SavePrefabBtnText")
                 .with_text_align(TextAlign::Center),
         )
         .on_primary_click(|| {
-            if params.is_add_menu_open {
-                actions.push(InspectorAction::CloseAddComponentMenu);
-            } else {
-                actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
+            *is_add_menu_open = !*is_add_menu_open;
+            if !*is_add_menu_open {
+                *active_submenu = None;
             }
         })
         .then_secondary(|| {
@@ -107,11 +107,17 @@ mod tests {
             blink_caret: false,
         };
 
-        let mut actions = Vec::new();
+        let mut is_add_menu_open = false;
+        let mut active_submenu = None;
         {
             let mut scope = UiScope::new(&mut tree, root);
             scope.configure_container("TestRoot", Style::new().flex_col(), false);
-            let ui_action = build_inspector_footer(&mut scope, &params, &mut actions);
+            let ui_action = build_inspector_footer(
+                &mut scope,
+                &params,
+                &mut is_add_menu_open,
+                &mut active_submenu,
+            );
             assert!(ui_action.is_none());
             scope.finish_layout(params.panel_rect);
         }
@@ -136,6 +142,31 @@ mod tests {
             Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
         );
 
+        // Simulate clicking AddComponentBtn and verify in-place boolean toggle
+        let add_rect = tree.assert_node_rect("AddComponentBtn");
+        let click_add_pt = Point::new(add_rect.x + 10.0, add_rect.y + 10.0);
+        let _ = tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: click_add_pt,
+        });
+        let _ = tree.dispatch_event(&UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: click_add_pt,
+        });
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = build_inspector_footer(
+                &mut scope,
+                &params,
+                &mut is_add_menu_open,
+                &mut active_submenu,
+            );
+        }
+        assert!(
+            is_add_menu_open,
+            "Clicking Add Component button must toggle is_add_menu_open to true"
+        );
+
         // Simulate clicking SavePrefabBtn and verify direct EngineUiAction::SaveEntityAsPrefab emission
         let save_rect = tree.assert_node_rect("SavePrefabBtn");
         let click_pt = Point::new(save_rect.x + 10.0, save_rect.y + 10.0);
@@ -150,7 +181,12 @@ mod tests {
 
         let emitted = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_inspector_footer(&mut scope, &params, &mut actions)
+            build_inspector_footer(
+                &mut scope,
+                &params,
+                &mut is_add_menu_open,
+                &mut active_submenu,
+            )
         };
         let Some(EngineUiAction::SaveEntityAsPrefab(ent, path)) = emitted else {
             panic!("Expected EngineUiAction::SaveEntityAsPrefab");
@@ -160,6 +196,5 @@ mod tests {
             path,
             std::path::PathBuf::from("assets/prefabs/Hero_Guard.prefab.json")
         );
-        assert!(actions.is_empty());
     }
 }

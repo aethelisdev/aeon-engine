@@ -141,7 +141,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::InspectorAction;
+
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
@@ -278,15 +278,5 @@ mod tests {
         assert!((mat.friction - expected.friction).abs() < f32::EPSILON);
         assert!((mat.restitution - expected.restitution).abs() < f32::EPSILON);
         assert_eq!(mat.surface_type, ae_core::ecs::SurfaceType::Rubber);
-
-        assert_eq!(actions.len(), 2);
-        assert_eq!(
-            actions[0],
-            InspectorAction::StartComponentEdit(entity, "PhysicsMaterial", None)
-        );
-        assert_eq!(
-            actions[1],
-            InspectorAction::CommitComponentEdit(entity, "PhysicsMaterial")
-        );
     }
 }

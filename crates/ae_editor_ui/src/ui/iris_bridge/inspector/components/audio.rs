@@ -178,7 +178,7 @@ impl ComponentInspectorHandler for AudioListenerHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
-    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_audio_source_render_and_in_place_mutation() {
@@ -295,16 +295,6 @@ mod tests {
             assert_eq!(a.sound_path, "assets/audio/new_hit.ogg");
             assert!(a.is_playing);
         }
-
-        assert_eq!(actions.len(), 2);
-        assert_eq!(
-            actions[0],
-            InspectorAction::StartComponentEdit(entity, "AudioSource", None)
-        );
-        assert_eq!(
-            actions[1],
-            InspectorAction::CommitComponentEdit(entity, "AudioSource")
-        );
     }
 
     #[test]

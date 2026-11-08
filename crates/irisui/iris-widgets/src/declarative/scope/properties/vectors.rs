@@ -190,11 +190,27 @@ pub struct PropertyVec3Response {
     pub committed_axis: Option<usize>,
     /// Whether the reset button was clicked during this frame.
     pub reset_clicked: bool,
+    /// The pre-edit or baseline 3-channel vector values prior to this interaction.
+    pub old_values: [f32; 3],
     /// The updated 3-channel vector values after evaluating interaction for this frame.
     pub new_values: [f32; 3],
 }
 
 impl PropertyVec3Response {
+    /// Returns the baseline or pre-edit 3-channel vector values before this interaction.
+    #[inline]
+    #[must_use]
+    pub const fn old_values(&self) -> [f32; 3] {
+        self.old_values
+    }
+
+    /// Returns the updated 3-channel vector values after this interaction.
+    #[inline]
+    #[must_use]
+    pub const fn new_values(&self) -> [f32; 3] {
+        self.new_values
+    }
+
     /// Returns `true` if any vector axis value was committed during this frame.
     #[inline]
     #[must_use]
@@ -216,6 +232,32 @@ impl PropertyVec3Response {
             f(self.new_values);
         }
         self
+    }
+
+    /// Invokes `f` with the newly committed 3-channel vector values if any axis was committed during this frame.
+    #[inline]
+    pub fn on_commit(self, f: impl FnOnce([f32; 3])) -> Self {
+        if self.committed() {
+            f(self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f(old_vals, new_vals)` if any axis was committed with a non-trivial change.
+    #[inline]
+    pub fn on_commit_change(self, f: impl FnOnce([f32; 3], [f32; 3])) -> Self {
+        if self.committed() && (self.new_values != self.old_values) {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Evaluates and returns `Some(f(old_vals, new_vals))` if any axis was committed with a non-trivial change,
+    /// or `None` otherwise.
+    #[inline]
+    pub fn map_commit<T>(self, f: impl FnOnce([f32; 3], [f32; 3]) -> T) -> Option<T> {
+        (self.committed() && (self.new_values != self.old_values))
+            .then(|| f(self.old_values, self.new_values))
     }
 }
 
@@ -278,9 +320,27 @@ pub struct PropertyVec2Response {
     pub changed_axis: Option<usize>,
     /// 0-indexed axis that was committed during this frame upon pointer release.
     pub committed_axis: Option<usize>,
+    /// The pre-edit or baseline 2-channel vector values prior to this interaction.
+    pub old_values: [f32; 2],
+    /// The updated 2-channel vector values after evaluating interaction for this frame.
+    pub new_values: [f32; 2],
 }
 
 impl PropertyVec2Response {
+    /// Returns the baseline or pre-edit 2-channel vector values before this interaction.
+    #[inline]
+    #[must_use]
+    pub const fn old_values(&self) -> [f32; 2] {
+        self.old_values
+    }
+
+    /// Returns the updated 2-channel vector values after this interaction.
+    #[inline]
+    #[must_use]
+    pub const fn new_values(&self) -> [f32; 2] {
+        self.new_values
+    }
+
     /// Returns `true` if any vector axis value was committed during this frame.
     #[inline]
     #[must_use]
@@ -293,6 +353,32 @@ impl PropertyVec2Response {
     #[must_use]
     pub const fn changed(&self) -> bool {
         self.changed_axis.is_some() || self.response.changed()
+    }
+
+    /// Invokes `f` with the newly committed 2-channel vector values if any axis was committed during this frame.
+    #[inline]
+    pub fn on_commit(self, f: impl FnOnce([f32; 2])) -> Self {
+        if self.committed() {
+            f(self.new_values);
+        }
+        self
+    }
+
+    /// Invokes `f(old_vals, new_vals)` if any axis was committed with a non-trivial change.
+    #[inline]
+    pub fn on_commit_change(self, f: impl FnOnce([f32; 2], [f32; 2])) -> Self {
+        if self.committed() && (self.new_values != self.old_values) {
+            f(self.old_values, self.new_values);
+        }
+        self
+    }
+
+    /// Evaluates and returns `Some(f(old_vals, new_vals))` if any axis was committed with a non-trivial change,
+    /// or `None` otherwise.
+    #[inline]
+    pub fn map_commit<T>(self, f: impl FnOnce([f32; 2], [f32; 2]) -> T) -> Option<T> {
+        (self.committed() && (self.new_values != self.old_values))
+            .then(|| f(self.old_values, self.new_values))
     }
 }
 
@@ -380,6 +466,7 @@ impl<'a> UiScope<'a> {
         values: &mut [f32; 3],
         options: PropertyVec3Options<'_>,
     ) -> PropertyVec3Response {
+        let initial_values = *values;
         let (visible_label, _) = crate::declarative::types::split_label_id(label);
         let axis_names = ["X", "Y", "Z"];
 
@@ -707,6 +794,7 @@ impl<'a> UiScope<'a> {
             changed_axis: changed_axis_out,
             committed_axis: committed_axis_out,
             reset_clicked: reset_clicked_out,
+            old_values: initial_values,
             new_values: *values,
         }
     }
@@ -801,6 +889,7 @@ impl<'a> UiScope<'a> {
         values: &mut [f32; 2],
         options: PropertyVec2Options<'_>,
     ) -> PropertyVec2Response {
+        let initial_values = *values;
         let (visible_label, _) = crate::declarative::types::split_label_id(label);
         let base_tag = self.tag_for(label);
         let mut widget_response = WidgetResponse::default();
@@ -952,6 +1041,8 @@ impl<'a> UiScope<'a> {
             axes: axes_out,
             changed_axis: changed_axis_out,
             committed_axis: committed_axis_out,
+            old_values: initial_values,
+            new_values: *values,
         }
     }
 

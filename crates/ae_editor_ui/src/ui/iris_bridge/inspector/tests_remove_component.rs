@@ -44,22 +44,26 @@ fn click_delete_and_rebuild(
     world: &hecs::World,
     entity: hecs::Entity,
     component_name: &str,
-) -> (Option<EngineUiAction>, Vec<InspectorAction>) {
+) -> Option<EngineUiAction> {
     let euler = [0.0, 0.0, 0.0];
     let params = test_params(world, entity, &euler);
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut queued = Vec::new();
+    let mut name = String::new();
+    let mut swatches = Vec::new();
+    let mut is_color = false;
+    let mut is_add = false;
+    let mut submenu = None;
+    let mut session = super::types::InspectorSessionRefs {
+        inspected_name: &mut name,
+        saved_swatches: &mut swatches,
+        is_color_picker_open: &mut is_color,
+        is_add_menu_open: &mut is_add,
+        active_submenu: &mut submenu,
+    };
 
     assert!(
-        build_inspector_panel(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut queued,
-            &mut Vec::new(),
-            &mut false,
-        )
-        .is_none(),
+        build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session,).is_none(),
         "No action may be emitted before any click"
     );
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
@@ -82,14 +86,7 @@ fn click_delete_and_rebuild(
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    let action = build_inspector_panel(
-        &mut UiScope::new(&mut tree, root2),
-        &params,
-        &mut queued,
-        &mut Vec::new(),
-        &mut false,
-    );
-    (action, queued)
+    build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut session)
 }
 
 #[test]
@@ -103,13 +100,12 @@ fn test_registry_card_delete_click_emits_remove_component_directly() {
         RigidBody::default(),
     ));
 
-    let (action, queued) = click_delete_and_rebuild(&world, entity, "RigidBody");
+    let action = click_delete_and_rebuild(&world, entity, "RigidBody");
 
     assert!(
         matches!(action, Some(EngineUiAction::RemoveComponent(e, "RigidBody")) if e == entity),
         "Delete click must map directly to EngineUiAction::RemoveComponent(entity, \"RigidBody\")"
     );
-    assert!(queued.is_empty(), "No InspectorAction may be queued");
 }
 
 #[test]
@@ -117,13 +113,11 @@ fn test_ui_transform_card_delete_click_emits_remove_component_directly() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Name("Hud".to_string()), UiElement::default()));
 
-    let (action, queued) =
-        click_delete_and_rebuild(&world, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME);
+    let action = click_delete_and_rebuild(&world, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME);
 
     assert!(
         matches!(action, Some(EngineUiAction::RemoveComponent(e, name))
             if e == entity && name == ui_transform::UI_ELEMENT_COMPONENT_NAME),
         "2D Screen Transform delete click must map to RemoveComponent(entity, \"UiElement\")"
     );
-    assert!(queued.is_empty(), "No InspectorAction may be queued");
 }

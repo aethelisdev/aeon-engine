@@ -6,7 +6,6 @@
 //! Orchestrates the inspection, modification, reflection, and prefab export
 //! of selected ECS entities via 100% hardware-accelerated Iris UI GPU SDF.
 
-pub mod actions;
 pub mod add_menu;
 pub mod appearance;
 pub mod builder;
@@ -58,4 +57,6 @@ pub use tags::{
     resolve_add_component_btn_tag, resolve_component_delete_tag,
 };
 pub use transform::{build_transform_card, draw_transform_card};
-pub use types::{ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorPanelParams};
+pub use types::{
+    ComponentCategory, InspectorColorDragMode, InspectorPanelParams, InspectorSessionRefs,
+};

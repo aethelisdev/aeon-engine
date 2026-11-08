@@ -95,6 +95,22 @@ where
     })
 }
 
+/// Emits the top Entity Name header declaratively and returns an optional [`EngineUiAction::ModifyName`] when committed.
+///
+/// Emits the top Entity Name header declaratively and returns an optional [`EngineUiAction::ModifyName`] when committed.
+///
+/// Eliminates intermediate imperative variable plumbing and directly generates the engine UI action.
+pub fn build_entity_header_modify_action(
+    scope: &mut UiScope<'_>,
+    entity: hecs::Entity,
+    old_name: &str,
+    name: &mut String,
+    panel_w: f32,
+) -> Option<EngineUiAction> {
+    (build_entity_header(scope, name, panel_w).changed() && name != old_name)
+        .then(|| EngineUiAction::ModifyName(entity, old_name.to_string(), name.clone()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

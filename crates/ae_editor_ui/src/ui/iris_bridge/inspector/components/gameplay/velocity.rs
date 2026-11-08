@@ -66,7 +66,7 @@ impl ComponentInspectorHandler for VelocityHandler {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
-    use crate::ui::iris_bridge::inspector::types::{InspectorAction, InspectorPanelParams};
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_velocity_render_and_in_place_mutation() {
@@ -149,15 +149,5 @@ mod tests {
             assert_eq!(v.y, -4.2);
             assert_eq!(v.z, 10.0);
         }
-
-        assert!(actions.contains(&InspectorAction::StartComponentEdit(
-            entity,
-            handler.component_name(),
-            None,
-        )));
-        assert!(actions.contains(&InspectorAction::CommitComponentEdit(
-            entity,
-            handler.component_name()
-        )));
     }
 }

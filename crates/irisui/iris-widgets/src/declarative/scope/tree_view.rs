@@ -115,6 +115,8 @@ pub struct TreeRowProps {
     pub tag: u64,
     /// Semantic hardware tag for foldout chevron toggle hit-testing.
     pub foldout_tag: u64,
+    /// True if this row is an alternating (odd) row for zebra striping.
+    pub is_alternate: bool,
 }
 
 impl TreeRowProps {
@@ -135,7 +137,22 @@ impl TreeRowProps {
             is_selected,
             tag,
             foldout_tag,
+            is_alternate: false,
         }
+    }
+
+    /// Sets whether this row is rendered with alternating zebra stripe background styling.
+    #[inline]
+    pub const fn with_alternate(mut self, is_alternate: bool) -> Self {
+        self.is_alternate = is_alternate;
+        self
+    }
+
+    /// Derives alternating row zebra striping directly from the visible row index (`index % 2 == 1`).
+    #[inline]
+    pub const fn with_row_index(mut self, index: usize) -> Self {
+        self.is_alternate = index % 2 == 1;
+        self
     }
 }
 
@@ -350,9 +367,9 @@ impl<'a> UiScope<'a> {
         };
 
         let is_selected = props.is_selected;
-        let mut row_style = config
+        let row_style = config
             .style
-            .build_style(is_selected)
+            .build_row_style(is_selected, props.is_alternate)
             .flex_row()
             .align_items(AlignItems::Center)
             .height(config.row_height)
@@ -360,12 +377,6 @@ impl<'a> UiScope<'a> {
             .flex_shrink(0.0)
             .padding_insets(Insets::new(0.0, 6.0, 0.0, padding_left))
             .gap(4.0);
-
-        if !is_selected {
-            row_style = row_style
-                .hover_background(config.style.hover_bg)
-                .hover_border(config.style.border_width, config.style.hover_border);
-        }
 
         let row_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(row_id) {

@@ -61,13 +61,15 @@ impl IrisEditorOverlay {
             blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
         };
 
-        if let Some(ui_action) = build_inspector_panel(
-            scope,
-            &insp_params,
-            &mut self.inspector.interactions.actions,
-            &mut self.inspector.saved_swatches,
-            &mut self.inspector.is_color_picker_open,
-        ) {
+        let mut session = super::types::InspectorSessionRefs {
+            inspected_name: &mut self.inspector.inspected_entity_name,
+            saved_swatches: &mut self.inspector.saved_swatches,
+            is_color_picker_open: &mut self.inspector.is_color_picker_open,
+            is_add_menu_open: &mut self.inspector.is_add_menu_open,
+            active_submenu: &mut self.inspector.active_submenu,
+        };
+
+        if let Some(ui_action) = build_inspector_panel(scope, &insp_params, &mut session) {
             self.pending_actions.push(ui_action);
         }
         self.inspector.inspected_entity = params.scene.selected_entity;

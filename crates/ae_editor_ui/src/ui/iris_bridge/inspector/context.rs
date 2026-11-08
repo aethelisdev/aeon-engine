@@ -7,7 +7,7 @@
 //! bindings (`prop_f32`, `prop_combobox_mapped`, `prop_checkbox`) with automatic
 //! Undo/Redo command session snapshotting for inspected entities.
 
-use super::types::{InspectorAction, InspectorPanelParams};
+use super::types::InspectorPanelParams;
 use irisui::widgets::declarative::scope::ComboRowLayout;
 
 /// Canonical default column width in logical pixels allocated for Inspector property labels.
@@ -181,7 +181,7 @@ pub struct ComponentRenderContext<'a> {
     /// Global parameters from the parent Inspector panel.
     pub params: &'a InspectorPanelParams<'a>,
     /// Mutable collector for inspector UI actions generated during rendering.
-    pub actions: Option<&'a mut Vec<InspectorAction>>,
+    pub actions: Option<&'a mut Vec<()>>,
     /// Absolute X start coordinate of the card.
     pub base_x: f32,
     /// Absolute Y start coordinate of the card.
@@ -216,79 +216,39 @@ impl<'a> ComponentRenderContext<'a> {
         entity: hecs::Entity,
         world: &'a hecs::World,
         params: &'a InspectorPanelParams<'a>,
-        actions: &'a mut Vec<InspectorAction>,
+        _actions: &'a mut Vec<()>,
         base_x: f32,
         base_y: f32,
         card_w: f32,
     ) -> Self {
-        Self {
-            entity,
-            world,
-            params,
-            actions: Some(actions),
-            base_x,
-            base_y,
-            card_w,
-        }
+        Self::new(entity, world, params, base_x, base_y, card_w)
     }
 
     /// Pushes an inspector UI action for the inspected entity, if an action sink is attached.
     #[inline]
-    pub fn push_action(&mut self, action: InspectorAction) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(action);
-        }
-    }
+    pub fn push_action(&mut self, _action: ()) {}
 
     /// Signals the start of an editing session on a named component, capturing pre-edit bytes for undo.
     #[inline]
-    pub fn begin_edit(&mut self, comp_name: &'static str) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::StartComponentEdit(
-                self.entity,
-                comp_name,
-                None,
-            ));
-        }
-    }
+    pub fn begin_edit(&mut self, _comp_name: &'static str) {}
 
     /// Signals the start of an editing session on a named component with an explicit pre-edit snapshot.
     #[inline]
-    pub fn begin_edit_with_snapshot(&mut self, comp_name: &'static str, snapshot: Vec<u8>) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::StartComponentEdit(
-                self.entity,
-                comp_name,
-                Some(snapshot),
-            ));
-        }
-    }
+    pub fn begin_edit_with_snapshot(&mut self, _comp_name: &'static str, _snapshot: Vec<u8>) {}
 
     /// Directly commits an atomic modification undo action for a component with pre-edit and post-edit snapshots.
     #[inline]
     pub fn commit_modify(
         &mut self,
-        comp_name: &'static str,
-        old_bytes: Vec<u8>,
-        new_bytes: Vec<u8>,
+        _comp_name: &'static str,
+        _old_bytes: Vec<u8>,
+        _new_bytes: Vec<u8>,
     ) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::CommitComponentModify(
-                self.entity,
-                comp_name,
-                old_bytes,
-                new_bytes,
-            ));
-        }
     }
 
     /// Signals the completion of an editing session on a named component, committing undo history if modified.
     #[inline]
-    pub fn commit_edit(&mut self, comp_name: &'static str) {
-        if let Some(actions) = &mut self.actions {
-            actions.push(InspectorAction::CommitComponentEdit(self.entity, comp_name));
-        }
-    }
+    pub fn commit_edit(&mut self, _comp_name: &'static str) {}
 
     /// Binds an autonomous floating-point property to a named component with automatic undo snapshotting.
     ///

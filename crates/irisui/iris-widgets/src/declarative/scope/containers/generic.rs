@@ -26,6 +26,22 @@ impl<R> InnerResponse<R> {
     pub fn new(response: WidgetResponse, inner: R) -> Self {
         Self { response, inner }
     }
+
+    /// Executes the given callback with the container widget response if it was hovered or clicked,
+    /// returning the inner closure result unmodified.
+    #[inline]
+    pub fn on_interact(self, f: impl FnOnce(&WidgetResponse)) -> R {
+        if self.response.hovered() || self.response.clicked() {
+            f(&self.response);
+        }
+        self.inner
+    }
+
+    /// Maps the bounding rectangle and inner response result using the provided transformation closure.
+    #[inline]
+    pub fn map_response<T>(self, f: impl FnOnce(Rect, R) -> T) -> T {
+        f(self.response.rect, self.inner)
+    }
 }
 
 impl<R> std::ops::Deref for InnerResponse<R> {

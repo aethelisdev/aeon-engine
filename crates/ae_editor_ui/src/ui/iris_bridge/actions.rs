@@ -24,11 +24,6 @@ impl IrisEditorOverlay {
         self.hierarchy.take_actions()
     }
 
-    /// Consumes and returns all queued Scene Inspector panel actions.
-    pub fn take_inspector_actions(&mut self) -> Vec<super::inspector::InspectorAction> {
-        self.inspector.take_actions()
-    }
-
     /// Consumes and returns all queued Content / Asset Browser panel actions.
     pub fn take_assets_actions(&mut self) -> Vec<super::assets::AssetsPanelAction> {
         self.assets.take_actions()

@@ -195,7 +195,6 @@ impl IrisEditorOverlay {
                 self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
 
             if is_inspector_popup_open {
-                let mut inspector_overlay_actions = Vec::new();
                 let insp_params = inspector::types::InspectorPanelParams {
                     panel_rect: insp_rect,
                     world: params.scene.world,
@@ -219,15 +218,12 @@ impl IrisEditorOverlay {
                     &mut self.tree,
                     root,
                     &insp_params,
-                    &mut inspector_overlay_actions,
                     &mut self.inspector.is_color_picker_open,
+                    &mut self.inspector.is_add_menu_open,
+                    &mut self.inspector.active_submenu,
                 ) {
                     self.pending_actions.push(ui_action);
                 }
-
-                self.inspector
-                    .actions
-                    .append(&mut inspector_overlay_actions);
             }
         }
 

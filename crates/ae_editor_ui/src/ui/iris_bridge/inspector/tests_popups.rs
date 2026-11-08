@@ -77,8 +77,14 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     }
 
     // Build the cascading add menu via declarative UiScope
-    let mut actions = Vec::new();
-    add_menu::build_add_component_menu(&mut tree, root, &params, &mut actions);
+    let mut is_add_menu_open = true;
+    let mut active_submenu = Some(ComponentCategory::Physics);
+    add_menu::draw_add_component_menu(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut is_add_menu_open,
+        &mut active_submenu,
+    );
 
     // Find Physics category card item
     let mut physics_cat_node = None;
@@ -228,15 +234,19 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    let mut actions = Vec::new();
+    let mut name = String::new();
+    let mut swatches = Vec::new();
     let mut is_color_picker_open = false;
-    let _ = panel::build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut actions,
-        &mut Vec::new(),
-        &mut is_color_picker_open,
-    );
+    let mut is_add_menu_open = false;
+    let mut active_submenu = None;
+    let mut session = super::types::InspectorSessionRefs {
+        inspected_name: &mut name,
+        saved_swatches: &mut swatches,
+        is_color_picker_open: &mut is_color_picker_open,
+        is_add_menu_open: &mut is_add_menu_open,
+        active_submenu: &mut active_submenu,
+    };
+    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
 
     let swatch_rect = tree
@@ -257,29 +267,15 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
         .event_state
         .frame_clicked_tag
         .expect("Swatch click tag");
-    let mut click_actions = Vec::new();
     assert!(resolve_inspector_tag_click(clicked_tag));
-    assert!(
-        click_actions.is_empty(),
-        "resolve_inspector_tag_click must not duplicate ToggleColorPicker before declarative panel rebuild"
-    );
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    let _ = panel::build_inspector_panel(
-        &mut UiScope::new(&mut tree, root2),
-        &params,
-        &mut click_actions,
-        &mut Vec::new(),
-        &mut is_color_picker_open,
-    );
+    let _ =
+        panel::build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut session);
 
     assert!(
         is_color_picker_open,
         "Clicking Object Color swatch must directly toggle is_color_picker_open to true"
-    );
-    assert!(
-        click_actions.is_empty(),
-        "No ToggleColorPicker action should be emitted"
     );
 }

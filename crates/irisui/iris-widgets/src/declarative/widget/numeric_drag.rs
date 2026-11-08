@@ -36,6 +36,8 @@ pub struct ScalarResponse {
     pub response: WidgetResponse,
     /// Mutated scalar floating-point value after evaluation.
     pub value: f32,
+    /// Pre-edit or baseline scalar value captured prior to the modification.
+    pub old_value: f32,
 }
 
 impl Deref for ScalarResponse {
@@ -53,6 +55,13 @@ impl ScalarResponse {
     #[must_use]
     pub const fn value(&self) -> f32 {
         self.value
+    }
+
+    /// Returns the baseline or pre-edit floating-point scalar value before this interaction.
+    #[inline]
+    #[must_use]
+    pub const fn old_value(&self) -> f32 {
+        self.old_value
     }
 
     /// Returns `true` if the numeric value was confirmed or submitted via the Enter key during this frame.
@@ -84,6 +93,33 @@ impl ScalarResponse {
                     .response
                     .flags
                     .contains(iris_core::response::ResponseFlags::LOST_FOCUS))
+    }
+
+    /// Invokes `f` with the newly committed scalar value if committed during this frame.
+    #[inline]
+    pub fn on_commit(self, f: impl FnOnce(f32)) -> Self {
+        if self.committed() {
+            f(self.value);
+        }
+        self
+    }
+
+    /// Invokes `f(old_val, new_val)` with the pre-edit and committed scalar values if committed
+    /// with a non-trivial delta during this frame.
+    #[inline]
+    pub fn on_commit_change(self, f: impl FnOnce(f32, f32)) -> Self {
+        if self.committed() && (self.value - self.old_value).abs() > f32::EPSILON {
+            f(self.old_value, self.value);
+        }
+        self
+    }
+
+    /// Evaluates and returns `Some(f(old_val, new_val))` if committed with a non-trivial delta
+    /// during this frame, or `None` otherwise.
+    #[inline]
+    pub fn map_commit<T>(self, f: impl FnOnce(f32, f32) -> T) -> Option<T> {
+        (self.committed() && (self.value - self.old_value).abs() > f32::EPSILON)
+            .then(|| f(self.old_value, self.value))
     }
 }
 
@@ -269,7 +305,8 @@ impl<'a> NumericDrag<'a> {
         min_val: f32,
         max_val: f32,
         box_w: f32,
-    ) -> WidgetResponse {
+    ) -> (WidgetResponse, f32) {
+        let initial_val = *self.value;
         if let Some(node) = scope.tree.get_mut(pill_id) {
             node.set_name(self.name.unwrap_or("NumericDrag"));
             node.tag = tag;
@@ -499,12 +536,12 @@ impl<'a> NumericDrag<'a> {
         if is_dragging {
             resp = resp.with_dragged(true);
         }
-        if is_drag_released {
-            scope
+        let old_val = if is_drag_released {
+            let (_, start_opt) = scope
                 .tree
                 .event_state
                 .numeric_undo
-                .commit_drag(tag, *self.value);
+                .commit_drag_with_start(tag, *self.value);
             resp = resp.with_drag_released(true);
             if !is_editing {
                 scope.tree.event_state.focused = Some(pill_id);
@@ -512,7 +549,15 @@ impl<'a> NumericDrag<'a> {
                     scope.tree.event_state.focused_tag = Some(tag);
                 }
             }
-        }
+            start_opt.unwrap_or(initial_val)
+        } else {
+            scope
+                .tree
+                .event_state
+                .numeric_undo
+                .active_drag_start(tag)
+                .unwrap_or(initial_val)
+        };
         if submitted {
             resp.flags = resp
                 .flags
@@ -520,7 +565,7 @@ impl<'a> NumericDrag<'a> {
                 .union(iris_core::response::ResponseFlags::SUBMITTED);
         }
 
-        resp
+        (resp, old_val)
     }
 }
 
@@ -538,10 +583,11 @@ impl<'a> Widget for NumericDrag<'a> {
         if visible_label.is_empty() {
             let pill_id = scope.tree.create_node();
             let _ = scope.tree.add_child(scope.parent, pill_id);
-            let resp = self.render_pill(scope, pill_id, tag, min_val, max_val, box_w);
+            let (resp, old_val) = self.render_pill(scope, pill_id, tag, min_val, max_val, box_w);
             return ScalarResponse {
                 response: resp,
                 value: *self.value,
+                old_value: old_val,
             };
         }
 
@@ -583,7 +629,7 @@ impl<'a> Widget for NumericDrag<'a> {
         // 2. Pill Node
         let pill_id = row.tree.create_node();
         let _ = row.tree.add_child(row.parent, pill_id);
-        let resp = self.render_pill(&mut row, pill_id, tag, min_val, max_val, box_w);
+        let (resp, old_val) = self.render_pill(&mut row, pill_id, tag, min_val, max_val, box_w);
 
         // 3. Optional Unit Suffix
         if let Some(unit_str) = self.unit {
@@ -600,6 +646,7 @@ impl<'a> Widget for NumericDrag<'a> {
         ScalarResponse {
             response: resp,
             value: *self.value,
+            old_value: old_val,
         }
     }
 }

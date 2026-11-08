@@ -68,7 +68,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::InspectorAction;
+
     use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
     use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
@@ -236,16 +236,6 @@ mod tests {
             rb.body_type = ae_core::ecs::RigidBodyType::Static;
         }
         ctx.commit_edit("RigidBody");
-
-        assert_eq!(actions.len(), 2);
-        assert_eq!(
-            actions[0],
-            InspectorAction::StartComponentEdit(entity, "RigidBody", None)
-        );
-        assert_eq!(
-            actions[1],
-            InspectorAction::CommitComponentEdit(entity, "RigidBody")
-        );
 
         // Verify mutations in world
         let rb = world.get::<&ae_core::ecs::RigidBody>(entity).unwrap();

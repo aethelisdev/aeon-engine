@@ -92,29 +92,18 @@ impl ComponentCategory {
     }
 }
 
-/// User actions emitted by interactive widgets in the Inspector panel.
-#[derive(Debug, Clone, PartialEq)]
-pub enum InspectorAction {
-    /// Renames the specified entity in the ECS world.
-    RenameEntity(hecs::Entity, String),
-    /// Adds a new component to the specified entity from the Add Menu.
-    AddComponent(hecs::Entity, &'static str),
-    /// Opens the 8-category Add Component cascading menu.
-    OpenAddComponentMenu(Point),
-    /// Closes the Add Component menu.
-    CloseAddComponentMenu,
-    /// Opens an Add Component subcategory flyout menu.
-    OpenAddSubmenu(ComponentCategory),
-    /// Closes the active Add Component subcategory flyout menu.
-    CloseAddSubmenu,
-    /// Signals that editing has begun on a named component of an entity, optionally supplying pre-edit snapshot bytes.
-    StartComponentEdit(hecs::Entity, &'static str, Option<Vec<u8>>),
-    /// Signals that editing has completed on a named component of an entity, committing undo history if state changed.
-    CommitComponentEdit(hecs::Entity, &'static str),
-    /// Commits an atomic modify undo action on a component with explicit pre-edit and post-edit byte snapshots.
-    CommitComponentModify(hecs::Entity, &'static str, Vec<u8>, Vec<u8>),
-    /// Synchronizes authoritatively inspected Euler rotation angles [rx, ry, rz] in degrees.
-    SyncInspectorEuler(f32, f32, f32),
+/// Mutable interaction references supplied to the Inspector panel layout builder.
+pub struct InspectorSessionRefs<'a> {
+    /// Inspected entity display name buffer.
+    pub inspected_name: &'a mut String,
+    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
+    pub saved_swatches: &'a mut Vec<[f32; 4]>,
+    /// Whether the floating Color Picker popup is open.
+    pub is_color_picker_open: &'a mut bool,
+    /// Whether the top-level Add Component menu is open.
+    pub is_add_menu_open: &'a mut bool,
+    /// Active open Add Component category flyout (if any).
+    pub active_submenu: &'a mut Option<ComponentCategory>,
 }
 
 /// Input parameters supplied to the Inspector panel layout builder.

@@ -24,10 +24,10 @@ use std::collections::HashMap;
 /// Physical height in pixels for an individual Scene Hierarchy tree row.
 pub const HIERARCHY_ROW_HEIGHT: f32 = 24.0;
 
-/// Vertical gap between consecutive tree rows in physical pixels.
-pub const HIERARCHY_ROW_GAP: f32 = 2.0;
+/// Vertical gap between consecutive tree rows in physical pixels (0.0 for  outliner striping).
+pub const HIERARCHY_ROW_GAP: f32 = 0.0;
 
-/// Total vertical stride for a single row including row gap (`26.0 px`).
+/// Total vertical stride for a single row including row gap (`24.0 px`).
 pub const HIERARCHY_ROW_STRIDE: f32 = HIERARCHY_ROW_HEIGHT + HIERARCHY_ROW_GAP;
 
 /// Flattens the ECS world hierarchy into a deterministic DFS pre-order row list,
@@ -314,7 +314,11 @@ pub fn build_hierarchy_rows(
         )
         .with_style(
             TreeRowStyle::dark_default()
-                .with_selected_bg(Color::rgba(0.0, 0.35, 0.50, 0.65))
+                .with_zebra_striping(
+                    Color::rgba(0.045, 0.050, 0.065, 0.70),
+                    Color::rgba(0.080, 0.090, 0.120, 0.90),
+                )
+                .with_selected_bg(Color::rgba(0.0, 0.35, 0.50, 0.75))
                 .with_selected_border(Color::rgba(0.0, 0.85, 1.0, 0.80))
                 .with_hover_bg(Color::rgba(0.14, 0.18, 0.26, 0.65))
                 .with_hover_border(Color::rgba(0.24, 0.32, 0.45, 0.50))
@@ -345,7 +349,8 @@ pub fn build_hierarchy_rows(
                 is_selected,
                 row_tag,
                 foldout_tag,
-            );
+            )
+            .with_row_index(filtered_idx);
 
             let mut eye_clicked = false;
             let row_resp =
@@ -593,5 +598,77 @@ mod tests {
         }
 
         let _ = (e_3d, e_ui_text, e_ui_btn, e_ui_pnl);
+    }
+
+    #[test]
+    fn test_hierarchy_zebra_striping_row_backgrounds() {
+        let mut world = hecs::World::new();
+        let e0 = world.spawn((ae_core::ecs::Name("Entity 0".into()),));
+        let e1 = world.spawn((ae_core::ecs::Name("Entity 1".into()),));
+        let e2 = world.spawn((ae_core::ecs::Name("Entity 2".into()),));
+
+        let tree_state = TreeState::expanded_by_default();
+        let mut rows = Vec::new();
+        sync_hierarchy_rows(&world, &tree_state, &mut rows);
+        assert_eq!(rows.len(), 3);
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node creation must succeed");
+        let mut scope = UiScope::new(&mut tree, root);
+        let params = HierarchyPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: None,
+            search_query: "",
+            is_editing: true,
+            is_2d: true,
+            active_submenu: None,
+            active_sub_submenu: None,
+            is_add_menu_open: false,
+            active_context_menu: None,
+            cursor_pos: Point::new(-1.0, -1.0),
+            blink_caret: false,
+            focus_state: &FocusState::new(),
+            cursor_byte_idx: 0,
+            ctrl_held: false,
+            shift_held: false,
+        };
+
+        let mut actions = Vec::new();
+        let mut row_tree_state = TreeState::expanded_by_default();
+        build_hierarchy_rows(
+            &mut scope,
+            &rows,
+            &params,
+            &mut actions,
+            &mut row_tree_state,
+        );
+
+        // Collect background colors of HierarchyEntityRow nodes
+        let mut row_bgs = Vec::new();
+        tree.traverse_depth_first(root, &mut |_id, node| {
+            if node.name.as_deref() == Some("HierarchyEntityRow") {
+                row_bgs.push(node.style.background_color);
+            }
+        });
+
+        assert_eq!(row_bgs.len(), 3);
+        let even_bg = Color::rgba(0.045, 0.050, 0.065, 0.70);
+        let odd_bg = Color::rgba(0.080, 0.090, 0.120, 0.90);
+
+        assert_eq!(
+            row_bgs[0], even_bg,
+            "Row 0 (even) must have even stripe background"
+        );
+        assert_eq!(
+            row_bgs[1], odd_bg,
+            "Row 1 (odd) must have odd stripe background"
+        );
+        assert_eq!(
+            row_bgs[2], even_bg,
+            "Row 2 (even) must alternate back to even stripe"
+        );
+
+        let _ = (e0, e1, e2);
     }
 }
