@@ -8,10 +8,6 @@
 //! and paired component attachment with `Collider`.
 
 use crate::ui::iris_bridge::icons::ICON_GEAR;
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Maps a [`ae_core::ecs::RigidBodyType`] variant to its zero-based combobox option index.
@@ -63,61 +59,12 @@ pub fn draw_rigidbody_card(scope: &mut UiScope<'_>, world: &hecs::World, entity:
     );
 }
 
-/// Inspector handler for `⚙ RigidBody`.
-pub struct RigidBodyHandler;
-
-impl ComponentInspectorHandler for RigidBodyHandler {
-    fn component_name(&self) -> &'static str {
-        "RigidBody"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "RigidBody"
-    }
-
-    fn icon(&self) -> &'static str {
-        "⚙"
-    }
-
-    fn atlas_icon(&self) -> Option<[f32; 4]> {
-        Some(ICON_GEAR)
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.22, 0.74, 0.98, 1.0) // Sky Blue / Cyan (#38bdf8)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Physics
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::RigidBody>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_rigidbody_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::RigidBody::default()));
-        if world.get::<&ae_core::ecs::Collider>(entity).is_err() {
-            drop(world.insert_one(entity, ae_core::ecs::Collider::default()));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
-
     #[test]
     fn test_rigidbody_declarative_scope_renders_gear_icon_and_chevron() {
-        let handler = RigidBodyHandler;
-        assert_eq!(handler.atlas_icon(), Some(ICON_GEAR));
-
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut world = hecs::World::new();
@@ -127,30 +74,8 @@ mod tests {
             gravity_scale: 1.0,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
-
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_rigidbody_card(&mut scope, &world, entity);
 
         let has_gear_icon = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("CardAtlasIcon") && n.texture_uv == Some(ICON_GEAR)
@@ -172,38 +97,15 @@ mod tests {
 
     #[test]
     fn test_rigidbody_combobox_renders_chevron_up_when_open() {
-        let handler = RigidBodyHandler;
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::RigidBody::default(),));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
-
         // First pass: render once to get the tag of the ComboPill
         {
             let mut scope = UiScope::new(&mut tree, root);
-            handler.render_card(&mut scope, &mut ctx);
+            draw_rigidbody_card(&mut scope, &world, entity);
         }
 
         let combo_tag = tree
@@ -218,7 +120,7 @@ mod tests {
         tree2.active_combobox_tag = Some(combo_tag);
 
         let mut scope2 = UiScope::new(&mut tree2, root2);
-        handler.render_card(&mut scope2, &mut ctx);
+        draw_rigidbody_card(&mut scope2, &world, entity);
 
         let has_chevron_up = tree2.iter().any(|(_, n)| {
             n.name.as_deref() == Some("ComboChevron") && n.text.as_deref() == Some("▴")
@@ -238,45 +140,11 @@ mod tests {
             gravity_scale: 1.0,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            50.0,
-            280.0,
-        );
-
-        // Verify begin_edit and commit_edit signals
-        ctx.begin_edit("RigidBody");
-        if let Ok(mut rb) = ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity) {
+        if let Ok(mut rb) = world.get::<&mut ae_core::ecs::RigidBody>(entity) {
             rb.mass = 5.0;
             rb.gravity_scale = 2.0;
             rb.body_type = ae_core::ecs::RigidBodyType::Static;
         }
-        ctx.commit_edit("RigidBody");
 
         // Verify mutations in world
         let rb = world.get::<&ae_core::ecs::RigidBody>(entity).unwrap();

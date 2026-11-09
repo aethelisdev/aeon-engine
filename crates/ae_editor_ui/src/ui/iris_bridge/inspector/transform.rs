@@ -6,14 +6,12 @@
 //! Renders the 3D Position, Rotation Euler, and Scale axes using high-level
 //! declarative [`UiScope`] cards and property row primitives.
 
-use super::registry::ComponentRenderContext;
 use irisui::prelude::*;
 
 /// Renders the `📐 Transform` card declaratively by mutating `Position`, `Rotation`, and `Scale` in-place
-/// and snapshotting Undo/Redo sessions on edit commits.
+/// without intermediate `let` variables or heap allocations.
 pub fn draw_transform_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
     pos: &mut ae_core::ecs::Position,
     rot: &mut ae_core::ecs::Rotation,
     scale: &mut ae_core::ecs::Scale,
@@ -24,33 +22,21 @@ pub fn draw_transform_card(
             (&mut pos.x, &mut pos.y, &mut pos.z),
             0.1,
             Some([0.0, 0.0, 0.0]),
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("Transform");
-            ctx.commit_edit("Transform");
-        });
+        );
 
         card.prop_vec3_euler_quat(
             "Rotation",
             (&mut rot.x, &mut rot.y, &mut rot.z, &mut rot.w),
             0.5,
             Some([0.0, 0.0, 0.0]),
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("Transform");
-            ctx.commit_edit("Transform");
-        });
+        );
 
         card.prop_vec3_xyz(
             "Scale",
             (&mut scale.x, &mut scale.y, &mut scale.z),
             0.01,
             Some([1.0, 1.0, 1.0]),
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("Transform");
-            ctx.commit_edit("Transform");
-        });
+        );
     });
 }
 
@@ -59,20 +45,19 @@ pub fn draw_transform_card(
 /// Encapsulates the entire Transform inspector interface within a pure declarative [`UiScope`]
 /// container hierarchy, managing flex layout, hover states, caret blinking, and Select-All highlight
 /// capsules without manual coordinate arithmetic or imperative target buffers.
-pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
+pub fn build_transform_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
     scope.when_ok3(
-        ctx.world.get::<&mut ae_core::ecs::Position>(ctx.entity),
-        ctx.world.get::<&mut ae_core::ecs::Rotation>(ctx.entity),
-        ctx.world.get::<&mut ae_core::ecs::Scale>(ctx.entity),
+        world.get::<&mut ae_core::ecs::Position>(entity),
+        world.get::<&mut ae_core::ecs::Rotation>(entity),
+        world.get::<&mut ae_core::ecs::Scale>(entity),
         |card, mut p, mut r, mut s| {
-            draw_transform_card(card, ctx, &mut p, &mut r, &mut s);
+            draw_transform_card(card, &mut p, &mut r, &mut s);
         },
     );
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::types::InspectorPanelParams;
     use super::*;
     use ae_core::ecs::{Name, Position, Rotation, Scale};
     use irisui::widgets::declarative::{property_vec3_axis_tag, property_vec3_reset_tag};
@@ -89,30 +74,8 @@ mod tests {
             Scale::one(),
         ));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
-
         let mut scope = UiScope::new(&mut tree, root);
-        build_transform_card(&mut scope, &mut ctx);
+        build_transform_card(&mut scope, &world, entity);
         scope.finish_layout(Rect::new(6.0, 10.0, 308.0, 300.0));
 
         // Declarative assertions (zero imperative loop or let boilerplate)
@@ -160,30 +123,10 @@ mod tests {
             Rotation::identity(),
             Scale::one(),
         ));
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
         // 1. Render in a standard narrow card (308px)
-        let mut ctx_narrow = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
         let mut scope_narrow = UiScope::new(&mut tree, root);
-        build_transform_card(&mut scope_narrow, &mut ctx_narrow);
+        build_transform_card(&mut scope_narrow, &world, entity);
         scope_narrow.finish_layout(Rect::new(6.0, 10.0, 308.0, 300.0));
 
         // Verify all 3 rows have identical X coordinates (column aligned) declaratively
@@ -208,9 +151,8 @@ mod tests {
         // 2. Render in a wide card (600px)
         let mut tree_wide = UiTree::new();
         let root_wide = tree_wide.create_root().expect("Root must be created");
-        let mut ctx_wide = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 600.0);
         let mut scope_wide = UiScope::new(&mut tree_wide, root_wide);
-        build_transform_card(&mut scope_wide, &mut ctx_wide);
+        build_transform_card(&mut scope_wide, &world, entity);
         scope_wide.finish_layout(Rect::new(6.0, 10.0, 600.0, 300.0));
 
         // In the wide card, the inputs must REMAIN at the exact same left-aligned X position
@@ -243,26 +185,6 @@ mod tests {
         ));
 
         let euler = [-34.0, 120.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
         let rot_tag = {
             let scope = UiScope::new(&mut tree, root);
             scope.tag_for("Rotation")
@@ -270,7 +192,7 @@ mod tests {
         tree.event_state.set_cached_euler(rot_tag, euler);
 
         let mut scope = UiScope::new(&mut tree, root);
-        build_transform_card(&mut scope, &mut ctx);
+        build_transform_card(&mut scope, &world, entity);
 
         tree.assert_node_text("NumText_Rotation_X", "X: -34.0");
         tree.assert_node_text("NumText_Rotation_Y", "Y: 120.0");
@@ -288,32 +210,11 @@ mod tests {
             Rotation::identity(),
             Scale::one(),
         ));
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
         let mut scope = UiScope::new(&mut tree, root);
         let pos_base = scope.tag_for("Position");
         let rot_base = scope.tag_for("Rotation");
         let scale_base = scope.tag_for("Scale");
-        build_transform_card(&mut scope, &mut ctx);
+        build_transform_card(&mut scope, &world, entity);
 
         let pairs = [
             ("NumBox_Position_X", property_vec3_axis_tag(pos_base, 0)),
@@ -352,44 +253,10 @@ mod tests {
         );
     }
 
-    fn create_dummy_context<'a>(
-        world: &'a hecs::World,
-        entity: hecs::Entity,
-        params: &'a InspectorPanelParams<'a>,
-    ) -> ComponentRenderContext<'a> {
-        ComponentRenderContext::new(entity, world, params, 6.0, 10.0, 308.0)
-    }
-
     #[test]
     fn test_transform_in_place_mutation_on_reset() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((
-            Position::new(5.0, 10.0, 15.0),
-            Rotation::identity(),
-            Scale::one(),
-        ));
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-        let mut ctx = create_dummy_context(&world, entity, &params);
 
         let pos_base = {
             let scope = UiScope::new(&mut tree, root);
@@ -402,7 +269,7 @@ mod tests {
         let mut scale = Scale::one();
 
         let mut scope = UiScope::new(&mut tree, root);
-        draw_transform_card(&mut scope, &mut ctx, &mut pos, &mut rot, &mut scale);
+        draw_transform_card(&mut scope, &mut pos, &mut rot, &mut scale);
 
         assert_eq!(pos, Position::new(0.0, 0.0, 0.0));
     }
@@ -411,28 +278,6 @@ mod tests {
     fn test_transform_rotation_and_scale_reset_in_place() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((Position::zero(), Rotation::identity(), Scale::one()));
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-        let mut ctx = create_dummy_context(&world, entity, &params);
 
         let (rot_base, scale_base) = {
             let scope = UiScope::new(&mut tree, root);
@@ -446,7 +291,6 @@ mod tests {
         tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(rot_base));
         draw_transform_card(
             &mut UiScope::new(&mut tree, root),
-            &mut ctx,
             &mut pos,
             &mut rot,
             &mut scale,
@@ -457,7 +301,6 @@ mod tests {
         tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(scale_base));
         draw_transform_card(
             &mut UiScope::new(&mut tree, root),
-            &mut ctx,
             &mut pos,
             &mut rot,
             &mut scale,

@@ -8,8 +8,6 @@
 //! - `ScoreDisplayTag`: Binds a UI text element to the current game score readout
 //! - `ReticleTag`: Marks a UI element as the primary HUD crosshair reticle
 
-use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Renders the declarative PlayerHealthBarTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -40,45 +38,6 @@ pub fn draw_player_health_bar_tag_card(
     );
 }
 
-/// Inspector handler for `PlayerHealthBarTag` HUD marker component.
-pub struct PlayerHealthBarTagHandler;
-
-impl ComponentInspectorHandler for PlayerHealthBarTagHandler {
-    fn component_name(&self) -> &'static str {
-        "PlayerHealthBarTag"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Health Bar Tag"
-    }
-
-    fn icon(&self) -> &'static str {
-        "❤️"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.95, 0.25, 0.35, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world
-            .get::<&ae_core::ecs::PlayerHealthBarTag>(entity)
-            .is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_player_health_bar_tag_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::PlayerHealthBarTag));
-    }
-}
-
 /// Renders the declarative ScoreDisplayTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
 pub fn draw_score_display_tag_card(
     scope: &mut UiScope<'_>,
@@ -107,43 +66,6 @@ pub fn draw_score_display_tag_card(
     );
 }
 
-/// Inspector handler for `🏆 ScoreDisplayTag` HUD marker component.
-pub struct ScoreDisplayTagHandler;
-
-impl ComponentInspectorHandler for ScoreDisplayTagHandler {
-    fn component_name(&self) -> &'static str {
-        "ScoreDisplayTag"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Score Display Tag"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🏆"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.98, 0.80, 0.15, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::ScoreDisplayTag>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_score_display_tag_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::ScoreDisplayTag));
-    }
-}
-
 /// Renders the declarative ReticleTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
 pub fn draw_reticle_tag_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
     scope.card_panel_desc_when_ok(
@@ -166,43 +88,6 @@ pub fn draw_reticle_tag_card(scope: &mut UiScope<'_>, world: &hecs::World, entit
             );
         },
     );
-}
-
-/// Inspector handler for `🎯 ReticleTag` HUD marker component.
-pub struct ReticleTagHandler;
-
-impl ComponentInspectorHandler for ReticleTagHandler {
-    fn component_name(&self) -> &'static str {
-        "ReticleTag"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Reticle Tag"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🎯"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::ReticleTag>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_reticle_tag_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::ReticleTag));
-    }
 }
 
 #[cfg(test)]

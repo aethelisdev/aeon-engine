@@ -5,10 +5,6 @@
 //!
 //! Provides a declarative inspector card for 3D linear velocity components (`X`, `Y`, `Z`).
 
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Renders the declarative Velocity component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -30,47 +26,9 @@ pub fn draw_velocity_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: 
     );
 }
 
-/// Inspector handler for `📎 Velocity`.
-pub struct VelocityHandler;
-
-impl ComponentInspectorHandler for VelocityHandler {
-    fn component_name(&self) -> &'static str {
-        "Velocity"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Velocity"
-    }
-
-    fn icon(&self) -> &'static str {
-        "📎"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.22, 0.74, 0.98, 1.0) // Sky Blue / Cyan (#38bdf8)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Physics
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::Velocity>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_velocity_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::Velocity::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_velocity_render_and_in_place_mutation() {
@@ -82,39 +40,9 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-        let handler = VelocityHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_velocity_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("Velocity");
         assert!(
@@ -134,17 +62,15 @@ mod tests {
             .count();
         assert_eq!(
             numeric_pills, 3,
-            "Velocity card must emit 3 numeric pills (X, Y, Z)"
+            "Velocity card must create exactly 3 numeric inputs for X, Y, Z"
         );
 
-        // Test in-place mutation and undo snapshotting
+        // Test in-place mutation
         {
             let mut v = world.get::<&mut ae_core::ecs::Velocity>(entity).unwrap();
-            ctx.begin_edit(handler.component_name());
             v.x = 5.5;
             v.y = -4.2;
             v.z = 10.0;
-            ctx.commit_edit(handler.component_name());
         }
 
         {

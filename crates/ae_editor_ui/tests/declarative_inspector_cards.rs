@@ -6,17 +6,17 @@
 //! Verifies the declarative `UiScope` widget creation, container nesting, and semantic tags
 //! for physics, character, gameplay, and audio components without legacy targets buffers.
 
+use ae_editor_ui::ui::iris_bridge::inspector::components::animation::draw_animation_player_card;
 use ae_editor_ui::ui::iris_bridge::inspector::components::audio::{
-    AudioListenerHandler, AudioSourceHandler,
+    draw_audio_listener_card, draw_audio_source_card,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::components::character::PlayerTagHandler;
-use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::VelocityHandler;
-use ae_editor_ui::ui::iris_bridge::inspector::components::physics::material::PhysicsMaterialHandler;
-use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::ShapeHandler;
-use ae_editor_ui::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
+use ae_editor_ui::ui::iris_bridge::inspector::components::character::{
+    draw_character_controller_card, draw_player_tag_card,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
+use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::*;
+use ae_editor_ui::ui::iris_bridge::inspector::components::physics::material::draw_physics_material_card;
+use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::draw_shape_card;
+use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::draw_ui_layout_group_card;
 use irisui::prelude::*;
 
 #[test]
@@ -25,31 +25,9 @@ fn test_player_tag_card_declarative_structure() {
     let entity = world.spawn((ae_core::ecs::PlayerTag,));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
 
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-    let handler = PlayerTagHandler;
     let mut scope = UiScope::new(&mut tree, root);
-    handler.render_card(&mut scope, &mut ctx);
+    draw_player_tag_card(&mut scope, &world, entity);
 
     let has_delete = tree
         .iter()
@@ -74,31 +52,10 @@ fn test_velocity_card_declarative_structure() {
         z: 3.25,
     },));
     let mut tree = UiTree::new();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
     let root = WidgetId::default();
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
-    let handler = VelocityHandler;
     let mut scope = UiScope::new(&mut tree, root);
-    handler.render_card(&mut scope, &mut ctx);
+    draw_velocity_card(&mut scope, &world, entity);
 
     let has_delete = tree
         .iter()
@@ -127,31 +84,9 @@ fn test_shape_card_declarative_structure_and_chevron() {
     let entity = world.spawn((ae_core::ecs::Shape::Cube,));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
 
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-    let handler = ShapeHandler;
     let mut scope = UiScope::new(&mut tree, root);
-    handler.render_card(&mut scope, &mut ctx);
+    draw_shape_card(&mut scope, &world, entity);
 
     let has_delete = tree
         .iter()
@@ -181,9 +116,8 @@ fn test_shape_card_declarative_structure_and_chevron() {
     let mut open_tree = UiTree::new();
     let open_root = open_tree.create_root().expect("Root node must exist");
     open_tree.active_combobox_tag = Some(combo_tag);
-    let mut open_ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
     let mut open_scope = UiScope::new(&mut open_tree, open_root);
-    handler.render_card(&mut open_scope, &mut open_ctx);
+    draw_shape_card(&mut open_scope, &world, entity);
 
     let has_chevron_up = open_tree
         .iter()
@@ -203,32 +137,9 @@ fn test_character_controller_card_declarative_structure() {
         is_grounded: false,
     },));
     let mut tree = UiTree::new();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
 
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-    let handler =
-        ae_editor_ui::ui::iris_bridge::inspector::components::character::CharacterControllerHandler;
     let mut scope = UiScope::new(&mut tree, WidgetId::default());
-    handler.render_card(&mut scope, &mut ctx);
+    draw_character_controller_card(&mut scope, &world, entity);
 
     let has_delete = tree
         .iter()
@@ -281,34 +192,11 @@ fn test_gameplay_cards_declarative_structure() {
         ae_core::ecs::DestructibleTarget::new(100.0),
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
-
-    use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::*;
-
     // CharacterAction
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        CharacterActionHandler.render_card(&mut scope, &mut ctx);
+        draw_character_action_card(&mut scope, &world, entity);
         let numeric_pills = tree
             .iter()
             .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
@@ -322,9 +210,8 @@ fn test_gameplay_cards_declarative_structure() {
     // Rotator
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        RotatorHandler.render_card(&mut scope, &mut ctx);
+        draw_rotator_card(&mut scope, &world, entity);
         let numeric_pills = tree
             .iter()
             .filter(|(_, n)| n.role == irisui::core::WidgetRole::NumericInput)
@@ -342,9 +229,8 @@ fn test_gameplay_cards_declarative_structure() {
     // MovingPlatform
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        MovingPlatformHandler.render_card(&mut scope, &mut ctx);
+        draw_moving_platform_card(&mut scope, &world, entity);
         let has_delete = tree
             .iter()
             .any(|(_, n)| n.tag == UiScope::action_tag("MovingPlatform"));
@@ -361,9 +247,8 @@ fn test_gameplay_cards_declarative_structure() {
     // TriggerZone
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        TriggerZoneHandler.render_card(&mut scope, &mut ctx);
+        draw_trigger_zone_card(&mut scope, &world, entity);
         let has_idle = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("TriggerStatusLbl")
                 && n.text.as_deref().is_some_and(|t| t.contains("IDLE"))
@@ -374,9 +259,8 @@ fn test_gameplay_cards_declarative_structure() {
     // DestructibleTarget
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        DestructibleTargetHandler.render_card(&mut scope, &mut ctx);
+        draw_destructible_target_card(&mut scope, &world, entity);
         let has_track = tree
             .iter()
             .any(|(_, n)| n.name.as_deref() == Some("HealthBarTrack"));
@@ -404,34 +288,11 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
         },
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
-
-    // AnimationPlayerHandler
+    // AnimationPlayer
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-        let handler =
-            ae_editor_ui::ui::iris_bridge::inspector::components::animation::AnimationPlayerHandler;
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        handler.render_card(&mut scope, &mut ctx);
+        draw_animation_player_card(&mut scope, &world, entity);
         let has_playing = tree.iter().any(|(_, n)| {
             (n.name.as_deref() == Some("AnimStatusVal")
                 || n.name.as_deref() == Some("LabeledStatusValue"))
@@ -440,14 +301,11 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
         assert!(has_playing);
     }
 
-    // UiLayoutGroupHandler
+    // UiLayoutGroup
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-        let handler =
-            ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::UiLayoutGroupHandler;
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        handler.render_card(&mut scope, &mut ctx);
+        draw_ui_layout_group_card(&mut scope, &world, entity);
         let has_vertical = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("UiLayoutProps")
                 && n.text
@@ -468,31 +326,9 @@ fn test_physics_material_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
 
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-    let handler = PhysicsMaterialHandler;
     let mut scope = UiScope::new(&mut tree, root);
-    handler.render_card(&mut scope, &mut ctx);
+    draw_physics_material_card(&mut scope, &world, entity);
 
     let has_delete = tree
         .iter()
@@ -536,34 +372,11 @@ fn test_audio_cards_declarative_structure() {
         ae_audio::AudioListener,
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    };
-
-    // AudioSourceHandler test
+    // AudioSource test
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-        let handler = AudioSourceHandler;
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        handler.render_card(&mut scope, &mut ctx);
+        draw_audio_source_card(&mut scope, &world, entity);
 
         let has_delete = tree
             .iter()
@@ -600,14 +413,11 @@ fn test_audio_cards_declarative_structure() {
         );
     }
 
-    // AudioListenerHandler test
+    // AudioListener test
     {
         let mut tree = UiTree::new();
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-        let handler = AudioListenerHandler;
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        handler.render_card(&mut scope, &mut ctx);
+        draw_audio_listener_card(&mut scope, &world, entity);
 
         let has_delete = tree
             .iter()

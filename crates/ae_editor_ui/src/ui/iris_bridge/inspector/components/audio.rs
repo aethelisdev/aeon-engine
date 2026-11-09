@@ -5,8 +5,6 @@
 //!
 //! Provides inspection cards for AudioSource and AudioListener components.
 
-use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Opens the native audio file picker dialog and returns the selected file path string, if chosen.
@@ -61,43 +59,6 @@ pub fn draw_audio_source_card(scope: &mut UiScope<'_>, world: &hecs::World, enti
     );
 }
 
-/// Inspector handler for `AudioSource` component.
-pub struct AudioSourceHandler;
-
-impl ComponentInspectorHandler for AudioSourceHandler {
-    fn component_name(&self) -> &'static str {
-        "AudioSource"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Audio Source"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🔊"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.22, 0.74, 0.97, 1.0) // Vibrant Sky Blue (#38bdf8)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Audio
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_audio::AudioSource>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_audio_source_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_audio::AudioSource::default()));
-    }
-}
-
 /// Renders the declarative Audio Listener component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
 /// Displays the 3D spatial microphone status with zero intermediate variable plumbing.
@@ -124,47 +85,9 @@ pub fn draw_audio_listener_card(
     );
 }
 
-/// Inspector handler for `👂 AudioListener` component.
-pub struct AudioListenerHandler;
-
-impl ComponentInspectorHandler for AudioListenerHandler {
-    fn component_name(&self) -> &'static str {
-        "AudioListener"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Audio Listener"
-    }
-
-    fn icon(&self) -> &'static str {
-        "👂"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.65, 0.55, 0.98, 1.0) // Soft Purple (#a78bfa)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Audio
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_audio::AudioListener>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_audio_listener_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_audio::AudioListener));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_audio_source_render_and_in_place_mutation() {
@@ -181,40 +104,10 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-        let handler = AudioSourceHandler;
         {
             let mut scope = UiScope::new(&mut tree, root);
-            handler.render_card(&mut scope, &mut ctx);
+            draw_audio_source_card(&mut scope, &world, entity);
             scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 600.0));
         }
 
@@ -260,7 +153,7 @@ mod tests {
 
         {
             let mut scope = UiScope::new(&mut tree, root);
-            handler.render_card(&mut scope, &mut ctx);
+            draw_audio_source_card(&mut scope, &world, entity);
         }
         assert!(
             world
@@ -289,30 +182,9 @@ mod tests {
         let entity = world.spawn((ae_audio::AudioListener,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-        let handler = AudioListenerHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_audio_listener_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("AudioListener");
         assert!(

@@ -11,8 +11,6 @@
 //! - `UiButton`: Interactive button with enable/disable checkbox
 //! - `UiImage`: Sprite image display with slice mode label
 
-use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::types::ComponentCategory;
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
@@ -66,44 +64,6 @@ pub fn draw_ui_element_card(_scope: &mut UiScope<'_>, _world: &hecs::World, _ent
     // Handled as the primary 2D Screen Transform card at the top of the Inspector
 }
 
-/// Inspector handler for `UiElement`.
-pub struct UiElementHandler;
-
-impl ComponentInspectorHandler for UiElementHandler {
-    fn component_name(&self) -> &'static str {
-        "UiElement"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "2D Screen UI Element"
-    }
-
-    fn icon(&self) -> &'static str {
-        "📐"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, _world: &hecs::World, _entity: hecs::Entity) -> bool {
-        // Rendered as the primary 2D Screen Transform card at the top of the Inspector
-        false
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_element_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiElement::default()));
-    }
-}
-
 /// Renders the declarative UI Background Panel component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
 /// Modifies border width and corner radius in-place via [`UiScope::prop_f32`] with zero intermediate variable plumbing.
@@ -122,43 +82,6 @@ pub fn draw_ui_panel_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: 
             card.prop_f32("Corner Radius:", &mut p.corner_radius, 0.0..=100.0, 0.5);
         },
     );
-}
-
-/// Inspector handler for `🔲 UiPanel` background container component.
-pub struct UiPanelHandler;
-
-impl ComponentInspectorHandler for UiPanelHandler {
-    fn component_name(&self) -> &'static str {
-        "UiPanel"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Background Panel"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🔲"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiPanel>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_panel_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiPanel::default()));
-    }
 }
 
 /// Renders the declarative UI Text Label component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -187,43 +110,6 @@ pub fn draw_ui_text_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: h
             );
         },
     );
-}
-
-/// Inspector handler for `🔤 UiText` label component.
-pub struct UiTextHandler;
-
-impl ComponentInspectorHandler for UiTextHandler {
-    fn component_name(&self) -> &'static str {
-        "UiText"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Text Label"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🔤"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiText>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_text_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiText::default()));
-    }
 }
 
 /// Renders the declarative UI Progress Bar component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -259,43 +145,6 @@ pub fn draw_ui_progress_bar_card(
     );
 }
 
-/// Inspector handler for `📊 UiProgressBar`.
-pub struct UiProgressBarHandler;
-
-impl ComponentInspectorHandler for UiProgressBarHandler {
-    fn component_name(&self) -> &'static str {
-        "UiProgressBar"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Progress Bar"
-    }
-
-    fn icon(&self) -> &'static str {
-        "📊"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiProgressBar>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_progress_bar_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiProgressBar::default()));
-    }
-}
-
 /// Renders the declarative Interactive Button component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
 /// Modifies button enabled state in-place with zero intermediate variable plumbing.
@@ -313,43 +162,6 @@ pub fn draw_ui_button_card(scope: &mut UiScope<'_>, world: &hecs::World, entity:
             card.prop_checkbox("Enabled", &mut b.is_enabled);
         },
     );
-}
-
-/// Inspector handler for `🔘 UiButton`.
-pub struct UiButtonHandler;
-
-impl ComponentInspectorHandler for UiButtonHandler {
-    fn component_name(&self) -> &'static str {
-        "UiButton"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Interactive Button"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🔘"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.40, 0.75, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiButton>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_button_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiButton::default()));
-    }
 }
 
 /// Renders the declarative UI Sprite Image component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -375,81 +187,9 @@ pub fn draw_ui_image_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: 
     );
 }
 
-/// Inspector handler for `🖼️ UiImage` sprite component.
-pub struct UiImageHandler;
-
-impl ComponentInspectorHandler for UiImageHandler {
-    fn component_name(&self) -> &'static str {
-        "UiImage"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Sprite Image"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🖼️"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiImage>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_image_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiImage::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
-
-    fn create_dummy_params<'a>(
-        world: &'a hecs::World,
-        entity: hecs::Entity,
-        euler: &'a [f32; 3],
-        swatches: &'a [[f32; 4]],
-    ) -> InspectorPanelParams<'a> {
-        InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world,
-            selected_entity: Some(entity),
-            inspector_euler: euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        }
-    }
-
-    fn create_test_context<'a>(
-        world: &'a hecs::World,
-        entity: hecs::Entity,
-        params: &'a InspectorPanelParams<'a>,
-        actions: &'a mut Vec<()>,
-    ) -> ComponentRenderContext<'a> {
-        ComponentRenderContext::with_actions(entity, world, params, actions, 0.0, 0.0, 260.0)
-    }
 
     #[test]
     fn test_ui_panel_render_and_in_place_mutation() {
@@ -462,16 +202,10 @@ mod tests {
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = create_dummy_params(&world, entity, &euler, &swatches);
-
-        let mut actions = Vec::new();
-        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
 
         {
             let mut scope = UiScope::new(&mut tree, root);
-            UiPanelHandler.render_card(&mut scope, &mut ctx);
+            draw_ui_panel_card(&mut scope, &world, entity);
         }
 
         // Verify direct in-place mutation
@@ -581,16 +315,10 @@ mod tests {
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = create_dummy_params(&world, entity, &euler, &swatches);
-
-        let mut actions = Vec::new();
-        let mut ctx = create_test_context(&world, entity, &params, &mut actions);
 
         {
             let mut scope = UiScope::new(&mut tree, root);
-            UiButtonHandler.render_card(&mut scope, &mut ctx);
+            draw_ui_button_card(&mut scope, &world, entity);
         }
 
         {

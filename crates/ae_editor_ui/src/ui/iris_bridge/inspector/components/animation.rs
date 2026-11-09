@@ -5,8 +5,6 @@
 //!
 //! Provides inspection and playback feedback for AnimationPlayer components.
 
-use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 #[inline]
@@ -67,48 +65,9 @@ pub fn draw_animation_player_card(
     );
 }
 
-/// Inspector handler for AnimationPlayer component.
-pub struct AnimationPlayerHandler;
-
-impl ComponentInspectorHandler for AnimationPlayerHandler {
-    fn component_name(&self) -> &'static str {
-        "AnimationPlayer"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Animation Player"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🎬"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.95, 0.45, 0.70, 1.0) // Vibrant Rose / Magenta
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Animation
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_animation::AnimationPlayer>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_animation_player_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_animation::AnimationPlayer::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_animation_player_card_render_tag() {
@@ -116,31 +75,9 @@ mod tests {
         let entity = world.spawn((ae_animation::AnimationPlayer::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-        let handler = AnimationPlayerHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_animation_player_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("AnimationPlayer");
         assert!(

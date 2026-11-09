@@ -18,9 +18,9 @@ pub mod rotator;
 pub mod trigger;
 pub mod velocity;
 
-pub use action::{CharacterActionHandler, draw_character_action_card};
-pub use destructible::{DestructibleTargetHandler, draw_destructible_target_card};
-pub use platform::{MovingPlatformHandler, draw_moving_platform_card};
-pub use rotator::{RotatorHandler, draw_rotator_card};
-pub use trigger::{TriggerZoneHandler, draw_trigger_zone_card};
-pub use velocity::{VelocityHandler, draw_velocity_card};
+pub use action::draw_character_action_card;
+pub use destructible::draw_destructible_target_card;
+pub use platform::draw_moving_platform_card;
+pub use rotator::draw_rotator_card;
+pub use trigger::draw_trigger_zone_card;
+pub use velocity::draw_velocity_card;

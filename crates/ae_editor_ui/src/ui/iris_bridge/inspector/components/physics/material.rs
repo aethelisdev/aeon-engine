@@ -6,10 +6,6 @@
 //! Provides the `PhysicsMaterialHandler` implementing declarative UI rendering, surface type
 //! combobox with preset action button, and friction / restitution numeric controls with two-way data-binding.
 
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Maps a [`ae_core::ecs::SurfaceType`] variant to its zero-based dropdown option index.
@@ -80,75 +76,12 @@ pub fn draw_physics_material_card(
     );
 }
 
-/// Inspector handler for Physics Material.
-pub struct PhysicsMaterialHandler;
-
-impl PhysicsMaterialHandler {
-    /// Maps a [`ae_core::ecs::SurfaceType`] variant to its zero-based dropdown option index.
-    #[inline]
-    #[must_use]
-    pub const fn surface_type_to_index(surface: ae_core::ecs::SurfaceType) -> usize {
-        surface_type_to_index(surface)
-    }
-
-    /// Maps a zero-based dropdown option index to its corresponding [`ae_core::ecs::SurfaceType`] variant.
-    #[inline]
-    #[must_use]
-    pub const fn index_to_surface_type(idx: usize) -> ae_core::ecs::SurfaceType {
-        index_to_surface_type(idx)
-    }
-}
-
-impl ComponentInspectorHandler for PhysicsMaterialHandler {
-    fn component_name(&self) -> &'static str {
-        "PhysicsMaterial"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Physics Material"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🧱"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.96, 0.62, 0.15, 1.0) // Amber / Orange (#f59e0b)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Physics
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::PhysicsMaterial>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_physics_material_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(
-            entity,
-            ae_core::ecs::PhysicsMaterial {
-                friction: 0.70,
-                restitution: 0.0,
-                surface_type: ae_core::ecs::SurfaceType::Default,
-            },
-        ));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
-
     #[test]
     fn test_physics_material_declarative_scope_renders_structure() {
-        let handler = PhysicsMaterialHandler;
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut world = hecs::World::new();
@@ -158,29 +91,8 @@ mod tests {
             surface_type: ae_core::ecs::SurfaceType::Wood,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_physics_material_card(&mut scope, &world, entity);
 
         let has_del = tree
             .iter()
@@ -209,7 +121,6 @@ mod tests {
 
     #[test]
     fn test_physics_material_preset_button_in_place_mutation_and_undo() {
-        let handler = PhysicsMaterialHandler;
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
@@ -219,30 +130,9 @@ mod tests {
             surface_type: ae_core::ecs::SurfaceType::Rubber,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
         {
-            let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
             let mut scope = UiScope::new(&mut tree, root);
-            handler.render_card(&mut scope, &mut ctx);
+            draw_physics_material_card(&mut scope, &world, entity);
             scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 600.0));
         }
 
@@ -258,19 +148,9 @@ mod tests {
             point: click_pt,
         });
 
-        let mut actions = Vec::new();
         {
-            let mut ctx = ComponentRenderContext::with_actions(
-                entity,
-                &world,
-                &params,
-                &mut actions,
-                10.0,
-                50.0,
-                280.0,
-            );
             let mut scope = UiScope::new(&mut tree, root);
-            handler.render_card(&mut scope, &mut ctx);
+            draw_physics_material_card(&mut scope, &world, entity);
         }
 
         let expected =
@@ -296,8 +176,6 @@ mod tests {
         for (i, &st) in types.iter().enumerate() {
             assert_eq!(surface_type_to_index(st), i);
             assert_eq!(index_to_surface_type(i), st);
-            assert_eq!(PhysicsMaterialHandler::surface_type_to_index(st), i);
-            assert_eq!(PhysicsMaterialHandler::index_to_surface_type(i), st);
         }
     }
 

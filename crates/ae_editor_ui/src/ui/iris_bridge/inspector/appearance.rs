@@ -6,7 +6,6 @@
 //! Renders object color swatch, live HEX text input, and quick-select palette swatches
 //! using purely declarative [`UiScope`] containers, flexbox layout, and O(1) semantic tags.
 
-use super::registry::ComponentRenderContext;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
@@ -115,16 +114,17 @@ pub fn render_appearance_card(
 /// Standardizes card rendering alongside other Inspector standalone cards (`draw_transform_card`, `draw_ui_transform_card`).
 pub fn draw_appearance_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    current_col: ae_core::ecs::Color,
+    world: &hecs::World,
+    entity: hecs::Entity,
+    hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
     is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
     render_appearance_card(
         scope,
-        current_col,
-        ctx.entity,
-        ctx.params.inspector_color_hex,
+        entity_color(world, entity),
+        entity,
+        hex_str,
         saved_swatches,
         is_color_picker_open,
     )
@@ -150,14 +150,17 @@ pub fn draw_color_property(
 /// `let` plumbing or manual pixel coordinate manipulations.
 pub fn build_appearance_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+    hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
     is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
     draw_appearance_card(
         scope,
-        ctx,
-        entity_color(ctx.world, ctx.entity),
+        world,
+        entity,
+        hex_str,
         saved_swatches,
         is_color_picker_open,
     )
@@ -190,28 +193,7 @@ mod tests {
             a: 1.0,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
         let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
-
-        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#3366cc",
-            saved_swatches: &[],
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
         let mut is_color_picker_open = false;
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
@@ -222,7 +204,9 @@ mod tests {
             |card_scope| {
                 build_appearance_card(
                     card_scope,
-                    &mut ctx,
+                    &world,
+                    entity,
+                    "#3366cc",
                     &mut saved_swatches,
                     &mut is_color_picker_open,
                 );
@@ -286,35 +270,16 @@ mod tests {
         tree.event_state.frame_key_pressed = true;
         tree.event_state.frame_key = Some(KeyCode::Enter);
 
-        let euler = [0.0, 0.0, 0.0];
         let mut saved_swatches = Vec::new();
-
-        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#1a334d",
-            saved_swatches: &[],
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
         let mut is_color_picker_open = false;
 
         let action = {
             let mut scope = UiScope::new(&mut tree, WidgetId::default());
             build_appearance_card(
                 &mut scope,
-                &mut ctx,
+                &world,
+                entity,
+                "#1a334d",
                 &mut saved_swatches,
                 &mut is_color_picker_open,
             )
@@ -361,35 +326,15 @@ mod tests {
             a: 1.0,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
         let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0]];
-
-        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#3366cc",
-            saved_swatches: &[],
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
         let mut is_color_picker_open = false;
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         draw_appearance_card(
             &mut scope,
-            &mut ctx,
-            entity_color(&world, entity),
+            &world,
+            entity,
+            "#3366cc",
             &mut saved_swatches,
             &mut is_color_picker_open,
         );

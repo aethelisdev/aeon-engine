@@ -5,8 +5,6 @@
 //!
 //! Provides declarative inspection and unparenting actions for entity parent-child relationships.
 
-use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::types::ComponentCategory;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
@@ -83,44 +81,6 @@ pub fn draw_parent_card_if_present(
             |s| draw_parent_card(s, world, entity),
         )
         .flatten()
-}
-
-/// Inspector handler for entity hierarchy and parenting relationships.
-pub struct ParentHandler;
-
-impl ComponentInspectorHandler for ParentHandler {
-    fn component_name(&self) -> &'static str {
-        "Parenting"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Parent / Hierarchy"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🔗"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.98, 0.80, 0.08, 1.0) // Gold / Warm Amber (#facc15)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Hierarchy
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::Parent>(entity).is_ok()
-            || world.get::<&ae_core::ecs::Children>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        drop(draw_parent_card_if_present(scope, ctx.world, ctx.entity));
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::Children::default()));
-    }
 }
 
 #[cfg(test)]

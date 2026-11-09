@@ -8,7 +8,6 @@ use super::appearance;
 use super::color_picker_popup;
 use super::footer;
 use super::header;
-use super::registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 use super::transform;
 use super::types::InspectorPanelParams;
 use super::ui_transform;
@@ -95,14 +94,9 @@ fn render_inspector_cards(
 ) -> Option<crate::ui::types::EngineUiAction> {
     render_context_cards(
         scope,
-        &mut ComponentRenderContext::new(
-            entity,
-            params.world,
-            params,
-            6.0,
-            0.0,
-            params.panel_rect.width - 12.0,
-        ),
+        params.world,
+        entity,
+        params.inspector_color_hex,
         saved_swatches,
         is_color_picker_open,
     )
@@ -111,14 +105,23 @@ fn render_inspector_cards(
 /// Evaluates primary cards followed by dynamic registry cards for the active rendering context.
 fn render_context_cards(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+    hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
     is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
-        render_primary_cards(scope, ctx, saved_swatches, is_color_picker_open),
-        render_registry_cards(scope, ctx).or_else(|| {
-            super::components::hierarchy::draw_parent_card_if_present(scope, ctx.world, ctx.entity)
+        render_primary_cards(
+            scope,
+            world,
+            entity,
+            hex_str,
+            saved_swatches,
+            is_color_picker_open,
+        ),
+        render_registry_cards(scope, world, entity).or_else(|| {
+            super::components::hierarchy::draw_parent_card_if_present(scope, world, entity)
         }),
     )
 }
@@ -178,52 +181,187 @@ pub fn combine_card_actions(
 /// Renders the primary transform or UI layout card followed by the appearance card.
 pub fn render_primary_cards(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+    hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
     is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    if ctx
-        .world
-        .get::<&ae_core::ecs::UiElement>(ctx.entity)
-        .is_ok()
-    {
-        ui_transform::build_ui_transform_card(scope, ctx);
-        header::component_delete_action(scope, ctx.entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
+    if world.get::<&ae_core::ecs::UiElement>(entity).is_ok() {
+        ui_transform::build_ui_transform_card(scope, world, entity);
+        header::component_delete_action(scope, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
-        transform::build_transform_card(scope, ctx);
-        appearance::build_appearance_card(scope, ctx, saved_swatches, is_color_picker_open)
+        transform::build_transform_card(scope, world, entity);
+        appearance::build_appearance_card(
+            scope,
+            world,
+            entity,
+            hex_str,
+            saved_swatches,
+            is_color_picker_open,
+        )
     }
 }
 
-/// Renders the dynamically registered non-hierarchy component inspector cards and returns the
-/// first [`crate::ui::types::EngineUiAction::RemoveComponent`] whose card delete button was
-/// clicked in this frame.
-///
-/// Every visible card is always rendered: `Option::or` evaluates its argument eagerly, so the
-/// fold never short-circuits the remaining cards after an action has been found.
-pub fn render_registry_cards(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-) -> Option<crate::ui::types::EngineUiAction> {
-    InspectorRegistry::global()
-        .handlers()
-        .iter()
-        .fold(None, |action, handler| {
-            action.or(render_registry_card(scope, ctx, handler.as_ref()))
-        })
+/// Built-in component inspector card descriptor pairing canonical component name with its pure render function.
+struct BuiltinComponentCard {
+    /// Canonical component type name matching the card header action tag.
+    name: &'static str,
+    /// Pure rendering function pointer drawing the component card if present on entity.
+    draw: fn(&mut UiScope<'_>, &hecs::World, hecs::Entity),
 }
 
-/// Renders one registry card when its component is present on the inspected entity (hierarchy
-/// cards are drawn separately), then maps a click on its delete button into `RemoveComponent`.
-fn render_registry_card(
+/// Ordered pipeline of all built-in attachable ECS component inspector cards.
+///
+/// Preserves deterministic inspection hierarchy layout order matching registration.
+const BUILTIN_COMPONENT_CARDS: [BuiltinComponentCard; 31] = [
+    // 1. Physics Components
+    BuiltinComponentCard {
+        name: "RigidBody",
+        draw: super::components::draw_rigidbody_card,
+    },
+    BuiltinComponentCard {
+        name: "Collider",
+        draw: super::components::draw_collider_card,
+    },
+    BuiltinComponentCard {
+        name: "PhysicsMaterial",
+        draw: super::components::draw_physics_material_card,
+    },
+    // 2. Character & Gameplay Components
+    BuiltinComponentCard {
+        name: "CharacterController",
+        draw: super::components::draw_character_controller_card,
+    },
+    BuiltinComponentCard {
+        name: "CharacterAction",
+        draw: super::components::draw_character_action_card,
+    },
+    BuiltinComponentCard {
+        name: "PlayerTag",
+        draw: super::components::draw_player_tag_card,
+    },
+    BuiltinComponentCard {
+        name: "Velocity",
+        draw: super::components::draw_velocity_card,
+    },
+    BuiltinComponentCard {
+        name: "Rotator",
+        draw: super::components::draw_rotator_card,
+    },
+    BuiltinComponentCard {
+        name: "MovingPlatform",
+        draw: super::components::draw_moving_platform_card,
+    },
+    BuiltinComponentCard {
+        name: "TriggerZone",
+        draw: super::components::draw_trigger_zone_card,
+    },
+    BuiltinComponentCard {
+        name: "DestructibleTarget",
+        draw: super::components::draw_destructible_target_card,
+    },
+    // 3. Rendering, LOD & Illumination Components
+    BuiltinComponentCard {
+        name: "Light",
+        draw: super::components::draw_light_card,
+    },
+    BuiltinComponentCard {
+        name: "ModelMesh",
+        draw: super::components::draw_model_mesh_card,
+    },
+    BuiltinComponentCard {
+        name: "Shape",
+        draw: super::components::draw_shape_card,
+    },
+    BuiltinComponentCard {
+        name: "LodGroup",
+        draw: super::components::draw_lod_group_card,
+    },
+    // 4. Skeletal Animation Components
+    BuiltinComponentCard {
+        name: "AnimationPlayer",
+        draw: super::components::draw_animation_player_card,
+    },
+    // 5. Audio Components
+    BuiltinComponentCard {
+        name: "AudioSource",
+        draw: super::components::draw_audio_source_card,
+    },
+    BuiltinComponentCard {
+        name: "AudioListener",
+        draw: super::components::draw_audio_listener_card,
+    },
+    // 6. In-Game 2D UI & HUD Components
+    BuiltinComponentCard {
+        name: "UiElement",
+        draw: super::components::draw_ui_element_card,
+    },
+    BuiltinComponentCard {
+        name: "UiPanel",
+        draw: super::components::draw_ui_panel_card,
+    },
+    BuiltinComponentCard {
+        name: "UiText",
+        draw: super::components::draw_ui_text_card,
+    },
+    BuiltinComponentCard {
+        name: "UiProgressBar",
+        draw: super::components::draw_ui_progress_bar_card,
+    },
+    BuiltinComponentCard {
+        name: "UiButton",
+        draw: super::components::draw_ui_button_card,
+    },
+    BuiltinComponentCard {
+        name: "UiImage",
+        draw: super::components::draw_ui_image_card,
+    },
+    BuiltinComponentCard {
+        name: "UiSlider",
+        draw: super::components::draw_ui_slider_card,
+    },
+    BuiltinComponentCard {
+        name: "UiCheckbox",
+        draw: super::components::draw_ui_checkbox_card,
+    },
+    BuiltinComponentCard {
+        name: "UiTextInput",
+        draw: super::components::draw_ui_text_input_card,
+    },
+    BuiltinComponentCard {
+        name: "UiLayoutGroup",
+        draw: super::components::draw_ui_layout_group_card,
+    },
+    BuiltinComponentCard {
+        name: "PlayerHealthBarTag",
+        draw: super::components::draw_player_health_bar_tag_card,
+    },
+    BuiltinComponentCard {
+        name: "ScoreDisplayTag",
+        draw: super::components::draw_score_display_tag_card,
+    },
+    BuiltinComponentCard {
+        name: "ReticleTag",
+        draw: super::components::draw_reticle_tag_card,
+    },
+];
+
+/// Renders all non-hierarchy component inspector cards via a direct pure function pipeline
+/// and returns the first [`crate::ui::types::EngineUiAction::RemoveComponent`] whose card delete
+/// button was clicked in this frame.
+///
+/// Every visible card is unconditionally evaluated: [`Option::or_else`] preserves the first
+/// triggered action while guaranteeing that remaining cards are rendered without early returns.
+pub fn render_registry_cards(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    handler: &dyn ComponentInspectorHandler,
+    world: &hecs::World,
+    entity: hecs::Entity,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    (handler.category() != super::types::ComponentCategory::Hierarchy
-        && handler.has_component(ctx.world, ctx.entity))
-    .then(|| handler.render_card(scope, ctx))
-    .and_then(|()| header::component_delete_action(scope, ctx.entity, handler.component_name()))
+    BUILTIN_COMPONENT_CARDS.iter().fold(None, |action, card| {
+        (card.draw)(scope, world, entity);
+        action.or_else(|| header::component_delete_action(scope, entity, card.name))
+    })
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor,
@@ -361,5 +499,53 @@ mod tests {
                 .as_deref(),
             Some("No Entity Selected")
         );
+    }
+
+    #[test]
+    fn test_render_registry_cards_pure_pipeline_renders_and_detects_delete_action() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            ae_core::ecs::RigidBody::default(),
+            ae_core::ecs::Light::default(),
+        ));
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let action = render_registry_cards(&mut scope, &world, entity);
+            assert!(
+                action.is_none(),
+                "No delete action should be emitted initially"
+            );
+        }
+
+        assert!(
+            tree.find_node_by_name("RigidBodyCard").is_some(),
+            "RigidBodyCard must be rendered by pure pipeline"
+        );
+        assert!(
+            tree.find_node_by_name("LightCard").is_some(),
+            "LightCard must be rendered by pure pipeline"
+        );
+
+        // Click delete button for RigidBody
+        let delete_tag = UiScope::action_tag("RigidBody");
+        tree.event_state.frame_clicked_tag = Some(delete_tag);
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let action = render_registry_cards(&mut scope, &world, entity);
+            assert!(
+                matches!(
+                    action,
+                    Some(crate::ui::types::EngineUiAction::RemoveComponent(
+                        ent,
+                        "RigidBody"
+                    )) if ent == entity
+                ),
+                "Delete action must emit EngineUiAction::RemoveComponent for clicked card"
+            );
+        }
     }
 }

@@ -5,10 +5,6 @@
 //!
 //! Provides a declarative inspector card for configuring action speed, range, and cooldown times.
 
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Renders the declarative Character Action component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -35,47 +31,9 @@ pub fn draw_character_action_card(
     );
 }
 
-/// Inspector handler for `💨 CharacterAction`.
-pub struct CharacterActionHandler;
-
-impl ComponentInspectorHandler for CharacterActionHandler {
-    fn component_name(&self) -> &'static str {
-        "CharacterAction"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "CharacterAction"
-    }
-
-    fn icon(&self) -> &'static str {
-        "💨"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.68, 0.40, 0.96, 1.0) // Purple / Violet (#a855f7)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Gameplay
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::CharacterAction>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_character_action_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::CharacterAction::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_character_action_render_and_in_place_mutation() {
@@ -83,39 +41,9 @@ mod tests {
         let entity = world.spawn((ae_core::ecs::CharacterAction::new(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-        let handler = CharacterActionHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_character_action_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("CharacterAction");
         assert!(
@@ -132,15 +60,13 @@ mod tests {
             "CharacterAction card must emit 2 numeric pills (Speed, Cooldown)"
         );
 
-        // Test in-place mutation and undo snapshotting
+        // Test in-place mutation
         {
             let mut a = world
                 .get::<&mut ae_core::ecs::CharacterAction>(entity)
                 .unwrap();
-            ctx.begin_edit(handler.component_name());
             a.speed = 120.0;
             a.cooldown = 1.5;
-            ctx.commit_edit(handler.component_name());
         }
 
         {

@@ -7,10 +7,6 @@
 //! selection (`Capsule`, `Box`, `Sphere`, `Trimesh`, `Convex Hull`), dynamic dimension
 //! scalar drag bindings, sensor toggle, and default component attachment.
 
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Maps a [`ae_core::ecs::ColliderShape`] to its corresponding zero-based combobox option index.
@@ -138,90 +134,13 @@ pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: 
     );
 }
 
-/// Inspector handler for Collider.
-pub struct ColliderHandler;
-
-impl ColliderHandler {
-    /// Maps a [`ae_core::ecs::ColliderShape`] to its corresponding zero-based combobox option index.
-    #[inline]
-    #[must_use]
-    pub const fn shape_to_index(shape: ae_core::ecs::ColliderShape) -> usize {
-        shape_to_index(shape)
-    }
-
-    /// Maps a zero-based combobox option index to its corresponding canonical default [`ae_core::ecs::ColliderShape`].
-    #[inline]
-    #[must_use]
-    pub const fn index_to_shape(idx: usize) -> ae_core::ecs::ColliderShape {
-        index_to_shape(idx)
-    }
-}
-
-impl ComponentInspectorHandler for ColliderHandler {
-    fn component_name(&self) -> &'static str {
-        "Collider"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Collider"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🛡"
-    }
-
-    fn atlas_icon(&self) -> Option<[f32; 4]> {
-        Some(crate::ui::iris_bridge::icons::ICON_WIREFRAME)
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.88, 0.45, 1.0) // Emerald Green (#2ecc71)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Physics
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::Collider>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_collider_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(
-            entity,
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Capsule {
-                    half_height: 0.50,
-                    radius: 0.40,
-                    center_y: 0.0,
-                },
-                friction: 0.70,
-                restitution: 0.0,
-                is_sensor: false,
-            },
-        ));
-        if world.get::<&ae_core::ecs::RigidBody>(entity).is_err() {
-            drop(world.insert_one(entity, ae_core::ecs::RigidBody::default()));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::icons::ICON_WIREFRAME;
 
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
-
     #[test]
     fn test_collider_declarative_scope_renders_wireframe_and_chevron() {
-        let handler = ColliderHandler;
-        assert_eq!(handler.atlas_icon(), Some(ICON_WIREFRAME));
-
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
@@ -234,30 +153,8 @@ mod tests {
             is_sensor: true,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
-
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_collider_card(&mut scope, &world, entity);
 
         let has_wireframe_icon = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("CardAtlasIcon") && n.texture_uv == Some(ICON_WIREFRAME)
@@ -284,7 +181,6 @@ mod tests {
 
     #[test]
     fn test_collider_declarative_in_place_mutation_and_undo() {
-        let handler = ColliderHandler;
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
@@ -297,39 +193,8 @@ mod tests {
             is_sensor: false,
         },));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            50.0,
-            280.0,
-        );
-
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_collider_card(&mut scope, &world, entity);
 
         // Verify initial state
         {
@@ -345,10 +210,9 @@ mod tests {
             assert!(!c.is_sensor);
         }
 
-        // Test in-place mutation of fields with undo snapshotting
+        // Test in-place mutation of fields
         {
             let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            ctx.begin_edit(handler.component_name());
             if let ae_core::ecs::ColliderShape::Box {
                 ref mut half_extents,
             } = c.shape
@@ -357,7 +221,6 @@ mod tests {
             }
             c.friction = 0.85;
             c.is_sensor = true;
-            ctx.commit_edit(handler.component_name());
         }
 
         // Verify mutation reflected in ECS world

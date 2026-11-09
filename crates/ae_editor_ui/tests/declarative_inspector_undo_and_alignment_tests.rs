@@ -161,9 +161,8 @@ fn test_velocity_and_rigidbody_declarative_binding_and_undo() {
 
 #[test]
 fn test_velocity_and_rigidbody_active_borrow_drag_no_panic() {
-    use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::velocity::VelocityHandler;
-    use ae_editor_ui::ui::iris_bridge::inspector::components::physics::rigidbody::RigidBodyHandler;
-    use ae_editor_ui::ui::iris_bridge::inspector::registry::ComponentInspectorHandler;
+    use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::velocity::draw_velocity_card;
+    use ae_editor_ui::ui::iris_bridge::inspector::components::physics::rigidbody::draw_rigidbody_card;
 
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node");
@@ -178,30 +177,15 @@ fn test_velocity_and_rigidbody_active_borrow_drag_no_panic() {
         },
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
-
     // Simulate active pointer drag gesture in event state
     tree.event_state.frame_drag_delta = Some(irisui::core::Point::new(15.0, 0.0));
     tree.event_state.is_pointer_drag_active = true;
 
-    let mut actions = Vec::new();
-    let mut ctx = ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-        entity,
-        &world,
-        &params,
-        &mut actions,
-        6.0,
-        0.0,
-        308.0,
-    );
-
     let mut scope = UiScope::new(&mut tree, root);
 
-    // Both handlers MUST render cleanly without panicking with "already borrowed"!
-    VelocityHandler.render_card(&mut scope, &mut ctx);
-    RigidBodyHandler.render_card(&mut scope, &mut ctx);
+    // Both cards MUST render cleanly without panicking with "already borrowed"!
+    draw_velocity_card(&mut scope, &world, entity);
+    draw_rigidbody_card(&mut scope, &world, entity);
 
     // Verify values exist in the world without crash
     let v = world.get::<&Velocity>(entity).unwrap();

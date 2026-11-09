@@ -5,8 +5,6 @@
 //!
 //! Provides inspection and distance threshold visualization for `📊 LodGroup` components.
 
-use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Returns the static summary string for LOD slots availability without heap allocations.
@@ -63,48 +61,9 @@ pub fn draw_lod_group_card(scope: &mut UiScope<'_>, world: &hecs::World, entity:
     );
 }
 
-/// Inspector handler for `📊 LodGroup` component.
-pub struct LodGroupHandler;
-
-impl ComponentInspectorHandler for LodGroupHandler {
-    fn component_name(&self) -> &'static str {
-        "LodGroup"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "LOD Group"
-    }
-
-    fn icon(&self) -> &'static str {
-        "📊"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 0.65, 1.0) // Mint Emerald
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Rendering
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::LodGroup>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_lod_group_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::LodGroup::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_lod_group_card_render_tag() {
@@ -112,31 +71,9 @@ mod tests {
         let entity = world.spawn((ae_core::ecs::LodGroup::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-
-        let handler = LodGroupHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_lod_group_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("LodGroup");
         assert!(

@@ -9,8 +9,6 @@
 //! - `UiTextInput`: Text input field with placeholder property
 //! - `UiLayoutGroup`: Automatic horizontal, vertical, and grid layout arranger
 
-use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
 /// Maps [`ae_core::ecs::UiLayoutType`] enum variant to combo dropdown selection index.
@@ -64,43 +62,6 @@ pub fn draw_ui_slider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity:
     );
 }
 
-/// Inspector handler for `UiSlider` component.
-pub struct UiSliderHandler;
-
-impl ComponentInspectorHandler for UiSliderHandler {
-    fn component_name(&self) -> &'static str {
-        "UiSlider"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Numeric Slider"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🎚️"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiSlider>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_slider_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiSlider::default()));
-    }
-}
-
 /// Renders the declarative UI Checkbox component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
 /// Modifies checkbox checked state in-place with zero intermediate variable plumbing.
@@ -120,43 +81,6 @@ pub fn draw_ui_checkbox_card(scope: &mut UiScope<'_>, world: &hecs::World, entit
     );
 }
 
-/// Inspector handler for `☑️ UiCheckbox` component.
-pub struct UiCheckboxHandler;
-
-impl ComponentInspectorHandler for UiCheckboxHandler {
-    fn component_name(&self) -> &'static str {
-        "UiCheckbox"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Checkbox"
-    }
-
-    fn icon(&self) -> &'static str {
-        "☑️"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiCheckbox>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_checkbox_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiCheckbox::default()));
-    }
-}
-
 /// Renders the declarative UI Text Input component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
 /// Modifies placeholder text in-place with zero intermediate variable plumbing.
@@ -174,43 +98,6 @@ pub fn draw_ui_text_input_card(scope: &mut UiScope<'_>, world: &hecs::World, ent
             card.prop_text("Placeholder", &mut input.placeholder);
         },
     );
-}
-
-/// Inspector handler for `📝 UiTextInput` component.
-pub struct UiTextInputHandler;
-
-impl ComponentInspectorHandler for UiTextInputHandler {
-    fn component_name(&self) -> &'static str {
-        "UiTextInput"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Text Input Field"
-    }
-
-    fn icon(&self) -> &'static str {
-        "📝"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiTextInput>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_text_input_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiTextInput::default()));
-    }
 }
 
 /// Renders the declarative UI Layout Group auto-layout container component card into [`UiScope`] if present on [`hecs::Entity`].
@@ -254,43 +141,6 @@ pub fn draw_ui_layout_group_card(
             card.prop_f32("Spacing:", &mut lg.spacing, 0.0..=500.0, 0.5);
         },
     );
-}
-
-/// Inspector handler for `🗂️ UiLayoutGroup` auto-layout container component.
-pub struct UiLayoutGroupHandler;
-
-impl ComponentInspectorHandler for UiLayoutGroupHandler {
-    fn component_name(&self) -> &'static str {
-        "UiLayoutGroup"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "UI Layout Group"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🗂️"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.20, 0.85, 1.0, 1.0)
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::UiHud
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiLayoutGroup>(entity).is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_ui_layout_group_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::UiLayoutGroup::default()));
-    }
 }
 
 #[cfg(test)]

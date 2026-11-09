@@ -8,41 +8,12 @@
 //! `UiButton`, `UiImage`, `UiSlider`, `UiCheckbox`, `UiTextInput`, and HUD tags.
 
 use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::{
-    PlayerHealthBarTagHandler, ReticleTagHandler, ScoreDisplayTagHandler, UiButtonHandler,
-    UiCheckboxHandler, UiImageHandler, UiPanelHandler, UiProgressBarHandler, UiSliderHandler,
-    UiTextHandler, UiTextInputHandler,
+    draw_player_health_bar_tag_card, draw_reticle_tag_card, draw_score_display_tag_card,
+    draw_ui_button_card, draw_ui_checkbox_card, draw_ui_image_card, draw_ui_panel_card,
+    draw_ui_progress_bar_card, draw_ui_slider_card, draw_ui_text_card, draw_ui_text_input_card,
 };
-use ae_editor_ui::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use ae_editor_ui::ui::iris_bridge::inspector::types::InspectorPanelParams;
 use ae_editor_ui::ui::iris_bridge::inspector::ui_transform::build_ui_transform_card;
 use irisui::prelude::*;
-
-fn create_test_params<'a>(
-    world: &'a hecs::World,
-    entity: hecs::Entity,
-    euler: &'a [f32; 3],
-    swatches: &'a [[f32; 4]],
-) -> InspectorPanelParams<'a> {
-    InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world,
-        selected_entity: Some(entity),
-        inspector_euler: euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
-    }
-}
 
 #[test]
 fn test_ui_transform_card_declarative_structure() {
@@ -58,15 +29,10 @@ fn test_ui_transform_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        build_ui_transform_card(&mut scope, &mut ctx);
+        build_ui_transform_card(&mut scope, &world, entity);
     }
 
     // Delete button tag
@@ -103,15 +69,10 @@ fn test_ui_panel_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiPanelHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_panel_card(&mut scope, &world, entity);
     }
 
     let has_delete = tree
@@ -141,15 +102,10 @@ fn test_ui_text_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiTextHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_text_card(&mut scope, &world, entity);
     }
 
     let has_delete = tree
@@ -177,15 +133,10 @@ fn test_ui_progress_bar_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiProgressBarHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_progress_bar_card(&mut scope, &world, entity);
     }
 
     let has_delete = tree
@@ -213,15 +164,10 @@ fn test_ui_button_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiButtonHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_button_card(&mut scope, &world, entity);
     }
 
     let has_delete = tree
@@ -245,15 +191,10 @@ fn test_ui_image_card_declarative_structure() {
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiImageHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_image_card(&mut scope, &world, entity);
     }
 
     let has_delete = tree
@@ -285,17 +226,12 @@ fn test_ui_controls_declarative_structure() {
 
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        UiSliderHandler.render_card(&mut scope, &mut ctx);
-        UiCheckboxHandler.render_card(&mut scope, &mut ctx);
-        UiTextInputHandler.render_card(&mut scope, &mut ctx);
+        draw_ui_slider_card(&mut scope, &world, entity);
+        draw_ui_checkbox_card(&mut scope, &world, entity);
+        draw_ui_text_input_card(&mut scope, &world, entity);
     }
 
     let has_slider_del = tree
@@ -339,17 +275,12 @@ fn test_ui_hud_tags_declarative_structure() {
 
     let mut tree = UiTree::new();
     let root = WidgetId::default();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, entity, &euler, &swatches);
-
-    let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        PlayerHealthBarTagHandler.render_card(&mut scope, &mut ctx);
-        ScoreDisplayTagHandler.render_card(&mut scope, &mut ctx);
-        ReticleTagHandler.render_card(&mut scope, &mut ctx);
+        draw_player_health_bar_tag_card(&mut scope, &world, entity);
+        draw_score_display_tag_card(&mut scope, &world, entity);
+        draw_reticle_tag_card(&mut scope, &world, entity);
     }
 
     let has_health_del = tree

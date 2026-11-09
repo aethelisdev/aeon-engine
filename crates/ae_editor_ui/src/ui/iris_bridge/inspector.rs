@@ -11,15 +11,12 @@ pub mod appearance;
 pub mod builder;
 pub mod color_picker_popup;
 pub mod components;
-pub mod context;
 pub mod dynamic_reflection;
 pub mod footer;
-pub mod handler;
 pub mod header;
 pub mod math;
 pub mod math_eval;
 pub mod panel;
-pub mod registry;
 pub mod state;
 pub mod transform;
 pub mod types;
@@ -40,7 +37,6 @@ pub use color_picker_popup::{
     TAG_INSPECTOR_COLOR_PICKER_CARD, TAG_INSPECTOR_COLOR_PICKER_CLOSE,
     TAG_INSPECTOR_COLOR_PICKER_HUE_BAR, TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
 };
-pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
 pub use footer::TAG_INSPECTOR_ADD_COMPONENT;
 pub use header::{component_delete_action, entity_name_input_tag};
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
@@ -49,12 +45,12 @@ pub use panel::{
     TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_overlays,
     build_inspector_overlays_with_action, build_inspector_panel,
 };
-pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use state::{
     InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_inspector_tag,
     is_widget_descendant_of,
 };
 pub use transform::{build_transform_card, draw_transform_card};
 pub use types::{
-    ComponentCategory, InspectorColorDragMode, InspectorPanelParams, InspectorSessionRefs,
+    ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorColorDragMode, InspectorPanelParams,
+    InspectorSessionRefs,
 };

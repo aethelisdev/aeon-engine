@@ -12,7 +12,6 @@
 //! - Alpha (opacity scalar scrubber)
 //! - Visibility toggle checkbox
 
-use super::registry::ComponentRenderContext;
 use ae_core::ecs::{UiAnchor, UiElement};
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::ComboRowLayout;
@@ -61,12 +60,8 @@ pub fn index_to_anchor(idx: usize) -> UiAnchor {
 pub const UI_ELEMENT_COMPONENT_NAME: &str = "UiElement";
 
 /// Renders the declarative `📐 2D Screen Transform` card by mutating `UiElement` in-place
-/// and snapshotting Undo/Redo sessions on edit commits.
-pub fn draw_ui_transform_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    u: &mut UiElement,
-) {
+/// without intermediate `let` variables or heap allocations.
+pub fn draw_ui_transform_card(scope: &mut UiScope<'_>, u: &mut UiElement) {
     scope.card_panel("UiTransformCard", |card| {
         card.card_header_desc(
             CardHeaderDescriptor::new("2D Screen Transform")
@@ -93,123 +88,41 @@ pub fn draw_ui_transform_card(
             ComboRowLayout::new(52.0, 90.0),
             &mut u.anchor,
             index_to_anchor,
-        )
-        .on_change(|| {
-            ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-            ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-        });
+        );
 
         // Row 2: Offset X & Y (px)
-        card.prop_vec2("Offset", &mut u.offset, ["X", "Y"], 1.0)
-            .on_commit(|_| {
-                ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-                ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-            });
+        card.prop_vec2("Offset", &mut u.offset, ["X", "Y"], 1.0);
 
         // Row 3: Size W & H (px)
-        card.prop_vec2("Size", &mut u.size, ["W", "H"], 1.0)
-            .on_commit(|_| {
-                ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-                ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-            });
+        card.prop_vec2("Size", &mut u.size, ["W", "H"], 1.0);
 
         // Row 4: Pivot X & Y (0.0 .. 1.0)
-        card.prop_vec2("Pivot", &mut u.pivot, ["X", "Y"], 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-                ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-            });
+        card.prop_vec2("Pivot", &mut u.pivot, ["X", "Y"], 0.05);
 
         // Row 5: Z-Index (Layer) and Alpha
-        card.prop_i32("Layer (Z):", &mut u.z_index, -1000..=1000)
-            .on_commit(|_| {
-                ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-                ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-            });
-
-        card.prop_f32("Alpha (α):", &mut u.alpha, 0.0..=1.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-                ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-            });
+        card.prop_i32("Layer (Z):", &mut u.z_index, -1000..=1000);
+        card.prop_f32("Alpha (α):", &mut u.alpha, 0.0..=1.0, 0.05);
 
         // Row 6: Visibility Checkbox
-        card.prop_checkbox("Visible", &mut u.visible).on_click(|| {
-            ctx.begin_edit(UI_ELEMENT_COMPONENT_NAME);
-            ctx.commit_edit(UI_ELEMENT_COMPONENT_NAME);
-        });
+        card.prop_checkbox("Visible", &mut u.visible);
     });
 }
 
 /// Builds the `📐 2D Screen Transform` card inside the declarative [`UiScope`].
-pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    scope.when_ok(
-        ctx.world.get::<&mut UiElement>(ctx.entity),
-        |card, mut u| {
-            draw_ui_transform_card(card, ctx, &mut u);
-        },
-    );
+pub fn build_ui_transform_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.when_ok(world.get::<&mut UiElement>(entity), |card, mut u| {
+        draw_ui_transform_card(card, &mut u);
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
-
-    fn create_dummy_params<'a>(
-        world: &'a hecs::World,
-        entity: hecs::Entity,
-        euler: &'a [f32; 3],
-        swatches: &'a [[f32; 4]],
-    ) -> InspectorPanelParams<'a> {
-        InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world,
-            selected_entity: Some(entity),
-            inspector_euler: euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        }
-    }
 
     #[test]
     fn test_draw_ui_transform_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((UiElement {
-            anchor: UiAnchor::Center,
-            offset: [15.0, 25.0],
-            size: [120.0, 45.0],
-            pivot: [0.5, 0.5],
-            z_index: 3,
-            alpha: 0.9,
-            visible: true,
-        },));
-
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = create_dummy_params(&world, entity, &euler, &swatches);
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
 
         let mut element = UiElement {
             anchor: UiAnchor::Center,
@@ -222,7 +135,7 @@ mod tests {
         };
 
         let mut scope = UiScope::new(&mut tree, root);
-        draw_ui_transform_card(&mut scope, &mut ctx, &mut element);
+        draw_ui_transform_card(&mut scope, &mut element);
 
         assert!(
             tree.iter()

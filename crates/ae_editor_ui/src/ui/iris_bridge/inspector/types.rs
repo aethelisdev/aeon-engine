@@ -8,6 +8,9 @@
 
 use irisui::prelude::*;
 
+/// Canonical default column width in logical pixels allocated for Inspector property labels.
+pub const DEFAULT_INSPECTOR_LABEL_WIDTH: f32 = irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH;
+
 /// 8-Category classification for the `➕ Add Component` cascading menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComponentCategory {

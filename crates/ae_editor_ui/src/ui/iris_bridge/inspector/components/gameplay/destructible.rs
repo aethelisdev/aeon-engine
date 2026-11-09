@@ -5,10 +5,6 @@
 //!
 //! Provides a declarative inspector card for destructible entities with numeric health readout and visual health bar.
 
-use crate::ui::iris_bridge::inspector::registry::{
-    ComponentInspectorHandler, ComponentRenderContext,
-};
-use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
 #[inline]
@@ -61,49 +57,9 @@ pub fn draw_destructible_target_card(
     );
 }
 
-/// Inspector handler for `🎯 DestructibleTarget` health component.
-pub struct DestructibleTargetHandler;
-
-impl ComponentInspectorHandler for DestructibleTargetHandler {
-    fn component_name(&self) -> &'static str {
-        "DestructibleTarget"
-    }
-
-    fn display_title(&self) -> &'static str {
-        "Destructible Target"
-    }
-
-    fn icon(&self) -> &'static str {
-        "🎯"
-    }
-
-    fn header_color(&self) -> Color {
-        Color::rgba(0.95, 0.35, 0.35, 1.0) // Coral Red
-    }
-
-    fn category(&self) -> ComponentCategory {
-        ComponentCategory::Gameplay
-    }
-
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world
-            .get::<&ae_core::ecs::DestructibleTarget>(entity)
-            .is_ok()
-    }
-
-    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        draw_destructible_target_card(scope, ctx.world, ctx.entity);
-    }
-
-    fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::DestructibleTarget::default()));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
 
     #[test]
     fn test_destructible_target_render_tag() {
@@ -111,30 +67,9 @@ mod tests {
         let entity = world.spawn((ae_core::ecs::DestructibleTarget::new(100.0),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
-        let handler = DestructibleTargetHandler;
         let mut scope = UiScope::new(&mut tree, root);
-        handler.render_card(&mut scope, &mut ctx);
+        draw_destructible_target_card(&mut scope, &world, entity);
 
         let del_tag = UiScope::action_tag("DestructibleTarget");
         assert!(tree.iter().any(|(_, n)| n.tag == del_tag));

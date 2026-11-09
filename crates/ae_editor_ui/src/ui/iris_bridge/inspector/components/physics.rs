@@ -9,6 +9,6 @@ pub mod collider;
 pub mod material;
 pub mod rigidbody;
 
-pub use collider::{ColliderHandler, draw_collider_card};
-pub use material::{PhysicsMaterialHandler, draw_physics_material_card};
-pub use rigidbody::{RigidBodyHandler, draw_rigidbody_card};
+pub use collider::draw_collider_card;
+pub use material::draw_physics_material_card;
+pub use rigidbody::draw_rigidbody_card;
