@@ -63,8 +63,8 @@ pub use super::types::{
 pub use asset_slot::{AssetSlotConfig, AssetSlotResponse};
 pub use buttons::{ActionBarButton, DualActionBarResponse};
 pub use containers::{
-    CardBuilder, CardHeaderResponse, CardOptions, CardResponse, ColumnBuilder,
-    ContainerResponseExt, InnerResponse, RowBuilder,
+    CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse,
+    ColumnBuilder, ContainerResponseExt, InnerResponse, RowBuilder,
 };
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;

@@ -101,10 +101,6 @@ impl ComponentInspectorHandler for ParentHandler {
             || world.get::<&ae_core::ecs::Children>(entity).is_ok()
     }
 
-    fn can_remove(&self) -> bool {
-        false
-    }
-
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         drop(draw_parent_card_if_present(scope, ctx.world, ctx.entity));
     }

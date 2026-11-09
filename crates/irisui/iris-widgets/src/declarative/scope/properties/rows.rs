@@ -85,10 +85,11 @@ impl<'a> UiScope<'a> {
     /// * `label` - Human-readable property description displayed on the left.
     /// * `label_width` - Optional explicit width in physical pixels allocated for the label column.
     /// * `f` - Child scope closure emitting the left-aligned control widget(s).
-    pub fn property_row_styled<F>(
+    pub fn property_row_styled_with_insets<F>(
         &mut self,
         label: &str,
         label_width: Option<f32>,
+        margin_insets: Option<Insets>,
         f: F,
     ) -> WidgetId
     where
@@ -103,6 +104,9 @@ impl<'a> UiScope<'a> {
             .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
             .gap(4.0);
         row_style.min_height = Some(24.0);
+        if let Some(insets) = margin_insets {
+            row_style.margin = insets;
+        }
 
         let row_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(row_id) {
@@ -140,6 +144,25 @@ impl<'a> UiScope<'a> {
 
         row.container_named("PropertySlot", slot_style, f);
         row_id
+    }
+
+    /// Emits a standard property row container with custom label width.
+    ///
+    /// # Arguments
+    /// * `label` - Descriptive property caption displayed on the left.
+    /// * `label_width` - Optional explicit width in physical pixels allocated for the label column.
+    /// * `f` - Child scope closure emitting the left-aligned control widget(s).
+    #[inline]
+    pub fn property_row_styled<F>(
+        &mut self,
+        label: &str,
+        label_width: Option<f32>,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        self.property_row_styled_with_insets(label, label_width, None, f)
     }
 
     /// Emits an immediate two-way bound property checkbox row.

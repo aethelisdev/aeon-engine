@@ -68,6 +68,58 @@ impl<'a> UiScope<'a> {
         result.ok().map(|val| f(self, val))
     }
 
+    /// Conditionally executes a declarative child UI scope if both results are `Ok`.
+    ///
+    /// Eliminates multi-variable unpacking pyramid nesting and imperative `if let (Ok(a), Ok(b)) = ...`
+    /// statements in dual-component declarative inspectors.
+    ///
+    /// # Arguments
+    /// * `r1` - First result to evaluate.
+    /// * `r2` - Second result to evaluate.
+    /// * `f` - Child scope closure evaluated with both unwrapped success values when both are `Ok`.
+    #[inline]
+    pub fn when_ok2<T1, E1, T2, E2, R, F>(
+        &mut self,
+        r1: Result<T1, E1>,
+        r2: Result<T2, E2>,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut UiScope<'_>, T1, T2) -> R,
+    {
+        match (r1, r2) {
+            (Ok(v1), Ok(v2)) => Some(f(self, v1, v2)),
+            _ => None,
+        }
+    }
+
+    /// Conditionally executes a declarative child UI scope if all three results are `Ok`.
+    ///
+    /// Eliminates multi-variable unpacking pyramid nesting and imperative `if let (Ok(a), Ok(b), Ok(c)) = ...`
+    /// statements in multi-component declarative inspectors (e.g. 3D spatial Position, Rotation, Scale).
+    ///
+    /// # Arguments
+    /// * `r1` - First result to evaluate.
+    /// * `r2` - Second result to evaluate.
+    /// * `r3` - Third result to evaluate.
+    /// * `f` - Child scope closure evaluated with all three unwrapped success values when all are `Ok`.
+    #[inline]
+    pub fn when_ok3<T1, E1, T2, E2, T3, E3, R, F>(
+        &mut self,
+        r1: Result<T1, E1>,
+        r2: Result<T2, E2>,
+        r3: Result<T3, E3>,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut UiScope<'_>, T1, T2, T3) -> R,
+    {
+        match (r1, r2, r3) {
+            (Ok(v1), Ok(v2), Ok(v3)) => Some(f(self, v1, v2, v3)),
+            _ => None,
+        }
+    }
+
     /// Declaratively binds an evaluated expression value and passes it into a child scope closure.
     ///
     /// Eliminates intermediate imperative `let x = ...;` statements by transforming variable definitions

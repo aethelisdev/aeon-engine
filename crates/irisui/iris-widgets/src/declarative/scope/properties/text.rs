@@ -30,6 +30,8 @@ pub struct PropertyTextOptions<'a> {
     pub clipboard_shortcuts_enabled: bool,
     /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled for this text row.
     pub undo_shortcuts_enabled: bool,
+    /// Optional directional outer margin insets applied to the property text row.
+    pub margin_insets: Option<Insets>,
 }
 
 impl<'a> Default for PropertyTextOptions<'a> {
@@ -52,6 +54,7 @@ impl<'a> PropertyTextOptions<'a> {
             custom_tag: None,
             clipboard_shortcuts_enabled: true,
             undo_shortcuts_enabled: true,
+            margin_insets: None,
         }
     }
 
@@ -108,6 +111,12 @@ impl<'a> PropertyTextOptions<'a> {
     pub const fn with_shortcuts(mut self, enabled: bool) -> Self {
         self.clipboard_shortcuts_enabled = enabled;
         self.undo_shortcuts_enabled = enabled;
+        self
+    }
+
+    /// Sets directional outer margin insets applied to the property text row.
+    pub const fn with_margin_insets(mut self, insets: Insets) -> Self {
+        self.margin_insets = Some(insets);
         self
     }
 }
@@ -189,16 +198,21 @@ impl<'a> UiScope<'a> {
         let tag = options.custom_tag.unwrap_or_else(|| self.tag_for(label));
         let mut input_resp = WidgetResponse::default();
 
-        let _ = self.property_row_styled(label, options.label_width, |slot| {
-            input_resp = slot.text_input_with_shortcut_options(
-                options.placeholder,
-                tag,
-                0.0,
-                options.clipboard_shortcuts_enabled,
-                options.undo_shortcuts_enabled,
-                value,
-            );
-        });
+        let _ = self.property_row_styled_with_insets(
+            label,
+            options.label_width,
+            options.margin_insets,
+            |slot| {
+                input_resp = slot.text_input_with_shortcut_options(
+                    options.placeholder,
+                    tag,
+                    0.0,
+                    options.clipboard_shortcuts_enabled,
+                    options.undo_shortcuts_enabled,
+                    value,
+                );
+            },
+        );
 
         input_resp
     }
@@ -213,127 +227,132 @@ impl<'a> UiScope<'a> {
         let tag = options.custom_tag.unwrap_or_else(|| self.tag_for(label));
         let mut text_response = PropertyTextResponse::default();
 
-        let row_id = self.property_row_styled(label, options.label_width, |slot| {
-            let (visible_label, _) = split_label_id(label);
-            let sanitized_label = visible_label.trim_end_matches(':').trim();
-            let box_name = format!("{}InputBox", sanitized_label);
-            let text_name = format!("{}InputText", sanitized_label);
+        let row_id = self.property_row_styled_with_insets(
+            label,
+            options.label_width,
+            options.margin_insets,
+            |slot| {
+                let (visible_label, _) = split_label_id(label);
+                let sanitized_label = visible_label.trim_end_matches(':').trim();
+                let box_name = format!("{}InputBox", sanitized_label);
+                let text_name = format!("{}InputText", sanitized_label);
 
-            let is_hovered = slot.hovered_tag == Some(tag);
+                let is_hovered = slot.hovered_tag == Some(tag);
 
-            let (bg, border_col) = if options.is_editing {
-                (
-                    Color::rgba(0.086, 0.090, 0.106, 1.0),
-                    Color::rgba(0.353, 0.376, 0.439, 0.95),
-                )
-            } else if is_hovered {
-                (
-                    Color::rgba(0.125, 0.133, 0.149, 0.98),
-                    Color::rgba(0.271, 0.282, 0.329, 0.95),
-                )
-            } else {
-                (
-                    Color::rgba(0.106, 0.110, 0.125, 0.98),
-                    Color::rgba(0.173, 0.180, 0.208, 0.85),
-                )
-            };
+                let (bg, border_col) = if options.is_editing {
+                    (
+                        Color::rgba(0.086, 0.090, 0.106, 1.0),
+                        Color::rgba(0.353, 0.376, 0.439, 0.95),
+                    )
+                } else if is_hovered {
+                    (
+                        Color::rgba(0.125, 0.133, 0.149, 0.98),
+                        Color::rgba(0.271, 0.282, 0.329, 0.95),
+                    )
+                } else {
+                    (
+                        Color::rgba(0.106, 0.110, 0.125, 0.98),
+                        Color::rgba(0.173, 0.180, 0.208, 0.85),
+                    )
+                };
 
-            let box_style = Style::new()
-                .flex_grow(1.0)
-                .height(24.0)
-                .background(bg)
-                .border(1.0, border_col)
-                .border_radius(5.0)
-                .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                .flex_row()
-                .align_items(AlignItems::Center);
+                let box_style = Style::new()
+                    .flex_grow(1.0)
+                    .height(24.0)
+                    .background(bg)
+                    .border(1.0, border_col)
+                    .border_radius(5.0)
+                    .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+                    .flex_row()
+                    .align_items(AlignItems::Center);
 
-            let display_text = if options.is_editing {
-                if options.is_all_selected {
-                    value.to_owned()
-                } else if options.blink_caret {
-                    format!("{}|", value)
+                let display_text = if options.is_editing {
+                    if options.is_all_selected {
+                        value.to_owned()
+                    } else if options.blink_caret {
+                        format!("{}|", value)
+                    } else {
+                        value.to_owned()
+                    }
+                } else if value.is_empty() {
+                    options.placeholder.to_owned()
                 } else {
                     value.to_owned()
-                }
-            } else if value.is_empty() {
-                options.placeholder.to_owned()
-            } else {
-                value.to_owned()
-            };
+                };
 
-            let text_color = if options.is_editing {
-                Color::WHITE
-            } else if value.is_empty() {
-                Color::rgba(0.50, 0.53, 0.60, 1.0)
-            } else {
-                Color::rgba(0.886, 0.894, 0.918, 1.0)
-            };
-
-            let box_id = slot.tree.create_node();
-            if let Some(node) = slot.tree.get_mut(box_id) {
-                node.set_name(box_name);
-                node.role = WidgetRole::TextInput;
-                node.tag = tag;
-                node.interactive = true;
-                node.cursor = Some(WidgetCursor::Text);
-                node.set_style(box_style);
-            }
-            let _ = slot.tree.add_child(slot.parent, box_id);
-
-            let mut box_scope = slot.child_scope(box_id);
-            let selection_range = options.selection.or({
-                if options.is_all_selected && !value.is_empty() {
-                    Some((0, value.len()))
+                let text_color = if options.is_editing {
+                    Color::WHITE
+                } else if value.is_empty() {
+                    Color::rgba(0.50, 0.53, 0.60, 1.0)
                 } else {
-                    None
+                    Color::rgba(0.886, 0.894, 0.918, 1.0)
+                };
+
+                let box_id = slot.tree.create_node();
+                if let Some(node) = slot.tree.get_mut(box_id) {
+                    node.set_name(box_name);
+                    node.role = WidgetRole::TextInput;
+                    node.tag = tag;
+                    node.interactive = true;
+                    node.cursor = Some(WidgetCursor::Text);
+                    node.set_style(box_style);
                 }
-            });
-            if options.is_editing
-                && let Some((start_byte, end_byte)) = selection_range
-                && !value.is_empty()
-            {
-                let approx_char_w = 6.8;
-                let start_char_idx = value[..start_byte.min(value.len())].chars().count();
-                let end_char_idx = value[..end_byte.min(value.len())].chars().count();
-                let sel_start = start_char_idx.min(end_char_idx);
-                let sel_count = end_char_idx.saturating_sub(sel_start).max(1);
-                let sel_x = 6.0 + sel_start as f32 * approx_char_w;
-                let sel_w = sel_count as f32 * approx_char_w + 2.0;
-                let sel_name = format!("{}_Sel", sanitized_label);
-                let sel_style = Style::new()
-                    .position_absolute()
-                    .left(sel_x)
-                    .top(3.5)
-                    .width(sel_w)
-                    .height(17.0)
-                    .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                    .border_radius(3.0);
-                box_scope.empty_box_passive_named(sel_name, sel_style);
-            }
+                let _ = slot.tree.add_child(slot.parent, box_id);
 
-            let text_id = box_scope.tree.create_node();
-            if let Some(node) = box_scope.tree.get_mut(text_id) {
-                node.role = iris_core::WidgetRole::Default;
-                node.set_name(text_name);
-                node.set_text(display_text);
-                node.font_size = 11.5;
-                node.line_height = 15.0;
-                node.text_color = text_color;
-                node.text_align = TextAlign::Left;
-                node.set_style(Style::new().flex_grow(1.0));
-            }
-            let _ = box_scope.tree.add_child(box_scope.parent, text_id);
-            let captured_text_id = text_id;
+                let mut box_scope = slot.child_scope(box_id);
+                let selection_range = options.selection.or({
+                    if options.is_all_selected && !value.is_empty() {
+                        Some((0, value.len()))
+                    } else {
+                        None
+                    }
+                });
+                if options.is_editing
+                    && let Some((start_byte, end_byte)) = selection_range
+                    && !value.is_empty()
+                {
+                    let approx_char_w = 6.8;
+                    let start_char_idx = value[..start_byte.min(value.len())].chars().count();
+                    let end_char_idx = value[..end_byte.min(value.len())].chars().count();
+                    let sel_start = start_char_idx.min(end_char_idx);
+                    let sel_count = end_char_idx.saturating_sub(sel_start).max(1);
+                    let sel_x = 6.0 + sel_start as f32 * approx_char_w;
+                    let sel_w = sel_count as f32 * approx_char_w + 2.0;
+                    let sel_name = format!("{}_Sel", sanitized_label);
+                    let sel_style = Style::new()
+                        .position_absolute()
+                        .left(sel_x)
+                        .top(3.5)
+                        .width(sel_w)
+                        .height(17.0)
+                        .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                        .border_radius(3.0);
+                    box_scope.empty_box_passive_named(sel_name, sel_style);
+                }
 
-            let (clicked, hovered, _) = slot.check_interaction(box_id);
+                let text_id = box_scope.tree.create_node();
+                if let Some(node) = box_scope.tree.get_mut(text_id) {
+                    node.role = iris_core::WidgetRole::Default;
+                    node.set_name(text_name);
+                    node.set_text(display_text);
+                    node.font_size = 11.5;
+                    node.line_height = 15.0;
+                    node.text_color = text_color;
+                    node.text_align = TextAlign::Left;
+                    node.set_style(Style::new().flex_grow(1.0));
+                }
+                let _ = box_scope.tree.add_child(box_scope.parent, text_id);
+                let captured_text_id = text_id;
 
-            text_response = PropertyTextResponse {
-                response: WidgetResponse::new(box_id, clicked, hovered, false),
-                box_id,
-                text_id: captured_text_id,
-            };
-        });
+                let (clicked, hovered, _) = slot.check_interaction(box_id);
+
+                text_response = PropertyTextResponse {
+                    response: WidgetResponse::new(box_id, clicked, hovered, false),
+                    box_id,
+                    text_id: captured_text_id,
+                };
+            },
+        );
 
         if text_response.box_id == WidgetId::default() {
             text_response.box_id = row_id;

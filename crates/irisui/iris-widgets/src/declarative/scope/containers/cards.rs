@@ -139,10 +139,14 @@ impl<R> CardResponse<R> {
 pub struct CardOptions<'a> {
     /// Optional unicode icon prepended to the title.
     pub icon: Option<&'a str>,
+    /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
+    pub atlas_icon: Option<[f32; 4]>,
     /// Optional accent color for title and icon.
     pub color: Option<Color>,
     /// Optional action button label (e.g. `"×"` or `"🗑"`).
     pub action_label: Option<&'a str>,
+    /// Optional persistent 64-bit semantic action tag for hit-testing.
+    pub action_tag: Option<u64>,
     /// Optional border radius override.
     pub border_radius: Option<f32>,
 }
@@ -154,10 +158,97 @@ impl<'a> CardOptions<'a> {
     pub const fn new() -> Self {
         Self {
             icon: None,
+            atlas_icon: None,
             color: None,
             action_label: None,
+            action_tag: None,
             border_radius: None,
         }
+    }
+}
+
+/// Configuration descriptor for rendering a standardized card header.
+///
+/// Supports unicode fallback icons, hardware GPU SDF atlas icons, theme-aware accent colors,
+/// and trailing action/delete buttons with custom semantic interaction tags.
+#[derive(Debug, Clone, Copy)]
+pub struct CardHeaderDescriptor<'a> {
+    /// Title text displayed in the header.
+    pub title: &'a str,
+    /// Fallback unicode icon (e.g. `"📦"`, `"📐"`).
+    pub icon: Option<&'a str>,
+    /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
+    pub atlas_icon: Option<[f32; 4]>,
+    /// Optional accent color override for title and icon. Defaults to `theme.accent`.
+    pub color: Option<Color>,
+    /// Optional action button label (e.g. `"×"` or `"🗑"`).
+    pub action_label: Option<&'a str>,
+    /// Optional semantic action tag for hit-testing and event routing.
+    pub action_tag: Option<u64>,
+}
+
+impl<'a> CardHeaderDescriptor<'a> {
+    /// Constructs a card header descriptor with the specified title.
+    #[inline]
+    #[must_use]
+    pub const fn new(title: &'a str) -> Self {
+        Self {
+            title,
+            icon: None,
+            atlas_icon: None,
+            color: None,
+            action_label: None,
+            action_tag: None,
+        }
+    }
+
+    /// Sets the fallback unicode text icon.
+    #[inline]
+    #[must_use]
+    pub const fn icon(mut self, icon: &'a str) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// Sets the GPU SDF atlas vector icon coordinates.
+    #[inline]
+    #[must_use]
+    pub const fn atlas_icon(mut self, uv: [f32; 4]) -> Self {
+        self.atlas_icon = Some(uv);
+        self
+    }
+
+    /// Sets the GPU SDF atlas vector icon coordinates conditionally.
+    #[inline]
+    #[must_use]
+    pub const fn maybe_atlas_icon(mut self, uv: Option<[f32; 4]>) -> Self {
+        self.atlas_icon = uv;
+        self
+    }
+
+    /// Sets the accent color override for title and icon.
+    #[inline]
+    #[must_use]
+    pub const fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// Sets the trailing action button label and its semantic action tag.
+    #[inline]
+    #[must_use]
+    pub const fn action(mut self, label: &'a str, tag: u64) -> Self {
+        self.action_label = Some(label);
+        self.action_tag = Some(tag);
+        self
+    }
+
+    /// Sets an action tag without changing the action label.
+    #[inline]
+    #[must_use]
+    pub const fn action_tag(mut self, tag: u64) -> Self {
+        self.action_tag = Some(tag);
+        self
     }
 }
 
@@ -167,8 +258,10 @@ pub struct CardBuilder<'a, 'b> {
     name: Option<String>,
     title: String,
     icon: Option<String>,
+    atlas_icon: Option<[f32; 4]>,
     color: Option<Color>,
     action: Option<String>,
+    action_tag: Option<u64>,
     border_radius: Option<f32>,
 }
 
@@ -181,8 +274,10 @@ impl<'a, 'b> CardBuilder<'a, 'b> {
             name: None,
             title: title.into(),
             icon: None,
+            atlas_icon: None,
             color: None,
             action: None,
+            action_tag: None,
             border_radius: None,
         }
     }
@@ -198,6 +293,22 @@ impl<'a, 'b> CardBuilder<'a, 'b> {
     #[inline]
     pub fn icon(mut self, icon: impl Into<String>) -> Self {
         self.icon = Some(icon.into());
+        self
+    }
+
+    /// Sets GPU SDF atlas vector icon coordinates for the card header.
+    #[inline]
+    #[must_use]
+    pub const fn atlas_icon(mut self, uv: [f32; 4]) -> Self {
+        self.atlas_icon = Some(uv);
+        self
+    }
+
+    /// Conditionally sets GPU SDF atlas vector icon coordinates for the card header.
+    #[inline]
+    #[must_use]
+    pub const fn maybe_atlas_icon(mut self, uv: Option<[f32; 4]>) -> Self {
+        self.atlas_icon = uv;
         self
     }
 
@@ -221,6 +332,23 @@ impl<'a, 'b> CardBuilder<'a, 'b> {
         self
     }
 
+    /// Sets a persistent 64-bit semantic action tag on the card's header action button.
+    #[inline]
+    #[must_use]
+    pub const fn action_tag(mut self, tag: u64) -> Self {
+        self.action_tag = Some(tag);
+        self
+    }
+
+    /// Sets both the action button label and its persistent 64-bit semantic action tag.
+    #[inline]
+    #[must_use]
+    pub fn action_with_tag(mut self, action_label: impl Into<String>, tag: u64) -> Self {
+        self.action = Some(action_label.into());
+        self.action_tag = Some(tag);
+        self
+    }
+
     /// Overrides the container border radius. Defaults to 6.0px.
     #[inline]
     pub fn border_radius(mut self, radius: f32) -> Self {
@@ -233,8 +361,10 @@ impl<'a, 'b> CardBuilder<'a, 'b> {
         let name = self.name.unwrap_or_else(|| "Card".to_string());
         let options = CardOptions {
             icon: self.icon.as_deref(),
+            atlas_icon: self.atlas_icon,
             color: self.color,
             action_label: self.action.as_deref(),
+            action_tag: self.action_tag,
             border_radius: self.border_radius,
         };
         self.scope
@@ -304,6 +434,14 @@ impl<'a> UiScope<'a> {
         self.card_header_internal(title, icon, color, Some(action_label))
     }
 
+    /// Emits a standardized card header bar configured via [`CardHeaderDescriptor`].
+    ///
+    /// Encapsulates all layout, iconography, typography, and action button tagging inside
+    /// Iris UI without requiring caller-side nested closure pyramids or container plumbing.
+    pub fn card_header_desc(&mut self, desc: CardHeaderDescriptor<'_>) -> CardHeaderResponse {
+        self.card_header_internal_desc(desc)
+    }
+
     fn card_header_internal(
         &mut self,
         title: &str,
@@ -311,8 +449,16 @@ impl<'a> UiScope<'a> {
         color: Option<Color>,
         action_label: Option<&str>,
     ) -> CardHeaderResponse {
+        let mut desc = CardHeaderDescriptor::new(title);
+        desc.icon = icon;
+        desc.color = color;
+        desc.action_label = action_label;
+        self.card_header_internal_desc(desc)
+    }
+
+    fn card_header_internal_desc(&mut self, desc: CardHeaderDescriptor<'_>) -> CardHeaderResponse {
         let theme = self.tree.theme();
-        let accent_color = color.unwrap_or(theme.accent);
+        let accent_color = desc.color.unwrap_or(theme.accent);
         let header_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
@@ -327,7 +473,9 @@ impl<'a> UiScope<'a> {
                 .gap(5.0);
 
             header_scope.container_named("TitleGroup", title_group_style, |group| {
-                if let Some(ic) = icon {
+                if let Some(uv) = desc.atlas_icon {
+                    group.icon_named("CardAtlasIcon", uv, accent_color, 14.0);
+                } else if let Some(ic) = desc.icon {
                     group.label_styled_passive(
                         "CardTextIcon",
                         ic,
@@ -340,7 +488,7 @@ impl<'a> UiScope<'a> {
 
                 group.label_styled_passive(
                     "CardTitle",
-                    title,
+                    desc.title,
                     11.5,
                     accent_color,
                     TextAlign::Left,
@@ -348,8 +496,8 @@ impl<'a> UiScope<'a> {
                 );
             });
 
-            if let Some(act) = action_label {
-                let tag = header_scope.tag_for(act);
+            if let Some(act) = desc.action_label {
+                let tag = desc.action_tag.unwrap_or_else(|| header_scope.tag_for(act));
                 let btn_style = Style::new()
                     .flex_row()
                     .align_items(AlignItems::Center)
@@ -416,8 +564,10 @@ impl<'a> UiScope<'a> {
     {
         let options = CardOptions {
             icon,
+            atlas_icon: None,
             color,
             action_label: None,
+            action_tag: None,
             border_radius: None,
         };
         self.card_with_action_internal("Card", title, options, f)
@@ -440,8 +590,10 @@ impl<'a> UiScope<'a> {
     {
         let options = CardOptions {
             icon,
+            atlas_icon: None,
             color,
             action_label: Some(action_label),
+            action_tag: None,
             border_radius: None,
         };
         self.card_with_action_internal("Card", title, options, f)
@@ -482,12 +634,15 @@ impl<'a> UiScope<'a> {
             .gap(4.0);
 
         let card_resp = self.container_named(name, card_style, |card_scope| {
-            let header_resp = card_scope.card_header_internal(
+            let header_desc = CardHeaderDescriptor {
                 title,
-                options.icon,
-                options.color,
-                options.action_label,
-            );
+                icon: options.icon,
+                atlas_icon: options.atlas_icon,
+                color: options.color,
+                action_label: options.action_label,
+                action_tag: options.action_tag,
+            };
+            let header_resp = card_scope.card_header_internal_desc(header_desc);
             let inner = card_scope.column(f).inner;
             (header_resp, inner)
         });

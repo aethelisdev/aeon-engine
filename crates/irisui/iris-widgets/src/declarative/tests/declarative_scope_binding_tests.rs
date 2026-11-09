@@ -6,6 +6,7 @@
 //! Validates `UiScope::drag_f32`, `UiScope::drag_f32_ranged`, `UiScope::combobox`,
 //! and `UiScope::checkbox` two-way in-place data binding without engine code leakage.
 
+use crate::declarative::scope::containers::CardHeaderDescriptor;
 use crate::declarative::scope::core::UiScope;
 use iris_core::event::MouseButton;
 use iris_core::{Point, Rect, UiEvent, UiTree};
@@ -769,6 +770,15 @@ fn test_declarative_scope_card_and_variants() {
             scope.card_header_with_action("Action Header", Some("⚙"), None, "×");
         assert!(!action_header_resp.clicked());
         assert!(!action_header_resp.action_clicked());
+
+        let desc = CardHeaderDescriptor::new("Advanced Header")
+            .icon("📦")
+            .atlas_icon([0.1, 0.2, 0.3, 0.0])
+            .color(Color::rgba(0.2, 0.8, 0.4, 1.0))
+            .action("×", 0xCAFE_BABE);
+        let desc_resp = scope.card_header_desc(desc);
+        assert!(!desc_resp.clicked());
+        assert!(!desc_resp.action_clicked());
     }
 
     // 5. Verify tree structure contains expected semantic nodes
@@ -778,11 +788,15 @@ fn test_declarative_scope_card_and_variants() {
     let has_icon = tree.iter().any(|(_, n)| n.text.as_deref() == Some("📐"));
     let has_action_glyph = tree.iter().any(|(_, n)| n.text.as_deref() == Some("×"));
     let has_trash_glyph = tree.iter().any(|(_, n)| n.text.as_deref() == Some("🗑"));
+    let has_atlas_icon = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("CardAtlasIcon"));
 
     assert!(has_title, "Must render CardTitle with 'Transform'");
     assert!(has_icon, "Must render CardTextIcon with '📐'");
     assert!(has_action_glyph, "Must render CardActionGlyph with '×'");
     assert!(has_trash_glyph, "Must render CardActionGlyph with '🗑'");
+    assert!(has_atlas_icon, "Must render CardAtlasIcon with coordinates");
 }
 
 /// Comprehensive integration test sealing Section I (Phases 1-10): verifies all declarative

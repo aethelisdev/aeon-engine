@@ -110,6 +110,39 @@ pub fn render_appearance_card(
         .map(|new_col| EngineUiAction::ModifyColor(entity, current_col, to_ecs_color(new_col)))
 }
 
+/// Renders the declarative `🎨 Appearance` card by delegating to [`render_appearance_card`].
+///
+/// Standardizes card rendering alongside other Inspector standalone cards (`draw_transform_card`, `draw_ui_transform_card`).
+pub fn draw_appearance_card(
+    scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
+    current_col: ae_core::ecs::Color,
+    saved_swatches: &mut Vec<[f32; 4]>,
+    is_color_picker_open: &mut bool,
+) -> Option<EngineUiAction> {
+    render_appearance_card(
+        scope,
+        current_col,
+        ctx.entity,
+        ctx.params.inspector_color_hex,
+        saved_swatches,
+        is_color_picker_open,
+    )
+}
+
+/// Renders an in-place declarative property row using [`UiScope::prop_color_rgba`]
+/// directly bound to an [`ae_core::ecs::Color`] component without heap allocations.
+pub fn draw_color_property(
+    scope: &mut UiScope<'_>,
+    label: &str,
+    color: &mut ae_core::ecs::Color,
+) -> PropertyColorResponse {
+    scope.prop_color_rgba(
+        label,
+        (&mut color.r, &mut color.g, &mut color.b, &mut color.a),
+    )
+}
+
 /// Builds the `🎨 Appearance` card declaratively in the `UiTree` and returns
 /// any committed color mutation directly as [`EngineUiAction::ModifyColor`].
 ///
@@ -121,11 +154,10 @@ pub fn build_appearance_card(
     saved_swatches: &mut Vec<[f32; 4]>,
     is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
-    render_appearance_card(
+    draw_appearance_card(
         scope,
+        ctx,
         entity_color(ctx.world, ctx.entity),
-        ctx.entity,
-        ctx.params.inspector_color_hex,
         saved_swatches,
         is_color_picker_open,
     )
@@ -295,5 +327,77 @@ mod tests {
                     && (old.r - 0.1).abs() < 1e-4
                     && (new.r - 1.0).abs() < 1e-4
         ));
+    }
+
+    #[test]
+    fn test_draw_color_property_standalone() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut color = ae_core::ecs::Color {
+            r: 0.5,
+            g: 0.6,
+            b: 0.7,
+            a: 1.0,
+        };
+
+        draw_color_property(&mut scope, "Object Color:", &mut color);
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ColorSwatchPill")),
+            "ColorSwatchPill node must be created"
+        );
+    }
+
+    #[test]
+    fn test_draw_appearance_card_standalone() {
+        let mut tree = UiTree::new();
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Color {
+            r: 0.2,
+            g: 0.4,
+            b: 0.8,
+            a: 1.0,
+        },));
+
+        let euler = [0.0, 0.0, 0.0];
+        let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0]];
+
+        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#3366cc",
+            saved_swatches: &[],
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
+        let mut is_color_picker_open = false;
+
+        let mut scope = UiScope::new(&mut tree, WidgetId::default());
+        draw_appearance_card(
+            &mut scope,
+            &mut ctx,
+            entity_color(&world, entity),
+            &mut saved_swatches,
+            &mut is_color_picker_open,
+        );
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AppearanceCard")),
+            "AppearanceCard container must be rendered"
+        );
     }
 }

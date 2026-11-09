@@ -6,9 +6,7 @@
 //! Provides the centralized, type-safe registry storing and querying all registered
 //! component inspector handlers in deterministic order.
 
-pub use super::context::{
-    ComponentRenderContext, PropComboMapConfig, PropComboRowLayout, PropVec2Config,
-};
+pub use super::context::ComponentRenderContext;
 pub use super::handler::ComponentInspectorHandler;
 use super::types::ComponentCategory;
 use std::sync::OnceLock;

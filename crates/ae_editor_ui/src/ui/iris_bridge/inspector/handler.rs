@@ -38,26 +38,17 @@ pub trait ComponentInspectorHandler: Send + Sync {
     /// Whether this component currently exists on the target entity.
     fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool;
 
-    /// Whether this component can be removed via the trash `🗑` button.
-    fn can_remove(&self) -> bool {
-        true
-    }
-
     /// Renders the standardized component card header in a declarative [`UiScope`].
     ///
     /// Automatically populates atlas icon, unicode fallback icon, title label,
     /// header color accent, and delete action button from trait metadata.
     fn render_header(&self, scope: &mut UiScope<'_>) {
-        super::components::physics::helpers::build_declarative_card_header(
-            scope,
-            super::components::physics::helpers::ComponentHeaderProps {
-                atlas_icon: self.atlas_icon(),
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            false,
+        scope.card_header_desc(
+            CardHeaderDescriptor::new(self.display_title())
+                .icon(self.icon())
+                .maybe_atlas_icon(self.atlas_icon())
+                .color(self.header_color())
+                .action("×", UiScope::action_tag(self.component_name())),
         );
     }
 

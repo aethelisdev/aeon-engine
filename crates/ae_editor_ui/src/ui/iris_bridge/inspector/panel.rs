@@ -197,7 +197,7 @@ pub fn render_primary_cards(
         .is_ok()
     {
         ui_transform::build_ui_transform_card(scope, ctx);
-        component_delete_action(scope, ctx.entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
+        header::component_delete_action(scope, ctx.entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
         transform::build_transform_card(scope, ctx);
         appearance::build_appearance_card(scope, ctx, saved_swatches, is_color_picker_open)
@@ -232,22 +232,7 @@ fn render_registry_card(
     (handler.category() != super::types::ComponentCategory::Hierarchy
         && handler.has_component(ctx.world, ctx.entity))
     .then(|| handler.render_card(scope, ctx))
-    .and_then(|()| component_delete_action(scope, ctx.entity, handler.component_name()))
-}
-
-/// Maps a click on the card delete button of `component_name` during the active frame directly
-/// into [`crate::ui::types::EngineUiAction::RemoveComponent`].
-///
-/// The delete button carries the persistent semantic action tag resolved in `O(1)` through
-/// [`UiScope::map_action_clicked`] without intermediate state queues or magic encoding schemes.
-fn component_delete_action(
-    scope: &UiScope<'_>,
-    entity: hecs::Entity,
-    component_name: &'static str,
-) -> Option<crate::ui::types::EngineUiAction> {
-    scope.map_action_clicked(component_name, || {
-        crate::ui::types::EngineUiAction::RemoveComponent(entity, component_name)
-    })
+    .and_then(|()| header::component_delete_action(scope, ctx.entity, handler.component_name()))
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor,

@@ -9,9 +9,11 @@
 use super::registry::ComponentRenderContext;
 use irisui::prelude::*;
 
-/// Renders the `📐 Transform` card declaratively by mutating `Position`, `Rotation`, and `Scale` in-place.
+/// Renders the `📐 Transform` card declaratively by mutating `Position`, `Rotation`, and `Scale` in-place
+/// and snapshotting Undo/Redo sessions on edit commits.
 pub fn draw_transform_card(
     scope: &mut UiScope<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
     pos: &mut ae_core::ecs::Position,
     rot: &mut ae_core::ecs::Rotation,
     scale: &mut ae_core::ecs::Scale,
@@ -22,19 +24,33 @@ pub fn draw_transform_card(
             (&mut pos.x, &mut pos.y, &mut pos.z),
             0.1,
             Some([0.0, 0.0, 0.0]),
-        );
+        )
+        .on_commit(|_| {
+            ctx.begin_edit("Transform");
+            ctx.commit_edit("Transform");
+        });
+
         card.prop_vec3_euler_quat(
             "Rotation",
             (&mut rot.x, &mut rot.y, &mut rot.z, &mut rot.w),
             0.5,
             Some([0.0, 0.0, 0.0]),
-        );
+        )
+        .on_commit(|_| {
+            ctx.begin_edit("Transform");
+            ctx.commit_edit("Transform");
+        });
+
         card.prop_vec3_xyz(
             "Scale",
             (&mut scale.x, &mut scale.y, &mut scale.z),
             0.01,
             Some([1.0, 1.0, 1.0]),
-        );
+        )
+        .on_commit(|_| {
+            ctx.begin_edit("Transform");
+            ctx.commit_edit("Transform");
+        });
     });
 }
 
@@ -44,13 +60,14 @@ pub fn draw_transform_card(
 /// container hierarchy, managing flex layout, hover states, caret blinking, and Select-All highlight
 /// capsules without manual coordinate arithmetic or imperative target buffers.
 pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    if let (Ok(mut p), Ok(mut r), Ok(mut s)) = (
+    scope.when_ok3(
         ctx.world.get::<&mut ae_core::ecs::Position>(ctx.entity),
         ctx.world.get::<&mut ae_core::ecs::Rotation>(ctx.entity),
         ctx.world.get::<&mut ae_core::ecs::Scale>(ctx.entity),
-    ) {
-        draw_transform_card(scope, &mut p, &mut r, &mut s);
-    }
+        |card, mut p, mut r, mut s| {
+            draw_transform_card(card, ctx, &mut p, &mut r, &mut s);
+        },
+    );
 }
 
 #[cfg(test)]
@@ -335,10 +352,45 @@ mod tests {
         );
     }
 
+    fn create_dummy_context<'a>(
+        world: &'a hecs::World,
+        entity: hecs::Entity,
+        params: &'a InspectorPanelParams<'a>,
+    ) -> ComponentRenderContext<'a> {
+        ComponentRenderContext::new(entity, world, params, 6.0, 10.0, 308.0)
+    }
+
     #[test]
     fn test_transform_in_place_mutation_on_reset() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position::new(5.0, 10.0, 15.0),
+            Rotation::identity(),
+            Scale::one(),
+        ));
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+        let mut ctx = create_dummy_context(&world, entity, &params);
+
         let pos_base = {
             let scope = UiScope::new(&mut tree, root);
             scope.tag_for("Position")
@@ -350,7 +402,7 @@ mod tests {
         let mut scale = Scale::one();
 
         let mut scope = UiScope::new(&mut tree, root);
-        draw_transform_card(&mut scope, &mut pos, &mut rot, &mut scale);
+        draw_transform_card(&mut scope, &mut ctx, &mut pos, &mut rot, &mut scale);
 
         assert_eq!(pos, Position::new(0.0, 0.0, 0.0));
     }
@@ -359,6 +411,29 @@ mod tests {
     fn test_transform_rotation_and_scale_reset_in_place() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
+        let mut world = hecs::World::new();
+        let entity = world.spawn((Position::zero(), Rotation::identity(), Scale::one()));
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+        let mut ctx = create_dummy_context(&world, entity, &params);
+
         let (rot_base, scale_base) = {
             let scope = UiScope::new(&mut tree, root);
             (scope.tag_for("Rotation"), scope.tag_for("Scale"))
@@ -371,6 +446,7 @@ mod tests {
         tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(rot_base));
         draw_transform_card(
             &mut UiScope::new(&mut tree, root),
+            &mut ctx,
             &mut pos,
             &mut rot,
             &mut scale,
@@ -381,6 +457,7 @@ mod tests {
         tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(scale_base));
         draw_transform_card(
             &mut UiScope::new(&mut tree, root),
+            &mut ctx,
             &mut pos,
             &mut rot,
             &mut scale,

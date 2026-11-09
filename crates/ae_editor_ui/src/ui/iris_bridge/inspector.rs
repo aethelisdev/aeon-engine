@@ -42,7 +42,7 @@ pub use color_picker_popup::{
 };
 pub use context::DEFAULT_INSPECTOR_LABEL_WIDTH;
 pub use footer::TAG_INSPECTOR_ADD_COMPONENT;
-pub use header::entity_name_input_tag;
+pub use header::{component_delete_action, entity_name_input_tag};
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::{
