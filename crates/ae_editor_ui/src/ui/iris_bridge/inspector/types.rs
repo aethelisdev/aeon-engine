@@ -60,6 +60,18 @@ impl ComponentCategory {
         }
     }
 
+    /// Returns the optional GPU texture atlas icon coordinates for this category.
+    #[must_use]
+    pub const fn atlas_icon(self) -> Option<[f32; 4]> {
+        match self {
+            Self::Audio => Some(crate::ui::iris_bridge::icons::ICON_AUDIO),
+            Self::Physics => Some(crate::ui::iris_bridge::icons::ICON_GEAR),
+            Self::Rendering => Some(crate::ui::iris_bridge::icons::ICON_LIGHT),
+            Self::Hierarchy => Some(crate::ui::iris_bridge::icons::ICON_FOLDER),
+            _ => None,
+        }
+    }
+
     /// Converts the component category into a unique numeric tag for widget routing.
     #[inline]
     pub const fn to_tag(self) -> u64 {

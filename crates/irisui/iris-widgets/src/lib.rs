@@ -33,8 +33,9 @@ pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTex
 pub use declarative::scope::{
     ActionBarButton, AssetSlotConfig, AssetSlotResponse, ColorPickerPopupConfig,
     ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout, DualActionBarResponse,
-    MultilineEditorProps, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
-    PropertyPaletteResponse, TabBarResponse, UiScope,
+    LabeledStatusDescriptor, MultilineEditorProps, NumberLabelDescriptor, PropertyActionRow,
+    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, TabBarResponse, UiScope,
+    WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -63,10 +64,11 @@ pub mod prelude {
         CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse,
         ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
         ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DualActionBarResponse,
-        LabeledInputButton, LabeledInputConfig, MultilineEditorProps, NavItemConfig,
-        PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
-        PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
-        PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
+        LabeledInputButton, LabeledInputConfig, LabeledStatusDescriptor, MultilineEditorProps,
+        NavItemConfig, NumberLabelDescriptor, PrimaryButtonConfig, PropertyActionRow,
+        PropertyColorResponse, PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse,
+        PropertyPaletteConfig, PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig,
+        TabBarResponse, UiScope, WrappedLabelDescriptor,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

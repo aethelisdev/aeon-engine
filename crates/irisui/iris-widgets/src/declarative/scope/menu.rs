@@ -15,6 +15,27 @@ use iris_core::{
     WidgetCursor, WidgetId, WidgetRole,
 };
 
+/// Internal helper distinguishing string glyphs from GPU texture atlas UVs in dropdown items.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DropdownIcon<'b> {
+    /// No icon rendered.
+    None,
+    /// Unicode text or emoji glyph.
+    Text(&'b str),
+    /// GPU texture atlas UV quad `[u_min, v_min, u_max, v_max]`.
+    Texture([f32; 4]),
+}
+
+impl<'b> From<Option<crate::cascading_menu::CascadingMenuIcon>> for DropdownIcon<'b> {
+    fn from(opt: Option<crate::cascading_menu::CascadingMenuIcon>) -> Self {
+        match opt {
+            Some(crate::cascading_menu::CascadingMenuIcon::Text(s)) => Self::Text(s),
+            Some(crate::cascading_menu::CascadingMenuIcon::Texture(uv)) => Self::Texture(uv),
+            None => Self::None,
+        }
+    }
+}
+
 impl<'a> UiScope<'a> {
     /// Emits a top application menu bar button (e.g. "File", "Edit", "View", "Window", "Help").
     ///
@@ -388,6 +409,42 @@ impl<'a> UiScope<'a> {
         shortcut: Option<&str>,
         enabled: bool,
     ) -> WidgetResponse {
+        let icon_val = if icon.is_empty() {
+            DropdownIcon::None
+        } else {
+            DropdownIcon::Text(icon)
+        };
+        self.render_dropdown_item_impl(tag, icon_val, label, shortcut, enabled)
+    }
+
+    /// Emits an interactive item row inside an elevated dropdown menu card with an optional text or texture icon.
+    ///
+    /// # Arguments
+    /// * `tag` - Semantic interaction tag assigned to this row.
+    /// * `icon` - Optional leading text glyph or GPU texture atlas icon.
+    /// * `label` - Primary action caption text.
+    /// * `shortcut` - Optional right-aligned shortcut annotation.
+    /// * `enabled` - Whether the item is interactive or disabled/grayed-out.
+    pub fn dropdown_item_with_icon(
+        &mut self,
+        tag: u64,
+        icon: Option<crate::cascading_menu::CascadingMenuIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> WidgetResponse {
+        self.render_dropdown_item_impl(tag, icon.into(), label, shortcut, enabled)
+    }
+
+    /// Internal rendering implementation for dropdown item rows.
+    fn render_dropdown_item_impl(
+        &mut self,
+        tag: u64,
+        icon: DropdownIcon<'_>,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("DropdownItem");
@@ -467,21 +524,46 @@ impl<'a> UiScope<'a> {
         }
 
         // 1. Icon column (fixed width 18.0)
-        if !icon.is_empty() {
-            let icon_id = self.tree.create_node();
-            if let Some(n) = self.tree.get_mut(icon_id) {
-                n.set_name("DropdownIcon");
-                n.set_role(WidgetRole::DropdownIcon);
-                n.set_layer(UiLayer::Popup);
-                n.interactive = false;
-                n.set_text(icon);
-                n.font_size = 12.0;
-                n.line_height = 14.0;
-                n.text_align = TextAlign::Center;
-                n.text_color = text_color;
-                n.set_style(Style::new().width(18.0).height(14.0).flex_shrink(0.0));
+        match icon {
+            DropdownIcon::Text(t) if !t.is_empty() => {
+                let icon_id = self.tree.create_node();
+                if let Some(n) = self.tree.get_mut(icon_id) {
+                    n.set_name("DropdownIcon");
+                    n.set_role(WidgetRole::DropdownIcon);
+                    n.set_layer(UiLayer::Popup);
+                    n.interactive = false;
+                    n.set_text(t);
+                    n.font_size = 12.0;
+                    n.line_height = 14.0;
+                    n.text_align = TextAlign::Center;
+                    n.text_color = text_color;
+                    n.set_style(Style::new().width(18.0).height(14.0).flex_shrink(0.0));
+                }
+                let _ = self.tree.add_child(node_id, icon_id);
             }
-            let _ = self.tree.add_child(node_id, icon_id);
+            DropdownIcon::Texture(uv) => {
+                let icon_id = self.tree.create_node();
+                if let Some(n) = self.tree.get_mut(icon_id) {
+                    n.set_name("DropdownIcon");
+                    n.set_role(WidgetRole::DropdownIcon);
+                    n.set_layer(UiLayer::Popup);
+                    n.interactive = false;
+                    n.set_texture_uv(uv);
+                    n.set_texture_tint(text_color);
+                    if enabled {
+                        n.hover_texture_tint = Some(Color::WHITE);
+                    }
+                    n.set_style(
+                        Style::new()
+                            .width(14.0)
+                            .height(14.0)
+                            .margin_insets(Insets::new(0.0, 2.0, 0.0, 2.0))
+                            .flex_shrink(0.0),
+                    );
+                }
+                let _ = self.tree.add_child(node_id, icon_id);
+            }
+            _ => {}
         }
 
         // 2. Primary Label (flexible width: style.width is None, taking all available middle space)
@@ -562,8 +644,45 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        let icon_val = match icon {
+            Some(s) if !s.is_empty() => DropdownIcon::Text(s),
+            _ => DropdownIcon::None,
+        };
+        self.render_submenu_impl(popup_name, label, icon_val, tag, f)
+    }
+
+    /// Emits an elevated, cascading branching submenu item row supporting optional text or texture atlas icons.
+    ///
+    /// When the pointer hovers over this row or when its submenu branch is active,
+    /// a secondary floating popup card container is autonomously positioned and rendered
+    /// using smart placement (auto-flip right/left and vertical boundary clamping).
+    pub fn submenu_named_with_icon_inner<R, F>(
+        &mut self,
+        popup_name: &'static str,
+        label: impl Into<String>,
+        icon: Option<crate::cascading_menu::CascadingMenuIcon>,
+        tag: u64,
+        f: F,
+    ) -> InnerResponse<Option<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.render_submenu_impl(popup_name, label, icon.into(), tag, f)
+    }
+
+    /// Internal rendering implementation for cascading submenu rows and floating popup cards.
+    fn render_submenu_impl<R, F>(
+        &mut self,
+        popup_name: &'static str,
+        label: impl Into<String>,
+        icon: DropdownIcon<'_>,
+        tag: u64,
+        f: F,
+    ) -> InnerResponse<Option<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
         let label_str = label.into();
-        let icon_str = icon.unwrap_or("");
         let parent_card_id = self.parent;
         let parent_card_rect = self
             .tree
@@ -582,8 +701,8 @@ impl<'a> UiScope<'a> {
             0
         };
 
-        // 1. Emit the interactive row in the current menu card
-        let resp = self.dropdown_item(tag, icon_str, &label_str, Some("▶"), true);
+        // 1. Emit the interactive row in the current menu card with icon
+        let resp = self.render_dropdown_item_impl(tag, icon, &label_str, Some("▶"), true);
 
         // 2. Check autonomous hover activation
         let is_hovered = resp.hovered()
@@ -665,6 +784,13 @@ impl<'a> UiScope<'a> {
     }
 
     /// Emits a cascading submenu row and executes a child builder closure if the submenu is active.
+    ///
+    /// # Arguments
+    /// * `popup_name` - Debug node name assigned to the child submenu popup card.
+    /// * `label` - Primary menu action text displayed on this row.
+    /// * `icon` - Optional leading icon symbol.
+    /// * `tag` - Semantic identifier constant assigned to this submenu branch.
+    /// * `f` - Scoped closure populating items inside the child submenu popup card.
     pub fn submenu_named<R, F>(
         &mut self,
         popup_name: &'static str,
@@ -686,9 +812,9 @@ impl<'a> UiScope<'a> {
         &mut self,
         item: &crate::cascading_menu::CascadingMenuItem,
     ) -> WidgetResponse {
-        self.dropdown_item(
+        self.dropdown_item_with_icon(
             item.tag,
-            item.text_icon(),
+            item.icon,
             &item.label,
             item.shortcut.as_deref(),
             item.is_enabled,

@@ -124,26 +124,19 @@ fn render_context_cards(
 }
 
 /// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
-/// directly into the designated overlay or portal tree, returning `(Option<Rect>, Option<EngineUiAction>)`.
+/// directly into the designated [`UiScope`] overlay or portal view, returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn build_inspector_overlays_with_action(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     is_color_picker_open: &mut bool,
     is_add_menu_open: &mut bool,
     active_submenu: &mut Option<super::types::ComponentCategory>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
     if *is_add_menu_open {
-        add_menu::draw_add_component_menu(
-            &mut UiScope::new(tree, parent_id),
-            params,
-            is_add_menu_open,
-            active_submenu,
-        )
+        add_menu::draw_add_component_menu(scope, params, is_add_menu_open, active_submenu)
     } else if *is_color_picker_open {
         color_picker_popup::build_color_picker_popup_with_action(
-            tree,
-            parent_id,
+            scope,
             params,
             is_color_picker_open,
         )
@@ -153,20 +146,18 @@ pub fn build_inspector_overlays_with_action(
 }
 
 /// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
-/// directly into the designated overlay or portal tree, preventing panel boundary clipping (Mine 2).
+/// directly into the designated [`UiScope`] overlay or portal view, preventing panel boundary clipping (Mine 2).
 ///
 /// Returns the screen-space bounding rectangle of the constructed overlay if one was active.
 pub fn build_inspector_overlays(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     is_color_picker_open: &mut bool,
     is_add_menu_open: &mut bool,
     active_submenu: &mut Option<super::types::ComponentCategory>,
 ) -> Option<Rect> {
     build_inspector_overlays_with_action(
-        tree,
-        parent_id,
+        scope,
         params,
         is_color_picker_open,
         is_add_menu_open,

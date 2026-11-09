@@ -10,19 +10,29 @@ use super::super::types::ComponentCategory;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
-/// Resolves the formatted parent label string (e.g. `"Parent: RootSceneNode"`)
-/// if `entity` currently holds a [`ae_core::ecs::Parent`] component.
+/// Resolves the parent target entity's display name if present, without heap formatting or allocations.
+#[inline]
 #[must_use]
-pub fn parent_display_label(world: &hecs::World, entity: hecs::Entity) -> Option<String> {
+pub fn parent_name(world: &hecs::World, entity: hecs::Entity) -> Option<String> {
     world
         .get::<&ae_core::ecs::Parent>(entity)
         .ok()
-        .map(|parent| {
+        .and_then(|parent| {
             world
                 .get::<&ae_core::ecs::Name>(parent.0)
-                .map(|n| format!("Parent: {}", n.0))
-                .unwrap_or_else(|_| format!("Parent: Entity {:?}", parent.0))
+                .ok()
+                .map(|n| n.0.clone())
         })
+}
+
+/// Resolves the parent target entity's integer identifier if present, without heap formatting or allocations.
+#[inline]
+#[must_use]
+pub fn parent_entity_id(world: &hecs::World, entity: hecs::Entity) -> Option<u64> {
+    world
+        .get::<&ae_core::ecs::Parent>(entity)
+        .ok()
+        .map(|parent| parent.0.to_bits().get())
 }
 
 /// Renders the Parent / Hierarchy card declaratively and returns [`EngineUiAction::UnparentEntity`]
@@ -39,8 +49,11 @@ pub fn draw_parent_card(
         .color(Color::rgba(0.98, 0.80, 0.08, 1.0))
         .show(|card| {
             card.prop_optional_action_row(
-                PropertyActionRow::optional(
-                    parent_display_label(world, entity),
+                PropertyActionRow::reference_target(
+                    "Parent: ",
+                    parent_name(world, entity),
+                    parent_entity_id(world, entity),
+                    "Entity #",
                     "Parent: None (Root Entity)",
                     "❌ Unparent",
                 )

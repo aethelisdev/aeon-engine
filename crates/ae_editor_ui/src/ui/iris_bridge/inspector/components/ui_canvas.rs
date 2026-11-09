@@ -9,9 +9,16 @@ pub mod controls;
 pub mod primitives;
 pub mod tags;
 
-pub use controls::{UiCheckboxHandler, UiLayoutGroupHandler, UiSliderHandler, UiTextInputHandler};
+pub use controls::{
+    UiCheckboxHandler, UiLayoutGroupHandler, UiSliderHandler, UiTextInputHandler,
+    draw_ui_checkbox_card, draw_ui_layout_group_card, draw_ui_slider_card, draw_ui_text_input_card,
+};
 pub use primitives::{
     UiButtonHandler, UiElementHandler, UiImageHandler, UiPanelHandler, UiProgressBarHandler,
-    UiTextHandler,
+    UiTextHandler, draw_ui_button_card, draw_ui_element_card, draw_ui_image_card,
+    draw_ui_panel_card, draw_ui_progress_bar_card, draw_ui_text_card,
 };
-pub use tags::{PlayerHealthBarTagHandler, ReticleTagHandler, ScoreDisplayTagHandler};
+pub use tags::{
+    PlayerHealthBarTagHandler, ReticleTagHandler, ScoreDisplayTagHandler,
+    draw_player_health_bar_tag_card, draw_reticle_tag_card, draw_score_display_tag_card,
+};

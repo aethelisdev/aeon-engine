@@ -36,37 +36,31 @@ pub const fn index_to_body_type(idx: usize) -> ae_core::ecs::RigidBodyType {
     }
 }
 
-/// Renders the declarative RigidBody component card with two-way bound body type dropdown
-/// and mass/gravity numeric scrubbers with automatic undo/redo session tracking.
-pub fn draw_rigidbody_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    rb: &mut ae_core::ecs::RigidBody,
-) {
-    scope.card_panel("RigidBodyCard", |card| {
-        RigidBodyHandler.render_header(card);
-        card.prop_combobox_mapped(
-            "Type:",
-            body_type_to_index(rb.body_type),
-            &["Dynamic", "Kinematic", "Static"],
-            &mut rb.body_type,
-            index_to_body_type,
-        )
-        .on_change(|| {
-            ctx.begin_edit("RigidBody");
-            ctx.commit_edit("RigidBody");
-        });
-        card.prop_f32("Mass:", &mut rb.mass, 0.001..=100_000.0, 0.1)
-            .on_commit(|_| {
-                ctx.begin_edit("RigidBody");
-                ctx.commit_edit("RigidBody");
-            });
-        card.prop_f32("Gravity:", &mut rb.gravity_scale, -100.0..=100.0, 0.1)
-            .on_commit(|_| {
-                ctx.begin_edit("RigidBody");
-                ctx.commit_edit("RigidBody");
-            });
-    });
+/// Renders the declarative RigidBody component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates the entire component card hierarchy, header descriptor, two-way bound body type dropdown,
+/// and mass/gravity numeric scrubbers with zero intermediate variable plumbing.
+pub fn draw_rigidbody_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "RigidBodyCard",
+        CardHeaderDescriptor::new("RigidBody")
+            .icon("⚙")
+            .atlas_icon(ICON_GEAR)
+            .color(Color::rgba(0.22, 0.74, 0.98, 1.0))
+            .action("×", UiScope::action_tag("RigidBody")),
+        world.get::<&mut ae_core::ecs::RigidBody>(entity),
+        |card, mut rb| {
+            card.prop_combobox_mapped(
+                "Type:",
+                body_type_to_index(rb.body_type),
+                &["Dynamic", "Kinematic", "Static"],
+                &mut rb.body_type,
+                index_to_body_type,
+            );
+            card.prop_f32("Mass:", &mut rb.mass, 0.001..=100_000.0, 0.1);
+            card.prop_f32("Gravity:", &mut rb.gravity_scale, -100.0..=100.0, 0.1);
+        },
+    );
 }
 
 /// Inspector handler for `⚙ RigidBody`.
@@ -102,12 +96,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::RigidBody>(ctx.entity),
-            |scope, mut rb| {
-                draw_rigidbody_card(scope, ctx, &mut rb);
-            },
-        );
+        draw_rigidbody_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -319,37 +308,14 @@ mod tests {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
         let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::RigidBody::default(),));
-
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
-        let mut scope = UiScope::new(&mut tree, root);
-        let mut rb = ae_core::ecs::RigidBody {
+        let entity = world.spawn((ae_core::ecs::RigidBody {
             body_type: ae_core::ecs::RigidBodyType::Kinematic,
             mass: 12.0,
             gravity_scale: 0.5,
-        };
+        },));
 
-        draw_rigidbody_card(&mut scope, &mut ctx, &mut rb);
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_rigidbody_card(&mut scope, &world, entity);
 
         let has_mass_label = tree.iter().any(|(_, n)| {
             n.name.as_deref() == Some("NumLbl") && n.text.as_deref() == Some("Mass:")
@@ -378,5 +344,23 @@ mod tests {
                 "NumericDrag pill must default to 48.0 width"
             );
         }
+    }
+
+    #[test]
+    fn test_draw_rigidbody_card_missing_component_safely_ignored() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_rigidbody_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("RigidBodyCard")),
+            "RigidBodyCard must not be rendered when entity lacks RigidBody component"
+        );
     }
 }

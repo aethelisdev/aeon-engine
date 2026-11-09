@@ -11,27 +11,28 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
-/// Renders the declarative Character Action component card with speed/range and cooldown numeric scrubbers.
+/// Renders the declarative Character Action component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates speed/range and cooldown numeric scrubbers with zero intermediate variable plumbing.
 pub fn draw_character_action_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    a: &mut ae_core::ecs::CharacterAction,
+    world: &hecs::World,
+    entity: hecs::Entity,
 ) {
-    scope.card_panel("CharacterActionCard", |card| {
-        CharacterActionHandler.render_header(card);
-
-        card.prop_f32("Speed / Range:", &mut a.speed, 0.0..=10_000.0, 0.5)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterAction");
-                ctx.commit_edit("CharacterAction");
-            });
-
-        card.prop_f32("Cooldown:", &mut a.cooldown, 0.0..=3_600.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterAction");
-                ctx.commit_edit("CharacterAction");
-            });
-    });
+    scope.card_panel_desc_when_ok(
+        "CharacterActionCard",
+        UiScope::comp_card_desc(
+            "CharacterAction",
+            "CharacterAction",
+            "💨",
+            Color::rgba(0.68, 0.40, 0.96, 1.0),
+        ),
+        world.get::<&mut ae_core::ecs::CharacterAction>(entity),
+        |card, mut a| {
+            card.prop_f32("Speed / Range:", &mut a.speed, 0.0..=10_000.0, 0.5);
+            card.prop_f32("Cooldown:", &mut a.cooldown, 0.0..=3_600.0, 0.05);
+        },
+    );
 }
 
 /// Inspector handler for `💨 CharacterAction`.
@@ -63,15 +64,11 @@ impl ComponentInspectorHandler for CharacterActionHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world
-                .get::<&mut ae_core::ecs::CharacterAction>(ctx.entity),
-            |s, mut a| draw_character_action_card(s, ctx, &mut a),
-        );
+        draw_character_action_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(entity, ae_core::ecs::CharacterAction::new()));
+        drop(world.insert_one(entity, ae_core::ecs::CharacterAction::default()));
     }
 }
 
@@ -156,45 +153,12 @@ mod tests {
     #[test]
     fn test_draw_character_action_card_direct_structure() {
         let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::CharacterAction::new(),));
+        let entity = world.spawn((ae_core::ecs::CharacterAction::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
         let mut scope = UiScope::new(&mut tree, root);
-        let mut a = world
-            .get::<&mut ae_core::ecs::CharacterAction>(entity)
-            .unwrap();
 
-        draw_character_action_card(&mut scope, &mut ctx, &mut a);
+        draw_character_action_card(&mut scope, &world, entity);
 
         assert!(
             tree.has_node_named("CharacterActionCard"),
@@ -207,6 +171,23 @@ mod tests {
         assert_eq!(
             numeric_pills, 2,
             "draw_character_action_card must render 2 NumericDrag widgets"
+        );
+    }
+
+    #[test]
+    fn test_draw_character_action_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_character_action_card(&mut scope, &world, entity);
+
+        assert_eq!(
+            tree.len(),
+            1,
+            "CharacterAction card must safely do nothing when component missing"
         );
     }
 }

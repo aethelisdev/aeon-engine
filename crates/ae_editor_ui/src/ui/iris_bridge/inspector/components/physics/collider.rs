@@ -45,114 +45,97 @@ pub const fn index_to_shape(idx: usize) -> ae_core::ecs::ColliderShape {
     }
 }
 
-/// Renders the declarative Collider component card with two-way bound shape dropdown,
-/// dynamic shape dimension scrubbers, friction/restitution controls, and trigger sensor toggle
-/// with automatic undo/redo session tracking.
-pub fn draw_collider_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    c: &mut ae_core::ecs::Collider,
+/// Renders numeric property scrubbers for a box collider's 3D half-extents.
+#[inline]
+fn draw_box_collider_fields(card: &mut UiScope<'_>, half_extents: &mut [f32; 3]) {
+    card.prop_f32(
+        "Half Extent X:",
+        &mut half_extents[0],
+        0.001..=10_000.0,
+        0.05,
+    );
+    card.prop_f32(
+        "Half Extent Y:",
+        &mut half_extents[1],
+        0.001..=10_000.0,
+        0.05,
+    );
+    card.prop_f32(
+        "Half Extent Z:",
+        &mut half_extents[2],
+        0.001..=10_000.0,
+        0.05,
+    );
+}
+
+/// Renders numeric property scrubber for a sphere collider's radius.
+#[inline]
+fn draw_sphere_collider_fields(card: &mut UiScope<'_>, radius: &mut f32) {
+    card.prop_f32("Radius:", radius, 0.001..=10_000.0, 0.05);
+}
+
+/// Renders numeric property scrubbers for a capsule collider's height, radius, and vertical offset.
+#[inline]
+fn draw_capsule_collider_fields(
+    card: &mut UiScope<'_>,
+    half_height: &mut f32,
+    radius: &mut f32,
+    center_y: &mut f32,
 ) {
-    scope.card_panel("ColliderCard", |card| {
-        ColliderHandler.render_header(card);
+    card.prop_f32("Half Height:", half_height, 0.001..=10_000.0, 0.05);
+    card.prop_f32("Radius:", radius, 0.001..=10_000.0, 0.05);
+    card.prop_f32("Center Y:", center_y, -10_000.0..=10_000.0, 0.05);
+}
 
-        card.prop_combobox_mapped(
-            "Shape:",
-            shape_to_index(c.shape),
-            &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
-            &mut c.shape,
-            index_to_shape,
-        )
-        .on_change(|| {
-            ctx.begin_edit("Collider");
-            ctx.commit_edit("Collider");
-        });
+/// Renders the declarative Collider component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates the entire component card hierarchy, header descriptor, two-way bound shape dropdown,
+/// dynamic shape dimension scrubbers, friction/restitution controls, and trigger sensor toggle.
+pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "ColliderCard",
+        CardHeaderDescriptor::new("Collider")
+            .icon("🛡")
+            .atlas_icon(crate::ui::iris_bridge::icons::ICON_WIREFRAME)
+            .color(Color::rgba(0.20, 0.88, 0.45, 1.0))
+            .action("×", UiScope::action_tag("Collider")),
+        world.get::<&mut ae_core::ecs::Collider>(entity),
+        |card, mut c| {
+            card.prop_combobox_mapped(
+                "Shape:",
+                shape_to_index(c.shape),
+                &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
+                &mut c.shape,
+                index_to_shape,
+            );
 
-        match &mut c.shape {
-            ae_core::ecs::ColliderShape::Box { half_extents } => {
-                card.prop_f32(
-                    "Half Extent X:",
-                    &mut half_extents[0],
-                    0.001..=10_000.0,
-                    0.05,
-                )
-                .on_commit(|_| {
-                    ctx.begin_edit("Collider");
-                    ctx.commit_edit("Collider");
-                });
-                card.prop_f32(
-                    "Half Extent Y:",
-                    &mut half_extents[1],
-                    0.001..=10_000.0,
-                    0.05,
-                )
-                .on_commit(|_| {
-                    ctx.begin_edit("Collider");
-                    ctx.commit_edit("Collider");
-                });
-                card.prop_f32(
-                    "Half Extent Z:",
-                    &mut half_extents[2],
-                    0.001..=10_000.0,
-                    0.05,
-                )
-                .on_commit(|_| {
-                    ctx.begin_edit("Collider");
-                    ctx.commit_edit("Collider");
-                });
+            match &mut c.shape {
+                ae_core::ecs::ColliderShape::Box { half_extents } => {
+                    draw_box_collider_fields(card, half_extents);
+                }
+                ae_core::ecs::ColliderShape::Sphere { radius } => {
+                    draw_sphere_collider_fields(card, radius);
+                }
+                ae_core::ecs::ColliderShape::Capsule {
+                    half_height,
+                    radius,
+                    center_y,
+                } => {
+                    draw_capsule_collider_fields(card, half_height, radius, center_y);
+                }
+                ae_core::ecs::ColliderShape::Trimesh => {
+                    card.label("Trimesh (Auto from Mesh)");
+                }
+                ae_core::ecs::ColliderShape::ConvexHull => {
+                    card.label("Convex Hull (Auto from Mesh)");
+                }
             }
-            ae_core::ecs::ColliderShape::Sphere { radius } => {
-                card.prop_f32("Radius:", radius, 0.001..=10_000.0, 0.05)
-                    .on_commit(|_| {
-                        ctx.begin_edit("Collider");
-                        ctx.commit_edit("Collider");
-                    });
-            }
-            ae_core::ecs::ColliderShape::Capsule {
-                half_height,
-                radius,
-                center_y,
-            } => {
-                card.prop_f32("Half Height:", half_height, 0.001..=10_000.0, 0.05)
-                    .on_commit(|_| {
-                        ctx.begin_edit("Collider");
-                        ctx.commit_edit("Collider");
-                    });
-                card.prop_f32("Radius:", radius, 0.001..=10_000.0, 0.05)
-                    .on_commit(|_| {
-                        ctx.begin_edit("Collider");
-                        ctx.commit_edit("Collider");
-                    });
-                card.prop_f32("Center Y:", center_y, -10_000.0..=10_000.0, 0.05)
-                    .on_commit(|_| {
-                        ctx.begin_edit("Collider");
-                        ctx.commit_edit("Collider");
-                    });
-            }
-            ae_core::ecs::ColliderShape::Trimesh => {
-                card.label("Trimesh (Auto from Mesh)");
-            }
-            ae_core::ecs::ColliderShape::ConvexHull => {
-                card.label("Convex Hull (Auto from Mesh)");
-            }
-        }
 
-        card.prop_f32("Friction:", &mut c.friction, 0.0..=2.0, 0.02)
-            .on_commit(|_| {
-                ctx.begin_edit("Collider");
-                ctx.commit_edit("Collider");
-            });
-        card.prop_f32("Restitution:", &mut c.restitution, 0.0..=1.0, 0.02)
-            .on_commit(|_| {
-                ctx.begin_edit("Collider");
-                ctx.commit_edit("Collider");
-            });
-        card.prop_checkbox("Is Sensor (Trigger)", &mut c.is_sensor)
-            .on_change(|| {
-                ctx.begin_edit("Collider");
-                ctx.commit_edit("Collider");
-            });
-    });
+            card.prop_f32("Friction:", &mut c.friction, 0.0..=2.0, 0.02);
+            card.prop_f32("Restitution:", &mut c.restitution, 0.0..=1.0, 0.02);
+            card.prop_checkbox("Is Sensor (Trigger)", &mut c.is_sensor);
+        },
+    );
 }
 
 /// Inspector handler for Collider.
@@ -204,12 +187,7 @@ impl ComponentInspectorHandler for ColliderHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::Collider>(ctx.entity),
-            |scope, mut c| {
-                draw_collider_card(scope, ctx, &mut c);
-            },
-        );
+        draw_collider_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -462,30 +440,8 @@ mod tests {
                 is_sensor: false,
             },));
 
-            let euler = [0.0, 0.0, 0.0];
-            let swatches = [];
-            let params = InspectorPanelParams {
-                panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-                world: &world,
-                selected_entity: Some(entity),
-                inspector_euler: &euler,
-                inspector_color_hex: "#ffffff",
-                saved_swatches: &swatches,
-                cursor_pos: Point::new(0.0, 0.0),
-                active_submenu: None,
-                is_add_menu_open: false,
-                is_color_picker_open: false,
-                active_rename_buffer: None,
-                is_rename_all_selected: false,
-                active_hex_buffer: None,
-                inspector_hsv: [0.0, 0.0, 1.0],
-                blink_caret: false,
-            };
-
-            let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
             let mut scope = UiScope::new(&mut tree, root);
-            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            draw_collider_card(&mut scope, &mut ctx, &mut c);
+            draw_collider_card(&mut scope, &world, entity);
 
             let has_card = tree
                 .iter()
@@ -508,31 +464,9 @@ mod tests {
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let euler = [0.0; 3];
-        let swatches = Vec::new();
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
         let tag = {
             let mut scope = UiScope::new(&mut tree, root);
-            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            draw_collider_card(&mut scope, &mut ctx, &mut c);
+            draw_collider_card(&mut scope, &world, entity);
             scope.tag_for("Is Sensor (Trigger)")
         };
         assert!(
@@ -546,8 +480,7 @@ mod tests {
         tree.event_state.frame_clicked_tag = Some(tag);
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            draw_collider_card(&mut scope, &mut ctx, &mut c);
+            draw_collider_card(&mut scope, &world, entity);
         }
         assert!(
             world
@@ -561,8 +494,7 @@ mod tests {
         tree.event_state.frame_clicked_tag = None;
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            draw_collider_card(&mut scope, &mut ctx, &mut c);
+            draw_collider_card(&mut scope, &world, entity);
         }
         assert!(
             world
@@ -570,6 +502,24 @@ mod tests {
                 .unwrap()
                 .is_sensor,
             "is_sensor must persist as true"
+        );
+    }
+
+    #[test]
+    fn test_draw_collider_card_missing_component_safely_ignored() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_collider_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ColliderCard")),
+            "ColliderCard must not be rendered when entity lacks Collider component"
         );
     }
 }

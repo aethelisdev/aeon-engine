@@ -368,3 +368,37 @@ fn test_declarative_submenu_smart_placement_auto_flip_left() {
         parent_card_rect.x
     );
 }
+
+#[test]
+fn test_dropdown_item_with_texture_atlas_icon() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    tree.set_cursor_position(Point::new(50.0, 50.0));
+
+    let atlas_uv = [0.125, 0.25, 0.375, 0.5];
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.dropdown_menu_card_named("AtlasMenuCard", 10.0, 10.0, 200.0, |menu| {
+            menu.dropdown_item_with_icon(
+                101,
+                Some(crate::cascading_menu::CascadingMenuIcon::Texture(atlas_uv)),
+                "Physics Rigidbody",
+                None,
+                true,
+            );
+        });
+    }
+
+    let icon_node_id = tree.find_node_by_name("DropdownIcon");
+    assert!(icon_node_id.is_some(), "DropdownIcon node must be created");
+    let icon_node = tree.get(icon_node_id.unwrap()).unwrap();
+    assert_eq!(
+        icon_node.texture_uv,
+        Some(atlas_uv),
+        "Texture UV must match atlas UV"
+    );
+    assert_eq!(icon_node.role, iris_core::WidgetRole::DropdownIcon);
+    assert_eq!(icon_node.style.width, Some(14.0));
+    assert_eq!(icon_node.style.height, Some(14.0));
+}

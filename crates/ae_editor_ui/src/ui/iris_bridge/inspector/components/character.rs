@@ -27,54 +27,43 @@ fn grounded_color(theme: Theme, is_grounded: bool) -> Color {
     }
 }
 
-/// Renders the declarative Kinematic Character Controller component card with numeric
-/// dimension scrubbers (Height, Radius, Center Y, Max Slope Angle, Step Height) and grounded status indicator.
+/// Renders the declarative Kinematic Character Controller component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates numeric dimension scrubbers (Height, Radius, Center Y, Max Slope Angle, Step Height)
+/// and grounded status indicator with zero intermediate variable plumbing.
 pub fn draw_character_controller_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    c: &mut ae_core::ecs::CharacterController,
+    world: &hecs::World,
+    entity: hecs::Entity,
 ) {
-    scope.card_panel("CharacterControllerCard", |card| {
-        CharacterControllerHandler.render_header(card);
-
-        card.prop_f32("Height:", &mut c.height, 0.05..=1_000.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterController");
-                ctx.commit_edit("CharacterController");
-            });
-        card.prop_f32("Radius:", &mut c.radius, 0.01..=500.0, 0.02)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterController");
-                ctx.commit_edit("CharacterController");
-            });
-        card.prop_f32("Center Y:", &mut c.center_y, -1_000.0..=1_000.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterController");
-                ctx.commit_edit("CharacterController");
-            });
-        card.prop_f32(
-            "Max Slope Angle:",
-            &mut c.max_slope_climb_angle,
-            0.0..=89.9,
-            0.5,
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("CharacterController");
-            ctx.commit_edit("CharacterController");
-        });
-        card.prop_f32("Step Height:", &mut c.step_height, 0.0..=100.0, 0.02)
-            .on_commit(|_| {
-                ctx.begin_edit("CharacterController");
-                ctx.commit_edit("CharacterController");
-            });
-
-        card.status_pill(
-            "GroundedStatusPill",
-            "GroundedStatusText",
-            grounded_label(c.is_grounded),
-            grounded_color(card.theme(), c.is_grounded),
-        );
-    });
+    scope.card_panel_desc_when_ok(
+        "CharacterControllerCard",
+        UiScope::comp_card_desc(
+            "CharacterController",
+            "Kinematic Character Controller",
+            "🚶",
+            Color::rgba(0.96, 0.30, 0.65, 1.0),
+        ),
+        world.get::<&mut ae_core::ecs::CharacterController>(entity),
+        |card, mut c| {
+            card.prop_f32("Height:", &mut c.height, 0.05..=1_000.0, 0.05);
+            card.prop_f32("Radius:", &mut c.radius, 0.01..=500.0, 0.02);
+            card.prop_f32("Center Y:", &mut c.center_y, -1_000.0..=1_000.0, 0.05);
+            card.prop_f32(
+                "Max Slope Angle:",
+                &mut c.max_slope_climb_angle,
+                0.0..=89.9,
+                0.5,
+            );
+            card.prop_f32("Step Height:", &mut c.step_height, 0.0..=100.0, 0.02);
+            card.status_pill(
+                "GroundedStatusPill",
+                "GroundedStatusText",
+                grounded_label(c.is_grounded),
+                grounded_color(card.theme(), c.is_grounded),
+            );
+        },
+    );
 }
 
 /// Inspector handler for `🚶 Kinematic Character Controller`.
@@ -108,52 +97,33 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world
-                .get::<&mut ae_core::ecs::CharacterController>(ctx.entity),
-            |scope, mut c| {
-                draw_character_controller_card(scope, ctx, &mut c);
-            },
-        );
+        draw_character_controller_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(
-            entity,
-            ae_core::ecs::CharacterController {
-                height: 1.80,
-                radius: 0.40,
-                center_y: 0.0,
-                max_slope_climb_angle: 45.0,
-                step_height: 0.30,
-                is_grounded: true,
-            },
-        ));
+        drop(world.insert_one(entity, ae_core::ecs::CharacterController::default()));
     }
 }
 
-/// Renders the declarative PlayerTag component card indicating active player designation.
-pub fn draw_player_tag_card(scope: &mut UiScope<'_>) {
-    scope.card_panel("PlayerTagCard", |card| {
-        PlayerTagHandler.render_header(card);
-
-        card.label_styled_passive(
-            "PlayerTagDesc",
-            "Designates this entity as the active Player target",
-            10.5,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
-        );
-        card.label_styled_passive(
-            "PlayerTagDescSub",
-            "for gameplay logic and camera tracking.",
-            10.5,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new(),
-        );
-    });
+/// Renders the declarative PlayerTag component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Indicates active player designation for gameplay logic and camera tracking.
+pub fn draw_player_tag_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "PlayerTagCard",
+        UiScope::component_card_desc("PlayerTag", "🎮", Color::rgba(0.96, 0.62, 0.15, 1.0)),
+        world.get::<&ae_core::ecs::PlayerTag>(entity),
+        |card, _tag| {
+            card.label_desc(
+                "PlayerTagDesc",
+                "Designates this entity as the active Player target",
+            );
+            card.label_desc(
+                "PlayerTagDescSub",
+                "for gameplay logic and camera tracking.",
+            );
+        },
+    );
 }
 
 /// Inspector handler for `🎮 PlayerTag`.
@@ -185,10 +155,7 @@ impl ComponentInspectorHandler for PlayerTagHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when(
-            self.has_component(ctx.world, ctx.entity),
-            draw_player_tag_card,
-        );
+        draw_player_tag_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -243,11 +210,13 @@ mod tests {
 
     #[test]
     fn test_draw_player_tag_card_direct_structure() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::PlayerTag,));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
 
-        draw_player_tag_card(&mut scope);
+        draw_player_tag_card(&mut scope, &world, entity);
 
         assert!(
             tree.has_node_named("PlayerTagCard"),
@@ -260,6 +229,22 @@ mod tests {
         assert!(
             tree.has_node_named("PlayerTagDescSub"),
             "PlayerTagDescSub label must be present"
+        );
+    }
+
+    #[test]
+    fn test_draw_player_tag_card_missing_component_safely_ignored() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_player_tag_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree.has_node_named("PlayerTagCard"),
+            "PlayerTagCard must not be rendered when entity lacks PlayerTag"
         );
     }
 
@@ -380,33 +365,9 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
         let mut scope = UiScope::new(&mut tree, root);
-        let mut c = world
-            .get::<&mut ae_core::ecs::CharacterController>(entity)
-            .unwrap();
 
-        draw_character_controller_card(&mut scope, &mut ctx, &mut c);
+        draw_character_controller_card(&mut scope, &world, entity);
 
         let has_in_air = tree
             .iter()
@@ -420,5 +381,21 @@ mod tests {
             .iter()
             .any(|(_, n)| n.name.as_deref() == Some("CharacterControllerCard"));
         assert!(has_card, "CharacterControllerCard must be rendered");
+    }
+
+    #[test]
+    fn test_draw_character_controller_card_missing_component_safely_ignored() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_character_controller_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree.has_node_named("CharacterControllerCard"),
+            "CharacterControllerCard must not be rendered when entity lacks component"
+        );
     }
 }

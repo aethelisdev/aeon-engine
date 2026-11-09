@@ -9,64 +9,58 @@ use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
+/// Returns the static summary string for LOD slots availability without heap allocations.
+#[inline]
+#[must_use]
+pub const fn lod_slots_text(has_lod1: bool, has_lod2: bool) -> &'static str {
+    match (has_lod1, has_lod2) {
+        (false, false) => "Slots: LOD0 (Active) | LOD1: None | LOD2: None",
+        (true, false) => "Slots: LOD0 (Active) | LOD1: Set | LOD2: None",
+        (false, true) => "Slots: LOD0 (Active) | LOD1: None | LOD2: Set",
+        (true, true) => "Slots: LOD0 (Active) | LOD1: Set | LOD2: Set",
+    }
+}
+
 /// Renders the declarative Level of Detail (LOD) Group component card with slots and distance thresholds.
 ///
-/// Modifies `threshold_1` and `threshold_2` in-place via [`UiScope::prop_f32`], automatically recording
-/// atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
-pub fn draw_lod_group_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    lod: &mut ae_core::ecs::LodGroup,
-) {
-    scope.card_panel("LodGroupCard", |card| {
-        LodGroupHandler.render_header(card);
+/// Modifies `threshold_1` and `threshold_2` in-place via [`UiScope::prop_f32`] with zero heap allocations.
+pub fn draw_lod_group_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok_mut(
+        "LodGroupCard",
+        UiScope::comp_card_desc(
+            "LodGroup",
+            "LOD Group",
+            "📊",
+            Color::rgba(0.20, 0.85, 0.65, 1.0),
+        ),
+        world.get::<&mut ae_core::ecs::LodGroup>(entity),
+        |card, lod| {
+            card.label_styled_passive(
+                "LodSlotsInfo",
+                lod_slots_text(lod.lod_1.is_some(), lod.lod_2.is_some()),
+                10.5,
+                card.theme().text_primary,
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
 
-        // Row 1: Slots summary
-        card.label_styled_passive(
-            "LodSlotsInfo",
-            format!(
-                "Slots: LOD0 (Active) | LOD1: {} | LOD2: {}",
-                if lod.lod_1.is_some() { "Set" } else { "None" },
-                if lod.lod_2.is_some() { "Set" } else { "None" },
-            ),
-            10.5,
-            card.theme().text_primary,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
+            card.label_number_desc(
+                "LodThresh1Lbl",
+                NumberLabelDescriptor::new("LOD 0 ➔ 1 Distance: ", lod.threshold_1 as f64, " m")
+                    .color(card.theme().text_muted),
+            );
 
-        // Row 2: LOD 0 -> 1 Threshold label & prop_f32 scrubber
-        card.label_styled_passive(
-            "LodThresh1Lbl",
-            format!("LOD 0 ➔ 1 Distance: {:.1} m", lod.threshold_1),
-            11.0,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
+            card.prop_f32("LOD 0 ➔ 1 (m):", &mut lod.threshold_1, 1.0..=100.0, 0.5);
 
-        card.prop_f32("LOD 0 ➔ 1 (m):", &mut lod.threshold_1, 1.0..=100.0, 0.5)
-            .on_commit(|_| {
-                ctx.begin_edit("LodGroup");
-                ctx.commit_edit("LodGroup");
-            });
+            card.label_number_desc(
+                "LodThresh2Lbl",
+                NumberLabelDescriptor::new("LOD 1 ➔ 2 Distance: ", lod.threshold_2 as f64, " m")
+                    .color(card.theme().text_muted),
+            );
 
-        // Row 3: LOD 1 -> 2 Threshold label & prop_f32 scrubber
-        card.label_styled_passive(
-            "LodThresh2Lbl",
-            format!("LOD 1 ➔ 2 Distance: {:.1} m", lod.threshold_2),
-            11.0,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-
-        card.prop_f32("LOD 1 ➔ 2 (m):", &mut lod.threshold_2, 5.0..=200.0, 1.0)
-            .on_commit(|_| {
-                ctx.begin_edit("LodGroup");
-                ctx.commit_edit("LodGroup");
-            });
-    });
+            card.prop_f32("LOD 1 ➔ 2 (m):", &mut lod.threshold_2, 5.0..=200.0, 1.0);
+        },
+    );
 }
 
 /// Inspector handler for `📊 LodGroup` component.
@@ -98,12 +92,7 @@ impl ComponentInspectorHandler for LodGroupHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::LodGroup>(ctx.entity),
-            |card, mut lod| {
-                draw_lod_group_card(card, ctx, &mut lod);
-            },
-        );
+        draw_lod_group_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -159,43 +148,18 @@ mod tests {
     #[test]
     fn test_draw_lod_group_card_standalone() {
         let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::LodGroup::default(),));
+        let entity = world.spawn((ae_core::ecs::LodGroup {
+            threshold_1: 15.0,
+            threshold_2: 35.0,
+            lod_1: None,
+            lod_2: None,
+            ..Default::default()
+        },));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
 
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let mut lod = ae_core::ecs::LodGroup::default();
         let mut scope = UiScope::new(&mut tree, root);
-        draw_lod_group_card(&mut scope, &mut ctx, &mut lod);
+        draw_lod_group_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -207,6 +171,20 @@ mod tests {
                 .any(|(_, n)| n.name.as_deref() == Some("LodSlotsInfo")),
             "LodSlotsInfo passive label must be rendered"
         );
+        assert!(
+            tree.iter().any(|(_, n)| {
+                n.name.as_deref() == Some("LodThresh1Lbl")
+                    && n.text.as_deref().is_some_and(|t| t.contains("15.0 m"))
+            }),
+            "LodThresh1Lbl must contain 15.0 m"
+        );
+        assert!(
+            tree.iter().any(|(_, n)| {
+                n.name.as_deref() == Some("LodThresh2Lbl")
+                    && n.text.as_deref().is_some_and(|t| t.contains("35.0 m"))
+            }),
+            "LodThresh2Lbl must contain 35.0 m"
+        );
         let numeric_pills = tree
             .iter()
             .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
@@ -214,6 +192,24 @@ mod tests {
         assert_eq!(
             numeric_pills, 2,
             "LodGroup card must emit 2 numeric drag pills (Threshold 1, Threshold 2)"
+        );
+    }
+
+    #[test]
+    fn test_draw_lod_group_card_missing_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = hecs::Entity::DANGLING;
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_lod_group_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("LodGroupCard")),
+            "Dangling entity must safely omit LodGroupCard"
         );
     }
 }

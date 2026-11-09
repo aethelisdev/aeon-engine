@@ -10,6 +10,7 @@
 //! - Autonomous status badges ([`UiScope::badge`], [`UiScope::key_value_badge`]).
 //! - Custom typography and layout wrappers ([`UiScope::label_custom`], [`UiScope::label_with_width`]).
 
+pub use super::key_value::{format_file_size_stack, format_number_stack};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
@@ -74,6 +75,79 @@ impl WrappedLabelDescriptor {
     #[inline]
     pub fn wrap(mut self, wrap: TextWrap) -> Self {
         self.wrap = wrap;
+        self
+    }
+}
+
+/// Descriptor struct configuring typography, prefix sizing, and colors for a labeled status row.
+///
+/// Prevents parameter explosion on [`UiScope::labeled_status_desc`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct LabeledStatusDescriptor {
+    /// Static prefix text (e.g. `"Status:"`).
+    pub prefix: String,
+    /// Formatted status text (e.g. `"▶ PLAYING"`).
+    pub value: String,
+    /// Color of the status value text.
+    pub color: Color,
+    /// Optional debug node name for the prefix text node.
+    pub prefix_name: Option<String>,
+    /// Optional debug node name for the value text node.
+    pub value_name: Option<String>,
+    /// Optional fixed physical pixel width for the prefix label column.
+    pub prefix_width: Option<f32>,
+    /// Typographic point size for row text nodes.
+    pub font_size: f32,
+    /// Vertical physical pixel height for the row container.
+    pub height: f32,
+}
+
+impl LabeledStatusDescriptor {
+    /// Constructs a labeled status descriptor with auto-sizing prefix width and standard typography.
+    #[inline]
+    pub fn new(prefix: impl Into<String>, value: impl Into<String>, color: Color) -> Self {
+        Self {
+            prefix: prefix.into(),
+            value: value.into(),
+            color,
+            prefix_name: None,
+            value_name: None,
+            prefix_width: None,
+            font_size: 11.0,
+            height: 20.0,
+        }
+    }
+
+    /// Overrides the debug node names for prefix and value text labels.
+    #[inline]
+    pub fn with_names(
+        mut self,
+        prefix_name: impl Into<String>,
+        value_name: impl Into<String>,
+    ) -> Self {
+        self.prefix_name = Some(prefix_name.into());
+        self.value_name = Some(value_name.into());
+        self
+    }
+
+    /// Overrides the fixed physical pixel width for the prefix label.
+    #[inline]
+    pub fn prefix_width(mut self, width: f32) -> Self {
+        self.prefix_width = Some(width);
+        self
+    }
+
+    /// Overrides the font size in logical points.
+    #[inline]
+    pub fn font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
+    /// Overrides the vertical container height.
+    #[inline]
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = height;
         self
     }
 }
@@ -402,34 +476,6 @@ impl<'a> UiScope<'a> {
         });
     }
 
-    /// Emits a styled telemetry or key-value pill badge.
-    ///
-    /// # Arguments
-    /// * `label` - Left title label text.
-    /// * `value` - Right value text.
-    /// * `val_color` - Color of the value readout.
-    pub fn key_value_badge(&mut self, label: &str, value: &str, val_color: Color) {
-        let badge_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::SpaceBetween)
-            .padding_insets(Insets::new(3.0, 8.0, 3.0, 8.0))
-            .background(Color::rgba(0.12, 0.13, 0.16, 0.95))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.24, 0.85))
-            .border_radius(4.0)
-            .height(22.0);
-
-        self.container(badge_style, |badge_scope| {
-            badge_scope.label_custom(
-                label,
-                10.0,
-                Color::rgba(0.60, 0.63, 0.70, 1.0),
-                TextAlign::Left,
-            );
-            badge_scope.label_custom(value, 10.0, val_color, TextAlign::Right);
-        });
-    }
-
     /// Emits a styled status pill row with a named container and passive text label.
     ///
     /// Eliminates deeply nested container closures and multi-level indentation pyramids
@@ -448,6 +494,131 @@ impl<'a> UiScope<'a> {
         color: Color,
     ) {
         self.status_pill_styled(container_name, label_name, text, 10.5, color, 18.0);
+    }
+
+    /// Emits a compact status badge pill with automatic container and label identifiers.
+    ///
+    /// Eliminates caller-side node naming boilerplate when displaying status flags (e.g. `[🛡 Grounded]`).
+    ///
+    /// # Arguments
+    /// * `text` - Display status text string.
+    /// * `color` - Status text foreground color.
+    #[inline]
+    pub fn status_badge(&mut self, text: impl Into<String>, color: Color) {
+        self.status_pill("StatusBadge", "StatusText", text, color);
+    }
+
+    /// Renders a muted, passive description or hint label inside a card container.
+    ///
+    /// Standardizes font sizing, padding, and muted typography without requiring
+    /// complex styling structs or manual line wrapping at caller sites.
+    ///
+    /// # Arguments
+    /// * `text` - Descriptive text string displayed in the card.
+    #[inline]
+    pub fn card_description(&mut self, text: impl Into<String>) {
+        self.label_desc("CardDesc", text);
+    }
+
+    /// Renders a muted, passive description label with specified node name and text.
+    ///
+    /// Eliminates boilerplate styling parameters (theme color, font size, alignment, margins)
+    /// when rendering standard inspector description texts.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier for the text node.
+    /// * `text` - Display text string.
+    #[inline]
+    pub fn label_desc(&mut self, name: impl Into<String>, text: impl Into<String>) {
+        let color = self.tree.theme().text_muted;
+        self.label_desc_colored(name, text, color);
+    }
+
+    /// Renders a passive description label with specified node name, text, and custom foreground color.
+    ///
+    /// Standardizes margins and typography while allowing dynamic informational or warning coloring.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier for the text node.
+    /// * `text` - Display text string.
+    /// * `color` - Text foreground color.
+    #[inline]
+    pub fn label_desc_colored(
+        &mut self,
+        name: impl Into<String>,
+        text: impl Into<String>,
+        color: Color,
+    ) {
+        self.label_styled_passive(
+            name,
+            text,
+            10.5,
+            color,
+            TextAlign::Left,
+            Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+        );
+    }
+
+    /// Emits a configurable labeled status row with custom prefix width, typography size, and row height.
+    ///
+    /// # Arguments
+    /// * `row_name` - Container identifier for the horizontal status row.
+    /// * `desc` - Layout and styling descriptor.
+    pub fn labeled_status_desc(
+        &mut self,
+        row_name: impl Into<String>,
+        desc: LabeledStatusDescriptor,
+    ) {
+        let theme = self.theme();
+        let style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(desc.height)
+            .gap(6.0);
+        let mut prefix_style = Style::new().height(desc.height);
+        if let Some(w) = desc.prefix_width {
+            prefix_style = prefix_style.width(w);
+        }
+        let prefix_name = desc.prefix_name.as_deref().unwrap_or("LabeledStatusPrefix");
+        let value_name = desc.value_name.as_deref().unwrap_or("LabeledStatusValue");
+        self.container_named(row_name, style, |row| {
+            row.label_styled_passive(
+                prefix_name,
+                desc.prefix,
+                desc.font_size,
+                theme.text_muted,
+                TextAlign::Left,
+                prefix_style,
+            );
+            row.label_styled_passive(
+                value_name,
+                desc.value,
+                desc.font_size,
+                desc.color,
+                TextAlign::Left,
+                Style::new().flex_grow(1.0).height(desc.height),
+            );
+        });
+    }
+
+    /// Emits a labeled status row containing an auto-sized prefix label and aligned colored status text.
+    ///
+    /// Automatically adapts the prefix column width to its text content and applies theme typography defaults.
+    ///
+    /// # Arguments
+    /// * `prefix` - Static prefix text (e.g. `"Status:"`).
+    /// * `value` - Formatted status text (e.g. `"▶ PLAYING"`).
+    /// * `color` - Color of the status value text.
+    pub fn labeled_status(
+        &mut self,
+        prefix: impl Into<String>,
+        value: impl Into<String>,
+        color: Color,
+    ) {
+        self.labeled_status_desc(
+            "LabeledStatusRow",
+            LabeledStatusDescriptor::new(prefix, value, color),
+        );
     }
 
     /// Emits a styled status pill row with custom font size, text color, and row height.
@@ -520,129 +691,4 @@ impl<'a> UiScope<'a> {
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
-
-    /// Emits a structured horizontal key-value row with secondary key and primary value text.
-    ///
-    /// Eliminates `format!("{key}: {val}")` heap allocations in inspector, stats, and preview dialogs
-    /// by creating two independent text nodes in a lightweight flex row container.
-    ///
-    /// # Arguments
-    /// * `key` - Left property or metadata key title (rendered with muted text color).
-    /// * `val` - Right value text content (rendered with primary text color).
-    pub fn key_value(&mut self, key: &str, val: &str) {
-        let theme = self.tree.theme();
-        self.key_value_styled(key, val, theme.text_muted, theme.text_primary, 11.5);
-    }
-
-    /// Emits a structured horizontal key-value row with customized text colors and font size.
-    pub fn key_value_styled(
-        &mut self,
-        key: &str,
-        val: &str,
-        key_color: Color,
-        val_color: Color,
-        font_size: f32,
-    ) {
-        let row_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .gap(6.0);
-
-        self.container(row_style, |row| {
-            row.label_styled_passive(
-                "KeyValueLabel",
-                key,
-                font_size,
-                key_color,
-                TextAlign::Left,
-                Style::new(),
-            );
-            row.label_styled_passive(
-                "KeyValueSeparator",
-                ":",
-                font_size,
-                key_color,
-                TextAlign::Left,
-                Style::new(),
-            );
-            row.label_styled_passive(
-                "KeyValueContent",
-                val,
-                font_size,
-                val_color,
-                TextAlign::Left,
-                Style::new(),
-            );
-        });
-    }
-
-    /// Emits a key-value row where the value is a byte count formatted as human-readable size (B, KB, MB, GB).
-    ///
-    /// Operates completely on a stack buffer with zero heap allocations.
-    ///
-    /// # Arguments
-    /// * `key` - Left property key title.
-    /// * `bytes` - Integer file or buffer size in bytes.
-    pub fn key_value_file_size(&mut self, key: &str, bytes: u64) {
-        let mut buf = [0u8; 32];
-        let val_str = format_file_size_stack(bytes, &mut buf);
-        self.key_value(key, val_str);
-    }
-
-    /// Emits a floating-point number label formatted to `precision` decimal digits without heap allocation.
-    ///
-    /// Uses an internal stack buffer to format the number directly into the node text slice.
-    ///
-    /// # Arguments
-    /// * `val` - Floating-point number to render.
-    /// * `precision` - Number of fractional decimal places to retain.
-    pub fn label_number(&mut self, val: f64, precision: usize) {
-        let mut buf = [0u8; 32];
-        let num_str = format_number_stack(val, precision, &mut buf);
-        self.label(num_str);
-    }
-
-    /// Emits a structured horizontal key-value row formatting a float value without heap allocations.
-    ///
-    /// # Arguments
-    /// * `key` - Left property key title.
-    /// * `val` - Numeric float value to format.
-    /// * `precision` - Fractional precision places.
-    pub fn key_value_number(&mut self, key: &str, val: f64, precision: usize) {
-        let mut buf = [0u8; 32];
-        let num_str = format_number_stack(val, precision, &mut buf);
-        self.key_value(key, num_str);
-    }
-}
-
-/// Formats a 64-bit integer file size in bytes to a human-readable string without heap allocations.
-#[inline]
-pub fn format_file_size_stack(bytes: u64, buf: &mut [u8; 32]) -> &str {
-    use std::io::Write;
-    let mut cursor = std::io::Cursor::new(&mut buf[..]);
-    if bytes < 1024 {
-        let _ = write!(cursor, "{bytes} B");
-    } else if bytes < 1024 * 1024 {
-        let _ = write!(cursor, "{:.1} KB", bytes as f64 / 1024.0);
-    } else if bytes < 1024 * 1024 * 1024 {
-        let _ = write!(cursor, "{:.2} MB", bytes as f64 / (1024.0 * 1024.0));
-    } else {
-        let _ = write!(
-            cursor,
-            "{:.2} GB",
-            bytes as f64 / (1024.0 * 1024.0 * 1024.0)
-        );
-    }
-    let pos = cursor.position() as usize;
-    std::str::from_utf8(&buf[..pos]).unwrap_or("")
-}
-
-/// Formats a float number with specified precision onto a stack buffer without heap allocations.
-#[inline]
-pub fn format_number_stack(val: f64, precision: usize, buf: &mut [u8; 32]) -> &str {
-    use std::io::Write;
-    let mut cursor = std::io::Cursor::new(&mut buf[..]);
-    let _ = write!(cursor, "{val:.precision$}");
-    let pos = cursor.position() as usize;
-    std::str::from_utf8(&buf[..pos]).unwrap_or("")
 }

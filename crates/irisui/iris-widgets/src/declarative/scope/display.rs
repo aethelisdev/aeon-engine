@@ -5,11 +5,17 @@
 //!
 //! Provides text labels, headings, texture atlas icons, carets, and canvas swatches on [`UiScope`]:
 //! - Typography, 1-argument labels, headings, and badges in [`labels`].
+//! - Key-value rows, stack formatted numbers, and telemetry badges in [`key_value`].
 //! - Texture atlas icons and hover reactivity in [`icons`].
 //! - External textures, scrollbars, and color swatches in [`canvas`].
 
 pub mod canvas;
 pub mod icons;
+pub mod key_value;
 pub mod labels;
 
-pub use labels::WrappedLabelDescriptor;
+pub use key_value::{
+    NumberLabelDescriptor, format_file_size_stack, format_number_stack,
+    format_prefix_number_suffix_stack,
+};
+pub use labels::{LabeledStatusDescriptor, WrappedLabelDescriptor};

@@ -7,81 +7,35 @@
 
 use super::UiContext;
 
-/// Handles dynamically adding a component to an entity using `ComponentRegistry` default constructor.
+/// Handles dynamically adding a component to an entity using the built-in catalog or `ComponentRegistry`.
 pub fn handle_add_component(ctx: &mut UiContext, entity: hecs::Entity, type_name: &str) {
-    match type_name {
-        "AudioSource" => {
-            let _ = ctx
-                .world
-                .insert_one(entity, ae_audio::AudioSource::default());
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!("➕ Added component 'AudioSource' to entity {:?}", entity);
-            return;
-        }
-        "AudioListener" => {
-            let _ = ctx.world.insert_one(entity, ae_audio::AudioListener);
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!("➕ Added component 'AudioListener' to entity {:?}", entity);
-            return;
-        }
-        "AnimationPlayer" => {
-            let _ = ctx
-                .world
-                .insert_one(entity, ae_animation::AnimationPlayer::default());
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!(
-                "➕ Added component 'AnimationPlayer' to entity {:?}",
-                entity
-            );
-            return;
-        }
-        "Collider" => {
-            let _ = ctx
-                .world
-                .insert_one(entity, ae_core::ecs::Collider::default());
-            if ctx.world.get::<&ae_core::ecs::RigidBody>(entity).is_err() {
-                let _ = ctx
-                    .world
-                    .insert_one(entity, ae_core::ecs::RigidBody::default());
-            }
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!(
-                "➕ Added component 'Collider' & 'RigidBody' to entity {:?}",
-                entity
-            );
-            return;
-        }
-        "RigidBody" => {
-            let _ = ctx
-                .world
-                .insert_one(entity, ae_core::ecs::RigidBody::default());
-            if ctx.world.get::<&ae_core::ecs::Collider>(entity).is_err() {
-                let _ = ctx
-                    .world
-                    .insert_one(entity, ae_core::ecs::Collider::default());
-            }
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!(
-                "➕ Added component 'RigidBody' & 'Collider' to entity {:?}",
-                entity
-            );
-            return;
-        }
-        _ => {}
+    if let Some(entry) =
+        crate::ui::iris_bridge::inspector::add_menu::find_builtin_component_entry(type_name)
+    {
+        (entry.spawn_default)(ctx.world, entity);
+        log::info!(
+            "➕ Added built-in component '{}' to entity {:?}",
+            type_name,
+            entity
+        );
+        return;
     }
 
-    let registry = ae_core::registry::ComponentRegistry::global();
-    if let Some(handler) = registry.get_by_name(type_name) {
+    if let Some(handler) = ae_core::registry::ComponentRegistry::global().get_by_name(type_name) {
         if let Err(e) = handler.add_default(ctx.world, entity) {
             log::error!(
-                "Failed to add component '{}' to entity {:?}: {}",
+                "Failed to add dynamic component '{}' to entity {:?}: {}",
                 type_name,
                 entity,
                 e
             );
         } else {
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!("➕ Added component '{}' to entity {:?}", type_name, entity);
+            drop(ctx.world.insert_one(entity, ae_core::ecs::TransformDirty));
+            log::info!(
+                "➕ Added dynamic component '{}' to entity {:?}",
+                type_name,
+                entity
+            );
         }
     } else {
         log::warn!(
@@ -92,44 +46,26 @@ pub fn handle_add_component(ctx: &mut UiContext, entity: hecs::Entity, type_name
     }
 }
 
-/// Handles dynamically removing a component from an entity using `ComponentRegistry`.
+/// Handles dynamically removing a component from an entity using the built-in catalog or `ComponentRegistry`.
 pub fn handle_remove_component(ctx: &mut UiContext, entity: hecs::Entity, type_name: &str) {
-    match type_name {
-        "AudioSource" => {
-            let _ = ctx.world.remove_one::<ae_audio::AudioSource>(entity);
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!("🗑 Removed component 'AudioSource' from entity {:?}", entity);
-            return;
-        }
-        "AudioListener" => {
-            let _ = ctx.world.remove_one::<ae_audio::AudioListener>(entity);
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+    if let Some(entry) =
+        crate::ui::iris_bridge::inspector::add_menu::find_builtin_component_entry(type_name)
+    {
+        if (entry.remove_component)(ctx.world, entity) {
             log::info!(
-                "🗑 Removed component 'AudioListener' from entity {:?}",
+                "🗑 Removed built-in component '{}' from entity {:?}",
+                type_name,
                 entity
             );
-            return;
         }
-        "AnimationPlayer" => {
-            let _ = ctx
-                .world
-                .remove_one::<ae_animation::AnimationPlayer>(entity);
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-            log::info!(
-                "🗑 Removed component 'AnimationPlayer' from entity {:?}",
-                entity
-            );
-            return;
-        }
-        _ => {}
+        return;
     }
 
-    let registry = ae_core::registry::ComponentRegistry::global();
-    if let Some(handler) = registry.get_by_name(type_name) {
+    if let Some(handler) = ae_core::registry::ComponentRegistry::global().get_by_name(type_name) {
         if handler.remove_component(ctx.world, entity) {
-            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            drop(ctx.world.insert_one(entity, ae_core::ecs::TransformDirty));
             log::info!(
-                "🗑 Removed component '{}' from entity {:?}",
+                "🗑 Removed dynamic component '{}' from entity {:?}",
                 type_name,
                 entity
             );

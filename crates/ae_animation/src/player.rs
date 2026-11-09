@@ -20,6 +20,19 @@ pub enum AnimationState {
     Stopped,
 }
 
+impl AnimationState {
+    /// Returns the human-readable display label and status badge glyph.
+    #[must_use]
+    #[inline]
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Playing => "▶ PLAYING",
+            Self::Paused => "⏸ PAUSED",
+            Self::Stopped => "⏹ STOPPED",
+        }
+    }
+}
+
 /// ECS component that manages animation playback, time accumulation, and crossfade blending.
 ///
 /// Supports crossfading (`crossfade()`) between `current_clip` and `target_clip` using a smooth
@@ -67,6 +80,22 @@ impl AnimationPlayer {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Returns the name of the active animation clip, or a default placeholder when none is bound.
+    #[must_use]
+    #[inline]
+    pub fn clip_name(&self) -> &str {
+        self.current_clip
+            .as_ref()
+            .map_or("No Clip Selected", |c| c.name.as_str())
+    }
+
+    /// Returns the duration of the active animation clip in seconds, or 0.0 when none is bound.
+    #[must_use]
+    #[inline]
+    pub fn clip_duration(&self) -> f32 {
+        self.current_clip.as_ref().map_or(0.0, |c| c.duration)
     }
 
     /// Plays the given clip immediately, clearing any active crossfades.

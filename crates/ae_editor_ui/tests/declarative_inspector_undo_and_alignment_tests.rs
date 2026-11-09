@@ -133,33 +133,16 @@ fn test_velocity_and_rigidbody_declarative_binding_and_undo() {
         },
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
-
-    let mut actions = Vec::new();
-    let mut ctx = ae_editor_ui::ui::iris_bridge::inspector::ComponentRenderContext::with_actions(
-        entity,
-        &world,
-        &params,
-        &mut actions,
-        6.0,
-        0.0,
-        308.0,
-    );
-
     let mut scope = UiScope::new(&mut tree, root);
 
     // 1. Test Velocity binding
-    let mut vel = *world.get::<&Velocity>(entity).unwrap();
     ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::velocity::draw_velocity_card(
-        &mut scope, &mut ctx, &mut vel,
+        &mut scope, &world, entity,
     );
 
     // 2. Test RigidBody binding
-    let mut rb = *world.get::<&RigidBody>(entity).unwrap();
     ae_editor_ui::ui::iris_bridge::inspector::components::physics::rigidbody::draw_rigidbody_card(
-        &mut scope, &mut ctx, &mut rb,
+        &mut scope, &world, entity,
     );
 
     // Verify UI tree contains Velocity "Linear" DragVec3 and RigidBody cards

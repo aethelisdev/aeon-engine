@@ -169,12 +169,8 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
 
     // Build color picker popup via declarative UiScope
     let mut is_color_picker_open = true;
-    color_picker_popup::build_color_picker_popup(
-        &mut tree,
-        root,
-        &params,
-        &mut is_color_picker_open,
-    );
+    let mut scope = UiScope::new(&mut tree, root);
+    color_picker_popup::build_color_picker_popup(&mut scope, &params, &mut is_color_picker_open);
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;

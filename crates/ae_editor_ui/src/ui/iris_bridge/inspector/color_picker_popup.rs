@@ -101,8 +101,7 @@ pub fn draw_detached_color_picker_popup(
 /// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity,
 /// mutating [`ae_core::ecs::Color`] live in-place and returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn build_color_picker_popup_with_action(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     is_color_picker_open: &mut bool,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
@@ -117,14 +116,14 @@ pub fn build_color_picker_popup_with_action(
             .map(|c| (ent, c))
     }) {
         Some((entity, mut color)) => map_some_rect(draw_entity_color_picker_popup(
-            &mut UiScope::new(tree, parent_id),
+            scope,
             entity,
             &mut color,
             params,
             is_color_picker_open,
         )),
         None => map_some_rect(draw_detached_color_picker_popup(
-            &mut UiScope::new(tree, parent_id),
+            scope,
             params,
             is_color_picker_open,
         )),
@@ -135,12 +134,11 @@ pub fn build_color_picker_popup_with_action(
 ///
 /// Returns the screen-space bounding box of the constructed color picker popup, if active.
 pub fn build_color_picker_popup(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
     is_color_picker_open: &mut bool,
 ) -> Option<Rect> {
-    build_color_picker_popup_with_action(tree, parent_id, params, is_color_picker_open).0
+    build_color_picker_popup_with_action(scope, params, is_color_picker_open).0
 }
 
 #[cfg(test)]
@@ -206,7 +204,8 @@ mod tests {
         };
 
         let mut is_open = true;
-        build_color_picker_popup(&mut tree, root, &params, &mut is_open);
+        let mut scope = UiScope::new(&mut tree, root);
+        build_color_picker_popup(&mut scope, &params, &mut is_open);
 
         let popup_card = tree
             .iter()

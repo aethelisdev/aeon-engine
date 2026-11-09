@@ -10,41 +10,26 @@ use super::super::types::ComponentCategory;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_LIGHT};
 use irisui::prelude::*;
 
-/// Renders the declarative Light component card with position offset and RGB illumination colors.
+/// Renders the declarative Light component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
-/// Modifies `light` fields in-place via [`UiScope::prop_f32`], automatically recording
-/// atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
-pub fn draw_light_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    light: &mut ae_core::ecs::Light,
-) {
-    scope.card_panel("LightCard", |card| {
-        LightHandler.render_header(card);
-
-        card.prop_f32(
-            "Light Offset Y:",
-            &mut light.position[1],
-            -1_000.0..=1_000.0,
-            0.05,
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("Light");
-            ctx.commit_edit("Light");
-        });
-
-        card.prop_f32("Color R:", &mut light.color[0], 0.0..=1.0, 0.01)
-            .on_commit(|_| {
-                ctx.begin_edit("Light");
-                ctx.commit_edit("Light");
-            });
-
-        card.prop_f32("Color G:", &mut light.color[1], 0.0..=1.0, 0.01)
-            .on_commit(|_| {
-                ctx.begin_edit("Light");
-                ctx.commit_edit("Light");
-            });
-    });
+/// Encapsulates position offset and RGB illumination color scrubbers with zero intermediate variable plumbing.
+pub fn draw_light_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "LightCard",
+        UiScope::comp_card_desc("Light", "Light", "💡", Color::rgba(0.98, 0.80, 0.20, 1.0))
+            .atlas_icon(ICON_LIGHT),
+        world.get::<&mut ae_core::ecs::Light>(entity),
+        |card, mut light| {
+            card.prop_f32(
+                "Light Offset Y:",
+                &mut light.position[1],
+                -1_000.0..=1_000.0,
+                0.05,
+            );
+            card.prop_f32("Color R:", &mut light.color[0], 0.0..=1.0, 0.01);
+            card.prop_f32("Color G:", &mut light.color[1], 0.0..=1.0, 0.01);
+        },
+    );
 }
 
 /// Inspector handler for `💡 Light`.
@@ -80,12 +65,7 @@ impl ComponentInspectorHandler for LightHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::Light>(ctx.entity),
-            |card, mut light| {
-                draw_light_card(card, ctx, &mut light);
-            },
-        );
+        draw_light_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -93,24 +73,24 @@ impl ComponentInspectorHandler for LightHandler {
     }
 }
 
-/// Renders the declarative 3D Model / Mesh component card displaying the active mesh asset handle.
-pub fn draw_model_mesh_card(
-    scope: &mut UiScope<'_>,
-    _ctx: &mut ComponentRenderContext<'_>,
-    model: &ae_core::ecs::ModelId,
-) {
-    scope.card_panel("ModelMeshCard", |card| {
-        ModelMeshHandler.render_header(card);
-
-        card.label_styled_passive(
-            "ModelAssetInfo",
-            format!("Asset Handle: {:?}", model.0),
-            10.5,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-    });
+/// Renders the declarative 3D Model / Mesh component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Displays the active mesh asset handle with zero intermediate variable plumbing.
+pub fn draw_model_mesh_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "ModelMeshCard",
+        UiScope::comp_card_desc(
+            "ModelId",
+            "3D Model / Mesh",
+            "📦",
+            Color::rgba(0.38, 0.65, 0.98, 1.0),
+        )
+        .atlas_icon(crate::ui::iris_bridge::icons::ICON_CUBE),
+        world.get::<&ae_core::ecs::ModelId>(entity),
+        |card, model| {
+            card.label_desc("ModelAssetInfo", format!("Asset Handle: {:?}", model.0));
+        },
+    );
 }
 
 /// Inspector handler for `📦 ModelId`.
@@ -146,12 +126,7 @@ impl ComponentInspectorHandler for ModelMeshHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&ae_core::ecs::ModelId>(ctx.entity),
-            |card, model| {
-                draw_model_mesh_card(card, ctx, &model);
-            },
-        );
+        draw_model_mesh_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -159,46 +134,60 @@ impl ComponentInspectorHandler for ModelMeshHandler {
     }
 }
 
-/// Renders the declarative procedural Shape component card with geometry selection dropdown.
-///
-/// Modifies `s` in-place via [`UiScope::prop_combobox_mapped_styled`], recording Undo/Redo sessions
-/// on user selection changes with zero intermediate `let` variables or imperatively plumbed state.
-pub fn draw_shape_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    s: &mut ae_core::ecs::Shape,
-) {
-    scope.card_panel("ShapeCard", |card| {
-        ShapeHandler.render_header(card);
+/// Converts a [`ae_core::ecs::Shape`] enum variant to its combobox option index.
+#[inline]
+#[must_use]
+pub const fn shape_to_index(shape: ae_core::ecs::Shape) -> usize {
+    match shape {
+        ae_core::ecs::Shape::Cube => 0,
+        ae_core::ecs::Shape::Sphere => 1,
+        ae_core::ecs::Shape::Cylinder => 2,
+        ae_core::ecs::Shape::Capsule => 3,
+        ae_core::ecs::Shape::Torus => 4,
+        ae_core::ecs::Shape::Triangle => 5,
+    }
+}
 
-        card.prop_combobox_mapped_styled(
-            "Geometry:",
-            match *s {
-                ae_core::ecs::Shape::Cube => 0,
-                ae_core::ecs::Shape::Sphere => 1,
-                ae_core::ecs::Shape::Cylinder => 2,
-                ae_core::ecs::Shape::Capsule => 3,
-                ae_core::ecs::Shape::Torus => 4,
-                ae_core::ecs::Shape::Triangle => 5,
-            },
-            &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
-            ComboRowLayout::new(65.0, 96.0),
-            s,
-            |idx| match idx {
-                0 => ae_core::ecs::Shape::Cube,
-                1 => ae_core::ecs::Shape::Sphere,
-                2 => ae_core::ecs::Shape::Cylinder,
-                3 => ae_core::ecs::Shape::Capsule,
-                4 => ae_core::ecs::Shape::Torus,
-                5 => ae_core::ecs::Shape::Triangle,
-                _ => ae_core::ecs::Shape::Cube,
-            },
+/// Converts a combobox option index back to its corresponding [`ae_core::ecs::Shape`] enum variant.
+#[inline]
+#[must_use]
+pub const fn index_to_shape(index: usize) -> ae_core::ecs::Shape {
+    match index {
+        0 => ae_core::ecs::Shape::Cube,
+        1 => ae_core::ecs::Shape::Sphere,
+        2 => ae_core::ecs::Shape::Cylinder,
+        3 => ae_core::ecs::Shape::Capsule,
+        4 => ae_core::ecs::Shape::Torus,
+        5 => ae_core::ecs::Shape::Triangle,
+        _ => ae_core::ecs::Shape::Cube,
+    }
+}
+
+/// Renders the declarative procedural Shape component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates geometry selection dropdown with zero intermediate variable plumbing.
+pub fn draw_shape_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "ShapeCard",
+        UiScope::comp_card_desc(
+            "Shape",
+            "Procedural 3D Shape",
+            "🌐",
+            Color::rgba(0.20, 0.85, 0.60, 1.0),
         )
-        .on_change(|| {
-            ctx.begin_edit("Shape");
-            ctx.commit_edit("Shape");
-        });
-    });
+        .atlas_icon(ICON_CUBE),
+        world.get::<&mut ae_core::ecs::Shape>(entity),
+        |card, mut s| {
+            card.prop_combobox_mapped_styled(
+                "Geometry:",
+                shape_to_index(*s),
+                &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
+                ComboRowLayout::new(65.0, 96.0),
+                &mut *s,
+                index_to_shape,
+            );
+        },
+    );
 }
 
 /// Inspector handler for `🎲 Shape`.
@@ -234,12 +223,7 @@ impl ComponentInspectorHandler for ShapeHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::Shape>(ctx.entity),
-            |card, mut s| {
-                draw_shape_card(card, ctx, &mut s);
-            },
-        );
+        draw_shape_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -335,40 +319,9 @@ mod tests {
         let entity = world.spawn((ae_core::ecs::Light::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let mut light = ae_core::ecs::Light::default();
         let mut scope = UiScope::new(&mut tree, root);
-        draw_light_card(&mut scope, &mut ctx, &mut light);
+
+        draw_light_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -386,45 +339,32 @@ mod tests {
     }
 
     #[test]
+    fn test_draw_light_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_light_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("LightCard")),
+            "Light card must safely do nothing when component missing"
+        );
+    }
+
+    #[test]
     fn test_draw_model_mesh_card_standalone() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::ModelId::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let model = ae_core::ecs::ModelId::default();
         let mut scope = UiScope::new(&mut tree, root);
-        draw_model_mesh_card(&mut scope, &mut ctx, &model);
+
+        draw_model_mesh_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -439,45 +379,32 @@ mod tests {
     }
 
     #[test]
+    fn test_draw_model_mesh_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_model_mesh_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ModelMeshCard")),
+            "ModelMesh card must safely do nothing when component missing"
+        );
+    }
+
+    #[test]
     fn test_draw_shape_card_standalone() {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::Shape::Cube,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let mut shape = ae_core::ecs::Shape::Cube;
         let mut scope = UiScope::new(&mut tree, root);
-        draw_shape_card(&mut scope, &mut ctx, &mut shape);
+
+        draw_shape_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -489,6 +416,39 @@ mod tests {
                 .any(|(_, n)| n.name.as_deref() == Some("ComboPill")),
             "Shape combobox pill must be rendered"
         );
+    }
+
+    #[test]
+    fn test_draw_shape_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_shape_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("ShapeCard")),
+            "Shape card must safely do nothing when component missing"
+        );
+    }
+
+    #[test]
+    fn test_shape_index_conversion_roundtrip() {
+        let shapes = [
+            ae_core::ecs::Shape::Cube,
+            ae_core::ecs::Shape::Sphere,
+            ae_core::ecs::Shape::Cylinder,
+            ae_core::ecs::Shape::Capsule,
+            ae_core::ecs::Shape::Torus,
+            ae_core::ecs::Shape::Triangle,
+        ];
+        for s in shapes {
+            assert_eq!(index_to_shape(shape_to_index(s)), s);
+        }
     }
 
     #[test]

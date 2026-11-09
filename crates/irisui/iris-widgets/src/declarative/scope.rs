@@ -68,7 +68,7 @@ pub use containers::{
 };
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
-pub use display::WrappedLabelDescriptor;
+pub use display::{LabeledStatusDescriptor, NumberLabelDescriptor, WrappedLabelDescriptor};
 pub use input::ComboRowLayout;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use menu::{CascadingPopupConfig, PopupExt, PopupPlacement};

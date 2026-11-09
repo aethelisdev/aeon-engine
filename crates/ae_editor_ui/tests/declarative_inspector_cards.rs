@@ -433,7 +433,8 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         handler.render_card(&mut scope, &mut ctx);
         let has_playing = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("AnimStatusVal")
+            (n.name.as_deref() == Some("AnimStatusVal")
+                || n.name.as_deref() == Some("LabeledStatusValue"))
                 && n.text.as_deref().is_some_and(|t| t.contains("PLAYING"))
         });
         assert!(has_playing);

@@ -18,75 +18,47 @@ fn pick_audio_file_path() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
-/// Applies a selected audio file path to an [`ae_audio::AudioSource`] component and records an atomic undo transaction.
-pub fn apply_picked_audio_path(
-    audio: &mut ae_audio::AudioSource,
-    ctx: &mut ComponentRenderContext<'_>,
-    path: String,
-) {
-    ctx.begin_edit("AudioSource");
+/// Applies a selected audio file path to an [`ae_audio::AudioSource`] component.
+pub fn apply_picked_audio_path(audio: &mut ae_audio::AudioSource, path: String) {
     audio.sound_path = path;
     audio.is_playing = true;
-    ctx.commit_edit("AudioSource");
 }
 
-/// Renders the declarative Audio Source component card with asset file slot, volume/pitch scrubbers,
-/// and spatial/looping/play-on-start checkboxes.
+/// Renders the declarative Audio Source component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
-/// Modifies `audio` fields in-place via [`UiScope::prop_f32`], [`UiScope::prop_checkbox`], and [`UiScope::asset_slot_row`],
-/// automatically recording atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
-pub fn draw_audio_source_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    audio: &mut ae_audio::AudioSource,
-) {
-    scope.card_panel("AudioSourceCard", |card| {
-        AudioSourceHandler.render_header(card);
-
-        card.asset_slot_row(
-            AssetSlotConfig::untagged("Sound:", &audio.sound_path, "Select sound...")
-                .with_play_state(audio.is_playing)
-                .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
-        )
-        .on_pick(|| {
-            if let Some(path) = pick_audio_file_path() {
-                apply_picked_audio_path(audio, ctx, path);
-            }
-        })
-        .on_play_toggle(|| {
-            audio.is_playing = !audio.is_playing;
-        });
-
-        card.prop_f32("Volume:", &mut audio.volume, 0.0..=1.0, 0.02)
-            .on_commit(|_| {
-                ctx.begin_edit("AudioSource");
-                ctx.commit_edit("AudioSource");
+/// Encapsulates asset file slot, volume/pitch scrubbers, and spatial/looping/play-on-start checkboxes with zero intermediate variable plumbing.
+pub fn draw_audio_source_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "AudioSourceCard",
+        UiScope::comp_card_desc(
+            "AudioSource",
+            "Audio Source",
+            "🔊",
+            Color::rgba(0.22, 0.74, 0.97, 1.0),
+        ),
+        world.get::<&mut ae_audio::AudioSource>(entity),
+        |card, mut audio| {
+            card.asset_slot_row(
+                AssetSlotConfig::untagged("Sound:", &audio.sound_path, "Select sound...")
+                    .with_play_state(audio.is_playing)
+                    .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
+            )
+            .on_pick(|| {
+                if let Some(path) = pick_audio_file_path() {
+                    apply_picked_audio_path(&mut audio, path);
+                }
+            })
+            .on_play_toggle(|| {
+                audio.is_playing = !audio.is_playing;
             });
 
-        card.prop_f32("Pitch:", &mut audio.pitch, 0.1..=10.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("AudioSource");
-                ctx.commit_edit("AudioSource");
-            });
-
-        card.prop_checkbox("Spatial 3D Audio", &mut audio.is_spatial)
-            .on_click(|| {
-                ctx.begin_edit("AudioSource");
-                ctx.commit_edit("AudioSource");
-            });
-
-        card.prop_checkbox("Looping", &mut audio.looping)
-            .on_click(|| {
-                ctx.begin_edit("AudioSource");
-                ctx.commit_edit("AudioSource");
-            });
-
-        card.prop_checkbox("Play on Start", &mut audio.play_on_start)
-            .on_click(|| {
-                ctx.begin_edit("AudioSource");
-                ctx.commit_edit("AudioSource");
-            });
-    });
+            card.prop_f32("Volume:", &mut audio.volume, 0.0..=1.0, 0.02);
+            card.prop_f32("Pitch:", &mut audio.pitch, 0.1..=10.0, 0.05);
+            card.prop_checkbox("Spatial 3D Audio", &mut audio.is_spatial);
+            card.prop_checkbox("Looping", &mut audio.looping);
+            card.prop_checkbox("Play on Start", &mut audio.play_on_start);
+        },
+    );
 }
 
 /// Inspector handler for `AudioSource` component.
@@ -118,12 +90,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_audio::AudioSource>(ctx.entity),
-            |card, mut audio| {
-                draw_audio_source_card(card, ctx, &mut audio);
-            },
-        );
+        draw_audio_source_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -131,20 +98,30 @@ impl ComponentInspectorHandler for AudioSourceHandler {
     }
 }
 
-/// Renders the declarative Audio Listener component card displaying the 3D spatial microphone status.
-pub fn draw_audio_listener_card(scope: &mut UiScope<'_>) {
-    scope.card_panel("AudioListenerCard", |card| {
-        AudioListenerHandler.render_header(card);
-
-        card.label_styled_passive(
-            "AudioListenerDesc",
-            "Active 3D spatial microphone & ear for scene audio.",
-            10.5,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-    });
+/// Renders the declarative Audio Listener component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Displays the 3D spatial microphone status with zero intermediate variable plumbing.
+pub fn draw_audio_listener_card(
+    scope: &mut UiScope<'_>,
+    world: &hecs::World,
+    entity: hecs::Entity,
+) {
+    scope.card_panel_desc_when_ok(
+        "AudioListenerCard",
+        UiScope::comp_card_desc(
+            "AudioListener",
+            "Audio Listener",
+            "👂",
+            Color::rgba(0.65, 0.55, 0.98, 1.0),
+        ),
+        world.get::<&ae_audio::AudioListener>(entity),
+        |card, _listener| {
+            card.label_desc(
+                "AudioListenerDesc",
+                "Active 3D spatial microphone & ear for scene audio.",
+            );
+        },
+    );
 }
 
 /// Inspector handler for `👂 AudioListener` component.
@@ -176,10 +153,7 @@ impl ComponentInspectorHandler for AudioListenerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when(
-            self.has_component(ctx.world, ctx.entity),
-            draw_audio_listener_card,
-        );
+        draw_audio_listener_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -299,7 +273,7 @@ mod tests {
         // Test in-place audio file path selection and undo snapshotting
         {
             let mut a = world.get::<&mut ae_audio::AudioSource>(entity).unwrap();
-            apply_picked_audio_path(&mut a, &mut ctx, "assets/audio/new_hit.ogg".to_string());
+            apply_picked_audio_path(&mut a, "assets/audio/new_hit.ogg".to_string());
         }
 
         {
@@ -353,40 +327,9 @@ mod tests {
         let entity = world.spawn((ae_audio::AudioSource::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let mut audio = ae_audio::AudioSource::default();
         let mut scope = UiScope::new(&mut tree, root);
-        draw_audio_source_card(&mut scope, &mut ctx, &mut audio);
+
+        draw_audio_source_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -412,12 +355,32 @@ mod tests {
     }
 
     #[test]
-    fn test_draw_audio_listener_card_standalone() {
+    fn test_draw_audio_source_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut scope = UiScope::new(&mut tree, root);
 
-        draw_audio_listener_card(&mut scope);
+        draw_audio_source_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AudioSourceCard")),
+            "AudioSource card must safely do nothing when component missing"
+        );
+    }
+
+    #[test]
+    fn test_draw_audio_listener_card_standalone() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_audio::AudioListener,));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_audio_listener_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -428,6 +391,24 @@ mod tests {
             tree.iter()
                 .any(|(_, n)| n.name.as_deref() == Some("AudioListenerDesc")),
             "AudioListenerDesc passive label must be rendered"
+        );
+    }
+
+    #[test]
+    fn test_draw_audio_listener_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_audio_listener_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AudioListenerCard")),
+            "AudioListener card must safely do nothing when component missing"
         );
     }
 }

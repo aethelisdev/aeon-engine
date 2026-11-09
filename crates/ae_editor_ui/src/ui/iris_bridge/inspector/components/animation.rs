@@ -9,123 +9,62 @@ use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::types::ComponentCategory;
 use irisui::prelude::*;
 
-/// Renders the declarative Animation Player component card with playback state, clip info,
-/// skeleton joints, speed scrubber, and looping toggle.
+#[inline]
+const fn status_color(theme: Theme, state: ae_animation::AnimationState) -> Color {
+    match state {
+        ae_animation::AnimationState::Playing => theme.success,
+        ae_animation::AnimationState::Paused => theme.warning,
+        ae_animation::AnimationState::Stopped => theme.text_muted,
+    }
+}
+
+/// Renders the declarative Animation Player component card into [`UiScope`] if present on [`hecs::Entity`].
 ///
-/// Modifies `speed` and `looping` in-place via [`UiScope::prop_f32`] and [`UiScope::prop_checkbox`],
-/// automatically recording atomic Undo/Redo sessions on edit commits without intermediate imperative plumbing.
+/// Encapsulates playback state, clip info, skeleton joints, speed scrubber, and looping toggle with zero intermediate variable plumbing.
 pub fn draw_animation_player_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    player: &mut ae_animation::AnimationPlayer,
+    world: &hecs::World,
+    entity: hecs::Entity,
 ) {
-    scope.card_panel("AnimationPlayerCard", |card| {
-        AnimationPlayerHandler.render_header(card);
-
-        // Row 1: Status Row (Horizontal: "Status:" + state badge)
-        card.container_named(
-            "AnimStatusRow",
-            Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(20.0)
-                .gap(6.0),
-            |row| {
-                row.label_styled_passive(
-                    "AnimStatusLbl",
-                    "Status:",
-                    11.0,
-                    row.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().width(48.0).height(20.0),
-                );
-                row.label_styled_passive(
-                    "AnimStatusVal",
-                    match player.state {
-                        ae_animation::AnimationState::Playing => "▶ PLAYING",
-                        ae_animation::AnimationState::Paused => "⏸ PAUSED",
-                        ae_animation::AnimationState::Stopped => "⏹ STOPPED",
-                    },
-                    11.0,
-                    match player.state {
-                        ae_animation::AnimationState::Playing => Color::rgba(0.20, 0.85, 0.40, 1.0),
-                        ae_animation::AnimationState::Paused => Color::rgba(0.95, 0.75, 0.15, 1.0),
-                        ae_animation::AnimationState::Stopped => Color::rgba(0.60, 0.62, 0.68, 1.0),
-                    },
-                    TextAlign::Left,
-                    Style::new().flex_grow(1.0).height(20.0),
-                );
-            },
-        );
-
-        // Row 2: Active Clip
-        card.label_styled_passive(
-            "AnimClipLbl",
-            format!(
-                "Clip: {}",
-                player
-                    .current_clip
-                    .as_ref()
-                    .map_or("No Clip Selected", |c| c.name.as_str())
-            ),
-            11.0,
-            card.theme().text_primary,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-
-        // Row 3: Skeleton Info / Static Warning
-        card.label_styled_passive(
-            "AnimSkeletonInfo",
-            match ctx
-                .world
-                .get::<&ae_animation::Skeleton>(ctx.entity)
-                .map(|s| s.joints.len())
-                .ok()
-            {
-                Some(joints) => format!(
-                    "🦴 Joints: {} | ⏱ Duration: {:.2}s",
-                    joints,
-                    player.current_clip.as_ref().map_or(0.0, |c| c.duration)
-                ),
-                None => "ℹ Static 3D Mesh (No Armature found)".to_string(),
-            },
-            10.0,
-            match ctx.world.get::<&ae_animation::Skeleton>(ctx.entity).is_ok() {
-                true => card.theme().info,
-                false => card.theme().warning,
-            },
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-
-        // Row 4: Speed & Looping Indicator
-        card.label_styled_passive(
-            "AnimSpeedLoop",
-            format!(
-                "Speed: {:.2}x  |  Loop: {}",
-                player.speed,
-                if player.looping { "Yes" } else { "No" }
-            ),
-            10.5,
-            card.theme().text_muted,
-            TextAlign::Left,
-            Style::new().height(20.0),
-        );
-
-        // Interactive controls
-        card.prop_f32("Speed:", &mut player.speed, 0.0..=10.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("AnimationPlayer");
-                ctx.commit_edit("AnimationPlayer");
-            });
-
-        card.prop_checkbox("Looping", &mut player.looping)
-            .on_click(|| {
-                ctx.begin_edit("AnimationPlayer");
-                ctx.commit_edit("AnimationPlayer");
-            });
-    });
+    scope.card_panel_desc_when_ok(
+        "AnimationPlayerCard",
+        UiScope::comp_card_desc(
+            "AnimationPlayer",
+            "Animation Player",
+            "🎬",
+            Color::rgba(0.95, 0.45, 0.70, 1.0),
+        ),
+        world.get::<&mut ae_animation::AnimationPlayer>(entity),
+        |card, mut player| {
+            card.labeled_status(
+                "Status:",
+                player.state.label(),
+                status_color(card.theme(), player.state),
+            );
+            card.key_value("Clip", player.clip_name());
+            card.branch_ok(
+                world.get::<&ae_animation::Skeleton>(entity),
+                |card, skel| {
+                    card.key_value_number_named(
+                        "AnimSkeletonInfo",
+                        "Joints",
+                        skel.joints.len() as f64,
+                        0,
+                    );
+                    card.key_value_number("Duration (s)", player.clip_duration() as f64, 2);
+                },
+                |card, _| {
+                    card.label_desc_colored(
+                        "AnimSkeletonInfo",
+                        "ℹ Static 3D Mesh (No Armature found)",
+                        card.theme().warning,
+                    );
+                },
+            );
+            card.prop_f32("Speed:", &mut player.speed, 0.0..=10.0, 0.05);
+            card.prop_checkbox("Looping", &mut player.looping);
+        },
+    );
 }
 
 /// Inspector handler for AnimationPlayer component.
@@ -157,13 +96,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world
-                .get::<&mut ae_animation::AnimationPlayer>(ctx.entity),
-            |card, mut player| {
-                draw_animation_player_card(card, ctx, &mut player);
-            },
-        );
+        draw_animation_player_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -227,45 +160,9 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
-
-        let mut player = ae_animation::AnimationPlayer {
-            state: ae_animation::AnimationState::Playing,
-            speed: 1.5,
-            looping: true,
-            ..Default::default()
-        };
         let mut scope = UiScope::new(&mut tree, root);
-        draw_animation_player_card(&mut scope, &mut ctx, &mut player);
+
+        draw_animation_player_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()
@@ -273,14 +170,16 @@ mod tests {
             "AnimationPlayerCard container must be rendered"
         );
         let has_playing = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("AnimStatusVal")
+            n.name.as_deref() == Some("LabeledStatusValue")
                 && n.text.as_deref().is_some_and(|t| t.contains("PLAYING"))
         });
-        assert!(has_playing, "AnimStatusVal must display PLAYING");
+        assert!(has_playing, "LabeledStatusValue must display PLAYING");
         assert!(
-            tree.iter()
-                .any(|(_, n)| n.name.as_deref() == Some("AnimClipLbl")),
-            "AnimClipLbl must be rendered"
+            tree.iter().any(|(_, n)| n
+                .text
+                .as_deref()
+                .is_some_and(|t| t.contains("No Clip Selected"))),
+            "Clip readout must be rendered"
         );
         assert!(
             tree.iter()
@@ -297,5 +196,33 @@ mod tests {
                 .any(|(_, n)| n.name.as_deref() == Some("Checkbox")),
             "Looping Checkbox must be rendered"
         );
+    }
+
+    #[test]
+    fn test_draw_animation_player_card_missing_component_safely_ignored() {
+        let world = hecs::World::new();
+        let entity = world.reserve_entity();
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_animation_player_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("AnimationPlayerCard")),
+            "AnimationPlayer card must safely do nothing when component missing"
+        );
+    }
+
+    #[test]
+    fn test_animation_domain_methods() {
+        assert_eq!(ae_animation::AnimationState::Playing.label(), "▶ PLAYING");
+        assert_eq!(ae_animation::AnimationState::Paused.label(), "⏸ PAUSED");
+        assert_eq!(ae_animation::AnimationState::Stopped.label(), "⏹ STOPPED");
+        let player = ae_animation::AnimationPlayer::default();
+        assert_eq!(player.clip_name(), "No Clip Selected");
+        assert_eq!(player.clip_duration(), 0.0);
     }
 }

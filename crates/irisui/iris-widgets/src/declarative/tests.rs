@@ -228,6 +228,45 @@ fn test_declarative_status_pill() {
 }
 
 #[test]
+fn test_declarative_labeled_status_and_label_desc_colored() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    scope.labeled_status(
+        "Status:",
+        "▶ PLAYING",
+        iris_core::Color::rgba(0.2, 0.85, 0.4, 1.0),
+    );
+    scope.label_desc_colored(
+        "WarningDesc",
+        "Armature not found",
+        iris_core::Color::rgba(0.95, 0.75, 0.15, 1.0),
+    );
+    scope.labeled_status_desc(
+        "StyledStatusRow",
+        crate::declarative::scope::display::labels::LabeledStatusDescriptor::new(
+            "State:",
+            "PAUSED",
+            iris_core::Color::rgba(0.9, 0.6, 0.1, 1.0),
+        )
+        .prefix_width(60.0)
+        .font_size(12.0)
+        .height(24.0),
+    );
+    scope.key_value_badge("Ping", "12ms", iris_core::Color::rgba(0.2, 0.8, 0.3, 1.0));
+
+    assert!(tree.has_node_named("LabeledStatusRow"));
+    assert!(tree.has_node_named("LabeledStatusPrefix"));
+    assert!(tree.has_node_named("LabeledStatusValue"));
+
+    assert!(tree.has_node_named("StyledStatusRow"));
+
+    assert!(tree.has_node_named("WarningDesc"));
+    tree.assert_node_text("WarningDesc", "Armature not found");
+}
+
+#[test]
 fn test_declarative_key_value_and_number_formatting() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root should be created");
@@ -242,6 +281,36 @@ fn test_declarative_key_value_and_number_formatting() {
     tree.assert_node_text("KeyValueLabel", "Texture Format");
     tree.assert_node_text("KeyValueContent", "RGBA8 Unorm");
     assert!(tree.find_node_by_text("3.14").is_some());
+}
+
+#[test]
+fn test_declarative_branch_combinators() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    scope.branch(true, |s| s.label("BranchTrue"), |s| s.label("BranchFalse"));
+    scope.branch_some(
+        Some("ActiveItem"),
+        |s, val| s.label(val),
+        |s| s.label("NoItem"),
+    );
+    scope.branch_ok(
+        Result::<&str, &str>::Ok("SuccessPayload"),
+        |s, val| s.label(val),
+        |s, err| s.label(err),
+    );
+    scope.branch_ok(
+        Result::<&str, &str>::Err("FailurePayload"),
+        |s, val| s.label(val),
+        |s, err| s.label(err),
+    );
+
+    assert!(tree.find_node_by_text("BranchTrue").is_some());
+    assert!(tree.find_node_by_text("BranchFalse").is_none());
+    assert!(tree.find_node_by_text("ActiveItem").is_some());
+    assert!(tree.find_node_by_text("SuccessPayload").is_some());
+    assert!(tree.find_node_by_text("FailurePayload").is_some());
 }
 
 #[test]

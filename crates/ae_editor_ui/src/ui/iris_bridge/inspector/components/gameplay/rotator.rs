@@ -11,27 +11,22 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
-/// Renders the declarative Rotator component card with continuous rotation speed and 3D rotational axis vector.
-pub fn draw_rotator_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    r: &mut ae_core::ecs::Rotator,
-) {
-    scope.card_panel("RotatorCard", |card| {
-        RotatorHandler.render_header(card);
-
-        card.prop_f32("Speed (rad/s):", &mut r.speed, -100.0..=100.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("Rotator");
-                ctx.commit_edit("Rotator");
-            });
-
-        card.prop_vec3("Axis:", &mut r.axis, 0.05, Some([0.0, 1.0, 0.0]))
-            .on_commit(|_| {
-                ctx.begin_edit("Rotator");
-                ctx.commit_edit("Rotator");
-            });
-    });
+/// Renders the declarative Rotator component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates continuous rotation speed and 3D rotational axis vector scrubbers with zero intermediate variable plumbing.
+pub fn draw_rotator_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok(
+        "RotatorCard",
+        CardHeaderDescriptor::new("Rotator (Continuous Spin)")
+            .icon("🔄")
+            .color(Color::rgba(0.35, 0.85, 0.90, 1.0))
+            .action("×", UiScope::action_tag("Rotator")),
+        world.get::<&mut ae_core::ecs::Rotator>(entity),
+        |card, mut r| {
+            card.prop_f32("Speed (rad/s):", &mut r.speed, -100.0..=100.0, 0.05);
+            card.prop_vec3("Axis:", &mut r.axis, 0.05, Some([0.0, 1.0, 0.0]));
+        },
+    );
 }
 
 /// Inspector handler for `🔄 Rotator`.
@@ -63,10 +58,7 @@ impl ComponentInspectorHandler for RotatorHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::Rotator>(ctx.entity),
-            |s, mut r| draw_rotator_card(s, ctx, &mut r),
-        );
+        draw_rotator_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -168,40 +160,9 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
         let mut scope = UiScope::new(&mut tree, root);
-        let mut r = world.get::<&mut ae_core::ecs::Rotator>(entity).unwrap();
 
-        draw_rotator_card(&mut scope, &mut ctx, &mut r);
+        draw_rotator_card(&mut scope, &world, entity);
 
         assert!(
             tree.has_node_named("RotatorCard"),
@@ -218,6 +179,22 @@ mod tests {
         assert!(
             tree.has_node_named("NumBox_Axis:_Z"),
             "NumBox_Axis:_Z must be present"
+        );
+    }
+
+    #[test]
+    fn test_draw_rotator_card_missing_component_safely_ignored() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_rotator_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree.has_node_named("RotatorCard"),
+            "RotatorCard must not be rendered when entity lacks Rotator"
         );
     }
 }

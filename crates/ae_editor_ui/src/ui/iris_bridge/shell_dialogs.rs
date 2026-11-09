@@ -215,8 +215,7 @@ impl IrisEditorOverlay {
                 };
 
                 if let (_, Some(ui_action)) = inspector::build_inspector_overlays_with_action(
-                    &mut self.tree,
-                    root,
+                    &mut UiScope::new(&mut self.tree, root),
                     &insp_params,
                     &mut self.inspector.is_color_picker_open,
                     &mut self.inspector.is_add_menu_open,

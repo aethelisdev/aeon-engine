@@ -12,14 +12,13 @@
 use std::ops::BitXor;
 
 use super::footer::TAG_INSPECTOR_ADD_COMPONENT;
-use super::registry::InspectorRegistry;
-
-/// Base numeric domain for attachable component items inside the Add Component menu.
-pub const TAG_ADD_MENU_COMPONENT_BASE: u64 = 0xDB00_0000;
 use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
 use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};
 use irisui::widgets::declarative::scope::{CascadingPopupConfig, PopupPlacement};
+
+/// Base numeric domain for attachable component items inside the Add Component menu.
+pub const TAG_ADD_MENU_COMPONENT_BASE: u64 = 0xDB00_0000;
 
 /// Canonical list of all attachable component categories available in the cascading Add Menu.
 ///
@@ -34,6 +33,9 @@ const ALL_COMPONENT_CATEGORIES: [ComponentCategory; 7] = [
     ComponentCategory::UiHud,
     ComponentCategory::CustomDynamic,
 ];
+
+pub mod catalog;
+pub use catalog::*;
 
 /// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
 ///
@@ -51,11 +53,10 @@ pub fn component_name_to_tag(name: &str) -> u64 {
 /// Resolves a numeric menu item tag into its canonical component type name.
 #[must_use]
 pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
-    InspectorRegistry::global()
-        .handlers()
+    BUILTIN_COMPONENT_MENU_CATALOG
         .iter()
-        .map(|h| h.component_name())
-        .find(|name| component_name_to_tag(name) == tag)
+        .find(|e| component_name_to_tag(e.component_name) == tag)
+        .map(|e| e.component_name)
         .or_else(|| {
             ae_core::registry::ComponentRegistry::global()
                 .handlers()
@@ -68,10 +69,9 @@ pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
 /// Returns whether a component type name is already handled by a built-in inspector handler.
 #[inline]
 fn is_built_in_inspector_component(type_name: &str) -> bool {
-    InspectorRegistry::global()
-        .handlers()
+    BUILTIN_COMPONENT_MENU_CATALOG
         .iter()
-        .any(|ih| ih.component_name() == type_name)
+        .any(|e| e.component_name == type_name)
 }
 
 /// Checks if a component category has at least one attachable component for the selected entity.
@@ -90,10 +90,10 @@ fn category_has_available(
                     && entity.is_none_or(|ent| !h.has_component(world, ent))
             })
     } else {
-        InspectorRegistry::global()
-            .find_by_category(cat)
-            .into_iter()
-            .any(|h| entity.is_none_or(|ent| !h.has_component(world, ent)))
+        BUILTIN_COMPONENT_MENU_CATALOG
+            .iter()
+            .filter(|e| e.category == cat)
+            .any(|e| entity.is_none_or(|ent| !(e.has_component)(world, ent)))
     }
 }
 
@@ -129,17 +129,18 @@ fn get_category_child_items(
     if cat == ComponentCategory::CustomDynamic {
         get_custom_dynamic_child_items(world, entity)
     } else {
-        InspectorRegistry::global()
-            .find_by_category(cat)
-            .into_iter()
-            .filter(|h| entity.is_none_or(|ent| !h.has_component(world, ent)))
-            .map(|h| {
+        BUILTIN_COMPONENT_MENU_CATALOG
+            .iter()
+            .filter(|e| {
+                e.category == cat && entity.is_none_or(|ent| !(e.has_component)(world, ent))
+            })
+            .map(|e| {
                 CascadingMenuItem::item_with_icon(
-                    h.display_title(),
-                    h.atlas_icon()
+                    e.display_title,
+                    e.atlas_icon
                         .map(CascadingMenuIcon::Texture)
-                        .unwrap_or(CascadingMenuIcon::Text(h.icon())),
-                    component_name_to_tag(h.component_name()),
+                        .unwrap_or(CascadingMenuIcon::Text(e.icon)),
+                    component_name_to_tag(e.component_name),
                 )
             })
             .collect()
@@ -158,7 +159,9 @@ pub fn get_add_component_menu_items(
         .map(|cat| {
             CascadingMenuItem::branch(
                 cat.title(),
-                Some(CascadingMenuIcon::Text(cat.icon())),
+                cat.atlas_icon()
+                    .map(CascadingMenuIcon::Texture)
+                    .or_else(|| Some(CascadingMenuIcon::Text(cat.icon()))),
                 cat.to_tag(),
                 get_category_child_items(cat, world, entity),
             )
@@ -201,10 +204,10 @@ fn render_category_item(
         return None;
     }
 
-    card.submenu_named_with_inner(
+    card.submenu_named_with_icon_inner(
         "AddComponentSubmenu",
         &item.label,
-        Some(item.text_icon()),
+        item.icon,
         item.tag,
         |sub_card| {
             render_submenu_children(
@@ -389,6 +392,16 @@ mod tests {
             blink_caret: false,
         };
 
+        let mut is_add_menu_open = true;
+        let mut active_submenu = Some(ComponentCategory::Physics);
+        let (_, action) = draw_add_component_menu(
+            &mut UiScope::new(&mut tree, root),
+            &params,
+            &mut is_add_menu_open,
+            &mut active_submenu,
+        );
+        assert!(action.is_none());
+
         let tag = component_name_to_tag("RigidBody");
         tree.event_state.frame_clicked_tag = Some(tag);
 
@@ -433,7 +446,7 @@ mod tests {
         });
         assert!(
             !has_hierarchy_category,
-            "Relational Hierarchy category must be excluded from Add Component menu when can_add is false"
+            "Relational Hierarchy category must be excluded from Add Component menu"
         );
 
         let has_parenting_item = items.iter().any(|item| {
@@ -447,6 +460,67 @@ mod tests {
         assert!(
             !has_parenting_item,
             "Relational Parenting component must not be present in Add Component menu"
+        );
+    }
+
+    #[test]
+    fn test_autonomous_add_menu_without_inspector_registry() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+
+        // 1. Initial items: all 31 components should be resolvable from their tags
+        let initial_items = get_add_component_menu_items(&world, Some(entity));
+        assert!(
+            !initial_items.is_empty(),
+            "Add Component menu must produce items autonomously without InspectorRegistry"
+        );
+
+        for cat_item in &initial_items {
+            if let Some(sub) = &cat_item.submenu {
+                for child in sub {
+                    let resolved = resolve_component_name_from_tag(child.tag);
+                    assert!(
+                        resolved.is_some(),
+                        "Child tag 0x{:X} must resolve to component name",
+                        child.tag
+                    );
+                    let name = resolved.unwrap();
+                    if cat_item.tag != ComponentCategory::CustomDynamic.to_tag() {
+                        let entry = find_builtin_component_entry(name);
+                        assert!(
+                            entry.is_some(),
+                            "Built-in component '{}' must exist in SSOT catalog",
+                            name
+                        );
+                    } else {
+                        let has_dynamic = ae_core::registry::ComponentRegistry::global()
+                            .handlers()
+                            .iter()
+                            .any(|h| h.type_name() == name);
+                        assert!(
+                            has_dynamic,
+                            "Dynamic component '{}' must exist in ComponentRegistry::global",
+                            name
+                        );
+                    }
+                }
+            }
+        }
+
+        // 2. Attach a component and verify it is autonomously filtered out from the menu
+        let rb_entry = find_builtin_component_entry("RigidBody").expect("RigidBody entry");
+        (rb_entry.spawn_default)(&mut world, entity);
+
+        let filtered_items = get_add_component_menu_items(&world, Some(entity));
+        let has_rigidbody_child = filtered_items.iter().any(|cat| {
+            cat.submenu.as_ref().is_some_and(|sub| {
+                sub.iter()
+                    .any(|child| child.tag == component_name_to_tag("RigidBody"))
+            })
+        });
+        assert!(
+            !has_rigidbody_child,
+            "Attached component 'RigidBody' must be filtered out from the Add Component menu"
         );
     }
 }

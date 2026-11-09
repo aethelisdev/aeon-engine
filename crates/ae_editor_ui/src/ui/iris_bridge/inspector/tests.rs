@@ -473,8 +473,7 @@ fn test_color_picker_drag_and_undo_restoration() {
     // 0. Initial popup build to register SV box bounds
     let (_, init_act) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut tree,
-            root,
+            &mut UiScope::new(&mut tree, root),
             &params,
             &mut is_color_picker_open,
         );
@@ -495,8 +494,7 @@ fn test_color_picker_drag_and_undo_restoration() {
     let _ = tree.clear_children(root);
     if let (_, Some(act)) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut tree,
-            root,
+            &mut UiScope::new(&mut tree, root),
             &params,
             &mut is_color_picker_open,
         )
@@ -518,8 +516,7 @@ fn test_color_picker_drag_and_undo_restoration() {
         let _ = tree.clear_children(root);
         if let (_, Some(act)) =
             crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-                &mut tree,
-                root,
+                &mut UiScope::new(&mut tree, root),
                 &params,
                 &mut is_color_picker_open,
             )
@@ -546,8 +543,7 @@ fn test_color_picker_drag_and_undo_restoration() {
     let _ = tree.clear_children(root);
     if let (_, Some(act)) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut tree,
-            root,
+            &mut UiScope::new(&mut tree, root),
             &params,
             &mut is_color_picker_open,
         )

@@ -44,45 +44,40 @@ pub const fn index_to_surface_type(idx: usize) -> ae_core::ecs::SurfaceType {
     }
 }
 
-/// Renders the declarative Physics Material component card with two-way bound surface type
+/// Renders the declarative Physics Material component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates the entire component card hierarchy, header descriptor, two-way bound surface type
 /// dropdown, in-place preset reset action, and friction/restitution numeric scrubbers.
 pub fn draw_physics_material_card(
     scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    m: &mut ae_core::ecs::PhysicsMaterial,
+    world: &hecs::World,
+    entity: hecs::Entity,
 ) {
-    scope.card_panel("PhysicsMaterialCard", |card| {
-        PhysicsMaterialHandler.render_header(card);
-        card.prop_combobox_mapped_with_action(
-            "Surface Type:",
-            surface_type_to_index(m.surface_type),
-            &[
-                "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
-            ],
-            "↺ Preset",
-            &mut m.surface_type,
-            index_to_surface_type,
-        )
-        .on_action(|| {
-            *m = ae_core::ecs::PhysicsMaterial::from_preset(m.surface_type);
-            ctx.begin_edit("PhysicsMaterial");
-            ctx.commit_edit("PhysicsMaterial");
-        })
-        .on_change(|| {
-            ctx.begin_edit("PhysicsMaterial");
-            ctx.commit_edit("PhysicsMaterial");
-        });
-        card.prop_f32("Friction:", &mut m.friction, 0.0..=100.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("PhysicsMaterial");
-                ctx.commit_edit("PhysicsMaterial");
+    scope.card_panel_desc_when_ok(
+        "PhysicsMaterialCard",
+        CardHeaderDescriptor::new("Physics Material")
+            .icon("🧱")
+            .color(Color::rgba(0.96, 0.62, 0.15, 1.0))
+            .action("×", UiScope::action_tag("PhysicsMaterial")),
+        world.get::<&mut ae_core::ecs::PhysicsMaterial>(entity),
+        |card, mut m| {
+            card.prop_combobox_mapped_with_action(
+                "Surface Type:",
+                surface_type_to_index(m.surface_type),
+                &[
+                    "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
+                ],
+                "↺ Preset",
+                &mut m.surface_type,
+                index_to_surface_type,
+            )
+            .on_action(|| {
+                *m = ae_core::ecs::PhysicsMaterial::from_preset(m.surface_type);
             });
-        card.prop_f32("Restitution:", &mut m.restitution, 0.0..=1.0, 0.05)
-            .on_commit(|_| {
-                ctx.begin_edit("PhysicsMaterial");
-                ctx.commit_edit("PhysicsMaterial");
-            });
-    });
+            card.prop_f32("Friction:", &mut m.friction, 0.0..=100.0, 0.05);
+            card.prop_f32("Restitution:", &mut m.restitution, 0.0..=1.0, 0.05);
+        },
+    );
 }
 
 /// Inspector handler for Physics Material.
@@ -130,13 +125,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world
-                .get::<&mut ae_core::ecs::PhysicsMaterial>(ctx.entity),
-            |scope, mut m| {
-                draw_physics_material_card(scope, ctx, &mut m);
-            },
-        );
+        draw_physics_material_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -331,32 +320,8 @@ mod tests {
             let mut world = hecs::World::new();
             let entity = world.spawn((ae_core::ecs::PhysicsMaterial::from_preset(surface),));
 
-            let euler = [0.0, 0.0, 0.0];
-            let swatches = [];
-            let params = InspectorPanelParams {
-                panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-                world: &world,
-                selected_entity: Some(entity),
-                inspector_euler: &euler,
-                inspector_color_hex: "#ffffff",
-                saved_swatches: &swatches,
-                cursor_pos: Point::new(0.0, 0.0),
-                active_submenu: None,
-                is_add_menu_open: false,
-                is_color_picker_open: false,
-                active_rename_buffer: None,
-                is_rename_all_selected: false,
-                active_hex_buffer: None,
-                inspector_hsv: [0.0, 0.0, 1.0],
-                blink_caret: false,
-            };
-
-            let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
             let mut scope = UiScope::new(&mut tree, root);
-            let mut m = world
-                .get::<&mut ae_core::ecs::PhysicsMaterial>(entity)
-                .unwrap();
-            draw_physics_material_card(&mut scope, &mut ctx, &mut m);
+            draw_physics_material_card(&mut scope, &world, entity);
 
             let has_card = tree
                 .iter()
@@ -367,5 +332,23 @@ mod tests {
                 surface
             );
         }
+    }
+
+    #[test]
+    fn test_draw_physics_material_card_missing_component_safely_ignored() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_physics_material_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree
+                .iter()
+                .any(|(_, n)| n.name.as_deref() == Some("PhysicsMaterialCard")),
+            "PhysicsMaterialCard must not be rendered when entity lacks PhysicsMaterial component"
+        );
     }
 }

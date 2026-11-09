@@ -11,26 +11,23 @@ use crate::ui::iris_bridge::inspector::registry::{
 use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 use irisui::prelude::*;
 
-/// Renders the declarative Velocity component card with 3D linear velocity coordinate vector (X, Y, Z).
-pub fn draw_velocity_card(
-    scope: &mut UiScope<'_>,
-    ctx: &mut ComponentRenderContext<'_>,
-    v: &mut ae_core::ecs::Velocity,
-) {
-    scope.card_panel("VelocityCard", |card| {
-        VelocityHandler.render_header(card);
-
-        card.prop_vec3_xyz(
-            "Linear",
-            (&mut v.x, &mut v.y, &mut v.z),
-            0.05,
-            Some([0.0, 0.0, 0.0]),
-        )
-        .on_commit(|_| {
-            ctx.begin_edit("Velocity");
-            ctx.commit_edit("Velocity");
-        });
-    });
+/// Renders the declarative Velocity component card into [`UiScope`] if present on [`hecs::Entity`].
+///
+/// Encapsulates 3D linear velocity coordinate vector scrubbers (X, Y, Z) with zero intermediate variable plumbing.
+pub fn draw_velocity_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+    scope.card_panel_desc_when_ok_mut(
+        "VelocityCard",
+        UiScope::component_card_desc("Velocity", "📎", Color::rgba(0.22, 0.74, 0.98, 1.0)),
+        world.get::<&mut ae_core::ecs::Velocity>(entity),
+        |card, v| {
+            card.prop_vec3_xyz(
+                "Linear",
+                (&mut v.x, &mut v.y, &mut v.z),
+                0.05,
+                Some([0.0, 0.0, 0.0]),
+            );
+        },
+    );
 }
 
 /// Inspector handler for `📎 Velocity`.
@@ -62,21 +59,11 @@ impl ComponentInspectorHandler for VelocityHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        scope.when_ok(
-            ctx.world.get::<&mut ae_core::ecs::Velocity>(ctx.entity),
-            |s, mut v| draw_velocity_card(s, ctx, &mut v),
-        );
+        draw_velocity_card(scope, ctx.world, ctx.entity);
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        drop(world.insert_one(
-            entity,
-            ae_core::ecs::Velocity {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-        ));
+        drop(world.insert_one(entity, ae_core::ecs::Velocity::default()));
     }
 }
 
@@ -178,40 +165,9 @@ mod tests {
         },));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
-
-        let mut actions = Vec::new();
-        let mut ctx = ComponentRenderContext::with_actions(
-            entity,
-            &world,
-            &params,
-            &mut actions,
-            10.0,
-            20.0,
-            260.0,
-        );
         let mut scope = UiScope::new(&mut tree, root);
-        let mut v = world.get::<&mut ae_core::ecs::Velocity>(entity).unwrap();
 
-        draw_velocity_card(&mut scope, &mut ctx, &mut v);
+        draw_velocity_card(&mut scope, &world, entity);
 
         assert!(
             tree.has_node_named("VelocityCard"),
@@ -228,6 +184,22 @@ mod tests {
         assert!(
             tree.has_node_named("NumBox_Linear_Z"),
             "NumBox_Linear_Z must be present"
+        );
+    }
+
+    #[test]
+    fn test_draw_velocity_card_missing_component_safely_ignored() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn(());
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        draw_velocity_card(&mut scope, &world, entity);
+
+        assert!(
+            !tree.has_node_named("VelocityCard"),
+            "VelocityCard must not be rendered when entity lacks Velocity"
         );
     }
 }
