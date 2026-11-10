@@ -3,7 +3,7 @@
 
 //! # RigidBody Component Inspector Card
 //!
-//! Provides the `RigidBodyHandler` implementing declarative UI rendering, body type combobox
+//! Provides the declarative `RigidBody` inspector card implementing declarative UI rendering, body type combobox
 //! (`Dynamic`, `Kinematic`, `Static`), mass and gravity scale numeric inputs with two-way data-binding,
 //! and paired component attachment with `Collider`.
 

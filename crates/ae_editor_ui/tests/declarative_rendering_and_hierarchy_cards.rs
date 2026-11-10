@@ -6,10 +6,12 @@
 //! Integration tests verifying declarative UiScope rendering, hierarchy construction,
 //! and target registrations for `Light`, `ModelId`, `LodGroup`, and `Parent`.
 
-use ae_editor_ui::ui::iris_bridge::inspector::components::hierarchy::draw_parent_card;
+use ae_editor_ui::ui::iris_bridge::inspector::components::hierarchy::{
+    draw_parent_card, draw_parent_card_if_present,
+};
 use ae_editor_ui::ui::iris_bridge::inspector::components::lod::draw_lod_group_card;
 use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::{
-    draw_light_card, draw_model_mesh_card,
+    draw_light_card, draw_model_mesh_card, draw_shape_card,
 };
 use irisui::prelude::*;
 
@@ -125,4 +127,46 @@ fn test_parent_card_declarative_structure() {
                 .is_some_and(|t| t.contains("RootSceneNode"))
     });
     assert!(has_parent_lbl);
+}
+
+#[test]
+fn test_shape_card_in_rendering_integration() {
+    let mut world = hecs::World::new();
+    let entity = world.spawn((ae_core::ecs::Shape::Sphere,));
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    let mut scope = UiScope::new(&mut tree, root);
+    draw_shape_card(&mut scope, &world, entity);
+
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("Shape"));
+    assert!(has_delete, "Shape delete button must be tagged");
+
+    let has_combo = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_combo, "Shape dropdown combo pill must be rendered");
+}
+
+#[test]
+fn test_rendering_and_hierarchy_cards_missing_components_safely_ignored() {
+    let world = hecs::World::new();
+    let entity = world.reserve_entity();
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    let mut scope = UiScope::new(&mut tree, root);
+    draw_light_card(&mut scope, &world, entity);
+    draw_model_mesh_card(&mut scope, &world, entity);
+    draw_shape_card(&mut scope, &world, entity);
+    draw_lod_group_card(&mut scope, &world, entity);
+    draw_parent_card_if_present(&mut scope, &world, entity);
+
+    assert_eq!(
+        tree.len(),
+        0,
+        "No widget nodes must be emitted when components are missing"
+    );
 }

@@ -9,8 +9,9 @@
 
 use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::{
     draw_player_health_bar_tag_card, draw_reticle_tag_card, draw_score_display_tag_card,
-    draw_ui_button_card, draw_ui_checkbox_card, draw_ui_image_card, draw_ui_panel_card,
-    draw_ui_progress_bar_card, draw_ui_slider_card, draw_ui_text_card, draw_ui_text_input_card,
+    draw_ui_button_card, draw_ui_checkbox_card, draw_ui_element_card, draw_ui_image_card,
+    draw_ui_layout_group_card, draw_ui_panel_card, draw_ui_progress_bar_card, draw_ui_slider_card,
+    draw_ui_text_card, draw_ui_text_input_card,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::ui_transform::build_ui_transform_card;
 use irisui::prelude::*;
@@ -303,4 +304,90 @@ fn test_ui_hud_tags_declarative_structure() {
         .iter()
         .any(|(_, n)| n.tag == UiScope::action_tag("ReticleTag"));
     assert!(has_reticle_del, "ReticleTag delete button must be tagged");
+}
+
+#[test]
+fn test_ui_element_and_layout_group_cards_declarative_structure() {
+    let mut world = hecs::World::new();
+    let entity = world.spawn((
+        ae_core::ecs::UiElement {
+            anchor: ae_core::ecs::UiAnchor::Center,
+            offset: [10.0, 20.0],
+            size: [100.0, 50.0],
+            pivot: [0.5, 0.5],
+            z_index: 1,
+            alpha: 1.0,
+            visible: true,
+        },
+        ae_core::ecs::UiLayoutGroup {
+            layout_type: ae_core::ecs::UiLayoutType::Vertical,
+            spacing: 8.0,
+            ..Default::default()
+        },
+    ));
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        // Note: draw_ui_element_card is a documented no-op because UiElement is rendered
+        // as the primary 2D Screen Transform card via build_ui_transform_card at the top
+        draw_ui_element_card(&mut scope, &world, entity);
+        draw_ui_layout_group_card(&mut scope, &world, entity);
+    }
+
+    let has_layout_del = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("UiLayoutGroup"));
+    assert!(has_layout_del, "UiLayoutGroup delete button must be tagged");
+
+    assert!(
+        tree.iter()
+            .any(|(_, n)| n.name.as_deref() == Some("UiLayoutGroupCard")),
+        "UiLayoutGroupCard container must be rendered"
+    );
+
+    // Direct in-place mutation verification
+    {
+        let mut g = world
+            .get::<&mut ae_core::ecs::UiLayoutGroup>(entity)
+            .unwrap();
+        g.spacing = 16.0;
+        g.layout_type = ae_core::ecs::UiLayoutType::Horizontal;
+    }
+    let layout = world.get::<&ae_core::ecs::UiLayoutGroup>(entity).unwrap();
+    assert_eq!(layout.spacing, 16.0);
+    assert_eq!(layout.layout_type, ae_core::ecs::UiLayoutType::Horizontal);
+}
+
+#[test]
+fn test_ui_canvas_cards_missing_components_safely_ignored() {
+    let mut world = hecs::World::new();
+    let empty_entity = world.spawn(());
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_ui_transform_card(&mut scope, &world, empty_entity);
+        draw_ui_element_card(&mut scope, &world, empty_entity);
+        draw_ui_panel_card(&mut scope, &world, empty_entity);
+        draw_ui_text_card(&mut scope, &world, empty_entity);
+        draw_ui_progress_bar_card(&mut scope, &world, empty_entity);
+        draw_ui_button_card(&mut scope, &world, empty_entity);
+        draw_ui_image_card(&mut scope, &world, empty_entity);
+        draw_ui_slider_card(&mut scope, &world, empty_entity);
+        draw_ui_checkbox_card(&mut scope, &world, empty_entity);
+        draw_ui_text_input_card(&mut scope, &world, empty_entity);
+        draw_ui_layout_group_card(&mut scope, &world, empty_entity);
+        draw_player_health_bar_tag_card(&mut scope, &world, empty_entity);
+        draw_score_display_tag_card(&mut scope, &world, empty_entity);
+        draw_reticle_tag_card(&mut scope, &world, empty_entity);
+    }
+
+    assert_eq!(
+        tree.len(),
+        0,
+        "Missing UI Canvas components must be safely ignored without generating UI nodes"
+    );
 }

@@ -14,7 +14,9 @@ use ae_editor_ui::ui::iris_bridge::inspector::components::character::{
     draw_character_controller_card, draw_player_tag_card,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::*;
-use ae_editor_ui::ui::iris_bridge::inspector::components::physics::material::draw_physics_material_card;
+use ae_editor_ui::ui::iris_bridge::inspector::components::physics::{
+    draw_collider_card, draw_physics_material_card, draw_rigidbody_card,
+};
 use ae_editor_ui::ui::iris_bridge::inspector::components::rendering::draw_shape_card;
 use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::draw_ui_layout_group_card;
 use irisui::prelude::*;
@@ -432,4 +434,80 @@ fn test_audio_cards_declarative_structure() {
         });
         assert!(has_desc);
     }
+}
+
+#[test]
+fn test_rigidbody_card_declarative_structure() {
+    let mut world = hecs::World::new();
+    let entity = world.spawn((ae_core::ecs::RigidBody {
+        mass: 5.0,
+        body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        gravity_scale: 1.0,
+    },));
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    let mut scope = UiScope::new(&mut tree, root);
+    draw_rigidbody_card(&mut scope, &world, entity);
+
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("RigidBody"));
+    assert!(has_delete, "RigidBody delete button must be tagged");
+
+    let has_combo = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_combo, "RigidBody BodyType combobox pill must exist");
+
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert_eq!(
+        numeric_pills, 2,
+        "RigidBody must emit 2 numeric drag pills (Mass, Gravity Scale)"
+    );
+}
+
+#[test]
+fn test_collider_card_declarative_structure() {
+    let mut world = hecs::World::new();
+    let entity = world.spawn((ae_core::ecs::Collider {
+        shape: ae_core::ecs::ColliderShape::Box {
+            half_extents: [1.0, 2.0, 3.0],
+        },
+        friction: 0.5,
+        restitution: 0.0,
+        is_sensor: false,
+    },));
+    let mut tree = UiTree::new();
+    let root = WidgetId::default();
+
+    let mut scope = UiScope::new(&mut tree, root);
+    draw_collider_card(&mut scope, &world, entity);
+
+    let has_delete = tree
+        .iter()
+        .any(|(_, n)| n.tag == UiScope::action_tag("Collider"));
+    assert!(has_delete, "Collider delete button must be tagged");
+
+    let has_shape_combo = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("ComboPill"));
+    assert!(has_shape_combo, "Collider Shape combobox pill must exist");
+
+    let numeric_pills = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("NumericDrag"))
+        .count();
+    assert_eq!(
+        numeric_pills, 5,
+        "Collider Box must emit 5 numeric drag inputs (3 half-extents + friction + restitution)"
+    );
+
+    let has_sensor_checkbox = tree
+        .iter()
+        .any(|(_, n)| n.name.as_deref() == Some("Checkbox"));
+    assert!(has_sensor_checkbox, "Collider Sensor checkbox must exist");
 }

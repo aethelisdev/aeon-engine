@@ -3,7 +3,7 @@
 
 //! # Collider Component Inspector Card
 //!
-//! Provides the `ColliderHandler` implementing declarative UI rendering, shape combobox
+//! Provides the declarative `Collider` inspector card implementing declarative UI rendering, shape combobox
 //! selection (`Capsule`, `Box`, `Sphere`, `Trimesh`, `Convex Hull`), dynamic dimension
 //! scalar drag bindings, sensor toggle, and default component attachment.
 

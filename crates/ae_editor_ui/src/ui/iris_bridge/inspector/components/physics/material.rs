@@ -3,7 +3,7 @@
 
 //! # Physics Material Component Inspector Card
 //!
-//! Provides the `PhysicsMaterialHandler` implementing declarative UI rendering, surface type
+//! Provides the declarative `PhysicsMaterial` inspector card implementing declarative UI rendering, surface type
 //! combobox with preset action button, and friction / restitution numeric controls with two-way data-binding.
 
 use irisui::prelude::*;

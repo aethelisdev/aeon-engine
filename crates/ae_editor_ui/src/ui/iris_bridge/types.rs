@@ -6,7 +6,7 @@
 pub use super::assets::{AssetsPanelState, AssetsState};
 pub use super::console::{ConsolePanelState, ConsoleState};
 pub use super::hierarchy::{HierarchyPanelState, HierarchyState};
-pub use super::inspector::{InspectorColorDragMode, InspectorPanelState, InspectorState};
+pub use super::inspector::{InspectorPanelState, InspectorState};
 pub use super::material::{MaterialPanelState, MaterialState};
 use super::modals::ModalsOverlayState;
 use super::preferences::PreferencesDialogState;
@@ -408,9 +408,7 @@ impl IrisEditorOverlay {
     #[inline]
     #[must_use]
     pub fn has_pending_actions(&self) -> bool {
-        !self.pending_actions.is_empty()
-            || self.inspector.has_pending_actions()
-            || !self.assets.actions.is_empty()
+        !self.pending_actions.is_empty() || !self.assets.actions.is_empty()
     }
 
     /// Returns the current logical cursor position.
@@ -485,7 +483,6 @@ impl IrisEditorOverlay {
     pub fn is_any_text_input_focused(&self) -> bool {
         self.tree.is_text_input_focused()
             || self.inspector.rename_input.is_some()
-            || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active
             || self.modals.is_rename_active
     }

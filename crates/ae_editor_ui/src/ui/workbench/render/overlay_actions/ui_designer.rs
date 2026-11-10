@@ -20,7 +20,7 @@ impl EngineUi {
         world: &hecs::World,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        for action in self.iris_overlay.take_ui_designer_actions() {
+        for action in self.iris_overlay.ui_designer.take_actions() {
             match action {
                 iris_bridge::UiDesignerAction::SpawnElement(elem_type) => {
                     ui_actions.push(EngineUiAction::SpawnUiElement(elem_type));

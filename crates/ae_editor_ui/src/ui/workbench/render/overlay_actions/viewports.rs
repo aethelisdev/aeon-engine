@@ -19,7 +19,7 @@ impl EngineUi {
         camera: &ae_renderer::camera::Camera,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        for action in self.iris_overlay.take_viewport_hud_actions() {
+        for action in self.iris_overlay.viewport_hud.take_actions() {
             match action {
                 iris_bridge::ViewportHudAction::SelectDropdownItem(dd_id, idx) => {
                     if let Some(resolved) =
@@ -149,7 +149,7 @@ impl EngineUi {
 
     /// Dispatches all pending Stats panel toggle actions.
     pub fn process_stats_actions(&mut self) {
-        for action in self.iris_overlay.take_stats_actions() {
+        for action in self.iris_overlay.stats.take_actions() {
             match action {
                 iris_bridge::StatsPanelAction::ToggleWireframe => {
                     self.wireframe_enabled = !self.wireframe_enabled;
@@ -163,7 +163,7 @@ impl EngineUi {
 
     /// Dispatches all pending Scene Hierarchy panel action events.
     pub fn process_hierarchy_actions(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
-        for action in self.iris_overlay.take_hierarchy_actions() {
+        for action in self.iris_overlay.hierarchy.take_actions() {
             match action {
                 iris_bridge::HierarchyAction::SelectEntity(ent) => {
                     ui_actions.push(EngineUiAction::SelectEntity(ent));
@@ -261,7 +261,7 @@ impl EngineUi {
             return;
         };
 
-        for action in self.iris_overlay.take_timeline_actions() {
+        for action in self.iris_overlay.timeline.take_actions() {
             match action {
                 iris_bridge::TimelineAction::TogglePlayPause => {
                     if let Ok(player) = world.get::<&ae_animation::AnimationPlayer>(entity) {
@@ -354,7 +354,7 @@ impl EngineUi {
 
     /// Dispatches all pending Material & Surface Studio panel actions.
     pub fn process_material_actions(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
-        for action in self.iris_overlay.take_material_actions() {
+        for action in self.iris_overlay.material.take_actions() {
             match action {
                 iris_bridge::MaterialAction::AssignTextureToEntity(ent, path) => {
                     ui_actions.push(EngineUiAction::AssignTextureToEntity(ent, path));

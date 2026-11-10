@@ -3,7 +3,7 @@
 
 //! # 2D Screen UI Primitives Inspector Cards
 //!
-//! Provides declarative inspector cards and handlers for core UI Designer widgets:
+//! Provides declarative inspector cards for core UI Designer widgets:
 //! - `UiElement`: Primary 2D screen transform placeholder
 //! - `UiPanel`: Background panel with border width and corner radius
 //! - `UiText`: Text label with font size and alignment dropdown

@@ -13,6 +13,7 @@ use ae_core::ecs::{
 };
 use irisui::prelude::*;
 
+/// Creates default [`InspectorPanelParams`] configured for inspector unit testing.
 fn create_default_test_params<'a>(
     world: &'a hecs::World,
     selected_entity: Option<hecs::Entity>,
@@ -32,12 +33,11 @@ fn create_default_test_params<'a>(
         is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
-        active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
     }
 }
 
+/// Creates default [`InspectorSessionRefs`] for mutable session state testing.
 fn default_test_session<'a>(
     name: &'a mut String,
     swatches: &'a mut Vec<[f32; 4]>,
@@ -432,152 +432,6 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     );
 }
 
-/// Verifies that continuous Color Picker dragging mutates the entity in real time
-/// for smooth viewport rendering without flooding the undo stack, and commits
-/// exactly one atomic undo command on release.
-#[test]
-fn test_color_picker_drag_and_undo_restoration() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
-    let initial_color = ae_core::ecs::Color {
-        r: 0.1,
-        g: 0.2,
-        b: 0.3,
-        a: 1.0,
-    };
-    let entity = world.spawn((initial_color,));
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#1a334d",
-        saved_swatches: &swatches,
-        cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: true,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        active_hex_buffer: None,
-        inspector_hsv: [210.0, 0.66, 0.30],
-        blink_caret: false,
-    };
-
-    let mut ui_actions = Vec::new();
-    let mut is_color_picker_open = true;
-    // 0. Initial popup build to register SV box bounds
-    let (_, init_act) =
-        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut is_color_picker_open,
-        );
-    assert!(init_act.is_none());
-
-    let sv_rect = tree
-        .iter()
-        .find(|(_, n)| n.tag == super::color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
-        .map(|(_, n)| n.computed_rect)
-        .expect("SV box must exist");
-
-    // 1. Mouse down on SV box begins color editing
-    let start_pt = Point::new(sv_rect.x + 15.0, sv_rect.y + 15.0);
-    let _ = tree.dispatch_event(&UiEvent::MouseDown {
-        button: MouseButton::Left,
-        point: start_pt,
-    });
-    let _ = tree.clear_children(root);
-    if let (_, Some(act)) =
-        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut is_color_picker_open,
-        )
-    {
-        ui_actions.push(act);
-    }
-    assert!(
-        ui_actions.is_empty(),
-        "MouseDown must not produce undo actions prematurely"
-    );
-
-    // 2. Simulate 20 continuous drag frames (mouse movement)
-    for i in 1..=20 {
-        let drag_pt = Point::new(
-            sv_rect.x + 15.0 + (i as f32) * 5.0,
-            sv_rect.y + 15.0 + (i as f32) * 4.0,
-        );
-        let _ = tree.dispatch_event(&UiEvent::MouseMove { point: drag_pt });
-        let _ = tree.clear_children(root);
-        if let (_, Some(act)) =
-            crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-                &mut UiScope::new(&mut tree, root),
-                &params,
-                &mut is_color_picker_open,
-            )
-        {
-            ui_actions.push(act);
-        }
-        let cur = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
-        assert_ne!(
-            cur, initial_color,
-            "Entity color in world must update live during drag"
-        );
-    }
-    assert!(
-        ui_actions.is_empty(),
-        "Live dragging must not spam undo actions during dragging"
-    );
-
-    // 3. Mouse released -> commits atomic ModifyColor
-    let end_pt = Point::new(sv_rect.x + 115.0, sv_rect.y + 95.0);
-    let _ = tree.dispatch_event(&UiEvent::MouseUp {
-        button: MouseButton::Left,
-        point: end_pt,
-    });
-    let _ = tree.clear_children(root);
-    if let (_, Some(act)) =
-        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut is_color_picker_open,
-        )
-    {
-        ui_actions.push(act);
-    }
-    assert_eq!(
-        ui_actions.len(),
-        1,
-        "Drag release must emit exactly one atomic ModifyColor action"
-    );
-
-    let final_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
-    if let crate::ui::EngineUiAction::ModifyColor(ent, old_c, new_c) = ui_actions[0] {
-        assert_eq!(ent, entity);
-        assert_eq!(old_c, initial_color);
-        assert_eq!(new_c, final_color);
-
-        // 4. Verify Undo restoration
-        let mut undo_cmd = ae_editor::undo_redo::Command::Modify(
-            ent,
-            ae_editor::undo_redo::Property::Color(old_c, new_c),
-        );
-        undo_cmd.undo(&mut world);
-        let restored_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
-        assert_eq!(
-            restored_color, initial_color,
-            "Undo must restore the exact pre-edit color"
-        );
-    } else {
-        panic!("Expected EngineUiAction::ModifyColor");
-    }
-}
-
 #[test]
 fn test_inspector_entity_rename_all_selected_lifecycle() {
     let mut tree = UiTree::new();
@@ -597,95 +451,6 @@ fn test_inspector_entity_rename_all_selected_lifecycle() {
     assert_eq!(box_node.cursor, Some(WidgetCursor::Text));
     assert!(box_node.computed_rect.width > 100.0);
     assert!(box_node.computed_rect.height >= 24.0);
-}
-
-#[test]
-fn test_inspector_transform_snapshot_reactive_dirty_tracking() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((
-        Name("SimulatedEntity".to_string()),
-        Position::new(10.0, 20.0, 30.0),
-        Rotation::identity(),
-        Scale::one(),
-    ));
-
-    // 1. Initial capture
-    let snap1 = InspectorTransformSnapshot::capture(&world, entity);
-    assert_eq!(snap1.position, Some([10.0, 20.0, 30.0]));
-    assert_eq!(snap1.scale, Some([1.0, 1.0, 1.0]));
-
-    // Identical frame check
-    let snap1_dup = InspectorTransformSnapshot::capture(&world, entity);
-    assert_eq!(
-        snap1, snap1_dup,
-        "Unchanged entity must yield identical snapshot"
-    );
-
-    // 2. Simulate physics step or gizmo movement modifying Position in ECS
-    {
-        let mut pos = world.get::<&mut Position>(entity).expect("Position exists");
-        pos.y = 55.5;
-    }
-
-    let snap2 = InspectorTransformSnapshot::capture(&world, entity);
-    assert_ne!(
-        snap1, snap2,
-        "Position mutation must invalidate previous snapshot"
-    );
-    assert_eq!(snap2.position, Some([10.0, 55.5, 30.0]));
-
-    // 3. Simulate rotation Euler change
-    {
-        let mut rot = world.get::<&mut Rotation>(entity).expect("Rotation exists");
-        rot.y = std::f32::consts::FRAC_1_SQRT_2;
-        rot.w = std::f32::consts::FRAC_1_SQRT_2;
-    }
-
-    let snap3 = InspectorTransformSnapshot::capture(&world, entity);
-    assert_ne!(
-        snap2, snap3,
-        "Rotation mutation must invalidate previous snapshot"
-    );
-}
-
-#[test]
-fn test_is_widget_descendant_of_hierarchy_traversal() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root node");
-
-    let (leaf, drag_box, other_leaf, other_widget) = {
-        let mut scope = UiScope::new(&mut tree, root);
-        let mut leaf_id = root;
-        let mut drag_id = root;
-        scope.column(|l| {
-            leaf_id = l.parent();
-            l.column(|p| {
-                p.column(|c| {
-                    let resp = c.button("DragBox");
-                    drag_id = resp.id;
-                });
-            });
-        });
-
-        let mut other_leaf_id = root;
-        let mut other_w_id = root;
-        scope.column(|ol| {
-            other_leaf_id = ol.parent();
-            let resp = ol.button("OtherWidget");
-            other_w_id = resp.id;
-        });
-
-        (leaf_id, drag_id, other_leaf_id, other_w_id)
-    };
-
-    // Direct and deep descendant checks
-    assert!(is_widget_descendant_of(&tree, drag_box, leaf));
-    assert!(is_widget_descendant_of(&tree, leaf, leaf));
-
-    // Negative checks
-    assert!(!is_widget_descendant_of(&tree, other_widget, leaf));
-    assert!(!is_widget_descendant_of(&tree, other_leaf, leaf));
-    assert!(!is_widget_descendant_of(&tree, root, leaf));
 }
 
 #[test]

@@ -3,7 +3,7 @@
 
 //! # 2D Screen UI HUD Marker Tags Inspector Cards
 //!
-//! Provides declarative inspector cards and handlers for HUD marker components linking UI elements to gameplay events:
+//! Provides declarative inspector cards for HUD marker components linking UI elements to gameplay events:
 //! - `PlayerHealthBarTag`: Binds a UI progress bar to the player's current health pool
 //! - `ScoreDisplayTag`: Binds a UI text element to the current game score readout
 //! - `ReticleTag`: Marks a UI element as the primary HUD crosshair reticle

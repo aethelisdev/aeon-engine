@@ -184,12 +184,6 @@ impl IrisEditorOverlay {
                 .as_ref()
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, input)| input.text());
-            let hex_buf_ref = self
-                .inspector
-                .hex_buffer
-                .as_ref()
-                .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-                .map(|(_, s)| s.as_str());
 
             let is_inspector_popup_open =
                 self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
@@ -209,9 +203,7 @@ impl IrisEditorOverlay {
                     active_rename_buffer: rename_buf_ref,
                     is_rename_all_selected: self.inspector.rename_is_all_selected
                         && rename_buf_ref.is_some(),
-                    active_hex_buffer: hex_buf_ref,
                     inspector_hsv: self.inspector.hsv,
-                    blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 };
 
                 if let (_, Some(ui_action)) = inspector::build_inspector_overlays_with_action(

@@ -3,7 +3,7 @@
 
 //! # 2D Screen UI Controls & Layout Inspector Cards
 //!
-//! Provides declarative inspector cards and handlers for UI Designer interactive controls:
+//! Provides declarative inspector cards for UI Designer interactive controls:
 //! - `UiSlider`: Numeric slider with min, max, value scrubbers
 //! - `UiCheckbox`: Toggleable checkbox state
 //! - `UiTextInput`: Text input field with placeholder property

@@ -22,7 +22,7 @@ impl EngineUi {
         camera: &ae_renderer::camera::Camera,
         is_2d_mode: bool,
     ) -> bool {
-        let actions = self.iris_overlay.take_assets_actions();
+        let actions = self.iris_overlay.assets.take_actions();
         if actions.is_empty() {
             return false;
         }

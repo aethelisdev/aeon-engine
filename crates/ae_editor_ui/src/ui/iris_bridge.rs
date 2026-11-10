@@ -7,7 +7,6 @@
 //! event routing, and `MenuBarBuilder`/`DropdownMenuBuilder` rendering directly on top of the editor frame.
 
 pub mod about;
-pub mod actions;
 pub mod assets;
 pub mod console;
 pub mod cursor;

@@ -74,6 +74,30 @@ fn is_built_in_inspector_component(type_name: &str) -> bool {
         .any(|e| e.component_name == type_name)
 }
 
+/// Checks if a component is an internal system marker or handled by top-level inspector headers.
+#[inline]
+fn is_internal_or_specialized(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "Position"
+            | "Rotation"
+            | "Scale"
+            | "Name"
+            | "TransformDirty"
+            | "GlobalTransform"
+            | "Hidden"
+            | "BoundingBox"
+            | "BoundingRadius"
+            | "Shape"
+            | "Color"
+            | "Light"
+            | "Parent"
+            | "Children"
+            | "ModelId"
+            | "SpriteId"
+    )
+}
+
 /// Checks if a component category has at least one attachable component for the selected entity.
 fn category_has_available(
     cat: ComponentCategory,
@@ -86,7 +110,7 @@ fn category_has_available(
             .iter()
             .any(|h| {
                 !is_built_in_inspector_component(h.type_name())
-                    && !super::dynamic_reflection::is_internal_or_specialized(h.type_name())
+                    && !is_internal_or_specialized(h.type_name())
                     && entity.is_none_or(|ent| !h.has_component(world, ent))
             })
     } else {
@@ -107,7 +131,7 @@ fn get_custom_dynamic_child_items(
         .iter()
         .filter(|h| {
             !is_built_in_inspector_component(h.type_name())
-                && !super::dynamic_reflection::is_internal_or_specialized(h.type_name())
+                && !is_internal_or_specialized(h.type_name())
                 && entity.is_none_or(|ent| !h.has_component(world, ent))
         })
         .map(|h| {
@@ -303,9 +327,7 @@ mod tests {
             is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
-            active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
         };
 
         let mut is_add_menu_open = true;
@@ -387,9 +409,7 @@ mod tests {
             is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
-            active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
         };
 
         let mut is_add_menu_open = true;

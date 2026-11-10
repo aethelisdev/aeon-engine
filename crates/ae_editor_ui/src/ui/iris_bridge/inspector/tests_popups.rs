@@ -30,9 +30,7 @@ fn create_default_test_params<'a>(
         is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
-        active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
-        blink_caret: false,
     }
 }
 
@@ -273,5 +271,211 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
     assert!(
         is_color_picker_open,
         "Clicking Object Color swatch must directly toggle is_color_picker_open to true"
+    );
+}
+
+/// Verifies that continuous Color Picker dragging mutates the entity in real time
+/// for smooth viewport rendering without flooding the undo stack, and commits
+/// exactly one atomic undo command on release.
+#[test]
+fn test_color_picker_drag_and_undo_restoration() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let mut world = hecs::World::new();
+    let initial_color = ae_core::ecs::Color {
+        r: 0.1,
+        g: 0.2,
+        b: 0.3,
+        a: 1.0,
+    };
+    let entity = world.spawn((initial_color,));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = InspectorPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
+        world: &world,
+        selected_entity: Some(entity),
+        inspector_euler: &euler,
+        inspector_color_hex: "#1a334d",
+        saved_swatches: &swatches,
+        cursor_pos: Point::new(0.0, 0.0),
+        active_submenu: None,
+        is_add_menu_open: false,
+        is_color_picker_open: true,
+        active_rename_buffer: None,
+        is_rename_all_selected: false,
+        inspector_hsv: [210.0, 0.66, 0.30],
+    };
+
+    let mut ui_actions = Vec::new();
+    let mut is_color_picker_open = true;
+    // 0. Initial popup build to register SV box bounds
+    let (_, init_act) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut UiScope::new(&mut tree, root),
+            &params,
+            &mut is_color_picker_open,
+        );
+    assert!(init_act.is_none());
+
+    let sv_rect = tree
+        .iter()
+        .find(|(_, n)| n.tag == super::color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+        .map(|(_, n)| n.computed_rect)
+        .expect("SV box must exist");
+
+    // 1. Mouse down on SV box begins color editing
+    let start_pt = Point::new(sv_rect.x + 15.0, sv_rect.y + 15.0);
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: start_pt,
+    });
+    let _ = tree.clear_children(root);
+    if let (_, Some(act)) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut UiScope::new(&mut tree, root),
+            &params,
+            &mut is_color_picker_open,
+        )
+    {
+        ui_actions.push(act);
+    }
+    assert!(
+        ui_actions.is_empty(),
+        "MouseDown must not produce undo actions prematurely"
+    );
+
+    // 2. Simulate 20 continuous drag frames (mouse movement)
+    for i in 1..=20 {
+        let drag_pt = Point::new(
+            sv_rect.x + 15.0 + (i as f32) * 5.0,
+            sv_rect.y + 15.0 + (i as f32) * 4.0,
+        );
+        let _ = tree.dispatch_event(&UiEvent::MouseMove { point: drag_pt });
+        let _ = tree.clear_children(root);
+        if let (_, Some(act)) =
+            crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+                &mut UiScope::new(&mut tree, root),
+                &params,
+                &mut is_color_picker_open,
+            )
+        {
+            ui_actions.push(act);
+        }
+        let cur = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        assert_ne!(
+            cur, initial_color,
+            "Entity color in world must update live during drag"
+        );
+    }
+    assert!(
+        ui_actions.is_empty(),
+        "Live dragging must not spam undo actions during dragging"
+    );
+
+    // 3. Mouse released -> commits atomic ModifyColor
+    let end_pt = Point::new(sv_rect.x + 115.0, sv_rect.y + 95.0);
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: end_pt,
+    });
+    let _ = tree.clear_children(root);
+    if let (_, Some(act)) =
+        crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
+            &mut UiScope::new(&mut tree, root),
+            &params,
+            &mut is_color_picker_open,
+        )
+    {
+        ui_actions.push(act);
+    }
+    assert_eq!(
+        ui_actions.len(),
+        1,
+        "Drag release must emit exactly one atomic ModifyColor action"
+    );
+
+    let final_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+    if let crate::ui::EngineUiAction::ModifyColor(ent, old_c, new_c) = ui_actions[0] {
+        assert_eq!(ent, entity);
+        assert_eq!(old_c, initial_color);
+        assert_eq!(new_c, final_color);
+
+        // 4. Verify Undo restoration
+        let mut undo_cmd = ae_editor::undo_redo::Command::Modify(
+            ent,
+            ae_editor::undo_redo::Property::Color(old_c, new_c),
+        );
+        undo_cmd.undo(&mut world);
+        let restored_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        assert_eq!(
+            restored_color, initial_color,
+            "Undo must restore the exact pre-edit color"
+        );
+    } else {
+        panic!("Expected EngineUiAction::ModifyColor");
+    }
+}
+
+/// Verifies that clicking the close button on the color picker popup toggles `is_color_picker_open` to false.
+#[test]
+fn test_color_picker_popup_close_button_interaction() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let world = hecs::World::new();
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let mut params = create_default_test_params(&world, None, &euler, &swatches);
+    params.is_color_picker_open = true;
+
+    let mut is_color_picker_open = true;
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        color_picker_popup::build_color_picker_popup(
+            &mut scope,
+            &params,
+            &mut is_color_picker_open,
+        );
+    }
+    let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(800.0, 600.0));
+
+    let close_rect = tree
+        .node_rect_tagged(
+            color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_CLOSE,
+            Point::ZERO,
+        )
+        .expect("Close button must carry TAG_INSPECTOR_COLOR_PICKER_CLOSE");
+    let click_pt = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
+
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        point: click_pt,
+        button: MouseButton::Left,
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
+        point: click_pt,
+        button: MouseButton::Left,
+    });
+
+    assert_eq!(
+        tree.event_state.frame_clicked_tag,
+        Some(color_picker_popup::TAG_INSPECTOR_COLOR_PICKER_CLOSE),
+        "Close button click must record tag in event state"
+    );
+
+    tree.clear();
+    let root2 = tree.create_root().expect("root2");
+    {
+        let mut scope = UiScope::new(&mut tree, root2);
+        color_picker_popup::build_color_picker_popup(
+            &mut scope,
+            &params,
+            &mut is_color_picker_open,
+        );
+    }
+
+    assert!(
+        !is_color_picker_open,
+        "Clicking close button must set is_color_picker_open to false"
     );
 }

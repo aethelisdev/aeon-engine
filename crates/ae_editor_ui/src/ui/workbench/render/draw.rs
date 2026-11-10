@@ -138,28 +138,19 @@ impl EngineUi {
         } else if let Some(ent) = selected_ent
             && let Ok(world_rot) = params.world.get::<&ae_core::ecs::Rotation>(ent)
         {
-            let is_editing_rotation = self
-                .iris_overlay
-                .inspector
-                .edit_start_snapshot
-                .as_ref()
-                .is_some_and(|(e, c, _)| *e == ent && *c == "Rotation");
-
-            if !is_editing_rotation {
-                let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-                    self.inspector_euler[0],
-                    self.inspector_euler[1],
-                    self.inspector_euler[2],
-                );
-                let dot = (cached_quat.x * world_rot.x
-                    + cached_quat.y * world_rot.y
-                    + cached_quat.z * world_rot.z
-                    + cached_quat.w * world_rot.w)
-                    .abs();
-                if dot < 0.999 {
-                    self.inspector_euler =
-                        crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot);
-                }
+            let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
+                self.inspector_euler[0],
+                self.inspector_euler[1],
+                self.inspector_euler[2],
+            );
+            let dot = (cached_quat.x * world_rot.x
+                + cached_quat.y * world_rot.y
+                + cached_quat.z * world_rot.z
+                + cached_quat.w * world_rot.w)
+                .abs();
+            if dot < 0.999 {
+                self.inspector_euler =
+                    crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot);
             }
         }
 

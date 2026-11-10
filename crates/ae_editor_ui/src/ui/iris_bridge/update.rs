@@ -138,7 +138,6 @@ impl IrisEditorOverlay {
         );
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
-            || self.inspector.has_pending_actions()
             || self.hierarchy.has_pending_actions()
             || !self.assets.actions.is_empty()
             || is_file_drag;
@@ -164,11 +163,6 @@ impl IrisEditorOverlay {
             if self.hierarchy.has_pending_actions() {
                 self.notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Hierarchy);
-                routed_to_panel = true;
-            }
-            if self.inspector.has_pending_actions() {
-                self.notifier
-                    .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
                 routed_to_panel = true;
             }
             if super::assets::is_assets_tag(dispatch.target_tag)
@@ -511,56 +505,6 @@ impl IrisEditorOverlay {
                 .tag_redraw(crate::ui::panel_layout::PanelId::MaterialEditor);
             self.notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::AnimationTimeline);
-            self.inspector.last_transform_snapshot = params.scene.selected_entity.map(|e| {
-                super::inspector::InspectorTransformSnapshot::capture(params.scene.world, e)
-            });
-        } else if let Some(entity) = params.scene.selected_entity {
-            if params.scene.world.contains(entity) {
-                let current_snap = super::inspector::InspectorTransformSnapshot::capture(
-                    params.scene.world,
-                    entity,
-                );
-                if self.inspector.last_transform_snapshot.as_ref() != Some(&current_snap) {
-                    self.inspector.last_transform_snapshot = Some(current_snap);
-                    let is_inspector_busy = self.inspector.rename_input.is_some()
-                        || self.tree.event_state.active_text_edit.is_some()
-                        || self
-                            .tree
-                            .event_state
-                            .pointer_capture_tag
-                            .is_some_and(super::inspector::is_inspector_tag)
-                        || self
-                            .tree
-                            .event_state
-                            .pressed_tag
-                            .is_some_and(super::inspector::is_inspector_tag)
-                        || self
-                            .chrome
-                            .dock_frame
-                            .as_ref()
-                            .and_then(|frame| {
-                                frame.leaf_container(crate::ui::panel_layout::PanelId::Inspector)
-                            })
-                            .is_some_and(|leaf_id| {
-                                self.tree.event_state.pointer_capture.is_some_and(|id| {
-                                    super::inspector::is_widget_descendant_of(
-                                        &self.tree, id, leaf_id,
-                                    )
-                                }) || self.tree.event_state.pressed.is_some_and(|id| {
-                                    super::inspector::is_widget_descendant_of(
-                                        &self.tree, id, leaf_id,
-                                    )
-                                })
-                            });
-
-                    if !is_inspector_busy {
-                        self.notifier
-                            .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
-                    }
-                }
-            }
-        } else {
-            self.inspector.last_transform_snapshot = None;
         }
 
         self.timeline.selected_entity = params.scene.selected_entity;

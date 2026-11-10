@@ -3,7 +3,7 @@
 
 //! # Rendering and Illumination Component Inspector Cards
 //!
-//! Provides handlers for `💡 Light`, `📦 ModelId`, and `🎲 Shape`.
+//! Provides declarative inspector cards for `💡 Light`, `📦 ModelId`, and `🎲 Shape`.
 
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_LIGHT};
 use irisui::prelude::*;

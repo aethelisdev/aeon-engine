@@ -35,12 +35,6 @@ impl IrisEditorOverlay {
             .as_ref()
             .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
             .map(|(_, input)| input.text());
-        let hex_buf_ref = self
-            .inspector
-            .hex_buffer
-            .as_ref()
-            .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-            .map(|(_, s)| s.as_str());
 
         let insp_params = InspectorPanelParams {
             panel_rect,
@@ -56,9 +50,7 @@ impl IrisEditorOverlay {
             active_rename_buffer: rename_buf_ref,
             is_rename_all_selected: self.inspector.rename_is_all_selected
                 && rename_buf_ref.is_some(),
-            active_hex_buffer: hex_buf_ref,
             inspector_hsv: self.inspector.hsv,
-            blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
         };
 
         let mut session = super::types::InspectorSessionRefs {
@@ -74,17 +66,14 @@ impl IrisEditorOverlay {
         }
         self.inspector.inspected_entity = params.scene.selected_entity;
         self.inspector.inspector_euler = *params.panel_data.inspector_euler;
-        if let Some(entity) = params.scene.selected_entity {
-            if let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity) {
-                self.inspector.inspected_entity_name.clear();
-                self.inspector
-                    .inspected_entity_name
-                    .push_str(name.0.as_str());
-            } else {
-                self.inspector.inspected_entity_name.clear();
-            }
-        } else {
-            self.inspector.inspected_entity_name.clear();
+
+        self.inspector.inspected_entity_name.clear();
+        if let Some(entity) = params.scene.selected_entity
+            && let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity)
+        {
+            self.inspector
+                .inspected_entity_name
+                .push_str(name.0.as_str());
         }
     }
 }

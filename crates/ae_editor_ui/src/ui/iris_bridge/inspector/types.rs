@@ -147,12 +147,8 @@ pub struct InspectorPanelParams<'a> {
     pub active_rename_buffer: Option<&'a str>,
     /// Whether all text in the active entity rename buffer is currently selected in blue.
     pub is_rename_all_selected: bool,
-    /// Active HEX color text input editing buffer (e.g. `"#ffffff"`).
-    pub active_hex_buffer: Option<&'a str>,
     /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
     pub inspector_hsv: [f32; 3],
-    /// Caret blink phase indicator for text inputs.
-    pub blink_caret: bool,
 }
 
 impl<'a> InspectorPanelParams<'a> {
@@ -171,10 +167,5 @@ impl<'a> InspectorPanelParams<'a> {
             .unwrap_or_else(|| format!("Entity ({:?})", entity))
     }
 }
-
-/// Dragging mode on the 2D HSV color picker.
-///
-/// Aliased directly to [`irisui::widgets::color_picker::ColorPickerDragMode`].
-pub type InspectorColorDragMode = irisui::widgets::color_picker::ColorPickerDragMode;
 
 pub use super::state::{InspectorPanelState, InspectorState};

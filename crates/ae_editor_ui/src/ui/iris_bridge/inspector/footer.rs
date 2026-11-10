@@ -103,9 +103,7 @@ mod tests {
             is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
-            active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
         };
 
         let mut is_add_menu_open = false;

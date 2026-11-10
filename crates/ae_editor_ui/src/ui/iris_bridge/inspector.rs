@@ -11,7 +11,6 @@ pub mod appearance;
 pub mod builder;
 pub mod color_picker_popup;
 pub mod components;
-pub mod dynamic_reflection;
 pub mod footer;
 pub mod header;
 pub mod math;
@@ -45,12 +44,8 @@ pub use panel::{
     TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_overlays,
     build_inspector_overlays_with_action, build_inspector_panel,
 };
-pub use state::{
-    InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_inspector_tag,
-    is_widget_descendant_of,
-};
+pub use state::{InspectorPanelState, InspectorState};
 pub use transform::{build_transform_card, draw_transform_card};
 pub use types::{
-    ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorColorDragMode, InspectorPanelParams,
-    InspectorSessionRefs,
+    ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams, InspectorSessionRefs,
 };

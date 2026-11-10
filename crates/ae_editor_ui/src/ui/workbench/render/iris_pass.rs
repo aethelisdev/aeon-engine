@@ -81,9 +81,7 @@ impl EngineUi {
             .as_ref()
             .map(|(spans, _)| spans.as_slice());
 
-        if let Some(entity) = self.selected_entity
-            && self.iris_overlay.inspector.color_drag_mode.is_none()
-        {
+        if let Some(entity) = self.selected_entity {
             let col = params
                 .world
                 .get::<&ae_core::ecs::Color>(entity)
