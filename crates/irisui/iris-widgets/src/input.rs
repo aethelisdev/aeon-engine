@@ -314,6 +314,94 @@ impl TextInputState {
         self.is_drag_selecting = false;
     }
 
+    /// Selects the word located at or immediately surrounding the specified byte index.
+    ///
+    /// Scans forward and backward along UTF-8 char boundaries using [`is_word_boundary`] to delimit
+    /// token spans without dynamic heap allocation. If the byte offset points to a word, selects
+    /// the complete word; if it points to whitespace or punctuation, selects that contiguous delimiter cluster.
+    ///
+    /// Updates [`Self::selection`], [`Self::selection_anchor`], and [`Self::cursor_byte_idx`].
+    ///
+    /// # Arguments
+    /// * `byte_idx` - Target byte offset within the buffer.
+    ///
+    /// # Returns
+    /// An optional tuple `(start_byte_idx, end_byte_idx)` of the selected span, or `None` if the buffer is empty.
+    pub fn select_word_at(&mut self, byte_idx: usize) -> Option<(usize, usize)> {
+        if self.buffer.is_empty() {
+            self.clear_selection();
+            return None;
+        }
+
+        let safe_idx = clamp_to_char_boundary(&self.buffer, byte_idx);
+        let target_char = self.buffer[safe_idx..]
+            .chars()
+            .next()
+            .or_else(|| self.buffer[..safe_idx].chars().next_back())?;
+        let target_is_boundary = is_word_boundary(target_char);
+
+        // Find start: scan backwards from safe_idx
+        let mut start_byte = safe_idx;
+        for (idx, ch) in self.buffer[..safe_idx].char_indices().rev() {
+            if is_word_boundary(ch) == target_is_boundary {
+                start_byte = idx;
+            } else {
+                break;
+            }
+        }
+
+        // Find end: scan forwards from safe_idx
+        let mut end_byte = safe_idx;
+        for (idx, ch) in self.buffer[safe_idx..].char_indices() {
+            if is_word_boundary(ch) == target_is_boundary {
+                end_byte = safe_idx + idx + ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+
+        if start_byte == end_byte {
+            return None;
+        }
+
+        self.selection = Some((start_byte, end_byte));
+        self.selection_anchor = Some(start_byte);
+        self.cursor_byte_idx = end_byte;
+        self.is_drag_selecting = false;
+
+        Some((start_byte, end_byte))
+    }
+
+    /// Calculates the subpixel bounding rectangle for the text input caret.
+    ///
+    /// # Arguments
+    /// * `text_origin` - Origin coordinate of the text buffer rendering area.
+    /// * `font_size` - Nominal font size in pixels.
+    /// * `line_height` - Line height in pixels.
+    /// * `glyph_advances` - Slice of precomputed character advances from origin.
+    #[must_use]
+    pub fn caret_rect(
+        &self,
+        text_origin: iris_core::Point,
+        font_size: f32,
+        line_height: f32,
+        glyph_advances: &[f32],
+    ) -> iris_core::Rect {
+        let advance_x = if self.cursor_byte_idx == 0 || glyph_advances.is_empty() {
+            0.0
+        } else {
+            let idx = (self.cursor_byte_idx).min(glyph_advances.len()) - 1;
+            glyph_advances[idx]
+        };
+        iris_text::calculate_caret_rect(
+            text_origin,
+            advance_x,
+            font_size,
+            line_height,
+            iris_text::DEFAULT_CARET_WIDTH,
+        )
+    }
+
     /// Returns whether a non-empty text selection range is currently active.
     #[must_use]
     #[inline]

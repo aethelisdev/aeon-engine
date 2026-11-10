@@ -27,6 +27,7 @@ pub mod modal;
 pub mod multiline;
 pub mod nav_item;
 pub mod panel;
+pub mod portal;
 pub mod primary_button;
 pub mod progress;
 pub mod properties;
@@ -46,6 +47,7 @@ pub use labeled_input::{LabeledInputButton, LabeledInputConfig};
 pub use menu_bar::{
     MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
 };
+pub use modal::ModalDescriptor;
 pub use multiline::MultilineEditorProps;
 pub use nav_item::NavItemConfig;
 pub use panel::PanelBuilder;

@@ -11,12 +11,17 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod caret;
 pub mod collector;
 pub mod hit_test;
 pub mod renderer;
 pub mod section;
 pub mod system;
 
+pub use caret::{
+    CaretBlinkTimer, CaretDescriptor, DEFAULT_CARET_BLINK_INTERVAL_MS, DEFAULT_CARET_WIDTH,
+    calculate_caret_rect,
+};
 pub use collector::{
     TextCollectionOptions, collect_text_sections, collect_text_sections_with_options,
 };
@@ -33,10 +38,12 @@ pub use system::{TextShapeParams, TextSystem, measure_text_advance, set_default_
 /// Designed to be imported via wildcard `use iris_text::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     pub use crate::{
+        CaretBlinkTimer, CaretDescriptor, DEFAULT_CARET_BLINK_INTERVAL_MS, DEFAULT_CARET_WIDTH,
         TextCollectionOptions, TextMeasurer, TextRenderer, TextSection, TextShapeParams,
-        TextSystem, collect_text_sections, collect_text_sections_with_options,
-        hit_test_from_cached_advances, hit_test_from_cached_clusters, index_for_position_in_system,
-        measure_text_advance, set_default_text_family,
+        TextSystem, calculate_caret_rect, collect_text_sections,
+        collect_text_sections_with_options, hit_test_from_cached_advances,
+        hit_test_from_cached_clusters, index_for_position_in_system, measure_text_advance,
+        set_default_text_family,
     };
 }
 

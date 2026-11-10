@@ -31,6 +31,41 @@ impl Point {
     pub const fn to_array(self) -> [f32; 2] {
         [self.x, self.y]
     }
+
+    /// Clamps this point to lie within the specified rectangular boundary.
+    ///
+    /// Ensures `x` is constrained to `[bounds.x, bounds.right()]` and `y` is constrained to
+    /// `[bounds.y, bounds.bottom()]`. If bounds have inverted dimensions (negative width/height),
+    /// the intervals are automatically normalized. Coordinates with non-finite values (NaN)
+    /// fall back to the normalized minimum bounds.
+    ///
+    /// # Arguments
+    /// * `bounds` - Bounding rectangle constraining this point.
+    ///
+    /// # Returns
+    /// A new clamped [`Point`].
+    #[inline]
+    #[must_use]
+    pub fn clamp_to_rect(self, bounds: Rect) -> Self {
+        let min_x = bounds.x.min(bounds.right());
+        let max_x = bounds.x.max(bounds.right());
+        let min_y = bounds.y.min(bounds.bottom());
+        let max_y = bounds.y.max(bounds.bottom());
+
+        let x = if self.x.is_nan() {
+            min_x
+        } else {
+            self.x.clamp(min_x, max_x)
+        };
+
+        let y = if self.y.is_nan() {
+            min_y
+        } else {
+            self.y.clamp(min_y, max_y)
+        };
+
+        Self::new(x, y)
+    }
 }
 
 /// A 2D size with width and height in pixels.
@@ -177,6 +212,75 @@ impl Rect {
     #[inline]
     pub const fn to_array(self) -> [f32; 4] {
         [self.x, self.y, self.width, self.height]
+    }
+
+    /// Clamps this rectangle to remain completely within the specified boundary bounds.
+    ///
+    /// Adjusts the origin `(x, y)` so that the rectangle does not extend outside `bounds`.
+    /// If `self.width` or `self.height` exceeds `bounds`, dimensions are constrained to
+    /// fit within `bounds.width` and `bounds.height`.
+    ///
+    /// This is the primary algorithm used for clamping floating windows, context menus,
+    /// and popups within visible screen or viewport limits.
+    ///
+    /// # Arguments
+    /// * `bounds` - Bounding rectangle (e.g. desktop screen, viewport, or container).
+    ///
+    /// # Returns
+    /// A new [`Rect`] guaranteed to lie within `bounds`.
+    #[inline]
+    #[must_use]
+    pub fn clamp_to_bounds(self, bounds: Rect) -> Self {
+        let w = self.width.min(bounds.width.max(0.0)).max(0.0);
+        let h = self.height.min(bounds.height.max(0.0)).max(0.0);
+
+        let max_x = (bounds.right() - w).max(bounds.x);
+        let max_y = (bounds.bottom() - h).max(bounds.y);
+
+        let x = if self.x.is_nan() {
+            bounds.x
+        } else {
+            self.x.clamp(bounds.x, max_x)
+        };
+
+        let y = if self.y.is_nan() {
+            bounds.y
+        } else {
+            self.y.clamp(bounds.y, max_y)
+        };
+
+        Self::new(x, y, w, h)
+    }
+
+    /// Clamps this rectangle's position `(x, y)` to remain within `bounds` while preserving its dimensions.
+    ///
+    /// Unlike [`Self::clamp_to_bounds`], this method never alters `self.width` or `self.height`.
+    /// If the rectangle is wider or taller than `bounds`, its origin is pinned to `bounds.x` or `bounds.y`.
+    ///
+    /// # Arguments
+    /// * `bounds` - Bounding rectangle constraining the origin.
+    ///
+    /// # Returns
+    /// A new [`Rect`] with clamped position and preserved dimensions.
+    #[inline]
+    #[must_use]
+    pub fn clamp_position_to_bounds(self, bounds: Rect) -> Self {
+        let max_x = (bounds.right() - self.width).max(bounds.x);
+        let max_y = (bounds.bottom() - self.height).max(bounds.y);
+
+        let x = if self.x.is_nan() {
+            bounds.x
+        } else {
+            self.x.clamp(bounds.x, max_x)
+        };
+
+        let y = if self.y.is_nan() {
+            bounds.y
+        } else {
+            self.y.clamp(bounds.y, max_y)
+        };
+
+        Self::new(x, y, self.width, self.height)
     }
 }
 
@@ -344,5 +448,123 @@ impl BoxShadow {
             spread,
             color,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_point_clamp_to_rect_standard() {
+        let bounds = Rect::new(100.0, 50.0, 200.0, 150.0); // x: [100, 300], y: [50, 200]
+
+        // Point already inside
+        let pt_inside = Point::new(150.0, 100.0);
+        assert_eq!(pt_inside.clamp_to_rect(bounds), pt_inside);
+
+        // Point outside left & top
+        let pt_top_left = Point::new(50.0, 10.0);
+        assert_eq!(pt_top_left.clamp_to_rect(bounds), Point::new(100.0, 50.0));
+
+        // Point outside right & bottom
+        let pt_bottom_right = Point::new(350.0, 250.0);
+        assert_eq!(
+            pt_bottom_right.clamp_to_rect(bounds),
+            Point::new(300.0, 200.0)
+        );
+    }
+
+    #[test]
+    fn test_point_clamp_to_rect_inverted_and_nan() {
+        // Inverted bounds (right < x)
+        let inverted = Rect::new(300.0, 200.0, -200.0, -150.0);
+        let pt = Point::new(50.0, 10.0);
+        let clamped = pt.clamp_to_rect(inverted);
+        assert_eq!(clamped, Point::new(100.0, 50.0));
+
+        // NaN coordinates
+        let pt_nan = Point::new(f32::NAN, f32::NAN);
+        let bounds = Rect::new(10.0, 20.0, 100.0, 100.0);
+        let clamped_nan = pt_nan.clamp_to_rect(bounds);
+        assert_eq!(clamped_nan, Point::new(10.0, 20.0));
+    }
+
+    #[test]
+    fn test_rect_clamp_to_bounds_contained() {
+        let screen = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let window = Rect::new(200.0, 150.0, 400.0, 300.0);
+
+        let clamped = window.clamp_to_bounds(screen);
+        assert_eq!(clamped, window, "Contained rect must remain unchanged");
+    }
+
+    #[test]
+    fn test_rect_clamp_to_bounds_overflow_edges() {
+        let screen = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+        // Overflow left
+        let win_left = Rect::new(-50.0, 100.0, 300.0, 200.0);
+        assert_eq!(
+            win_left.clamp_to_bounds(screen),
+            Rect::new(0.0, 100.0, 300.0, 200.0)
+        );
+
+        // Overflow top
+        let win_top = Rect::new(100.0, -40.0, 300.0, 200.0);
+        assert_eq!(
+            win_top.clamp_to_bounds(screen),
+            Rect::new(100.0, 0.0, 300.0, 200.0)
+        );
+
+        // Overflow right (1800 + 300 = 2100 > 1920 -> shifted to 1920 - 300 = 1620)
+        let win_right = Rect::new(1800.0, 100.0, 300.0, 200.0);
+        assert_eq!(
+            win_right.clamp_to_bounds(screen),
+            Rect::new(1620.0, 100.0, 300.0, 200.0)
+        );
+
+        // Overflow bottom (950 + 200 = 1150 > 1080 -> shifted to 1080 - 200 = 880)
+        let win_bottom = Rect::new(100.0, 950.0, 300.0, 200.0);
+        assert_eq!(
+            win_bottom.clamp_to_bounds(screen),
+            Rect::new(100.0, 880.0, 300.0, 200.0)
+        );
+    }
+
+    #[test]
+    fn test_rect_clamp_to_bounds_larger_than_bounds() {
+        let screen = Rect::new(10.0, 20.0, 500.0, 400.0);
+        let oversized = Rect::new(0.0, 0.0, 800.0, 600.0);
+
+        let clamped = oversized.clamp_to_bounds(screen);
+        assert_eq!(clamped.x, 10.0);
+        assert_eq!(clamped.y, 20.0);
+        assert_eq!(clamped.width, 500.0, "Width must clamp to screen width");
+        assert_eq!(clamped.height, 400.0, "Height must clamp to screen height");
+    }
+
+    #[test]
+    fn test_rect_clamp_position_to_bounds_preserves_dimensions() {
+        let screen = Rect::new(0.0, 0.0, 500.0, 400.0);
+        let oversized = Rect::new(-50.0, -50.0, 800.0, 600.0);
+
+        let clamped = oversized.clamp_position_to_bounds(screen);
+        assert_eq!(clamped.x, 0.0);
+        assert_eq!(clamped.y, 0.0);
+        assert_eq!(clamped.width, 800.0, "Dimensions must be preserved");
+        assert_eq!(clamped.height, 600.0, "Dimensions must be preserved");
+    }
+
+    #[test]
+    fn test_rect_clamp_nan_coordinates() {
+        let screen = Rect::new(10.0, 20.0, 500.0, 400.0);
+        let nan_rect = Rect::new(f32::NAN, f32::NAN, 100.0, 100.0);
+
+        let clamped = nan_rect.clamp_to_bounds(screen);
+        assert_eq!(clamped.x, 10.0);
+        assert_eq!(clamped.y, 20.0);
+        assert_eq!(clamped.width, 100.0);
+        assert_eq!(clamped.height, 100.0);
     }
 }

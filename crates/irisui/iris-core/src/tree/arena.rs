@@ -138,6 +138,89 @@ impl UiTree {
         self.nodes.insert_with_key(WidgetNode::new)
     }
 
+    /// Allocates a new node in the arena initialized with the specified UI stacking layer.
+    ///
+    /// # Arguments
+    /// * `layer` - Stacking context layer defining drawing order and hit-test priority.
+    pub fn create_layer_node(&mut self, layer: crate::node::UiLayer) -> WidgetId {
+        self.nodes.insert_with_key(|id| {
+            let mut node = WidgetNode::new(id);
+            node.layer = layer;
+            node
+        })
+    }
+
+    /// Creates and attaches an elevated layer portal container node to the specified parent.
+    ///
+    /// Portal nodes isolate top-level dialogs, popups, and floating palettes from their parent's
+    /// layout constraints and coordinate clipping boundaries.
+    ///
+    /// # Arguments
+    /// * `parent_id` - Target ancestor node to host the portal container.
+    /// * `layer` - Elevated destination stacking layer.
+    ///
+    /// # Errors
+    /// Returns `IrisCoreError::NodeNotFound` if `parent_id` does not exist in the arena.
+    pub fn attach_layer_portal(
+        &mut self,
+        parent_id: WidgetId,
+        layer: crate::node::UiLayer,
+    ) -> Result<WidgetId, IrisCoreError> {
+        if !self.nodes.contains_key(parent_id) {
+            return Err(IrisCoreError::NodeNotFound(parent_id));
+        }
+        let portal_id = self.create_layer_node(layer);
+        self.add_child(parent_id, portal_id)?;
+        Ok(portal_id)
+    }
+
+    /// Explicitly updates the stacking context layer of an existing node in the arena.
+    ///
+    /// # Arguments
+    /// * `id` - Unique widget identifier.
+    /// * `layer` - New stacking layer.
+    ///
+    /// # Errors
+    /// Returns `IrisCoreError::NodeNotFound` if the specified node is missing.
+    pub fn set_node_layer(
+        &mut self,
+        id: WidgetId,
+        layer: crate::node::UiLayer,
+    ) -> Result<(), IrisCoreError> {
+        let node = self
+            .nodes
+            .get_mut(id)
+            .ok_or(IrisCoreError::NodeNotFound(id))?;
+        node.layer = layer;
+        Ok(())
+    }
+
+    /// Recursively sets the stacking layer of a root node and all its descendants.
+    ///
+    /// # Arguments
+    /// * `root_id` - Subtree root node identifier.
+    /// * `layer` - Target stacking layer to propagate.
+    ///
+    /// # Errors
+    /// Returns `IrisCoreError::NodeNotFound` if `root_id` does not exist.
+    pub fn set_layer_recursive(
+        &mut self,
+        root_id: WidgetId,
+        layer: crate::node::UiLayer,
+    ) -> Result<(), IrisCoreError> {
+        if !self.nodes.contains_key(root_id) {
+            return Err(IrisCoreError::NodeNotFound(root_id));
+        }
+        let mut stack = vec![root_id];
+        while let Some(current_id) = stack.pop() {
+            if let Some(node) = self.nodes.get_mut(current_id) {
+                node.layer = layer;
+                stack.extend(node.children.iter().copied());
+            }
+        }
+        Ok(())
+    }
+
     /// Creates and assigns the root node of the tree.
     ///
     /// # Errors

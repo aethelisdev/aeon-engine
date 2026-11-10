@@ -36,8 +36,8 @@ pub use dispatch::{
 };
 pub use error::IrisCoreError;
 pub use event::{
-    EventDispatcher, FocusManager, HitTestResult, ImeEvent, InteractionEvent, KeyCode, MouseButton,
-    UiEvent, WidgetState,
+    EventDispatcher, FileDropTarget, FocusManager, HitTestResult, ImeEvent, InteractionEvent,
+    KeyCode, MouseButton, UiEvent, WidgetState,
 };
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
@@ -57,12 +57,12 @@ pub use tree::{HitTargetInfo, UiTree};
 pub mod prelude {
     pub use crate::{
         AlignItems, Border, BoxShadow, CanvasPrimitive, ClipboardProvider, Color, CornerRadii,
-        DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId, FlexDirection,
-        FlexWrap, FocusManager, HitTargetInfo, HitTestResult, ImeEvent, InMemoryClipboard, Insets,
-        InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton, Point,
-        PopupMenuState, Position, Rect, ResponseFlags, Size, Style, TextAlign, TextMeasurer,
-        TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId, WidgetNode,
-        WidgetResponse, WidgetRole, WidgetState,
+        DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId, FileDropTarget,
+        FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult, ImeEvent,
+        InMemoryClipboard, Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode,
+        MouseButton, Point, PopupMenuState, Position, Rect, ResponseFlags, Size, Style, TextAlign,
+        TextMeasurer, TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId,
+        WidgetNode, WidgetResponse, WidgetRole, WidgetState,
     };
 }
 

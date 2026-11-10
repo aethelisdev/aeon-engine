@@ -510,3 +510,34 @@ fn test_tree_clear_children_preserves_parent_and_cleans_descendants() {
     tree.remove_node(dummy_id).unwrap();
     assert!(tree.clear_children(dummy_id).is_err());
 }
+
+#[test]
+fn test_tree_layer_portal_and_propagation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let modal_portal = tree.attach_layer_portal(root, UiLayer::Modal).unwrap();
+    assert_eq!(tree.get(modal_portal).unwrap().layer, UiLayer::Modal);
+    assert_eq!(
+        tree.find_layer_portal(root, UiLayer::Modal),
+        Some(modal_portal)
+    );
+    assert_eq!(tree.find_layer_portal(root, UiLayer::Tooltip), None);
+
+    let modal_child = tree.create_node();
+    tree.add_child(modal_portal, modal_child).unwrap();
+    assert_eq!(tree.get(modal_child).unwrap().layer, UiLayer::Content);
+
+    // Propagate layer recursively
+    tree.set_layer_recursive(modal_portal, UiLayer::Modal)
+        .unwrap();
+    assert_eq!(tree.get(modal_child).unwrap().layer, UiLayer::Modal);
+
+    // Query nodes in layer
+    let modal_nodes: Vec<crate::WidgetId> = tree
+        .nodes_in_layer(UiLayer::Modal)
+        .map(|(id, _)| id)
+        .collect();
+    assert!(modal_nodes.contains(&modal_portal));
+    assert!(modal_nodes.contains(&modal_child));
+}

@@ -7,7 +7,7 @@ use crate::dispatch::{DispatchResult, dispatch_ui_event};
 use crate::event::UiEvent;
 use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
-use crate::node::WidgetRole;
+use crate::node::{UiLayer, WidgetRole};
 
 use super::arena::UiTree;
 
@@ -94,6 +94,13 @@ impl UiTree {
         self.event_state.active_context_menu = None;
         self.active_submenus.clear();
         self.event_state.close_tooltip();
+
+        for node in self.nodes.values_mut() {
+            if node.layer == UiLayer::Popup && node.role != WidgetRole::Default {
+                node.visible = false;
+            }
+        }
+
         had_popup
     }
 
@@ -105,6 +112,93 @@ impl UiTree {
             || self.active_menu_bar_tag.is_some()
             || self.active_combobox_tag.is_some()
             || !self.active_submenus.is_empty()
+    }
+
+    /// Returns `true` if any visible interactive widget currently exists on the [`UiLayer::Popup`] layer.
+    #[inline]
+    #[must_use]
+    pub fn has_active_popup_nodes(&self) -> bool {
+        self.nodes.values().any(|n| {
+            n.visible
+                && n.layer == UiLayer::Popup
+                && (n.role != WidgetRole::Default || !n.children.is_empty())
+        })
+    }
+
+    /// Checks whether the specified screen-space coordinate lies within the boundary
+    /// of an open popup, context menu, combobox dropdown, or elevated layer widget.
+    ///
+    /// # Arguments
+    /// * `point` - Screen coordinate in logical pixels.
+    ///
+    /// # Returns
+    /// `true` if `point` hits an interactive element inside an open popup hierarchy; `false` otherwise.
+    #[must_use]
+    pub fn is_point_inside_popup(&self, point: Point) -> bool {
+        let Some(hid) = self.hit_test_layered(point) else {
+            return false;
+        };
+
+        if let Some(active) = self.event_state.active_context_menu
+            && let Some(menu_cid) = active.container_id
+            && (hid == menu_cid || self.is_descendant_of(hid, menu_cid))
+        {
+            return true;
+        }
+
+        if self.effective_layer(hid) >= UiLayer::Popup {
+            return true;
+        }
+
+        if self
+            .find_ancestor_with_role(hid, WidgetRole::DropdownPopup)
+            .is_some()
+        {
+            return true;
+        }
+
+        let Some(node) = self.get(hid) else {
+            return false;
+        };
+
+        if matches!(
+            node.role,
+            WidgetRole::DropdownPopup | WidgetRole::DropdownItem | WidgetRole::Tooltip
+        ) {
+            return true;
+        }
+
+        let is_active_menu = self.active_menu_bar_tag.is_some_and(|t| t == node.tag);
+        let is_active_combo = self.active_combobox_tag.is_some_and(|t| t == node.tag);
+
+        is_active_menu || is_active_combo
+    }
+
+    /// Evaluates whether a screen coordinate falls outside currently active popups or context menus.
+    ///
+    /// When any popup, context menu, or dropdown is currently open and `point` is outside
+    /// its interactive boundaries, all open popups are dismissed, pending press state is cleared,
+    /// and this method returns `true` (signaling that the outside click event should be swallowed).
+    ///
+    /// If no popup is open or if `point` falls inside an open popup, returns `false`.
+    ///
+    /// # Arguments
+    /// * `point` - Pointer coordinate where the mouse press occurred.
+    ///
+    /// # Returns
+    /// `true` if an outside click was detected and popups were dismissed; `false` otherwise.
+    pub fn outside_click_detector(&mut self, point: Point) -> bool {
+        if !self.has_open_popup() {
+            return false;
+        }
+
+        if self.is_point_inside_popup(point) {
+            return false;
+        }
+
+        self.close_all_popups();
+        self.event_state.clear_pressed();
+        true
     }
 
     /// Returns `true` if an autonomous tooltip is currently open and actively visible.

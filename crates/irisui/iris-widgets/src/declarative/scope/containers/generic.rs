@@ -42,6 +42,15 @@ impl<R> InnerResponse<R> {
     pub fn map_response<T>(self, f: impl FnOnce(Rect, R) -> T) -> T {
         f(self.response.rect, self.inner)
     }
+
+    /// Transforms the inner closure value using the provided mapping closure, preserving the container response.
+    #[inline]
+    pub fn map<U>(self, f: impl FnOnce(R) -> U) -> InnerResponse<U> {
+        InnerResponse {
+            response: self.response,
+            inner: f(self.inner),
+        }
+    }
 }
 
 impl<R> std::ops::Deref for InnerResponse<R> {

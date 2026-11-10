@@ -551,17 +551,13 @@ impl<TabId> FloatingWindowDescriptor<TabId> {
     pub fn clamp_to_viewport(mut self, viewport: Rect) -> Self {
         let min_w = self.min_size.0;
         let min_h = self.min_size.1;
-
-        let w = self.rect.width.max(min_w).min(viewport.width);
-        let h = self.rect.height.max(min_h).min(viewport.height);
-
-        let max_x = (viewport.x + viewport.width - w).max(viewport.x);
-        let max_y = (viewport.y + viewport.height - h).max(viewport.y);
-
-        let x = self.rect.x.clamp(viewport.x, max_x);
-        let y = self.rect.y.clamp(viewport.y, max_y);
-
-        self.rect = Rect::new(x, y, w, h);
+        let candidate = Rect::new(
+            self.rect.x,
+            self.rect.y,
+            self.rect.width.max(min_w),
+            self.rect.height.max(min_h),
+        );
+        self.rect = candidate.clamp_to_bounds(viewport);
         self
     }
 }

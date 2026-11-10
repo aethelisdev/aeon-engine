@@ -135,6 +135,82 @@ pub enum UiEvent {
     FileCancelled,
 }
 
+impl UiEvent {
+    /// Extracts the physical or logical screen coordinate of the pointer cursor for events carrying spatial data.
+    ///
+    /// Returns `Some(point)` for `MouseMove`, `MouseDown`, `MouseUp`, `MouseScroll`, `FileHovered`, and `FileDropped`.
+    /// Returns `None` for keyboard, IME, and window-level cancellation events.
+    #[must_use]
+    #[inline]
+    pub const fn pointer_position(&self) -> Option<Point> {
+        match self {
+            Self::MouseMove { point }
+            | Self::MouseDown { point, .. }
+            | Self::MouseUp { point, .. }
+            | Self::MouseScroll { point, .. }
+            | Self::FileHovered { point, .. }
+            | Self::FileDropped { point, .. } => Some(*point),
+            Self::KeyboardInput { .. } | Self::Ime(_) | Self::FileCancelled => None,
+        }
+    }
+
+    /// Returns `true` if this event represents an external operating system file drag-and-drop gesture.
+    ///
+    /// Matches [`Self::FileHovered`], [`Self::FileDropped`], and [`Self::FileCancelled`].
+    #[must_use]
+    #[inline]
+    pub const fn is_file_drag_event(&self) -> bool {
+        matches!(
+            self,
+            Self::FileHovered { .. } | Self::FileDropped { .. } | Self::FileCancelled
+        )
+    }
+
+    /// Extracts the slice of dropped file system paths and drop coordinates if this is a [`Self::FileDropped`] event.
+    #[must_use]
+    #[inline]
+    pub fn file_drop_payload(&self) -> Option<(&[PathBuf], Point)> {
+        match self {
+            Self::FileDropped { paths, point } => Some((paths.as_slice(), *point)),
+            _ => None,
+        }
+    }
+
+    /// Extracts the hovered file path and hover coordinates if this is a [`Self::FileHovered`] event.
+    #[must_use]
+    #[inline]
+    pub fn file_hover_payload(&self) -> Option<(&std::path::Path, Point)> {
+        match self {
+            Self::FileHovered { path, point } => Some((path.as_path(), *point)),
+            _ => None,
+        }
+    }
+}
+
+/// Target resolution metadata for an incoming file drag-and-drop operation against the UI hierarchy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileDropTarget {
+    /// Deepest interactive widget node located beneath the cursor coordinate.
+    pub widget_id: WidgetId,
+    /// Semantic 64-bit tag assigned to the targeted widget.
+    pub tag: u64,
+    /// Nearest ancestor invalidation boundary container (e.g. dock panel root) hosting the target widget.
+    pub boundary_id: Option<WidgetId>,
+}
+
+impl FileDropTarget {
+    /// Constructs a new file drop target descriptor.
+    #[must_use]
+    #[inline]
+    pub const fn new(widget_id: WidgetId, tag: u64, boundary_id: Option<WidgetId>) -> Self {
+        Self {
+            widget_id,
+            tag,
+            boundary_id,
+        }
+    }
+}
+
 /// Operating system Input Method Editor (IME) composition and commit events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImeEvent {

@@ -722,4 +722,15 @@ impl<'a> UiScope<'a> {
         }
         Rect::new(0.0, 0.0, 800.0, 600.0)
     }
+
+    /// Emits a non-interactive floating drag-and-drop feedback card onto the elevated [`UiLayer::Tooltip`] layer.
+    ///
+    /// # Arguments
+    /// * `preview` - Configured [`FloatingDragPreview`] descriptor.
+    pub fn floating_drag_preview(
+        &mut self,
+        preview: crate::declarative::widget::FloatingDragPreview,
+    ) -> WidgetResponse {
+        self.add(preview)
+    }
 }

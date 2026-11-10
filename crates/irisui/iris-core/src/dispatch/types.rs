@@ -276,6 +276,15 @@ impl EventState {
         None
     }
 
+    /// Clears any currently pressed widget node and pointer origin states.
+    #[inline]
+    pub fn clear_pressed(&mut self) {
+        self.pressed = None;
+        self.pressed_button = None;
+        self.pressed_tag = None;
+        self.press_origin = None;
+    }
+
     /// Resets transient interaction states while preserving persistent focus.
     #[inline]
     pub fn reset_transient_pointer(&mut self) {

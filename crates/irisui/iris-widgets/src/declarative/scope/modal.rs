@@ -14,11 +14,207 @@ use crate::modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
 };
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
-    WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, KeyCode, Rect, Style, TextAlign, UiLayer,
+    WidgetCursor, WidgetRole,
 };
 
+/// Configuration descriptor for a declarative modal dialog window.
+#[derive(Debug, Clone)]
+pub struct ModalDescriptor {
+    /// Window title caption displayed in the modal header bar.
+    pub title: String,
+    /// Width constraint in logical pixels.
+    pub width: f32,
+    /// Height constraint in logical pixels.
+    pub height: f32,
+    /// Whether clicking the semi-transparent backdrop scrim dismisses the modal.
+    pub dismiss_on_scrim: bool,
+    /// Whether pressing the Escape key dismisses the modal.
+    pub dismiss_on_escape: bool,
+    /// Whether to render the standard compact '✕' close button in the header.
+    pub show_close_button: bool,
+    /// Optional custom backdrop scrim fill color.
+    pub scrim_color: Option<Color>,
+}
+
+impl ModalDescriptor {
+    /// Constructs a new modal dialog descriptor with standard desktop IDE defaults.
+    ///
+    /// Defaults:
+    /// - `dismiss_on_scrim`: `true`
+    /// - `dismiss_on_escape`: `true`
+    /// - `show_close_button`: `true`
+    /// - `scrim_color`: `None` (uses default theme scrim color)
+    #[inline]
+    #[must_use]
+    pub fn new(title: impl Into<String>, width: f32, height: f32) -> Self {
+        Self {
+            title: title.into(),
+            width,
+            height,
+            dismiss_on_scrim: true,
+            dismiss_on_escape: true,
+            show_close_button: true,
+            scrim_color: None,
+        }
+    }
+
+    /// Sets whether clicking the backdrop scrim dismisses the dialog.
+    #[inline]
+    #[must_use]
+    pub fn with_dismiss_on_scrim(mut self, enabled: bool) -> Self {
+        self.dismiss_on_scrim = enabled;
+        self
+    }
+
+    /// Sets whether pressing the Escape key dismisses the dialog.
+    #[inline]
+    #[must_use]
+    pub fn with_dismiss_on_escape(mut self, enabled: bool) -> Self {
+        self.dismiss_on_escape = enabled;
+        self
+    }
+
+    /// Sets whether the header '✕' close button is displayed.
+    #[inline]
+    #[must_use]
+    pub fn with_close_button(mut self, enabled: bool) -> Self {
+        self.show_close_button = enabled;
+        self
+    }
+
+    /// Overrides the default semi-transparent backdrop scrim color.
+    #[inline]
+    #[must_use]
+    pub fn with_scrim_color(mut self, color: Color) -> Self {
+        self.scrim_color = Some(color);
+        self
+    }
+}
+
+impl From<(&str, f32, f32)> for ModalDescriptor {
+    #[inline]
+    fn from(val: (&str, f32, f32)) -> Self {
+        Self::new(val.0, val.1, val.2)
+    }
+}
+
+impl From<(String, f32, f32)> for ModalDescriptor {
+    #[inline]
+    fn from(val: (String, f32, f32)) -> Self {
+        Self::new(val.0, val.1, val.2)
+    }
+}
+
 impl<'a> UiScope<'a> {
+    /// Declaratively renders an autonomous modal dialog window when `is_open` is true.
+    ///
+    /// Coordinates full-screen backdrop scrim blocker on [`UiLayer::Modal`], hardware-accelerated
+    /// elevated card presentation, title bar with optional '✕' close button, and automatic dismissal
+    /// via backdrop click or Escape keystroke.
+    ///
+    /// If `*is_open` is `false`, this is a zero-cost no-op that returns `None`.
+    ///
+    /// # Arguments
+    /// * `descriptor` - Modal configuration or `(title, width, height)` tuple.
+    /// * `is_open` - Mutable boolean reference controlling modal visibility.
+    /// * `f` - Child builder closure receiving the scoped context of the modal card body.
+    ///
+    /// # Returns
+    /// `Some(InnerResponse<R>)` if the modal was rendered, or `None` if `*is_open == false`.
+    pub fn modal<M, R, F>(
+        &mut self,
+        descriptor: M,
+        is_open: &mut bool,
+        f: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        M: Into<ModalDescriptor>,
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if !*is_open {
+            return None;
+        }
+
+        let desc: ModalDescriptor = descriptor.into();
+
+        // 1. Autonomous Escape key dismissal
+        if desc.dismiss_on_escape
+            && self.tree.event_state.frame_key == Some(KeyCode::Escape)
+            && self.tree.event_state.frame_key_pressed
+        {
+            *is_open = false;
+            return None;
+        }
+
+        // 2. Resolve screen/window bounds from root computed_rect
+        let screen_bounds = self
+            .tree
+            .root()
+            .and_then(|r| self.tree.get(r))
+            .map_or(Rect::new(0.0, 0.0, 1920.0, 1080.0), |n| n.computed_rect);
+
+        let scrim_col = desc
+            .scrim_color
+            .unwrap_or_else(|| Color::rgba(0.0, 0.0, 0.0, 0.65));
+
+        let mut close_requested = false;
+
+        let scrim_res = self.modal_scrim_sized(screen_bounds, scrim_col, |scrim| {
+            scrim.modal_card(desc.width, desc.height, |card| {
+                // Header row
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween)
+                        .height(32.0)
+                        .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0)),
+                    |header| {
+                        header.label_custom(
+                            &desc.title,
+                            13.0,
+                            Color::rgba(0.90, 0.92, 0.96, 1.0),
+                            TextAlign::Left,
+                        );
+
+                        if desc.show_close_button && header.modal_close_button().clicked() {
+                            close_requested = true;
+                        }
+                    },
+                );
+
+                // Divider line below header
+                card.divider(Color::rgba(0.18, 0.20, 0.26, 1.0));
+
+                // Card body content closure
+                card.container(
+                    Style::new()
+                        .flex_col()
+                        .flex_grow(1.0)
+                        .padding_insets(Insets::new(8.0, 4.0, 4.0, 4.0)),
+                    f,
+                )
+            })
+        });
+
+        // 3. Autonomous backdrop scrim click dismissal
+        if desc.dismiss_on_scrim
+            && (scrim_res.response.clicked()
+                || self.tree.event_state.frame_clicked_tag == Some(MODAL_TAG_SCRIM))
+        {
+            *is_open = false;
+        }
+
+        if close_requested {
+            *is_open = false;
+        }
+
+        Some(InnerResponse::new(
+            scrim_res.response,
+            scrim_res.inner.inner.inner,
+        ))
+    }
     /// Emits a full-screen backdrop modal scrim container elevating its subtree to [`UiLayer::Modal`].
     ///
     /// The generated container is tagged with [`MODAL_TAG_SCRIM`] for dismissive hit-testing,
@@ -54,6 +250,7 @@ impl<'a> UiScope<'a> {
 
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
+        let _ = self.tree.set_layer_recursive(node_id, UiLayer::Modal);
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }
@@ -92,6 +289,7 @@ impl<'a> UiScope<'a> {
 
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
+        let _ = self.tree.set_layer_recursive(node_id, UiLayer::Modal);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
@@ -137,6 +335,7 @@ impl<'a> UiScope<'a> {
 
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
+        let _ = self.tree.set_layer_recursive(node_id, UiLayer::Modal);
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }

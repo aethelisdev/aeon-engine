@@ -18,7 +18,7 @@ use crate::dispatch::types::{
 use crate::event::MouseButton;
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
-use crate::node::{UiLayer, WidgetRole};
+use crate::node::WidgetRole;
 use crate::response::{ResponseFlags, WidgetResponse};
 use crate::tree::UiTree;
 
@@ -41,50 +41,18 @@ pub(crate) fn handle_mouse_down(
     tree.event_state.frame_clicked_rect = None;
     tree.event_state.frame_drag_delta = None;
 
-    let hit_id = tree.hit_test_layered(point);
-
     // Autonomous popup, context menu, combobox, and menu bar dismiss when clicking outside
-    let had_popups_dismissed = if tree.has_open_popup() {
-        let is_inside_open_popup = if let Some(hid) = hit_id {
-            // Check if clicked widget is inside the context menu container
-            let inside_context_menu = if let Some(active) = tree.event_state.active_context_menu {
-                if let Some(menu_cid) = active.container_id {
-                    hid == menu_cid || tree.is_descendant_of(hid, menu_cid)
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-
-            // Check if clicked widget belongs to a popup layer or elevated dropdown role
-            let is_popup_widget = tree.effective_layer(hid) >= UiLayer::Popup
-                || tree
-                    .find_ancestor_with_role(hid, WidgetRole::DropdownPopup)
-                    .is_some()
-                || tree.get(hid).is_some_and(|n| {
-                    matches!(
-                        n.role,
-                        WidgetRole::DropdownPopup | WidgetRole::DropdownItem | WidgetRole::Tooltip
-                    ) || (tree.active_menu_bar_tag.is_some()
-                        && Some(n.tag) == tree.active_menu_bar_tag)
-                        || (tree.active_combobox_tag.is_some()
-                            && Some(n.tag) == tree.active_combobox_tag)
-                });
-
-            inside_context_menu || is_popup_widget
-        } else {
-            false
+    if tree.outside_click_detector(point) {
+        return DispatchResult {
+            consumed: true,
+            needs_redraw: true,
+            target: None,
+            target_tag: 0,
+            ..DispatchResult::default()
         };
+    }
 
-        if !is_inside_open_popup {
-            tree.close_all_popups()
-        } else {
-            false
-        }
-    } else {
-        false
-    };
+    let hit_id = tree.hit_test_layered(point);
 
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
@@ -247,8 +215,8 @@ pub(crate) fn handle_mouse_down(
         let flags = ResponseFlags::HOVERED | ResponseFlags::PRESSED;
 
         DispatchResult {
-            consumed: is_interactive || had_popups_dismissed,
-            needs_redraw: is_interactive || had_popups_dismissed,
+            consumed: is_interactive,
+            needs_redraw: is_interactive,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -262,15 +230,7 @@ pub(crate) fn handle_mouse_down(
     } else {
         // Clicking on empty area clears active keyboard and tag focus
         tree.event_state.clear_focus();
-        if had_popups_dismissed {
-            DispatchResult {
-                consumed: true,
-                needs_redraw: true,
-                ..DispatchResult::ignored()
-            }
-        } else {
-            DispatchResult::ignored()
-        }
+        DispatchResult::ignored()
     }
 }
 

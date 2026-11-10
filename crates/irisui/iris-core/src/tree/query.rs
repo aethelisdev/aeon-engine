@@ -3,6 +3,7 @@
 
 //! Node search, subtree traversal, and spatial rectangle queries for the UI tree.
 
+use crate::event::FileDropTarget;
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 use crate::node::{WidgetNode, WidgetRole};
@@ -445,5 +446,82 @@ impl UiTree {
             "Assertion failed: Widget node '{name}' expected text '{expected_text}', but found '{:?}'",
             node.text
         );
+    }
+
+    /// Locates an existing direct child of `parent_id` matching the specified layer portal.
+    ///
+    /// # Arguments
+    /// * `parent_id` - Identifier of the parent container node.
+    /// * `layer` - Target stacking context layer.
+    ///
+    /// # Returns
+    /// An optional [`WidgetId`] of the first matching child node.
+    #[must_use]
+    pub fn find_layer_portal(
+        &self,
+        parent_id: WidgetId,
+        layer: crate::node::UiLayer,
+    ) -> Option<WidgetId> {
+        let parent = self.nodes.get(parent_id)?;
+        for &child_id in &parent.children {
+            if let Some(child) = self.nodes.get(child_id)
+                && child.layer == layer
+            {
+                return Some(child_id);
+            }
+        }
+        None
+    }
+
+    /// Returns an iterator over all active widget nodes assigned to the given stacking layer.
+    pub fn nodes_in_layer(
+        &self,
+        layer: crate::node::UiLayer,
+    ) -> impl Iterator<Item = (WidgetId, &WidgetNode)> {
+        self.nodes
+            .iter()
+            .filter(move |(_, node)| node.layer == layer)
+    }
+
+    /// Resolves the file drop target beneath a screen coordinate by evaluating layered hit-testing,
+    /// semantic widget tags, and ancestor invalidation boundary roots.
+    ///
+    /// # Arguments
+    /// * `point` - Cursor coordinate in screen pixels.
+    ///
+    /// # Returns
+    /// An optional [`FileDropTarget`] descriptor if an interactive widget node exists at `point`.
+    #[must_use]
+    pub fn resolve_file_drop_target(&self, point: Point) -> Option<FileDropTarget> {
+        let widget_id = self.hit_test_layered(point)?;
+        let tag = self.get(widget_id).map_or(0, |n| n.tag);
+        let boundary_id = self.find_invalidation_boundary(widget_id);
+        Some(FileDropTarget::new(widget_id, tag, boundary_id))
+    }
+
+    /// Queries the active operating system files dropped onto the UI hierarchy during the current frame,
+    /// resolving the underlying target widget and boundary panel.
+    ///
+    /// # Returns
+    /// An optional tuple `(dropped_paths, drop_point, target_metadata)` if files were dropped this frame.
+    #[must_use]
+    pub fn frame_dropped_files(
+        &self,
+    ) -> Option<(&[std::path::PathBuf], Point, Option<FileDropTarget>)> {
+        let (_, _, paths, point) = self.event_state.frame_dropped_files.as_ref()?;
+        let target = self.resolve_file_drop_target(*point);
+        Some((paths.as_slice(), *point, target))
+    }
+
+    /// Queries the active operating system file currently being hovered over the UI hierarchy,
+    /// resolving the underlying target widget and boundary panel without heap allocation.
+    ///
+    /// # Returns
+    /// An optional tuple `(hovered_path, hover_point, target_metadata)` if a file is hovering.
+    #[must_use]
+    pub fn hovered_file(&self) -> Option<(&std::path::Path, Point, Option<FileDropTarget>)> {
+        let (path, point) = self.event_state.hovered_file.as_ref()?;
+        let target = self.resolve_file_drop_target(*point);
+        Some((path.as_path(), *point, target))
     }
 }

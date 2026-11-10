@@ -126,3 +126,42 @@ fn test_text_input_state_undo_redo() {
     assert_eq!(state.buffer, "Initial Edited");
     assert_eq!(state.cursor_byte_idx, 14);
 }
+
+#[test]
+fn test_text_input_state_select_word() {
+    let mut state = TextInputState::new("Hello World 123");
+    // Click within "Hello"
+    let word = state.select_word_at(2);
+    assert_eq!(word, Some((0, 5)));
+    assert_eq!(state.selected_text(), Some("Hello"));
+
+    // Click within space
+    let space = state.select_word_at(5);
+    assert_eq!(space, Some((5, 6)));
+    assert_eq!(state.selected_text(), Some(" "));
+
+    // Click within "World"
+    let word2 = state.select_word_at(8);
+    assert_eq!(word2, Some((6, 11)));
+    assert_eq!(state.selected_text(), Some("World"));
+
+    // Multi-byte UTF-8 test ("Örnek Ağaç")
+    let mut state_tr = TextInputState::new("Örnek Ağaç");
+    let word_tr = state_tr.select_word_at(2);
+    assert_eq!(state_tr.selected_text(), Some("Örnek"));
+    assert_eq!(word_tr, Some((0, 6))); // "Ö" is 2 bytes, "rnek" is 4 bytes -> total 6
+}
+
+#[test]
+fn test_text_input_state_caret_rect() {
+    let mut state = TextInputState::new("Engine");
+    state.cursor_byte_idx = 3;
+    let advances = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
+    let origin = iris_core::Point::new(100.0, 50.0);
+    let rect = state.caret_rect(origin, 14.0, 20.0, &advances);
+
+    assert_eq!(rect.x, 130.0); // 100.0 + advances[2]
+    assert_eq!(rect.y, 53.0); // 50.0 + (20.0 - 14.0) * 0.5
+    assert_eq!(rect.width, iris_text::DEFAULT_CARET_WIDTH);
+    assert_eq!(rect.height, 14.0);
+}
