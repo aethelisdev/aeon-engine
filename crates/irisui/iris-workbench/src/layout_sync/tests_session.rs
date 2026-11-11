@@ -13,6 +13,7 @@ use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use iris_core::geometry::Rect;
 use iris_core::style::Style;
 use iris_core::{DirtyFlags, UiTree, WidgetId};
+use iris_dock::UiNotifier;
 use iris_layout::LayoutEngine;
 use iris_text::TextSystem;
 use iris_widgets::declarative::UiScope;
@@ -280,7 +281,17 @@ fn test_atomic_rebuild_panel_clears_old_children_completely() {
             engines.tree.get(old_child_id).is_none(),
             "Old child {old_child_id:?} must be purged from tree arena"
         );
+        assert!(
+            !engines.layout_engine.is_tracked(old_child_id),
+            "Old child {old_child_id:?} must be untracked from layout engine"
+        );
     }
+
+    assert_eq!(
+        engines.layout_engine.taffy_node_count(),
+        engines.layout_engine.len(),
+        "Taffy physical node count must match layout engine tracked count exactly"
+    );
 }
 
 #[test]
@@ -450,4 +461,179 @@ fn test_synchronize_all_leaves_reports_needs_text_prepare() {
         metrics.needs_text_prepare,
         "Synchronizing leaves must raise needs_text_prepare in LayoutSyncMetrics"
     );
+}
+
+#[test]
+fn test_rebuild_panel_taffy_node_cleanup_zero_leak_50_iterations() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 600.0, 800.0));
+
+    // Register a panel that constructs nested structure: rows with buttons
+    registry.register_panel(SessionTestTab::Inspector, |scope, _| {
+        scope.row(|row| {
+            row.button("Btn 1");
+            row.button("Btn 2");
+        });
+        scope.row(|row| {
+            row.button("Btn 3");
+            row.button("Btn 4");
+        });
+    });
+
+    let mut previous_children: Vec<WidgetId> = Vec::new();
+    let mut expected_node_count = 0;
+
+    for iteration in 0..50 {
+        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+        let success = DualLayoutEliminator::rebuild_panel(
+            &mut engines,
+            &mut registry,
+            &mut context,
+            SessionTestTab::Inspector,
+            leaf_id,
+        )
+        .expect("rebuild_panel must succeed");
+        assert!(success);
+
+        // Verify that all children from the previous iteration were completely purged
+        for old_id in &previous_children {
+            assert!(
+                engines.tree.get(*old_id).is_none(),
+                "Old node {old_id:?} must be purged from tree on iteration {iteration}"
+            );
+            assert!(
+                !engines.layout_engine.is_tracked(*old_id),
+                "Old node {old_id:?} must be untracked from layout engine on iteration {iteration}"
+            );
+        }
+
+        // Mathematical invariant: physical Taffy node count must exactly equal tracked layout nodes
+        let current_len = engines.layout_engine.len();
+        let current_taffy = engines.layout_engine.taffy_node_count();
+        assert_eq!(
+            current_taffy, current_len,
+            "Taffy physical count ({current_taffy}) must equal engine len ({current_len}) on iteration {iteration}"
+        );
+
+        if iteration == 0 {
+            expected_node_count = current_len;
+            assert!(
+                expected_node_count > 1,
+                "Must have tracked leaf plus nested children"
+            );
+        } else {
+            // Absolute zero-leak invariant: tracked node count must remain constant across all iterations
+            assert_eq!(
+                current_len, expected_node_count,
+                "Tracked layout nodes leaked! Expected {expected_node_count}, got {current_len} on iteration {iteration}"
+            );
+        }
+
+        // Record current children for next iteration's verification
+        previous_children.clear();
+        if let Some(leaf_node) = engines.tree.get(leaf_id) {
+            for &child_id in &leaf_node.children {
+                previous_children.push(child_id);
+                engines
+                    .tree
+                    .collect_subtree(child_id, &mut previous_children);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_rebuild_dirty_panels_multi_panel_taffy_leak_free() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+    let mut eliminator = DualLayoutEliminator::new();
+    let mut notifier = UiNotifier::<SessionTestTab>::clean();
+
+    let leaf_inspector = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 400.0, 600.0));
+    let leaf_console = create_session_test_leaf(&mut tree, Rect::new(400.0, 0.0, 400.0, 600.0));
+
+    registry.register_panel(SessionTestTab::Inspector, |scope, _| {
+        scope.row(|row| {
+            row.button("Insp A");
+            row.button("Insp B");
+        });
+    });
+
+    registry.register_panel(SessionTestTab::Console, |scope, _| {
+        scope.row(|row| {
+            row.button("Console Line 1");
+            row.button("Console Line 2");
+            row.button("Console Line 3");
+        });
+    });
+
+    // Initial rebuild of both panels
+    notifier.tag_redraw(SessionTestTab::Inspector);
+    notifier.tag_redraw(SessionTestTab::Console);
+
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+    let initial_rebuilt = eliminator
+        .rebuild_dirty_panels(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut context,
+            |tab| match tab {
+                SessionTestTab::Inspector => Some(leaf_inspector),
+                SessionTestTab::Console => Some(leaf_console),
+                _ => None,
+            },
+        )
+        .expect("initial rebuild must succeed");
+    assert_eq!(initial_rebuilt, 2);
+
+    let baseline_len = engines.layout_engine.len();
+    assert_eq!(engines.layout_engine.taffy_node_count(), baseline_len);
+
+    // Run 20 cycles alternating between marking Inspector, Console, or both
+    for cycle in 0..20 {
+        match cycle % 3 {
+            0 => notifier.tag_redraw(SessionTestTab::Inspector),
+            1 => notifier.tag_redraw(SessionTestTab::Console),
+            _ => {
+                notifier.tag_redraw(SessionTestTab::Inspector);
+                notifier.tag_redraw(SessionTestTab::Console);
+            }
+        }
+
+        let rebuilt = eliminator
+            .rebuild_dirty_panels(
+                &mut engines,
+                &mut notifier,
+                &mut registry,
+                &mut context,
+                |tab| match tab {
+                    SessionTestTab::Inspector => Some(leaf_inspector),
+                    SessionTestTab::Console => Some(leaf_console),
+                    _ => None,
+                },
+            )
+            .expect("rebuild must succeed");
+        assert!(rebuilt > 0);
+
+        // Verification: Layout engine tracked nodes and physical Taffy nodes remain invariant and leak-free
+        assert_eq!(
+            engines.layout_engine.taffy_node_count(),
+            engines.layout_engine.len(),
+            "Taffy physical count must equal engine len on cycle {cycle}"
+        );
+        assert_eq!(
+            engines.layout_engine.len(),
+            baseline_len,
+            "Layout engine node count leaked on cycle {cycle}"
+        );
+    }
 }

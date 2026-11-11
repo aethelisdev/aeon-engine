@@ -70,6 +70,43 @@ impl UiTree {
         }
     }
 
+    /// Creates a new UI tree pre-allocating arena node storage for `capacity` widgets.
+    ///
+    /// Eliminates vector reallocations during initial shell or subtree synthesis.
+    #[inline]
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            nodes: SlotMap::with_capacity_and_key(capacity),
+            root: None,
+            event_state: EventState::new(),
+            collapsing_state: HashMap::new(),
+            scroll_offsets: HashMap::new(),
+            viewport_sizes: HashMap::new(),
+            max_scrolls: HashMap::new(),
+            active_menu_bar_tag: None,
+            active_combobox_tag: None,
+            active_submenus: HashMap::new(),
+            tag_rects: HashMap::new(),
+            dirty_boundaries: std::collections::HashSet::new(),
+            volatile_canvas_commands: HashMap::new(),
+            theme: crate::theme::Theme::default(),
+        }
+    }
+
+    /// Returns the currently allocated node capacity of the generational arena.
+    #[inline]
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.nodes.capacity()
+    }
+
+    /// Reserves capacity for at least `additional` more nodes to be inserted in the arena.
+    #[inline]
+    pub fn reserve(&mut self, additional: usize) {
+        self.nodes.reserve(additional);
+    }
+
     /// Clears all nodes from the tree and resets the root pointer.
     ///
     /// Preserves confirmed frame interaction state on [`EventState`] so that subsequent

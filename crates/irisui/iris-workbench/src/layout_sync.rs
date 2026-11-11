@@ -13,6 +13,8 @@ pub mod leaf_pipeline;
 mod tests;
 #[cfg(test)]
 mod tests_session;
+#[cfg(test)]
+mod tests_stress;
 
 pub use dual_layout::{DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines};
 pub use leaf_pipeline::{synchronize_dock_frame, synchronize_dock_leaves};

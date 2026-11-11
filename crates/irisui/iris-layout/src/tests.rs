@@ -221,6 +221,7 @@ fn test_layout_untrack_subtree_removes_taffy_nodes() {
 
     // Before untracking: 7 total nodes tracked in engine
     assert_eq!(engine.len(), 7);
+    assert_eq!(engine.taffy_node_count(), 7);
     assert!(engine.is_tracked(root));
     assert!(engine.is_tracked(panel_a));
     assert!(engine.is_tracked(a_child1));
@@ -245,6 +246,7 @@ fn test_layout_untrack_subtree_removes_taffy_nodes() {
 
     // Exactly 4 nodes remain tracked: root, panel_a, panel_b, b_child
     assert_eq!(engine.len(), 4);
+    assert_eq!(engine.taffy_node_count(), 4);
 }
 
 #[test]
@@ -321,6 +323,7 @@ fn test_layout_untrack_subtree_after_clear_children() {
 
     // Exactly 4 nodes remain tracked: root, panel_a, panel_b, b_child
     assert_eq!(engine.len(), 4);
+    assert_eq!(engine.taffy_node_count(), 4);
 }
 
 #[test]
@@ -390,4 +393,70 @@ fn test_compute_boundary_subtree_zero_coordinate_accumulation_across_rebuilds() 
             "Child Y coordinate must NOT drift on iteration {iteration}"
         );
     }
+}
+
+#[test]
+fn test_layout_untrack_and_rebuild_zero_leak_100_iterations() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let panel = tree.create_node();
+    tree.set_boundary(panel, true);
+    if let Some(node) = tree.get_mut(panel) {
+        node.set_style(Style::new().flex_col().width(400.0).height(600.0));
+        node.computed_rect = Rect::new(50.0, 50.0, 400.0, 600.0);
+    }
+    tree.add_child(root, panel).unwrap();
+
+    let mut engine = LayoutEngine::new();
+    assert!(
+        engine
+            .compute_layout(&mut tree, Size::new(1920.0, 1080.0))
+            .is_ok()
+    );
+
+    let baseline_nodes = engine.len();
+    assert_eq!(baseline_nodes, 2); // root + panel
+    assert_eq!(engine.taffy_node_count(), 2);
+
+    for _ in 0..100 {
+        // Untrack previous subtree
+        engine.untrack_subtree(&tree, panel);
+        assert!(tree.clear_children(panel).is_ok());
+
+        // Baseline after untrack: exactly 2 nodes remain in both node_map and Taffy
+        assert_eq!(engine.len(), baseline_nodes);
+        assert_eq!(engine.taffy_node_count(), baseline_nodes);
+
+        // Synthesize 3 nested child widgets
+        let child1 = tree.create_node();
+        if let Some(node) = tree.get_mut(child1) {
+            node.set_style(Style::new().width(200.0).height(40.0));
+        }
+        tree.add_child(panel, child1).unwrap();
+
+        let child2 = tree.create_node();
+        if let Some(node) = tree.get_mut(child2) {
+            node.set_style(Style::new().width(200.0).height(40.0));
+        }
+        tree.add_child(panel, child2).unwrap();
+
+        let grandchild = tree.create_node();
+        if let Some(node) = tree.get_mut(grandchild) {
+            node.set_style(Style::new().width(100.0).height(20.0));
+        }
+        tree.add_child(child1, grandchild).unwrap();
+
+        // Recompute boundary layout in O(M)
+        assert!(engine.compute_boundary_subtree(&mut tree, panel).is_ok());
+
+        // Invariant: 2 baseline + 3 children = 5 nodes total
+        assert_eq!(engine.len(), 5);
+        assert_eq!(engine.taffy_node_count(), 5);
+    }
+
+    // Final untrack check confirms absolute cleanup back to baseline
+    engine.untrack_subtree(&tree, panel);
+    assert_eq!(engine.len(), baseline_nodes);
+    assert_eq!(engine.taffy_node_count(), baseline_nodes);
 }

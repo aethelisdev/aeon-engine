@@ -43,6 +43,27 @@ impl LayoutEngine {
         }
     }
 
+    /// Creates a new layout engine pre-allocating node mapping capacity.
+    ///
+    /// Eliminates hash map reallocations during initial shell or subtree layout solves.
+    #[inline]
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            taffy: tf::TaffyTree::new(),
+            node_map: HashMap::with_capacity(capacity),
+            id_map: HashMap::with_capacity(capacity),
+            last_available_size: None,
+        }
+    }
+
+    /// Returns the allocated mapping capacity of the layout node tracking map.
+    #[inline]
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.node_map.capacity()
+    }
+
     /// Clears internal Taffy state and node mappings when the UI tree is reset.
     #[inline]
     pub fn clear(&mut self) {
@@ -124,6 +145,15 @@ impl LayoutEngine {
     #[must_use]
     pub fn len(&self) -> usize {
         self.node_map.len()
+    }
+
+    /// Returns the total number of physical nodes currently allocated in the internal Taffy flexbox tree.
+    ///
+    /// In an invariant, leak-free layout lifecycle, this value must exactly match [`Self::len`].
+    #[inline]
+    #[must_use]
+    pub fn taffy_node_count(&self) -> usize {
+        self.taffy.total_node_count()
     }
 
     /// Returns `true` if the layout engine contains no tracked nodes.
