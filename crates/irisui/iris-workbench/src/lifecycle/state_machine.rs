@@ -9,6 +9,8 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use iris_dock::UiNotifier;
+
 use super::branch::LifecycleBranch;
 use super::inputs::LifecycleInputs;
 
@@ -63,6 +65,9 @@ pub struct WorkbenchLifecycle<TabId: Eq + Hash + Clone> {
 
     /// Domain transaction revision counter from the previous evaluation pass.
     last_domain_revision: u64,
+
+    /// Theme configuration revision counter from the previous evaluation pass.
+    last_theme_revision: u64,
 }
 
 impl<TabId: Eq + Hash + Clone> Default for WorkbenchLifecycle<TabId> {
@@ -92,6 +97,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             dirty_tabs: HashSet::new(),
             domain_panels: HashSet::new(),
             last_domain_revision: 0,
+            last_theme_revision: 0,
         }
     }
 
@@ -191,8 +197,58 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_menu_active = false;
         self.last_modal_active = false;
         self.last_drag_active = false;
+        self.last_theme_revision = 0;
         self.force_shell_rebuild = true;
         self.dirty_tabs.clear();
+    }
+
+    /// Returns the most recently evaluated theme configuration revision counter.
+    #[inline]
+    #[must_use]
+    pub const fn last_theme_revision(&self) -> u64 {
+        self.last_theme_revision
+    }
+
+    /// Checks whether any registered dock panel is currently marked as dirty for partial rebuilding.
+    ///
+    /// Returns `true` if one or more panel tabs have pending invalidations in the internal dirty set.
+    /// In an idle frame where [`Self::is_shell_dirty`] returns `false`, a `true` return here indicates
+    /// that execution will proceed down Branch 2 ([`LifecycleBranch::GranularPanels`]).
+    #[inline]
+    #[must_use]
+    pub fn is_panel_dirty(&self) -> bool {
+        !self.dirty_tabs.is_empty()
+    }
+
+    /// Speculatively checks whether any dock panel would be evaluated as dirty given external inputs,
+    /// including uncommitted domain revision changes affecting registered domain subscriber panels.
+    ///
+    /// Unlike [`Self::is_panel_dirty`], this method inspects `inputs.domain_revision` to determine
+    /// if registered domain subscriber panels will be marked dirty during the next [`Self::evaluate`] call.
+    #[inline]
+    #[must_use]
+    pub fn is_panel_dirty_speculative(&self, inputs: &LifecycleInputs) -> bool {
+        !self.dirty_tabs.is_empty()
+            || (inputs.domain_revision != self.last_domain_revision
+                && !self.domain_panels.is_empty())
+    }
+
+    /// Ingests dirty panels flagged on an external [`UiNotifier`], merging them into the lifecycle state machine.
+    ///
+    /// If the notifier reports a global invalidation ([`UiNotifier::is_global_dirty`]), the lifecycle's
+    /// shell is marked dirty via [`Self::mark_shell_dirty`]. Otherwise, all pending panel tabs are
+    /// added to [`Self::dirty_tabs`].
+    #[inline]
+    pub fn ingest_notifier(&mut self, notifier: &UiNotifier<TabId>)
+    where
+        TabId: Copy + Send + Sync + 'static,
+    {
+        if notifier.is_global_dirty() {
+            self.mark_shell_dirty();
+        }
+        for &tab in notifier.dirty_panels() {
+            self.dirty_tabs.insert(tab);
+        }
     }
 
     /// Evaluates whether the application shell requires a full topology reconstruction.
@@ -204,6 +260,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
     /// - DPI scale factor change (`|scale_factor - last_scale_factor| > 1e-4`).
     /// - Dock layout structural revision counter bump (`dock_revision != last_dock_revision`).
     /// - Floating window count change (`floating_count != last_floating_count`).
+    /// - Theme configuration revision counter bump (`theme_revision != last_theme_revision`).
     /// - Menu active state transition (`is_menu_active != last_menu_active`).
     /// - Modal dialog active state transition (`is_modal_active != last_modal_active`).
     /// - Drag-and-drop active state transition (`is_drag_active != last_drag_active`).
@@ -218,6 +275,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             || (self.last_scale_factor - inputs.scale_factor).abs() > 1e-4
             || self.last_dock_revision != inputs.dock_revision
             || self.last_floating_count != inputs.floating_count
+            || self.last_theme_revision != inputs.theme_revision
             || self.last_menu_active != inputs.is_menu_active
             || self.last_modal_active != inputs.is_modal_active
             || self.last_drag_active != inputs.is_drag_active
@@ -267,6 +325,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_scale_factor = inputs.scale_factor;
         self.last_dock_revision = inputs.dock_revision;
         self.last_floating_count = inputs.floating_count;
+        self.last_theme_revision = inputs.theme_revision;
         self.last_menu_active = inputs.is_menu_active;
         self.last_modal_active = inputs.is_modal_active;
         self.last_drag_active = inputs.is_drag_active;

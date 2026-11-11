@@ -243,3 +243,143 @@ fn test_domain_revision_delta_triggers_granular_panel_invalidation() {
     let branch_next = lifecycle.evaluate(inputs_mutation);
     assert_eq!(branch_next, LifecycleBranch::Dormant);
 }
+
+#[test]
+fn test_theme_revision_delta_triggers_full_shell_rebuild() {
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let inputs_base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 0);
+    let _ = lifecycle.evaluate(inputs_base);
+    assert_eq!(lifecycle.last_theme_revision(), 0);
+
+    // Bump theme revision (e.g. dark to light theme switch)
+    let inputs_theme = inputs_base.with_theme_revision(1);
+    assert!(lifecycle.is_shell_dirty(&inputs_theme));
+    assert_eq!(
+        lifecycle.peek_branch(&inputs_theme),
+        LifecycleBranch::FullShellRebuild
+    );
+
+    let branch = lifecycle.evaluate(inputs_theme);
+    assert_eq!(branch, LifecycleBranch::FullShellRebuild);
+    assert_eq!(lifecycle.last_theme_revision(), 1);
+
+    // Re-evaluating with same theme revision returns to Dormant
+    assert!(!lifecycle.is_shell_dirty(&inputs_theme));
+    assert_eq!(lifecycle.evaluate(inputs_theme), LifecycleBranch::Dormant);
+}
+
+#[test]
+fn test_deterministic_isolation_is_shell_dirty_vs_is_panel_dirty() {
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let inputs_base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 0);
+    let _ = lifecycle.evaluate(inputs_base);
+
+    // Baseline: neither shell nor panel is dirty
+    assert!(!lifecycle.is_shell_dirty(&inputs_base));
+    assert!(!lifecycle.is_panel_dirty());
+
+    // 1. Isolated Panel Dirty: only panel is dirty, shell remains clean
+    lifecycle.mark_tab_dirty(TestPanel::Inspector);
+    assert!(!lifecycle.is_shell_dirty(&inputs_base));
+    assert!(lifecycle.is_panel_dirty());
+    assert!(lifecycle.is_panel_dirty_speculative(&inputs_base));
+
+    assert_eq!(
+        lifecycle.peek_branch(&inputs_base),
+        LifecycleBranch::GranularPanels(vec![TestPanel::Inspector])
+    );
+
+    let branch = lifecycle.evaluate(inputs_base);
+    assert_eq!(
+        branch,
+        LifecycleBranch::GranularPanels(vec![TestPanel::Inspector])
+    );
+    // Drained: panel dirty set is now empty
+    assert!(!lifecycle.is_panel_dirty());
+
+    // 2. Dual Dirty Precedence: both panel and shell are dirty
+    lifecycle.mark_tab_dirty(TestPanel::Inspector);
+    lifecycle.mark_tab_dirty(TestPanel::Console);
+    assert!(lifecycle.is_panel_dirty());
+
+    // Trigger shell dirty via theme revision bump
+    let inputs_theme_bump = inputs_base.with_theme_revision(2);
+    assert!(lifecycle.is_shell_dirty(&inputs_theme_bump));
+    assert!(lifecycle.is_panel_dirty());
+
+    // Full shell rebuild must unconditionally take precedence over granular panels
+    assert_eq!(
+        lifecycle.peek_branch(&inputs_theme_bump),
+        LifecycleBranch::FullShellRebuild
+    );
+
+    let branch_shell = lifecycle.evaluate(inputs_theme_bump);
+    assert_eq!(branch_shell, LifecycleBranch::FullShellRebuild);
+
+    // Crucial deterministic invariant: full shell rebuild clears all pending dirty panels
+    assert!(!lifecycle.is_panel_dirty());
+    assert!(lifecycle.dirty_tabs().is_empty());
+}
+
+#[test]
+fn test_ingest_notifier_granular_and_global_routing() {
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let inputs_base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 0);
+    let _ = lifecycle.evaluate(inputs_base);
+
+    // 1. Ingest granular panel redraw from clean notifier
+    let mut notifier = iris_dock::UiNotifier::<TestPanel>::clean();
+    notifier.tag_redraw(TestPanel::Console);
+    lifecycle.ingest_notifier(&notifier);
+
+    assert!(!lifecycle.is_shell_dirty(&inputs_base));
+    assert!(lifecycle.is_panel_dirty());
+    assert!(lifecycle.is_tab_dirty(&TestPanel::Console));
+
+    let branch = lifecycle.evaluate(inputs_base);
+    assert_eq!(
+        branch,
+        LifecycleBranch::GranularPanels(vec![TestPanel::Console])
+    );
+    assert!(!lifecycle.is_panel_dirty());
+
+    // 2. Ingest global dirty from notifier
+    let mut global_notifier = iris_dock::UiNotifier::<TestPanel>::clean();
+    global_notifier.tag_all();
+    lifecycle.ingest_notifier(&global_notifier);
+
+    assert!(lifecycle.is_shell_dirty(&inputs_base));
+    let branch_global = lifecycle.evaluate(inputs_base);
+    assert_eq!(branch_global, LifecycleBranch::FullShellRebuild);
+}
+
+#[test]
+fn test_is_panel_dirty_speculative_with_domain_subscriber() {
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let inputs_base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 0);
+    let _ = lifecycle.evaluate(inputs_base);
+
+    lifecycle.register_domain_panel(TestPanel::Hierarchy);
+
+    // At identical domain revision, neither dirty nor speculative dirty
+    assert!(!lifecycle.is_panel_dirty());
+    assert!(!lifecycle.is_panel_dirty_speculative(&inputs_base));
+
+    // When domain revision is advanced on inputs
+    let inputs_domain = inputs_base.with_domain_revision(10);
+    // Not yet marked until evaluate or peek
+    assert!(!lifecycle.is_panel_dirty());
+    // Speculative check correctly detects incoming dirty domain panel
+    assert!(lifecycle.is_panel_dirty_speculative(&inputs_domain));
+    assert_eq!(
+        lifecycle.peek_branch(&inputs_domain),
+        LifecycleBranch::GranularPanels(vec![TestPanel::Hierarchy])
+    );
+
+    let branch = lifecycle.evaluate(inputs_domain);
+    assert_eq!(
+        branch,
+        LifecycleBranch::GranularPanels(vec![TestPanel::Hierarchy])
+    );
+    assert!(!lifecycle.is_panel_dirty());
+}

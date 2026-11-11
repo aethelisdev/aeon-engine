@@ -46,12 +46,15 @@ pub struct LifecycleInputs {
 
     /// Monotonic domain revision counter reflecting external entity / model mutations (Undo/Redo commands, etc.).
     pub domain_revision: u64,
+
+    /// Monotonic theme configuration revision counter reflecting styling, token, or color palette switches.
+    pub theme_revision: u64,
 }
 
 impl LifecycleInputs {
     /// Creates a new lifecycle input descriptor with mandatory geometric parameters.
     ///
-    /// Optional flags (floating count, menu/modal state, dock interaction, volatile updates, domain revision)
+    /// Optional flags (floating count, menu/modal state, dock interaction, volatile updates, domain revision, theme revision)
     /// default to zero / false and can be chained fluently.
     ///
     /// # Parameters
@@ -72,6 +75,7 @@ impl LifecycleInputs {
             has_volatile_updates: false,
             is_drag_active: false,
             domain_revision: 0,
+            theme_revision: 0,
         }
     }
 
@@ -128,6 +132,17 @@ impl LifecycleInputs {
     #[must_use]
     pub const fn with_domain_revision(mut self, revision: u64) -> Self {
         self.domain_revision = revision;
+        self
+    }
+
+    /// Sets the application theme configuration revision counter.
+    ///
+    /// Changing the theme revision triggers a full shell reconstruction to re-style
+    /// all dock chrome, statusbars, menus, and container surfaces.
+    #[inline]
+    #[must_use]
+    pub const fn with_theme_revision(mut self, revision: u64) -> Self {
+        self.theme_revision = revision;
         self
     }
 }
