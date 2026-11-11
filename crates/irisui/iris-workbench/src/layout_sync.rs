@@ -11,6 +11,8 @@ pub mod leaf_pipeline;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_session;
 
 pub use dual_layout::{DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines};
 pub use leaf_pipeline::{synchronize_dock_frame, synchronize_dock_leaves};

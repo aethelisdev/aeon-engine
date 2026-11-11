@@ -1,0 +1,284 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Unit Tests: Encapsulated SubtreeSession & Atomic Panel Rebuilding
+//!
+//! Verifies atomic lifecycle management for isolated subtree invalidation within
+//! [`DualLayoutEliminator`], ensuring that external application layers do not directly
+//! manipulate raw low-level [`SubtreeSession`] begin/finish operations or extract tree
+//! structures via `std::mem::take`.
+
+use super::dual_layout::{DualLayoutEliminator, SubtreeEngines};
+use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
+use iris_core::geometry::Rect;
+use iris_core::style::Style;
+use iris_core::{DirtyFlags, UiTree, WidgetId};
+use iris_layout::LayoutEngine;
+use iris_text::TextSystem;
+use iris_widgets::declarative::UiScope;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SessionTestTab {
+    Viewport,
+    Inspector,
+    Console,
+}
+
+#[derive(Default)]
+struct SessionMockContext {
+    pub render_count: usize,
+}
+
+fn create_session_test_leaf(tree: &mut UiTree, rect: Rect) -> WidgetId {
+    let id = tree.create_node();
+    let mut scope = UiScope::new(tree, id);
+    scope.configure_container(
+        "SessionLeafContainer",
+        Style::new().width(rect.width).height(rect.height),
+        false,
+    );
+    if let Some(node) = tree.get_mut(id) {
+        node.computed_rect = rect;
+    }
+    id
+}
+
+#[test]
+fn test_atomic_rebuild_panel_success_and_boundary_sealing() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(50.0, 50.0, 400.0, 600.0));
+
+    registry.register_panel(SessionTestTab::Inspector, |scope, ctx| {
+        ctx.render_count += 1;
+        scope.button("Inspector Header");
+        scope.button("Inspector Property");
+    });
+
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+    let success = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Inspector,
+        leaf_id,
+    )
+    .expect("Atomic rebuild_panel must succeed");
+
+    assert!(success, "Panel should have been successfully rebuilt");
+    assert_eq!(context.render_count, 1);
+
+    // Verify boundary sealing and paint flagging via engines.tree
+    assert!(engines.tree.is_boundary(leaf_id));
+    assert!(
+        engines
+            .tree
+            .get(leaf_id)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::PAINT)
+    );
+
+    // Verify child generation under leaf_id
+    let children = &engines.tree.get(leaf_id).unwrap().children;
+    assert_eq!(children.len(), 2);
+    let child0_rect = engines.tree.get(children[0]).unwrap().computed_rect;
+    assert!(child0_rect.x >= 50.0);
+    assert!(child0_rect.y >= 50.0);
+}
+
+#[test]
+fn test_atomic_rebuild_panel_missing_or_zero_area_leaf() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    registry.register_panel(SessionTestTab::Console, |scope, _| {
+        scope.button("Log Output");
+    });
+
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    // 1. Missing node: Null/default WidgetId that does not exist in tree
+    let missing_id = WidgetId::default();
+    let missing_result = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Console,
+        missing_id,
+    )
+    .expect("Missing leaf query must not panic and must return Ok(false)");
+    assert!(!missing_result);
+
+    // 2. Collapsed zero-area node: width = 0.0, height = 0.0
+    let collapsed_id = create_session_test_leaf(engines.tree, Rect::new(0.0, 0.0, 0.0, 0.0));
+    let collapsed_result = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Console,
+        collapsed_id,
+    )
+    .expect("Zero-area leaf query must safely return Ok(false)");
+    assert!(!collapsed_result);
+    assert_eq!(context.render_count, 0);
+}
+
+#[test]
+fn test_atomic_rebuild_panel_propagates_registry_draw_error() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(10.0, 10.0, 300.0, 300.0));
+
+    // Notice: SessionTestTab::Viewport is NOT registered in registry!
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+    let result = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Viewport,
+        leaf_id,
+    );
+
+    assert!(
+        result.is_err(),
+        "Unregistered panel draw must propagate error"
+    );
+}
+
+#[test]
+fn test_rebuild_leaf_panel_fallible_success_and_error_handling() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 500.0, 500.0));
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    // 1. Successful fallible rebuild
+    let ok_res = DualLayoutEliminator::rebuild_leaf_panel_fallible(
+        &mut engines,
+        leaf_id,
+        |scope| -> Result<(), &'static str> {
+            scope.button("Valid Item");
+            Ok(())
+        },
+    );
+    assert!(ok_res.is_ok());
+    assert!(engines.tree.is_boundary(leaf_id));
+
+    // 2. Aborted fallible rebuild returning an error
+    let err_res = DualLayoutEliminator::rebuild_leaf_panel_fallible(
+        &mut engines,
+        leaf_id,
+        |_scope| -> Result<(), &'static str> {
+            Err("Simulated business validation failure during render")
+        },
+    );
+    assert!(err_res.is_err());
+}
+
+#[test]
+fn test_subtree_engines_convenience_methods() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(100.0, 100.0, 400.0, 400.0));
+
+    registry.register_panel(SessionTestTab::Inspector, |scope, ctx| {
+        ctx.render_count += 1;
+        scope.button("Inspector Tree Item");
+    });
+
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    // Test engines.rebuild_panel
+    let rebuilt = engines
+        .rebuild_panel(
+            &mut registry,
+            &mut context,
+            SessionTestTab::Inspector,
+            leaf_id,
+        )
+        .expect("SubtreeEngines::rebuild_panel must succeed");
+    assert!(rebuilt);
+    assert_eq!(context.render_count, 1);
+
+    // Test engines.rebuild_leaf
+    let leaf_rebuilt = engines.rebuild_leaf(leaf_id, |scope| {
+        scope.button("Direct Rebuilt Item");
+    });
+    assert!(leaf_rebuilt.is_ok());
+}
+
+#[test]
+fn test_atomic_rebuild_panel_clears_old_children_completely() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 400.0, 500.0));
+
+    // First generation: 3 buttons
+    registry.register_panel(SessionTestTab::Console, |scope, _| {
+        scope.button("Log 1");
+        scope.button("Log 2");
+        scope.button("Log 3");
+    });
+
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+    let first_run = engines
+        .rebuild_panel(
+            &mut registry,
+            &mut context,
+            SessionTestTab::Console,
+            leaf_id,
+        )
+        .expect("First run must succeed");
+    assert!(first_run);
+
+    let initial_children: Vec<WidgetId> = engines.tree.get(leaf_id).unwrap().children.clone();
+    assert_eq!(initial_children.len(), 3);
+
+    // Second generation: Replace registration with only 1 button
+    registry.register_panel(SessionTestTab::Console, |scope, _| {
+        scope.button("Fresh Single Log");
+    });
+
+    let second_run = engines
+        .rebuild_panel(
+            &mut registry,
+            &mut context,
+            SessionTestTab::Console,
+            leaf_id,
+        )
+        .expect("Second run must succeed");
+    assert!(second_run);
+
+    let current_children = &engines.tree.get(leaf_id).unwrap().children;
+    assert_eq!(current_children.len(), 1);
+
+    // Verify all old children were untracked and purged from tree arena
+    for old_child_id in initial_children {
+        assert!(
+            engines.tree.get(old_child_id).is_none(),
+            "Old child {old_child_id:?} must be purged from tree arena"
+        );
+    }
+}

@@ -52,6 +52,36 @@ impl<'a> SubtreeEngines<'a> {
             text_system,
         }
     }
+
+    /// Atomically rebuilds an individual leaf panel via declarative closure.
+    #[inline]
+    pub fn rebuild_leaf<F>(&mut self, leaf_id: WidgetId, render_fn: F) -> Result<(), LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        DualLayoutEliminator::rebuild_leaf_panel(
+            self.tree,
+            self.layout_engine,
+            self.text_system,
+            leaf_id,
+            render_fn,
+        )
+    }
+
+    /// Atomically rebuilds an individual registered dock panel.
+    #[inline]
+    pub fn rebuild_panel<TabId, Context>(
+        &mut self,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+    {
+        DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)
+    }
 }
 
 /// Autonomous coordinator synchronizing docking leaf containers with Taffy flexbox solvers.
@@ -148,6 +178,105 @@ impl DualLayoutEliminator {
         Ok(())
     }
 
+    /// Atomically rebuilds an individual registered dock panel in-place under `leaf_id`.
+    ///
+    /// Fully encapsulates the [`SubtreeSession`] lifecycle within [`DualLayoutEliminator`]:
+    /// 1. Validates the boundary node existence and non-zero dimensions.
+    /// 2. Purges previous descendant nodes and untracks stale child layout nodes.
+    /// 3. Declaratively synthesizes fresh widgets via [`WorkbenchPanelRegistry::draw`].
+    /// 4. Shapes typography and resolves boundary Taffy flexbox geometry in $O(M)$ time.
+    /// 5. Seals the leaf as an Invalidation Boundary and marks it for repainting.
+    ///
+    /// Eliminates the need for manual [`SubtreeSession::begin`] and [`SubtreeSession::finish`]
+    /// calls or tree extraction (`std::mem::take`) in external application/engine layers.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry
+    /// or if registry drawing fails.
+    pub fn rebuild_panel<TabId, Context>(
+        engines: &mut SubtreeEngines<'_>,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+    {
+        let Some(node) = engines.tree.get(leaf_id) else {
+            return Ok(false);
+        };
+
+        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
+            return Ok(false);
+        }
+
+        let mut draw_result = Ok(());
+        SubtreeSession::rebuild(
+            engines.tree,
+            engines.layout_engine,
+            engines.text_system,
+            leaf_id,
+            |scope| {
+                if let Err(err) = registry.draw(&panel_id, scope, context) {
+                    draw_result = Err(LayoutError::Taffy(err.to_string()));
+                }
+            },
+        )?;
+
+        draw_result?;
+
+        engines.tree.set_boundary(leaf_id, true);
+        engines.tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        Ok(true)
+    }
+
+    /// Atomically rebuilds an individual leaf panel with a fallible render closure.
+    ///
+    /// Encapsulates [`SubtreeSession`] execution, guaranteeing that any error returned by `render_fn`
+    /// safely aborts layout computation and is propagated as [`LayoutError`].
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if the node is missing, geometry is invalid, or `render_fn` fails.
+    pub fn rebuild_leaf_panel_fallible<E, F>(
+        engines: &mut SubtreeEngines<'_>,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
+        E: std::fmt::Display,
+    {
+        let Some(node) = engines.tree.get(leaf_id) else {
+            return Ok(false);
+        };
+
+        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
+            return Ok(false);
+        }
+
+        let mut render_err = None;
+        SubtreeSession::rebuild(
+            engines.tree,
+            engines.layout_engine,
+            engines.text_system,
+            leaf_id,
+            |scope| {
+                if let Err(err) = render_fn(scope) {
+                    render_err = Some(LayoutError::Taffy(err.to_string()));
+                }
+            },
+        )?;
+
+        if let Some(err) = render_err {
+            return Err(err);
+        }
+
+        engines.tree.set_boundary(leaf_id, true);
+        engines.tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        Ok(true)
+    }
+
     /// Granularly rebuilds all dirty docking leaf panels flagged in [`UiNotifier`].
     ///
     /// Evaluates all pending panel redraw tags, resolves each panel's docking leaf container
@@ -218,30 +347,9 @@ impl DualLayoutEliminator {
                 return Ok(false);
             };
 
-            let Some(node) = engines.tree.get(leaf_id) else {
-                notifier.clear_panel(panel_id);
-                return Ok(false);
-            };
-
-            if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
-                notifier.clear_panel(panel_id);
-                return Ok(false);
-            }
-
-            SubtreeSession::rebuild(
-                engines.tree,
-                engines.layout_engine,
-                engines.text_system,
-                leaf_id,
-                |scope| {
-                    let _ = registry.draw(&panel_id, scope, context);
-                },
-            )?;
-
-            engines.tree.set_boundary(leaf_id, true);
-            engines.tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+            let rebuilt = Self::rebuild_panel(engines, registry, context, panel_id, leaf_id)?;
             notifier.clear_panel(panel_id);
-            Ok(true)
+            Ok(rebuilt)
         };
 
         if let Some(heap_list) = heap_dirty {
