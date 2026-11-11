@@ -6,7 +6,6 @@
 //! Manages the retained-mode `UiTree`, `IrisRenderer`, typography, interactive hover/click
 //! event routing, and `MenuBarBuilder`/`DropdownMenuBuilder` rendering directly on top of the editor frame.
 
-pub mod about;
 pub mod assets;
 pub mod console;
 pub mod cursor;
@@ -38,7 +37,6 @@ mod tests_update;
 
 pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
-pub use about::build_about_dialog;
 pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
     build_assets_panel,

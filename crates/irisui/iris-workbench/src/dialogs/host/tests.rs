@@ -10,6 +10,7 @@ use super::DialogHost;
 use crate::action_bus::ActionBus;
 use crate::dialogs::descriptor::sheet::SheetAnchor;
 use crate::dialogs::descriptor::unified::DialogDescriptor;
+use iris_core::Color;
 use iris_core::event::KeyCode;
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
@@ -543,6 +544,94 @@ fn test_dialog_host_info_card_enter_triggers_on_close() {
     assert_eq!(bus.len(), 1);
     let drained: Vec<TestAction> = bus.drain().collect();
     assert_eq!(drained, vec![TestAction::CustomAction(888)]);
+}
+
+#[test]
+fn test_dialog_host_info_card_click_confirm_dismisses() {
+    let mut host = DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::new();
+    let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+    let desc = crate::dialogs::descriptor::info::InfoCardDialogDescriptor::new("About")
+        .with_app_name("App")
+        .with_on_close(TestAction::CustomAction(123));
+
+    host.open_info(desc);
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    tree.event_state.frame_clicked_tag = Some(iris_widgets::modal::MODAL_TAG_CONFIRM);
+    let mut scope = UiScope::new(&mut tree, root);
+    host.render(&mut scope, viewport, false, &mut bus);
+
+    assert!(!host.is_active());
+    assert_eq!(bus.len(), 1);
+}
+
+#[test]
+fn test_dialog_host_info_card_click_header_close_dismisses() {
+    let mut host = DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::new();
+    let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+    let desc = crate::dialogs::descriptor::info::InfoCardDialogDescriptor::new("About")
+        .with_app_name("App");
+
+    host.open_info(desc);
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    tree.event_state.frame_clicked_tag = Some(iris_widgets::modal::MODAL_TAG_CLOSE);
+    let mut scope = UiScope::new(&mut tree, root);
+    host.render(&mut scope, viewport, false, &mut bus);
+
+    assert!(!host.is_active());
+}
+
+#[test]
+fn test_dialog_host_info_card_with_link_and_custom_styling() {
+    let mut host = DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::new();
+    let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+    let desc = crate::dialogs::descriptor::info::InfoCardDialogDescriptor::new("About Test")
+        .with_app_name("Custom App")
+        .with_app_name_color(Color::rgba(0.0, 0.8, 1.0, 1.0))
+        .with_link("License Link", "https://example.com/license")
+        .with_footer_notice_colored("Warning Notice", Color::rgba(1.0, 0.3, 0.3, 1.0));
+
+    host.open_info(desc);
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut scope = UiScope::new(&mut tree, root);
+    host.render(&mut scope, viewport, false, &mut bus);
+
+    assert!(host.is_active());
+}
+
+#[test]
+fn test_dialog_host_info_card_click_scrim_dismisses() {
+    let mut host = DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::new();
+    let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+    let desc = crate::dialogs::descriptor::info::InfoCardDialogDescriptor::new("About")
+        .with_dismiss_on_backdrop(true);
+
+    host.open_info(desc);
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    tree.event_state.frame_clicked_tag = Some(iris_widgets::modal::MODAL_TAG_SCRIM);
+    let mut scope = UiScope::new(&mut tree, root);
+    host.render(&mut scope, viewport, false, &mut bus);
+
+    assert!(!host.is_active());
 }
 
 #[test]

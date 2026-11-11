@@ -338,7 +338,8 @@ impl EngineUi {
         window: &winit::window::Window,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        for action in self.action_bus.drain() {
+        let drained_actions: Vec<EngineUiAction> = self.workbench.action_bus.drain().collect();
+        for action in drained_actions {
             match action {
                 EngineUiAction::TogglePanel(pid) => {
                     self.layout_state.activate_or_open(pid);
@@ -350,7 +351,7 @@ impl EngineUi {
                     self.show_preferences = true;
                 }
                 EngineUiAction::OpenAbout => {
-                    self.show_about = true;
+                    self.open_about_dialog();
                 }
                 EngineUiAction::TitleBarAction(action) => {
                     let mut win = window;

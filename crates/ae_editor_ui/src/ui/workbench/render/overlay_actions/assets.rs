@@ -60,7 +60,7 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::OpenCreateSubfolder(parent) => {
                     let parent_clone = parent.clone();
-                    self.dialog_host.open_input(
+                    self.workbench.dialog_host.open_input(
                         "New Folder",
                         "Folder Name:",
                         "New Folder",
@@ -102,7 +102,7 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
                     let kind = if is_folder { "Folder" } else { "Asset" };
                     let path_clone = path.clone();
-                    self.dialog_host.open_input(
+                    self.workbench.dialog_host.open_input(
                         format!("Rename {}", kind),
                         "New Name:",
                         name,
@@ -119,7 +119,7 @@ impl EngineUi {
                         .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("selected item");
-                    self.dialog_host.open_confirm_danger(
+                    self.workbench.dialog_host.open_confirm_danger(
                         "Delete Asset",
                         format!(
                             "Are you sure you want to permanently delete '{}'?",

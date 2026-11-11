@@ -31,6 +31,27 @@ impl InfoEntry {
     }
 }
 
+/// A clickable external web hyperlink entry displayed within an [`InfoCardDialogDescriptor`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InfoLink {
+    /// Human-readable label text displayed on the clickable link.
+    pub label: String,
+    /// Destination web URL opened in the system default browser upon activation.
+    pub url: String,
+}
+
+impl InfoLink {
+    /// Creates a new hyperlink entry.
+    #[inline]
+    #[must_use]
+    pub fn new(label: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            url: url.into(),
+        }
+    }
+}
+
 /// Generic information and software "About" modal dialogue card descriptor.
 ///
 /// Completely unopinionated: all texts, labels, colors, and entries are caller-provided
@@ -46,6 +67,9 @@ where
     /// Optional prominent application or project name.
     pub app_name: Option<String>,
 
+    /// Optional color override for the application title text.
+    pub app_name_color: Option<Color>,
+
     /// Optional version string (e.g. "0.9.0", "v1.2.3").
     pub version: Option<String>,
 
@@ -55,11 +79,17 @@ where
     /// Optional descriptive summary or explanatory paragraph.
     pub description: Option<String>,
 
+    /// Optional clickable external hyperlink.
+    pub link: Option<InfoLink>,
+
     /// Optional list of key-value property rows (e.g. Environment, Compiler, Platform).
     pub entries: Vec<InfoEntry>,
 
     /// Optional footer or disclaimer notice.
     pub footer_notice: Option<String>,
+
+    /// Optional color override for the footer notice text.
+    pub footer_notice_color: Option<Color>,
 
     /// Label displayed on the confirmation/dismissal button (default: "Close").
     pub close_label: String,
@@ -114,11 +144,14 @@ impl<Action: 'static + Send + Sync> InfoCardDialogDescriptor<Action> {
         Self {
             title: title.into(),
             app_name: None,
+            app_name_color: None,
             version: None,
             copyright: None,
             description: None,
+            link: None,
             entries: Vec::new(),
             footer_notice: None,
+            footer_notice_color: None,
             close_label: Self::DEFAULT_CLOSE_LABEL.to_string(),
             on_close: None,
             size: Self::DEFAULT_SIZE,
@@ -139,6 +172,14 @@ impl<Action: 'static + Send + Sync> InfoCardDialogDescriptor<Action> {
     #[must_use]
     pub fn with_app_name(mut self, name: impl Into<String>) -> Self {
         self.app_name = Some(name.into());
+        self
+    }
+
+    /// Sets the color of the prominent application title text.
+    #[inline]
+    #[must_use]
+    pub const fn with_app_name_color(mut self, color: Color) -> Self {
+        self.app_name_color = Some(color);
         self
     }
 
@@ -166,6 +207,14 @@ impl<Action: 'static + Send + Sync> InfoCardDialogDescriptor<Action> {
         self
     }
 
+    /// Sets an external clickable web hyperlink.
+    #[inline]
+    #[must_use]
+    pub fn with_link(mut self, label: impl Into<String>, url: impl Into<String>) -> Self {
+        self.link = Some(InfoLink::new(label, url));
+        self
+    }
+
     /// Appends a key-value diagnostic or specification entry.
     #[inline]
     #[must_use]
@@ -187,6 +236,23 @@ impl<Action: 'static + Send + Sync> InfoCardDialogDescriptor<Action> {
     #[must_use]
     pub fn with_footer_notice(mut self, notice: impl Into<String>) -> Self {
         self.footer_notice = Some(notice.into());
+        self
+    }
+
+    /// Sets an optional footer disclaimer or legal notice with explicit text color.
+    #[inline]
+    #[must_use]
+    pub fn with_footer_notice_colored(mut self, notice: impl Into<String>, color: Color) -> Self {
+        self.footer_notice = Some(notice.into());
+        self.footer_notice_color = Some(color);
+        self
+    }
+
+    /// Overrides the color of the footer notice text.
+    #[inline]
+    #[must_use]
+    pub const fn with_footer_notice_color(mut self, color: Color) -> Self {
+        self.footer_notice_color = Some(color);
         self
     }
 

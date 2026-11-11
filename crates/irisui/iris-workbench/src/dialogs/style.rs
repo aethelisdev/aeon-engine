@@ -4,24 +4,30 @@
 //! # Modal Dialogue Styling and Chromatic Configuration
 //!
 //! Provides customizable visual attributes for modal dialog cards, backdrop blockers,
-//! header bars, and action buttons, pre-configured with dark studio defaults.
+//! header bars, and action buttons, dynamically resolving colors against the active [`iris_core::Theme`].
 
-use iris_core::Color;
+use iris_core::{Color, Theme};
 
 /// Visual and chromatic configuration for modal dialogues and confirmation cards.
 ///
 /// Encapsulates full-screen scrim opacity, modal card elevation styling, border thickness,
 /// corner rounding, internal padding, and standard action button geometry.
+///
+/// Color fields are optional overrides: when `None`, colors are dynamically resolved
+/// from the application's active [`Theme`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModalStyle {
     /// Semi-transparent fill color of the full-screen backdrop scrim blocker.
-    pub backdrop_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::modal_scrim`].
+    pub backdrop_color: Option<Color>,
 
     /// Fill color of the elevated modal card surface.
-    pub card_background: Color,
+    /// When `None`, dynamically resolves from [`Theme::modal_bg`].
+    pub card_background: Option<Color>,
 
     /// Stroke color of the modal card border perimeter.
-    pub card_border_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::modal_border`].
+    pub card_border_color: Option<Color>,
 
     /// Stroke thickness of the modal card perimeter border in logical pixels.
     pub card_border_width: f32,
@@ -39,13 +45,16 @@ pub struct ModalStyle {
     pub footer_gap: f32,
 
     /// Primary header text color for the title subheading.
-    pub header_text_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::text_primary`].
+    pub header_text_color: Option<Color>,
 
     /// Secondary subtitle text color for descriptive prompt text.
-    pub subtitle_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::text_secondary`].
+    pub subtitle_color: Option<Color>,
 
     /// Chromatic tone used for high-visibility destructive/danger warning text.
-    pub danger_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::danger`].
+    pub danger_color: Option<Color>,
 
     /// Standard width allocated for cancel action buttons in logical pixels.
     pub cancel_button_width: f32,
@@ -54,78 +63,150 @@ pub struct ModalStyle {
     pub confirm_button_width: f32,
 
     /// Highlight border color pulsed when user clicks the backdrop of a non-dismissible modal.
-    pub attention_border_color: Color,
+    /// When `None`, dynamically resolves from [`Theme::accent`].
+    pub attention_border_color: Option<Color>,
 
     /// Peak lateral shake displacement amplitude in logical pixels for attention feedback.
     pub attention_shake_amplitude: f32,
 }
 
 impl Default for ModalStyle {
-    /// Creates a dark studio default modal styling matching professional creative suites.
+    /// Creates a default modal style with zero hardcoded colors, fully delegating to the active theme.
     fn default() -> Self {
         Self {
-            backdrop_color: Color::rgba(0.0, 0.0, 0.0, 0.60),
-            card_background: Color::rgba(0.12, 0.13, 0.16, 0.98),
-            card_border_color: Color::rgba(0.24, 0.26, 0.32, 1.0),
+            backdrop_color: None,
+            card_background: None,
+            card_border_color: None,
             card_border_width: 1.0,
             card_corner_radius: 8.0,
             card_padding: 16.0,
             content_gap: 12.0,
             footer_gap: 8.0,
-            header_text_color: Color::rgba(0.92, 0.94, 0.98, 1.0),
-            subtitle_color: Color::rgba(0.60, 0.64, 0.72, 1.0),
-            danger_color: Color::rgba(1.0, 0.45, 0.45, 1.0),
+            header_text_color: None,
+            subtitle_color: None,
+            danger_color: None,
             cancel_button_width: 80.0,
             confirm_button_width: 120.0,
-            attention_border_color: Color::rgba(0.38, 0.65, 0.98, 1.0),
+            attention_border_color: None,
             attention_shake_amplitude: 6.0,
         }
     }
 }
 
 impl ModalStyle {
-    /// Creates a new modal style with dark studio defaults.
+    /// Creates a new modal style with theme-driven defaults.
     #[inline]
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a new modal style with dark studio theme colors and spacing.
+    /// Creates a new modal style with theme-driven defaults.
     #[inline]
     #[must_use]
     pub fn dark_studio() -> Self {
         Self::default()
     }
 
-    /// Creates a clean light studio modal styling preset.
-    #[inline]
+    /// Constructs a modal style explicitly bound to the visual chromas of a [`Theme`].
     #[must_use]
-    pub fn light_studio() -> Self {
+    pub fn from_theme(theme: &Theme) -> Self {
         Self {
-            backdrop_color: Color::rgba(0.0, 0.0, 0.0, 0.40),
-            card_background: Color::rgba(0.96, 0.97, 0.98, 0.98),
-            card_border_color: Color::rgba(0.80, 0.82, 0.86, 1.0),
+            backdrop_color: Some(theme.modal_scrim),
+            card_background: Some(theme.modal_bg),
+            card_border_color: Some(theme.modal_border),
             card_border_width: 1.0,
             card_corner_radius: 8.0,
             card_padding: 16.0,
             content_gap: 12.0,
             footer_gap: 8.0,
-            header_text_color: Color::rgba(0.12, 0.14, 0.18, 1.0),
-            subtitle_color: Color::rgba(0.35, 0.38, 0.45, 1.0),
-            danger_color: Color::rgba(0.85, 0.15, 0.15, 1.0),
+            header_text_color: Some(theme.text_primary),
+            subtitle_color: Some(theme.text_secondary),
+            danger_color: Some(theme.danger),
             cancel_button_width: 80.0,
             confirm_button_width: 120.0,
-            attention_border_color: Color::rgba(0.20, 0.50, 0.90, 1.0),
+            attention_border_color: Some(theme.accent),
             attention_shake_amplitude: 6.0,
         }
+    }
+
+    /// Creates a clean light studio modal styling preset with explicit color overrides.
+    #[inline]
+    #[must_use]
+    pub fn light_studio() -> Self {
+        Self {
+            backdrop_color: Some(Color::rgba(0.0, 0.0, 0.0, 0.40)),
+            card_background: Some(Color::rgba(0.96, 0.97, 0.98, 0.98)),
+            card_border_color: Some(Color::rgba(0.80, 0.82, 0.86, 1.0)),
+            card_border_width: 1.0,
+            card_corner_radius: 8.0,
+            card_padding: 16.0,
+            content_gap: 12.0,
+            footer_gap: 8.0,
+            header_text_color: Some(Color::rgba(0.12, 0.14, 0.18, 1.0)),
+            subtitle_color: Some(Color::rgba(0.35, 0.38, 0.45, 1.0)),
+            danger_color: Some(Color::rgba(0.85, 0.15, 0.15, 1.0)),
+            cancel_button_width: 80.0,
+            confirm_button_width: 120.0,
+            attention_border_color: Some(Color::rgba(0.20, 0.50, 0.90, 1.0)),
+            attention_shake_amplitude: 6.0,
+        }
+    }
+
+    /// Resolves the effective backdrop scrim color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_backdrop_color(&self, theme: &Theme) -> Color {
+        self.backdrop_color.unwrap_or(theme.modal_scrim)
+    }
+
+    /// Resolves the effective card surface background color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_card_background(&self, theme: &Theme) -> Color {
+        self.card_background.unwrap_or(theme.modal_bg)
+    }
+
+    /// Resolves the effective card border stroke color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_card_border_color(&self, theme: &Theme) -> Color {
+        self.card_border_color.unwrap_or(theme.modal_border)
+    }
+
+    /// Resolves the primary header text color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_header_text_color(&self, theme: &Theme) -> Color {
+        self.header_text_color.unwrap_or(theme.text_primary)
+    }
+
+    /// Resolves the secondary subtitle/description text color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_subtitle_color(&self, theme: &Theme) -> Color {
+        self.subtitle_color.unwrap_or(theme.text_secondary)
+    }
+
+    /// Resolves the destructive / danger warning text color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_danger_color(&self, theme: &Theme) -> Color {
+        self.danger_color.unwrap_or(theme.danger)
+    }
+
+    /// Resolves the attention highlight border color against the provided active [`Theme`].
+    #[inline]
+    #[must_use]
+    pub fn resolve_attention_border_color(&self, theme: &Theme) -> Color {
+        self.attention_border_color.unwrap_or(theme.accent)
     }
 
     /// Sets the semi-transparent backdrop blocker fill color.
     #[inline]
     #[must_use]
     pub const fn with_backdrop_color(mut self, color: Color) -> Self {
-        self.backdrop_color = color;
+        self.backdrop_color = Some(color);
         self
     }
 
@@ -133,7 +214,7 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_card_background(mut self, color: Color) -> Self {
-        self.card_background = color;
+        self.card_background = Some(color);
         self
     }
 
@@ -141,7 +222,7 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_card_border(mut self, color: Color, width: f32) -> Self {
-        self.card_border_color = color;
+        self.card_border_color = Some(color);
         self.card_border_width = width;
         self
     }
@@ -182,7 +263,7 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_header_text_color(mut self, color: Color) -> Self {
-        self.header_text_color = color;
+        self.header_text_color = Some(color);
         self
     }
 
@@ -190,7 +271,7 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_subtitle_color(mut self, color: Color) -> Self {
-        self.subtitle_color = color;
+        self.subtitle_color = Some(color);
         self
     }
 
@@ -198,7 +279,15 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_danger_color(mut self, color: Color) -> Self {
-        self.danger_color = color;
+        self.danger_color = Some(color);
+        self
+    }
+
+    /// Sets the border stroke color of the modal card.
+    #[inline]
+    #[must_use]
+    pub const fn with_card_border_color(mut self, color: Color) -> Self {
+        self.card_border_color = Some(color);
         self
     }
 
@@ -231,7 +320,7 @@ impl ModalStyle {
     #[inline]
     #[must_use]
     pub const fn with_attention_border_color(mut self, color: Color) -> Self {
-        self.attention_border_color = color;
+        self.attention_border_color = Some(color);
         self
     }
 

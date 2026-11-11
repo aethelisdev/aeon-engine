@@ -93,9 +93,7 @@ impl IrisEditorOverlay {
             self.notifier.tag_all();
             self.chrome.needs_layout_rebuild = true;
             let mut res = super::types::IrisOverlayEventResult::consumed(true);
-            if self.modals.is_about_active {
-                res.close_about = true;
-            } else if self.modals.is_delete_active {
+            if self.modals.is_delete_active {
                 res.cancel_delete = true;
             } else if self.modals.is_new_folder_active {
                 res.cancel_new_folder = true;
@@ -241,9 +239,7 @@ impl IrisEditorOverlay {
             match clicked_tag {
                 ModalDialogAction::TAG_CLOSE => {
                     result.consumed = true;
-                    if self.modals.is_about_active {
-                        result.close_about = true;
-                    } else if self.modals.is_delete_active {
+                    if self.modals.is_delete_active {
                         result.cancel_delete = true;
                     } else if self.modals.is_new_folder_active {
                         result.cancel_new_folder = true;
@@ -268,9 +264,7 @@ impl IrisEditorOverlay {
                 }
                 ModalDialogAction::TAG_CONFIRM => {
                     result.consumed = true;
-                    if self.modals.is_about_active {
-                        result.close_about = true;
-                    } else if self.modals.is_new_folder_active {
+                    if self.modals.is_new_folder_active {
                         result.create_folder =
                             Some(self.modals.new_folder_input.text().to_string());
                     } else if self.modals.is_rename_active {

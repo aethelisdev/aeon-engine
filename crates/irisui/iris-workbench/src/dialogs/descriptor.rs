@@ -20,7 +20,7 @@ pub mod unified;
 pub use confirm::{ConfirmDialogDescriptor, ConfirmationDialogDescriptor};
 pub use custom::{CustomDialogDescriptor, CustomModalRenderFn};
 pub use floating::FloatingWindowDescriptor;
-pub use info::{InfoCardDialogDescriptor, InfoEntry};
+pub use info::{InfoCardDialogDescriptor, InfoEntry, InfoLink};
 pub use input::{InputDialogDescriptor, PromptDialogDescriptor, PromptSubmitFn};
 pub use modal::{ModalDescriptor, WorkbenchModal};
 pub use progress::ProgressModalDescriptor;

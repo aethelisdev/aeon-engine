@@ -15,7 +15,6 @@ use super::descriptor::{
     ProgressModalDescriptor,
 };
 use super::response::{ModalDismissReason, ModalOutcome};
-use super::style::ModalStyle;
 
 /// Autonomous coordinator rendering declarative modal dialogues.
 pub struct ModalController;
@@ -52,25 +51,54 @@ impl ModalController {
         let mut outcome = ModalOutcome::Active;
         let mut close_button_clicked = false;
 
+        let theme = scope.theme();
         let backdrop_color = descriptor
-            .style
-            .as_ref()
-            .map(|s| s.backdrop_color)
-            .unwrap_or(descriptor.backdrop_color);
+            .backdrop_color
+            .or_else(|| descriptor.style.as_ref().and_then(|s| s.backdrop_color))
+            .unwrap_or(theme.modal_scrim);
 
         let scrim_resp = scope.modal_scrim_sized(viewport, backdrop_color, |scrim| {
             scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
                 let card_id = card.parent();
                 if let Some(card_node) = card.tree_mut().get_mut(card_id) {
-                    if let Some(style) = &descriptor.style {
-                        card_node.style = card_node
-                            .style
-                            .background(style.card_background)
-                            .border(style.card_border_width, style.card_border_color)
-                            .border_radius(style.card_corner_radius)
-                            .padding(style.card_padding)
-                            .gap(style.content_gap);
-                    }
+                    let card_bg = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.resolve_card_background(&theme))
+                        .unwrap_or(theme.modal_bg);
+                    let border_col = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.resolve_card_border_color(&theme))
+                        .unwrap_or(theme.modal_border);
+                    let border_w = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.card_border_width)
+                        .unwrap_or(1.0);
+                    let corner_r = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.card_corner_radius)
+                        .unwrap_or(8.0);
+                    let pad = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.card_padding)
+                        .unwrap_or(16.0);
+                    let gap = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.content_gap)
+                        .unwrap_or(12.0);
+
+                    card_node.style = card_node
+                        .style
+                        .background(card_bg)
+                        .border(border_w, border_col)
+                        .border_radius(corner_r)
+                        .padding(pad)
+                        .gap(gap);
 
                     if let Some(pos) = descriptor.position {
                         card_node.style =
@@ -80,6 +108,12 @@ impl ModalController {
 
                 // Header Bar: Icon, Title subheading and optional '✕' close button
                 if descriptor.show_header {
+                    let header_col = descriptor
+                        .style
+                        .as_ref()
+                        .map(|s| s.resolve_header_text_color(&theme))
+                        .unwrap_or(theme.text_primary);
+
                     card.container(
                         Style::new()
                             .flex_row()
@@ -93,9 +127,19 @@ impl ModalController {
                                     .gap(8.0),
                                 |title_row| {
                                     if let Some(icon) = &descriptor.icon {
-                                        title_row.subheading(icon);
+                                        title_row.label_custom(
+                                            icon,
+                                            13.5,
+                                            header_col,
+                                            iris_core::TextAlign::Left,
+                                        );
                                     }
-                                    title_row.subheading(&descriptor.title);
+                                    title_row.label_custom(
+                                        &descriptor.title,
+                                        13.5,
+                                        header_col,
+                                        iris_core::TextAlign::Left,
+                                    );
                                 },
                             );
 
@@ -112,8 +156,8 @@ impl ModalController {
                         let text_color = descriptor
                             .style
                             .as_ref()
-                            .map(|s| s.subtitle_color)
-                            .unwrap_or(ModalStyle::default().subtitle_color);
+                            .map(|s| s.resolve_subtitle_color(&theme))
+                            .unwrap_or(theme.text_secondary);
                         card.label_custom(subtitle, 12.0, text_color, iris_core::TextAlign::Left);
                     }
                 }
@@ -153,103 +197,117 @@ impl ModalController {
         let mut outcome = ModalOutcome::Active;
         let mut close_button_clicked = false;
 
-        let scrim_resp =
-            scope.modal_scrim_sized(viewport, descriptor.style.backdrop_color, |scrim| {
-                scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
-                    let card_id = card.parent();
-                    if let Some(card_node) = card.tree_mut().get_mut(card_id) {
-                        card_node.style = card_node
-                            .style
-                            .background(descriptor.style.card_background)
-                            .border(
-                                descriptor.style.card_border_width,
-                                descriptor.style.card_border_color,
-                            )
-                            .border_radius(descriptor.style.card_corner_radius)
-                            .padding(descriptor.style.card_padding)
-                            .gap(descriptor.style.content_gap);
+        let theme = scope.theme();
+        let backdrop_color = descriptor.style.resolve_backdrop_color(&theme);
+        let card_bg = descriptor.style.resolve_card_background(&theme);
+        let card_border_col = descriptor.style.resolve_card_border_color(&theme);
+        let header_col = descriptor.style.resolve_header_text_color(&theme);
+        let subtitle_col = descriptor.style.resolve_subtitle_color(&theme);
+        let danger_col = descriptor.style.resolve_danger_color(&theme);
+
+        let scrim_resp = scope.modal_scrim_sized(viewport, backdrop_color, |scrim| {
+            scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
+                let card_id = card.parent();
+                if let Some(card_node) = card.tree_mut().get_mut(card_id) {
+                    card_node.style = card_node
+                        .style
+                        .background(card_bg)
+                        .border(descriptor.style.card_border_width, card_border_col)
+                        .border_radius(descriptor.style.card_corner_radius)
+                        .padding(descriptor.style.card_padding)
+                        .gap(descriptor.style.content_gap);
+                }
+
+                // Header Bar
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween),
+                    |header| {
+                        header.container(
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .gap(8.0),
+                            |title_row| {
+                                if let Some(icon) = &descriptor.icon {
+                                    title_row.label_custom(
+                                        icon,
+                                        13.5,
+                                        header_col,
+                                        iris_core::TextAlign::Left,
+                                    );
+                                }
+                                title_row.label_custom(
+                                    &descriptor.title,
+                                    13.5,
+                                    header_col,
+                                    iris_core::TextAlign::Left,
+                                );
+                            },
+                        );
+                        if descriptor.show_close_button {
+                            let resp = header.modal_close_button();
+                            if resp.clicked() {
+                                close_button_clicked = true;
+                            }
+                        }
+                    },
+                );
+
+                // Body Column
+                card.column(|col| {
+                    if descriptor.is_danger {
+                        col.colored_label(danger_col, &descriptor.message);
+                    } else {
+                        col.colored_label(header_col, &descriptor.message);
                     }
 
-                    // Header Bar
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::SpaceBetween),
-                        |header| {
-                            header.container(
-                                Style::new()
-                                    .flex_row()
-                                    .align_items(AlignItems::Center)
-                                    .gap(8.0),
-                                |title_row| {
-                                    if let Some(icon) = &descriptor.icon {
-                                        title_row.subheading(icon);
-                                    }
-                                    title_row.subheading(&descriptor.title);
-                                },
-                            );
-                            if descriptor.show_close_button {
-                                let resp = header.modal_close_button();
-                                if resp.clicked() {
-                                    close_button_clicked = true;
-                                }
-                            }
-                        },
-                    );
-
-                    // Body Column
-                    card.column(|col| {
-                        if descriptor.is_danger {
-                            col.colored_label(descriptor.style.danger_color, &descriptor.message);
-                        } else {
-                            col.label(&descriptor.message);
-                        }
-
-                        if let Some(detail) = &descriptor.detail {
-                            col.colored_label(descriptor.style.subtitle_color, detail);
-                        }
-                    });
-
-                    // Footer Bar
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::FlexEnd)
-                            .gap(descriptor.style.footer_gap),
-                        |footer| {
-                            let cancel_resp = footer.modal_cancel_button(
-                                &descriptor.cancel_label,
-                                descriptor.style.cancel_button_width,
-                            );
-                            if cancel_resp.clicked() {
-                                outcome = ModalOutcome::Dismissed(ModalDismissReason::CancelButton);
-                            }
-
-                            let confirm_clicked = if descriptor.is_danger {
-                                footer
-                                    .modal_danger_button(
-                                        &descriptor.confirm_label,
-                                        descriptor.style.confirm_button_width,
-                                    )
-                                    .clicked()
-                            } else {
-                                footer
-                                    .modal_confirm_button(
-                                        &descriptor.confirm_label,
-                                        descriptor.style.confirm_button_width,
-                                    )
-                                    .clicked()
-                            };
-
-                            if confirm_clicked {
-                                outcome = ModalOutcome::Action(true);
-                            }
-                        },
-                    );
+                    if let Some(detail) = &descriptor.detail {
+                        col.colored_label(subtitle_col, detail);
+                    }
                 });
+
+                // Footer Bar
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::FlexEnd)
+                        .gap(descriptor.style.footer_gap),
+                    |footer| {
+                        let cancel_resp = footer.modal_cancel_button(
+                            &descriptor.cancel_label,
+                            descriptor.style.cancel_button_width,
+                        );
+                        if cancel_resp.clicked() {
+                            outcome = ModalOutcome::Dismissed(ModalDismissReason::CancelButton);
+                        }
+
+                        let confirm_clicked = if descriptor.is_danger {
+                            footer
+                                .modal_danger_button(
+                                    &descriptor.confirm_label,
+                                    descriptor.style.confirm_button_width,
+                                )
+                                .clicked()
+                        } else {
+                            footer
+                                .modal_confirm_button(
+                                    &descriptor.confirm_label,
+                                    descriptor.style.confirm_button_width,
+                                )
+                                .clicked()
+                        };
+
+                        if confirm_clicked {
+                            outcome = ModalOutcome::Action(true);
+                        }
+                    },
+                );
             });
+        });
 
         if close_button_clicked {
             return ModalOutcome::Dismissed(ModalDismissReason::CloseButton);
@@ -281,89 +339,102 @@ impl ModalController {
         let mut close_button_clicked = false;
         let mut confirmed = false;
 
-        let scrim_resp =
-            scope.modal_scrim_sized(viewport, descriptor.style.backdrop_color, |scrim| {
-                scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
-                    let card_id = card.parent();
-                    if let Some(card_node) = card.tree_mut().get_mut(card_id) {
-                        card_node.style = card_node
-                            .style
-                            .background(descriptor.style.card_background)
-                            .border(
-                                descriptor.style.card_border_width,
-                                descriptor.style.card_border_color,
-                            )
-                            .border_radius(descriptor.style.card_corner_radius)
-                            .padding(descriptor.style.card_padding)
-                            .gap(descriptor.style.content_gap);
-                    }
+        let theme = scope.theme();
+        let backdrop_color = descriptor.style.resolve_backdrop_color(&theme);
+        let card_bg = descriptor.style.resolve_card_background(&theme);
+        let card_border_col = descriptor.style.resolve_card_border_color(&theme);
+        let header_col = descriptor.style.resolve_header_text_color(&theme);
+        let subtitle_col = descriptor.style.resolve_subtitle_color(&theme);
 
-                    // Header Bar
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::SpaceBetween),
-                        |header| {
-                            header.container(
-                                Style::new()
-                                    .flex_row()
-                                    .align_items(AlignItems::Center)
-                                    .gap(8.0),
-                                |title_row| {
-                                    if let Some(icon) = &descriptor.icon {
-                                        title_row.subheading(icon);
-                                    }
-                                    title_row.subheading(&descriptor.title);
-                                },
-                            );
-                            if descriptor.show_close_button {
-                                let resp = header.modal_close_button();
-                                if resp.clicked() {
-                                    close_button_clicked = true;
+        let scrim_resp = scope.modal_scrim_sized(viewport, backdrop_color, |scrim| {
+            scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
+                let card_id = card.parent();
+                if let Some(card_node) = card.tree_mut().get_mut(card_id) {
+                    card_node.style = card_node
+                        .style
+                        .background(card_bg)
+                        .border(descriptor.style.card_border_width, card_border_col)
+                        .border_radius(descriptor.style.card_corner_radius)
+                        .padding(descriptor.style.card_padding)
+                        .gap(descriptor.style.content_gap);
+                }
+
+                // Header Bar
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween),
+                    |header| {
+                        header.container(
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .gap(8.0),
+                            |title_row| {
+                                if let Some(icon) = &descriptor.icon {
+                                    title_row.label_custom(
+                                        icon,
+                                        13.5,
+                                        header_col,
+                                        iris_core::TextAlign::Left,
+                                    );
                                 }
+                                title_row.label_custom(
+                                    &descriptor.title,
+                                    13.5,
+                                    header_col,
+                                    iris_core::TextAlign::Left,
+                                );
+                            },
+                        );
+                        if descriptor.show_close_button {
+                            let resp = header.modal_close_button();
+                            if resp.clicked() {
+                                close_button_clicked = true;
                             }
-                        },
-                    );
-
-                    // Body Column
-                    card.column(|col| {
-                        if let Some(detail) = &descriptor.detail {
-                            col.colored_label(descriptor.style.subtitle_color, detail);
                         }
-                        if !descriptor.prompt.is_empty() {
-                            col.label(&descriptor.prompt);
-                        }
-                        col.text_input(&descriptor.placeholder, input_buffer);
-                    });
+                    },
+                );
 
-                    // Footer Bar
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::FlexEnd)
-                            .gap(descriptor.style.footer_gap),
-                        |footer| {
-                            let cancel_resp = footer.modal_cancel_button(
-                                &descriptor.cancel_label,
-                                descriptor.style.cancel_button_width,
-                            );
-                            if cancel_resp.clicked() {
-                                outcome = ModalOutcome::Dismissed(ModalDismissReason::CancelButton);
-                            }
-
-                            let confirm_resp = footer.modal_confirm_button(
-                                &descriptor.confirm_label,
-                                descriptor.style.confirm_button_width,
-                            );
-                            if confirm_resp.clicked() {
-                                confirmed = true;
-                            }
-                        },
-                    );
+                // Body Column
+                card.column(|col| {
+                    if let Some(detail) = &descriptor.detail {
+                        col.colored_label(subtitle_col, detail);
+                    }
+                    if !descriptor.prompt.is_empty() {
+                        col.label(&descriptor.prompt);
+                    }
+                    col.text_input(&descriptor.placeholder, input_buffer);
                 });
+
+                // Footer Bar
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::FlexEnd)
+                        .gap(descriptor.style.footer_gap),
+                    |footer| {
+                        let cancel_resp = footer.modal_cancel_button(
+                            &descriptor.cancel_label,
+                            descriptor.style.cancel_button_width,
+                        );
+                        if cancel_resp.clicked() {
+                            outcome = ModalOutcome::Dismissed(ModalDismissReason::CancelButton);
+                        }
+
+                        let confirm_resp = footer.modal_confirm_button(
+                            &descriptor.confirm_label,
+                            descriptor.style.confirm_button_width,
+                        );
+                        if confirm_resp.clicked() {
+                            confirmed = true;
+                        }
+                    },
+                );
             });
+        });
 
         if close_button_clicked {
             return ModalOutcome::Dismissed(ModalDismissReason::CloseButton);
@@ -400,9 +471,15 @@ impl ModalController {
         let mut close_button_clicked = false;
         let mut confirmed = false;
 
+        let theme = scope.theme();
         let backdrop_color = descriptor
             .backdrop_color
-            .unwrap_or(descriptor.style.backdrop_color);
+            .or(descriptor.style.backdrop_color)
+            .unwrap_or(theme.modal_scrim);
+        let card_bg = descriptor.style.resolve_card_background(&theme);
+        let card_border_col = descriptor.style.resolve_card_border_color(&theme);
+        let header_col = descriptor.style.resolve_header_text_color(&theme);
+        let subtitle_col = descriptor.style.resolve_subtitle_color(&theme);
 
         let scrim_resp = scope.modal_scrim_sized(viewport, backdrop_color, |scrim| {
             scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
@@ -410,11 +487,8 @@ impl ModalController {
                 if let Some(card_node) = card.tree_mut().get_mut(card_id) {
                     card_node.style = card_node
                         .style
-                        .background(descriptor.style.card_background)
-                        .border(
-                            descriptor.style.card_border_width,
-                            descriptor.style.card_border_color,
-                        )
+                        .background(card_bg)
+                        .border(descriptor.style.card_border_width, card_border_col)
                         .border_radius(descriptor.style.card_corner_radius)
                         .padding(descriptor.style.card_padding)
                         .gap(descriptor.style.content_gap);
@@ -439,9 +513,19 @@ impl ModalController {
                                 .gap(8.0),
                             |title_row| {
                                 if let Some(icon) = &descriptor.icon {
-                                    title_row.subheading(icon);
+                                    title_row.label_custom(
+                                        icon,
+                                        13.5,
+                                        header_col,
+                                        iris_core::TextAlign::Left,
+                                    );
                                 }
-                                title_row.subheading(&descriptor.title);
+                                title_row.label_custom(
+                                    &descriptor.title,
+                                    13.5,
+                                    header_col,
+                                    iris_core::TextAlign::Left,
+                                );
                             },
                         );
                         if descriptor.show_close_button {
@@ -454,40 +538,45 @@ impl ModalController {
                 );
 
                 if let Some(subtitle) = &descriptor.subtitle {
-                    card.label_custom(
-                        subtitle,
-                        12.0,
-                        descriptor.style.subtitle_color,
-                        iris_core::TextAlign::Left,
-                    );
+                    card.label_custom(subtitle, 12.0, subtitle_col, iris_core::TextAlign::Left);
                 }
 
                 // Body Column
                 card.column(|col| {
                     if let Some(app) = &descriptor.app_name {
-                        col.heading(app);
+                        if let Some(color) = descriptor.app_name_color {
+                            col.label_custom(app, 20.0, color, iris_core::TextAlign::Center);
+                        } else {
+                            col.heading(app);
+                        }
                     }
                     if let Some(ver) = &descriptor.version {
-                        col.colored_label(descriptor.style.subtitle_color, ver);
+                        col.colored_label(subtitle_col, ver);
+                    }
+                    if let Some(copy) = &descriptor.copyright {
+                        col.colored_label(subtitle_col, copy);
                     }
                     if let Some(desc) = &descriptor.description {
-                        col.label(desc);
+                        col.separator();
+                        col.colored_label(subtitle_col, desc);
+                    }
+                    if let Some(link) = &descriptor.link
+                        && col.link(&link.label, 11.0).clicked()
+                    {
+                        iris_core::platform::open_url(&link.url);
                     }
                     if !descriptor.entries.is_empty() {
                         col.separator();
                         for entry in &descriptor.entries {
                             col.row(|row| {
-                                row.colored_label(descriptor.style.subtitle_color, &entry.label);
+                                row.colored_label(subtitle_col, &entry.label);
                                 row.label(&entry.value);
                             });
                         }
                     }
-                    if let Some(copy) = &descriptor.copyright {
-                        col.separator();
-                        col.colored_label(descriptor.style.subtitle_color, copy);
-                    }
                     if let Some(notice) = &descriptor.footer_notice {
-                        col.colored_label(descriptor.style.subtitle_color, notice);
+                        let color = descriptor.footer_notice_color.unwrap_or(subtitle_col);
+                        col.colored_label(color, notice);
                     }
                 });
 
@@ -546,9 +635,15 @@ impl ModalController {
         let mut close_button_clicked = false;
         let mut cancel_button_clicked = false;
 
+        let theme = scope.theme();
         let backdrop_color = descriptor
             .backdrop_color
-            .unwrap_or(descriptor.style.backdrop_color);
+            .or(descriptor.style.backdrop_color)
+            .unwrap_or(theme.modal_scrim);
+        let card_bg = descriptor.style.resolve_card_background(&theme);
+        let card_border_col = descriptor.style.resolve_card_border_color(&theme);
+        let header_col = descriptor.style.resolve_header_text_color(&theme);
+        let subtitle_col = descriptor.style.resolve_subtitle_color(&theme);
 
         let scrim_resp = scope.modal_scrim_sized(viewport, backdrop_color, |scrim| {
             scrim.modal_card(descriptor.size.0, descriptor.size.1, |card| {
@@ -556,11 +651,8 @@ impl ModalController {
                 if let Some(card_node) = card.tree_mut().get_mut(card_id) {
                     card_node.style = card_node
                         .style
-                        .background(descriptor.style.card_background)
-                        .border(
-                            descriptor.style.card_border_width,
-                            descriptor.style.card_border_color,
-                        )
+                        .background(card_bg)
+                        .border(descriptor.style.card_border_width, card_border_col)
                         .border_radius(descriptor.style.card_corner_radius)
                         .padding(descriptor.style.card_padding)
                         .gap(descriptor.style.content_gap);
@@ -585,9 +677,19 @@ impl ModalController {
                                 .gap(8.0),
                             |title_row| {
                                 if let Some(icon) = &descriptor.icon {
-                                    title_row.subheading(icon);
+                                    title_row.label_custom(
+                                        icon,
+                                        13.5,
+                                        header_col,
+                                        iris_core::TextAlign::Left,
+                                    );
                                 }
-                                title_row.subheading(&descriptor.title);
+                                title_row.label_custom(
+                                    &descriptor.title,
+                                    13.5,
+                                    header_col,
+                                    iris_core::TextAlign::Left,
+                                );
                             },
                         );
                         if descriptor.is_cancellable {
@@ -600,12 +702,7 @@ impl ModalController {
                 );
 
                 if let Some(subtitle) = &descriptor.subtitle {
-                    card.label_custom(
-                        subtitle,
-                        12.0,
-                        descriptor.style.subtitle_color,
-                        iris_core::TextAlign::Left,
-                    );
+                    card.label_custom(subtitle, 12.0, subtitle_col, iris_core::TextAlign::Left);
                 }
 
                 // Body: Status message & Progress Bar

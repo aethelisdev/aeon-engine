@@ -623,3 +623,132 @@ fn test_workbench_panel_granular_partial_rendering_only_dirty_panel_called() {
     // Inspector alone was rendered
     assert_eq!(state.inspector_renders, 2, "Dirty Inspector must re-render");
 }
+
+#[test]
+fn test_panel_registry_draw_leaf_seals_boundary_and_marks_dirty_paint() {
+    use iris_core::DirtyFlags;
+
+    let mut registry = WorkbenchPanelRegistry::<MockTab, MockPanelAppState>::new();
+    registry.register(MockInspectorPanel);
+
+    let mut state = MockPanelAppState::default();
+    let mut tree = UiTree::new();
+    let leaf = tree.create_node();
+
+    // Reset initial node dirty state and verify preconditions
+    if let Some(node) = tree.get_mut(leaf) {
+        node.dirty = DirtyFlags::empty();
+    }
+    assert!(!tree.is_boundary(leaf));
+    assert!(!tree.get(leaf).unwrap().dirty.contains(DirtyFlags::PAINT));
+
+    // 1. Successful draw_leaf invocation
+    let res = registry.draw_leaf(&MockTab::Inspector, &mut tree, leaf, &mut state);
+    assert!(res.is_ok());
+    assert_eq!(state.inspector_renders, 1);
+
+    // Verify postconditions: node is sealed as an Invalidation Boundary and marked PAINT dirty
+    assert!(
+        tree.is_boundary(leaf),
+        "draw_leaf must set is_boundary to true"
+    );
+    assert!(
+        tree.get(leaf).unwrap().dirty.contains(DirtyFlags::PAINT),
+        "draw_leaf must mark DirtyFlags::PAINT on leaf container"
+    );
+
+    // 2. Unregistered panel returns Err and does not affect another clean node
+    let unreg_leaf = tree.create_node();
+    if let Some(node) = tree.get_mut(unreg_leaf) {
+        node.dirty = DirtyFlags::empty();
+    }
+    let missing_res = registry.draw_leaf(&MockTab::Viewport, &mut tree, unreg_leaf, &mut state);
+    assert!(matches!(missing_res, Err(WorkbenchError::PanelNotFound(_))));
+    assert!(
+        !tree.is_boundary(unreg_leaf),
+        "Failed draw_leaf must not seal boundary"
+    );
+}
+
+#[test]
+fn test_panel_registry_render_dirty_tabs_delegates_to_draw_leaf() {
+    use iris_core::DirtyFlags;
+
+    let mut registry = WorkbenchPanelRegistry::<MockTab, MockPanelAppState>::new();
+    registry.register(MockInspectorPanel);
+    registry.register(MockHierarchyPanel);
+
+    let mut state = MockPanelAppState::default();
+    let mut tree = UiTree::new();
+    let leaf_insp = tree.create_node();
+    let leaf_hier = tree.create_node();
+
+    for &leaf in &[leaf_insp, leaf_hier] {
+        if let Some(node) = tree.get_mut(leaf) {
+            node.dirty = DirtyFlags::empty();
+        }
+        assert!(!tree.is_boundary(leaf));
+    }
+
+    let dirty_tabs = [MockTab::Inspector, MockTab::Hierarchy];
+    let rendered = registry.render_dirty_tabs(
+        &dirty_tabs,
+        &mut tree,
+        |tab| match tab {
+            MockTab::Inspector => Some(leaf_insp),
+            MockTab::Hierarchy => Some(leaf_hier),
+            _ => None,
+        },
+        &mut state,
+    );
+
+    assert_eq!(rendered, 2);
+    assert!(tree.is_boundary(leaf_insp));
+    assert!(tree.is_boundary(leaf_hier));
+    assert!(
+        tree.get(leaf_insp)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::PAINT)
+    );
+    assert!(
+        tree.get(leaf_hier)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::PAINT)
+    );
+}
+
+#[test]
+fn test_registry_active_tab_viewer_ui_seals_boundary_and_marks_dirty_paint() {
+    use iris_core::DirtyFlags;
+    use iris_dock::TabViewer;
+
+    let mut registry = WorkbenchPanelRegistry::<MockTab, MockPanelAppState>::new();
+    registry.register(MockInspectorPanel);
+
+    let mut state = MockPanelAppState::default();
+    let mut tree = UiTree::new();
+    let leaf = tree.create_node();
+
+    if let Some(node) = tree.get_mut(leaf) {
+        node.dirty = DirtyFlags::empty();
+    }
+    assert!(!tree.is_boundary(leaf));
+
+    {
+        let mut viewer = registry.active_tab_viewer(&mut state);
+        let mut scope = UiScope::new(&mut tree, leaf);
+        viewer.ui(&mut scope, &MockTab::Inspector);
+    }
+
+    assert_eq!(state.inspector_renders, 1);
+    assert!(
+        tree.is_boundary(leaf),
+        "ActiveTabViewer::ui must set is_boundary to true on scope root parent"
+    );
+    assert!(
+        tree.get(leaf).unwrap().dirty.contains(DirtyFlags::PAINT),
+        "ActiveTabViewer::ui must mark DirtyFlags::PAINT on leaf"
+    );
+}

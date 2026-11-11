@@ -7,7 +7,7 @@
 //! struct representing instantiated dialog cards within the modal stack.
 
 use crate::action_bus::ActionBus;
-use crate::dialogs::descriptor::info::{InfoCardDialogDescriptor, InfoEntry};
+use crate::dialogs::descriptor::info::{InfoCardDialogDescriptor, InfoEntry, InfoLink};
 use crate::dialogs::descriptor::modal::ModalDescriptor;
 use crate::dialogs::descriptor::progress::ProgressModalDescriptor;
 use crate::dialogs::descriptor::sheet::SheetAnchor;
@@ -99,16 +99,22 @@ pub enum DialogKind<Action: 'static + Send + Sync> {
         title: String,
         /// Prominent application or project name.
         app_name: Option<String>,
+        /// Optional color override for the application title text.
+        app_name_color: Option<Color>,
         /// Software version string.
         version: Option<String>,
         /// Copyright attribution notice.
         copyright: Option<String>,
         /// Descriptive summary or explanatory paragraph.
         description: Option<String>,
+        /// Clickable external web hyperlink.
+        link: Option<InfoLink>,
         /// Key-value diagnostic or specification entries.
         entries: Vec<InfoEntry>,
         /// Footer or disclaimer notice.
         footer_notice: Option<String>,
+        /// Optional color override for the footer notice text.
+        footer_notice_color: Option<Color>,
         /// Caption presented on the confirmation button.
         close_label: String,
         /// Optional action dispatched to the [`ActionBus`] on closure.
@@ -195,22 +201,28 @@ impl<Action: 'static + Send + Sync + std::fmt::Debug> std::fmt::Debug for Dialog
             Self::InfoCard {
                 title,
                 app_name,
+                app_name_color,
                 version,
                 copyright,
                 description,
+                link,
                 entries,
                 footer_notice,
+                footer_notice_color,
                 close_label,
                 on_close,
             } => f
                 .debug_struct("InfoCard")
                 .field("title", title)
                 .field("app_name", app_name)
+                .field("app_name_color", app_name_color)
                 .field("version", version)
                 .field("copyright", copyright)
                 .field("description", description)
+                .field("link", link)
                 .field("entries", entries)
                 .field("footer_notice", footer_notice)
+                .field("footer_notice_color", footer_notice_color)
                 .field("close_label", close_label)
                 .field("on_close", on_close)
                 .finish(),
@@ -429,11 +441,14 @@ impl<Action: 'static + Send + Sync> ActiveDialog<Action> {
         let DialogKind::InfoCard {
             title,
             app_name,
+            app_name_color,
             version,
             copyright,
             description,
+            link,
             entries,
             footer_notice,
+            footer_notice_color,
             close_label,
             ..
         } = &self.kind
@@ -482,6 +497,9 @@ impl<Action: 'static + Send + Sync> ActiveDialog<Action> {
         if let Some(app) = app_name {
             desc = desc.with_app_name(app.as_str());
         }
+        if let Some(color) = app_name_color {
+            desc = desc.with_app_name_color(*color);
+        }
         if let Some(ver) = version {
             desc = desc.with_version(ver.as_str());
         }
@@ -491,9 +509,15 @@ impl<Action: 'static + Send + Sync> ActiveDialog<Action> {
         if let Some(d) = description {
             desc = desc.with_description(d.as_str());
         }
+        if let Some(l) = link {
+            desc = desc.with_link(l.label.as_str(), l.url.as_str());
+        }
         desc = desc.with_entries(entries.clone());
         if let Some(notice) = footer_notice {
             desc = desc.with_footer_notice(notice.as_str());
+        }
+        if let Some(color) = footer_notice_color {
+            desc = desc.with_footer_notice_color(*color);
         }
 
         Some(desc)

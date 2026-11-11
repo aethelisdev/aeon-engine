@@ -215,21 +215,28 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
             &mut Vec::new(),
         );
 
-    // 2. Build About dialog centered on top of Preferences
-    crate::ui::iris_bridge::about::build_about_dialog(
-        &mut tree,
-        screen_width,
-        screen_height,
-        Point::new(0.0, 0.0),
-        &[],
-        None,
+    // 2. Build InfoCard dialog centered on top of Preferences via DialogHost
+    let mut dialog_host = irisui::workbench::DialogHost::<crate::ui::EngineUiAction>::new();
+    let mut action_bus = irisui::workbench::ActionBus::new();
+    dialog_host.open_info(
+        irisui::workbench::InfoCardDialogDescriptor::new("About Aeon Engine")
+            .with_app_name("Aeon Engine")
+            .with_size(480.0, 250.0),
+    );
+    let root = tree.root().unwrap();
+    let mut scope = irisui::widgets::declarative::UiScope::new(&mut tree, root);
+    dialog_host.render(
+        &mut scope,
+        Rect::new(0.0, 0.0, screen_width, screen_height),
+        false,
+        &mut action_bus,
     );
 
     let about_dialog_rect = Rect::new(
-        (screen_width - crate::ui::iris_bridge::about::ABOUT_DIALOG_WIDTH) * 0.5,
-        (screen_height - crate::ui::iris_bridge::about::ABOUT_DIALOG_HEIGHT) * 0.5,
-        crate::ui::iris_bridge::about::ABOUT_DIALOG_WIDTH,
-        crate::ui::iris_bridge::about::ABOUT_DIALOG_HEIGHT,
+        (screen_width - 480.0) * 0.5,
+        (screen_height - 250.0) * 0.5,
+        480.0,
+        250.0,
     );
 
     // Register modals in Z-order: Preferences (Layer 0), About (Layer 1)

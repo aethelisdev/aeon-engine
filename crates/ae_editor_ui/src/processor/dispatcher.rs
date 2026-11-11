@@ -55,7 +55,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 ctx.ui.show_preferences = true;
             }
             crate::ui::EngineUiAction::OpenAbout => {
-                ctx.ui.show_about = true;
+                ctx.ui.open_about_dialog();
             }
             crate::ui::EngineUiAction::TitleBarAction(_) => {
                 // Window titlebar actions are dispatched in the render pass where Window handle is present

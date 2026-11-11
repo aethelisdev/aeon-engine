@@ -312,6 +312,7 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        let theme = self.tree.theme();
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("ModalDialogCard");
@@ -324,8 +325,8 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Stretch)
                     .width(width)
                     .height(height)
-                    .background(Color::rgba(0.08, 0.08, 0.10, 0.98))
-                    .border(1.0, Color::rgba(0.20, 0.22, 0.28, 1.0))
+                    .background(theme.modal_bg)
+                    .border(1.0, theme.modal_border)
                     .border_radius(8.0)
                     .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.70))
                     .padding_insets(Insets::new(10.0, 16.0, 14.0, 16.0)),
@@ -355,6 +356,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
+        let theme = self.tree.theme();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text("✕");
@@ -362,10 +364,12 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = if hovered {
-                Color::WHITE
+                theme.text_primary
             } else {
-                Color::rgba(0.60, 0.64, 0.72, 0.85)
+                theme.text_secondary
             };
+            let mut danger_hover = theme.danger;
+            danger_hover.a = 0.28;
             node.set_style(
                 Style::new()
                     .width(22.0)
@@ -374,7 +378,7 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .background(if hovered {
-                        Color::rgba(0.85, 0.22, 0.22, 0.28)
+                        danger_hover
                     } else {
                         Color::TRANSPARENT
                     })
@@ -422,16 +426,26 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
+        let theme = self.tree.theme();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(label_str);
             node.font_size = 11.5;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
-            node.text_color = if hovered {
-                Color::WHITE
+            node.text_color = theme.text_primary;
+            let (bg, border) = if hovered {
+                (theme.button_active_bg, theme.button_hover_border)
             } else {
-                Color::rgba(0.92, 0.96, 1.0, 1.0)
+                (
+                    Color::rgba(
+                        theme.button_active_bg.r * 0.88,
+                        theme.button_active_bg.g * 0.88,
+                        theme.button_active_bg.b * 0.88,
+                        theme.button_active_bg.a,
+                    ),
+                    theme.button_border,
+                )
             };
             node.set_style(
                 Style::new()
@@ -440,19 +454,8 @@ impl<'a> UiScope<'a> {
                     .border_radius(4.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
-                    .background(if hovered {
-                        Color::rgba(0.18, 0.48, 0.68, 1.0)
-                    } else {
-                        Color::rgba(0.14, 0.40, 0.58, 1.0)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(1.0, 1.0, 1.0, 0.25)
-                        } else {
-                            Color::rgba(1.0, 1.0, 1.0, 0.15)
-                        },
-                    ),
+                    .background(bg)
+                    .border(1.0, border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
@@ -477,6 +480,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
+        let theme = self.tree.theme();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(label_str);
@@ -484,9 +488,14 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = if hovered {
-                Color::WHITE
+                theme.text_primary
             } else {
-                Color::rgba(0.75, 0.78, 0.84, 1.0)
+                theme.text_secondary
+            };
+            let (bg, border) = if hovered {
+                (theme.button_hover_bg, theme.button_hover_border)
+            } else {
+                (theme.button_idle_bg, theme.button_border)
             };
             node.set_style(
                 Style::new()
@@ -495,19 +504,8 @@ impl<'a> UiScope<'a> {
                     .border_radius(4.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
-                    .background(if hovered {
-                        Color::rgba(0.20, 0.22, 0.28, 1.0)
-                    } else {
-                        Color::rgba(0.14, 0.15, 0.18, 1.0)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(1.0, 1.0, 1.0, 0.20)
-                        } else {
-                            Color::rgba(1.0, 1.0, 1.0, 0.10)
-                        },
-                    ),
+                    .background(bg)
+                    .border(1.0, border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
@@ -551,13 +549,27 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
+        let theme = self.tree.theme();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(label_str);
             node.font_size = 11.5;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
-            node.text_color = Color::WHITE;
+            node.text_color = theme.text_primary;
+            let (bg, border) = if hovered {
+                (theme.danger, theme.button_hover_border)
+            } else {
+                (
+                    Color::rgba(
+                        theme.danger.r * 0.85,
+                        theme.danger.g * 0.85,
+                        theme.danger.b * 0.85,
+                        theme.danger.a,
+                    ),
+                    theme.button_border,
+                )
+            };
             node.set_style(
                 Style::new()
                     .width(width)
@@ -565,19 +577,8 @@ impl<'a> UiScope<'a> {
                     .border_radius(4.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
-                    .background(if hovered {
-                        Color::rgba(0.75, 0.20, 0.20, 1.0)
-                    } else {
-                        Color::rgba(0.63, 0.14, 0.14, 1.0)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(1.0, 1.0, 1.0, 0.25)
-                        } else {
-                            Color::rgba(1.0, 1.0, 1.0, 0.15)
-                        },
-                    ),
+                    .background(bg)
+                    .border(1.0, border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)

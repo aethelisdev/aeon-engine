@@ -3,6 +3,7 @@
 
 use super::*;
 use iris_core::Color;
+use iris_core::Theme;
 use iris_core::UiTree;
 use iris_core::geometry::{Point, Rect};
 use iris_widgets::declarative::UiScope;
@@ -17,7 +18,7 @@ fn test_modal_descriptor_defaults_and_builder() {
 
     assert_eq!(desc.title, "Settings");
     assert_eq!(desc.size, (500.0, 350.0));
-    assert_eq!(desc.backdrop_color, Color::rgba(0.1, 0.1, 0.1, 0.8));
+    assert_eq!(desc.backdrop_color, Some(Color::rgba(0.1, 0.1, 0.1, 0.8)));
     assert!(!desc.dismiss_on_backdrop);
     assert!(!desc.dismiss_on_escape);
     assert!(!desc.show_close_button);
@@ -167,17 +168,23 @@ fn test_modal_style_builder_and_defaults() {
         .with_cancel_button_width(85.0)
         .with_confirm_button_width(125.0);
 
-    assert_eq!(style.backdrop_color, Color::rgba(0.0, 0.0, 0.0, 0.8));
-    assert_eq!(style.card_background, Color::rgba(0.1, 0.1, 0.1, 1.0));
-    assert_eq!(style.card_border_color, Color::rgba(0.3, 0.3, 0.3, 1.0));
+    assert_eq!(style.backdrop_color, Some(Color::rgba(0.0, 0.0, 0.0, 0.8)));
+    assert_eq!(style.card_background, Some(Color::rgba(0.1, 0.1, 0.1, 1.0)));
+    assert_eq!(
+        style.card_border_color,
+        Some(Color::rgba(0.3, 0.3, 0.3, 1.0))
+    );
     assert_eq!(style.card_border_width, 2.0);
     assert_eq!(style.card_corner_radius, 12.0);
     assert_eq!(style.card_padding, 20.0);
     assert_eq!(style.content_gap, 16.0);
     assert_eq!(style.footer_gap, 10.0);
-    assert_eq!(style.header_text_color, Color::rgba(1.0, 1.0, 1.0, 1.0));
-    assert_eq!(style.subtitle_color, Color::rgba(0.7, 0.7, 0.7, 1.0));
-    assert_eq!(style.danger_color, Color::rgba(0.9, 0.2, 0.2, 1.0));
+    assert_eq!(
+        style.header_text_color,
+        Some(Color::rgba(1.0, 1.0, 1.0, 1.0))
+    );
+    assert_eq!(style.subtitle_color, Some(Color::rgba(0.7, 0.7, 0.7, 1.0)));
+    assert_eq!(style.danger_color, Some(Color::rgba(0.9, 0.2, 0.2, 1.0)));
     assert_eq!(style.cancel_button_width, 85.0);
     assert_eq!(style.confirm_button_width, 125.0);
 
@@ -186,6 +193,30 @@ fn test_modal_style_builder_and_defaults() {
     assert_eq!(light.card_border_width, 1.0);
     assert_eq!(light.card_corner_radius, 8.0);
     assert_ne!(light.card_background, style.card_background);
+
+    // Verify default theme resolution
+    let default_style = ModalStyle::default();
+    let theme = Theme::dark_default();
+    assert_eq!(
+        default_style.resolve_card_background(&theme),
+        theme.modal_bg
+    );
+    assert_eq!(
+        default_style.resolve_card_border_color(&theme),
+        theme.modal_border
+    );
+    assert_eq!(
+        default_style.resolve_backdrop_color(&theme),
+        theme.modal_scrim
+    );
+    assert_eq!(
+        default_style.resolve_header_text_color(&theme),
+        theme.text_primary
+    );
+    assert_eq!(
+        default_style.resolve_subtitle_color(&theme),
+        theme.text_secondary
+    );
 }
 
 #[test]
@@ -537,7 +568,7 @@ fn test_modal_style_attention_configuration() {
 
     assert_eq!(
         style.attention_border_color,
-        Color::rgba(1.0, 0.5, 0.0, 1.0)
+        Some(Color::rgba(1.0, 0.5, 0.0, 1.0))
     );
     assert_eq!(style.attention_shake_amplitude, 10.0);
 }

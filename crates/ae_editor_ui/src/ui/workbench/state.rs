@@ -30,7 +30,6 @@ pub struct EngineUi {
     pub inspector_color_hex: String,
     pub saved_swatches: Vec<[f32; 4]>,
     pub show_preferences: bool,
-    pub show_about: bool,
     pub preferences_tab: u8,
     /// Pending preferences actions to execute on the engine state.
     pub pending_preferences_actions: Vec<crate::ui::iris_bridge::PreferencesAction>,
@@ -96,10 +95,6 @@ pub struct EngineUi {
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
     pub pending_actions: Vec<EngineUiAction>,
-    /// Framework modal dialog host managing modal confirmations, textual prompts, and keyboard focus traps.
-    pub dialog_host: irisui::workbench::DialogHost<EngineUiAction>,
-    /// Global UI event and action bus managing decoupled FIFO dispatch.
-    pub action_bus: irisui::workbench::ActionBus<EngineUiAction>,
     /// Autonomous workbench orchestrator coordinating dock hierarchy, frameless window border resize, and modal dialogs.
     pub workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
@@ -147,8 +142,6 @@ impl EngineUi {
         Self {
             iris_overlay,
             workbench,
-            dialog_host: irisui::workbench::DialogHost::new(),
-            action_bus: irisui::workbench::ActionBus::new(),
             pending_actions: Vec::new(),
             selected_entity: None,
             status_message: None,
@@ -170,7 +163,6 @@ impl EngineUi {
                 [1.0, 1.0, 0.1, 1.0],
             ],
             show_preferences: false,
-            show_about: false,
             preferences_tab: 1,
             pending_preferences_actions: Vec::new(),
             should_save_scene: false,

@@ -85,7 +85,10 @@ fn render_background_dialog<Action: 'static + Send + Sync>(
 ) {
     let mut style = dialog.style.clone();
     // Dim background dialog scrims slightly so they don't over-darken the viewport
-    style.backdrop_color.a *= 0.5;
+    let theme = scope.theme();
+    let mut bg = dialog.style.resolve_backdrop_color(&theme);
+    bg.a *= 0.5;
+    style.backdrop_color = Some(bg);
 
     match &dialog.kind {
         DialogKind::Confirm {

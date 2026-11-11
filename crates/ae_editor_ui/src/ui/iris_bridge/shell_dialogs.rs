@@ -10,7 +10,6 @@
 //! Eliminates separate overlay trees and coordinate mapping wrappers in full compliance
 //! with Phase 5.1.5 of the unified retained UI tree architecture.
 
-use super::about::build_about_dialog;
 use super::hierarchy;
 use super::inspector;
 use super::modals::{self, build_loading_overlay};
@@ -96,21 +95,7 @@ impl IrisEditorOverlay {
             self.preferences.content_rect = Some(content_rect);
         }
 
-        // 2. About Modal Dialog
-        if params.dialogs.show_about {
-            let pending_events = std::mem::take(&mut self.modals.pending_interaction_events);
-            let hovered_id = self.tree.hit_test_layered(cursor);
-            build_about_dialog(
-                &mut self.tree,
-                screen_width,
-                screen_height,
-                cursor,
-                &pending_events,
-                hovered_id,
-            );
-        }
-
-        // 3. Framework Autonomous Dialog Host (Confirmations, Inputs, Custom Modals)
+        // 2. Framework Autonomous Dialog Host (Confirmations, Inputs, Custom Modals, Info Cards)
         if let (Some(dialog_host), Some(action_bus)) = (
             params.dialog_host.as_deref_mut(),
             params.action_bus.as_deref_mut(),

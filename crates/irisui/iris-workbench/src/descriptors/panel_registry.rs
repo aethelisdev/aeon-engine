@@ -9,7 +9,7 @@
 
 use super::panel::{PanelMetadata, WorkbenchPanel};
 use crate::error::{WorkbenchError, WorkbenchResult};
-use iris_core::{UiTree, WidgetId};
+use iris_core::{DirtyFlags, UiTree, WidgetId};
 use iris_dock::TabViewer;
 use iris_widgets::UiScope;
 use std::borrow::Borrow;
@@ -245,10 +245,42 @@ where
         }
     }
 
+    /// Draws the specified panel directly into a dock leaf container node.
+    ///
+    /// Constructs an isolated [`UiScope`] rooted at `leaf_id`, executes the registered
+    /// panel or drawing closure, seals `leaf_id` as an Invalidation Boundary
+    /// ([`UiTree::set_boundary`]), and schedules repainting ([`DirtyFlags::PAINT`]).
+    ///
+    /// This guarantees that dock leaf containers are treated as autonomous invalidation
+    /// roots for $O(M)$ Taffy partial subtree rebuilding and GPU batch caching.
+    ///
+    /// # Arguments
+    /// * `tab` - The panel tab identifier.
+    /// * `tree` - Generational UI tree hosting the leaf node.
+    /// * `leaf_id` - The container widget ID allocated for this panel leaf.
+    /// * `context` - Domain/application context.
+    ///
+    /// # Errors
+    /// Returns [`WorkbenchError::PanelNotFound`] if no panel or closure is registered for `tab`.
+    pub fn draw_leaf(
+        &mut self,
+        tab: &TabId,
+        tree: &mut UiTree,
+        leaf_id: WidgetId,
+        context: &mut Context,
+    ) -> WorkbenchResult<()> {
+        let mut scope = UiScope::new(tree, leaf_id);
+        self.draw(tab, &mut scope, context)?;
+        tree.set_boundary(leaf_id, true);
+        tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        Ok(())
+    }
+
     /// Invokes the registered panel renderers for all tabs present in `dirty_tabs`.
     ///
-    /// Resolves each dirty tab's container [`WidgetId`] via `leaf_resolver`, constructs
-    /// an isolated [`UiScope`], and executes its declarative `render` routine.
+    /// Resolves each dirty tab's container [`WidgetId`] via `leaf_resolver` and delegates
+    /// directly to [`Self::draw_leaf`], guaranteeing that every rendered leaf node is sealed
+    /// as an Invalidation Boundary ([`UiTree::set_boundary`]) and marked with [`DirtyFlags::PAINT`].
     /// Clean tabs are skipped entirely, guaranteeing $O(M)$ partial leaf invalidation.
     ///
     /// Returns the number of panels actually rendered.
@@ -267,11 +299,10 @@ where
         let mut rendered = 0;
         for tab in dirty_tabs {
             let tab = tab.borrow();
-            if let Some(leaf_id) = leaf_resolver(tab) {
-                let mut scope = UiScope::new(tree, leaf_id);
-                if self.draw(tab, &mut scope, context).is_ok() {
-                    rendered += 1;
-                }
+            if let Some(leaf_id) = leaf_resolver(tab)
+                && self.draw_leaf(tab, tree, leaf_id, context).is_ok()
+            {
+                rendered += 1;
             }
         }
         rendered
@@ -413,6 +444,9 @@ where
     }
 
     fn ui(&mut self, scope: &mut UiScope<'_>, tab: &TabId) {
+        let leaf_id = scope.parent();
         let _ = self.registry.draw(tab, scope, self.context);
+        scope.tree_mut().set_boundary(leaf_id, true);
+        scope.tree_mut().mark_dirty(leaf_id, DirtyFlags::PAINT);
     }
 }

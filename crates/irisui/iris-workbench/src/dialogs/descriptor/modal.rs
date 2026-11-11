@@ -28,7 +28,8 @@ pub struct ModalDescriptor {
     pub size: (f32, f32),
 
     /// Semi-transparent fill color for the full-screen backdrop blocker scrim.
-    pub backdrop_color: Color,
+    /// When `None`, derives dynamically from [`Theme::modal_scrim`].
+    pub backdrop_color: Option<Color>,
 
     /// Explicit top-left coordinate `(x, y)` override. If `None`, the card is automatically centered.
     pub position: Option<Point>,
@@ -80,7 +81,7 @@ impl ModalDescriptor {
         Self {
             title: title.into(),
             size: (width, height),
-            backdrop_color: Self::DEFAULT_BACKDROP,
+            backdrop_color: None,
             position: None,
             style: None,
             subtitle: None,
@@ -137,7 +138,7 @@ impl ModalDescriptor {
     #[inline]
     #[must_use]
     pub const fn with_backdrop_color(mut self, color: Color) -> Self {
-        self.backdrop_color = color;
+        self.backdrop_color = Some(color);
         self
     }
 

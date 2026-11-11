@@ -144,7 +144,7 @@ impl EngineUi {
                     active_entities_count: params.world.len() as usize,
                 },
                 dialogs: iris_bridge::DialogParams {
-                    show_about: self.show_about,
+                    show_about: false,
                     show_preferences: self.show_preferences,
                     delete_target: None,
                     new_folder_parent: None,
@@ -180,8 +180,8 @@ impl EngineUi {
                     inspector_color_hex: &self.inspector_color_hex,
                     saved_swatches: &self.saved_swatches,
                 },
-                dialog_host: Some(&mut self.dialog_host),
-                action_bus: Some(&mut self.action_bus),
+                dialog_host: Some(&mut self.workbench.dialog_host),
+                action_bus: Some(&mut self.workbench.action_bus),
             });
 
         self.iris_overlay.render(
