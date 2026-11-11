@@ -13,7 +13,7 @@ use iris_core::{Color, CornerRadii};
 pub const DEFAULT_TAB_BAR_HEIGHT: f32 = 26.0;
 
 /// Visual styling and dimensional metrics for docked chrome, tab strips, and splitters.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DockChromeStyle {
     /// Background color of empty dock pane leaves.
     pub empty_panel_bg: Color,

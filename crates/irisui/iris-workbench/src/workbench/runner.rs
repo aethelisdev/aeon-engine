@@ -14,12 +14,14 @@ use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::dialogs::host::DialogHost;
 use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
 use crate::layout_sync::dual_layout::{DualLayoutEliminator, SubtreeEngines};
+use crate::lifecycle::WorkbenchLifecycle;
 use iris_core::WidgetId;
 use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Rect, Size};
 use iris_core::tree::UiTree;
 use iris_dock::UiNotifier;
 use iris_dock::area::runner::{DockArea, DockInteractionConfig};
+use iris_dock::chrome::DockChromeFrame;
 use iris_dock::floating::FloatingWindowClampBounds;
 use iris_dock::state::DockState;
 use iris_dock::style::DockChromeStyle;
@@ -47,7 +49,7 @@ pub type PreferencesActionBuilder<Action> = Box<dyn Fn() -> Action + Send + Sync
 /// - Framework-level modal dialogues and confirmations (`DialogHost<Action>`).
 /// - Decoupled asynchronous action bus (`ActionBus<Action>`).
 /// - Autonomous panel registry delegating content drawing (`WorkbenchPanelRegistry<TabId, AppState>`).
-pub struct Workbench<TabId, Action: 'static + Send + Sync, AppState> {
+pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, AppState> {
     /// Declarative configuration descriptor governing application shell chrome.
     pub descriptor: WorkbenchDescriptor<TabId>,
 
@@ -104,6 +106,12 @@ pub struct Workbench<TabId, Action: 'static + Send + Sync, AppState> {
 
     /// Optional action mapping hook invoked when application preferences modal is toggled.
     pub preferences_action: Option<PreferencesActionBuilder<Action>>,
+
+    /// Active docking interaction frame from the most recent shell assembly pass.
+    pub dock_frame: Option<DockChromeFrame<TabId>>,
+
+    /// Autonomous 3-branch lifecycle state machine tracking shell vs panel invalidation.
+    pub lifecycle: WorkbenchLifecycle<TabId>,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -134,6 +142,8 @@ where
             file_drop_action: None,
             zoom_action: None,
             preferences_action: None,
+            dock_frame: None,
+            lifecycle: WorkbenchLifecycle::new(),
         }
     }
 

@@ -10,6 +10,7 @@
 pub mod outcome;
 pub mod pointer;
 pub mod runner;
+pub mod shell;
 
 #[cfg(test)]
 mod tests;
