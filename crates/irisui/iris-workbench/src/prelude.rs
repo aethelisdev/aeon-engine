@@ -14,14 +14,18 @@ pub use crate::descriptors::{
     WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
-    ActiveDialog, ConfirmDialogDescriptor, CustomModalRenderFn, DialogHost, DialogKind,
-    FloatingWindowDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor,
-    ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
+    ActiveDialog, ConfirmDialogDescriptor, ConfirmationDialogDescriptor, CustomDialogDescriptor,
+    CustomModalRenderFn, CustomSheetRenderFn, DialogDescriptor, DialogFocusTrap, DialogHost,
+    DialogKind, FloatingWindowDescriptor, InfoCardDialogDescriptor, InfoEntry,
+    InputDialogDescriptor, ModalController, ModalDescriptor, ModalDismissReason, ModalOutcome,
+    ModalStyle, ProgressModalDescriptor, PromptDialogDescriptor, SheetAnchor,
+    SheetDialogDescriptor, WorkbenchModal,
 };
 pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{
-    AspectRatio, CustomOverlayHook, DragDropController, DragDropPayload, DragDropPreviewStyle,
-    ExternalTextureView, TypedDragDropPayload, WorkbenchUiScopeExt,
+    AspectRatio, ClosureOverlayHook, CustomOverlayHook, DragDropController, DragDropPayload,
+    DragDropPreviewStyle, ExternalTextureView, OverlayAnchor, OverlayHook, OverlayHost, OverlayId,
+    TypedDragDropPayload, WorkbenchUiScopeExt,
 };
 pub use crate::layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,

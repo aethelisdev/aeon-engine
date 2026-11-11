@@ -34,6 +34,9 @@ pub enum ModalOutcome<Action = ()> {
     /// A child control inside the modal emitted an explicit application action (e.g. Save, Delete, Confirm).
     Action(Action),
 
+    /// A backdrop click was intercepted on a non-dismissible modal, triggering an attention shake and glow.
+    Attention,
+
     /// The modal remains actively open and interactive with no terminating action.
     Active,
 }
@@ -51,6 +54,13 @@ impl<Action> ModalOutcome<Action> {
     #[must_use]
     pub const fn is_action(&self) -> bool {
         matches!(self, Self::Action(_))
+    }
+
+    /// Returns `true` if a backdrop click triggered an attention shake highlight.
+    #[inline]
+    #[must_use]
+    pub const fn is_attention(&self) -> bool {
+        matches!(self, Self::Attention)
     }
 
     /// Returns `true` if the modal remains active and open.

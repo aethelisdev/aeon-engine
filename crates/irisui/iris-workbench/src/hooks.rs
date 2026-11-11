@@ -14,10 +14,15 @@ pub mod ui_ext;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_overlay;
 
 pub use drag_drop::{
     DragDropController, DragDropPayload, DragDropPreviewStyle, TypedDragDropPayload,
 };
 pub use external_texture::{AspectRatio, ExternalTextureView};
-pub use overlay::CustomOverlayHook;
+pub use overlay::{
+    ClosureOverlayHook, CustomOverlayHook, OverlayActiveFn, OverlayAnchor, OverlayDismissFn,
+    OverlayEventFn, OverlayHook, OverlayHost, OverlayId, OverlayRenderFn,
+};
 pub use ui_ext::WorkbenchUiScopeExt;

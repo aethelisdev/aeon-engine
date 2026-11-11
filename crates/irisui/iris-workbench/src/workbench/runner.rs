@@ -12,6 +12,7 @@ use crate::action_bus::ActionBus;
 use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::dialogs::host::DialogHost;
+use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
 use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Rect, Size};
 use iris_core::tree::UiTree;
@@ -54,6 +55,9 @@ pub struct Workbench<TabId, Action: 'static + Send + Sync, AppState> {
 
     /// Autonomous panel registry storing panels and tab viewers.
     pub panel_registry: WorkbenchPanelRegistry<TabId, AppState>,
+
+    /// Autonomous overlay layer host managing registered floating HUDs and contextual popovers.
+    pub overlay_host: OverlayHost<AppState, Action>,
 
     /// Frameless window host managing 8-way border hit-testing and hardware resize operations.
     pub frameless_host: FramelessWindowHost,
@@ -108,6 +112,7 @@ where
             dialog_host: DialogHost::new(),
             action_bus: ActionBus::new(),
             panel_registry: WorkbenchPanelRegistry::new(),
+            overlay_host: OverlayHost::new(),
             frameless_host: FramelessWindowHost::new(),
             drag_host: WindowDragHost::new().with_title_bar_height(30.0),
             menubar_height: 30.0,
@@ -159,6 +164,38 @@ where
     pub fn with_non_ui_tab(mut self, tab: TabId) -> Self {
         self.non_ui_tab = Some(tab);
         self
+    }
+
+    /// Registers an overlay hook into the workbench's autonomous overlay layer.
+    #[must_use]
+    pub fn with_overlay<H>(mut self, hook: H) -> Self
+    where
+        H: OverlayHook<AppState, Action> + 'static,
+    {
+        self.overlay_host.register(hook);
+        self
+    }
+
+    /// Registers an overlay hook into the workbench's autonomous overlay layer.
+    pub fn register_overlay<H>(&mut self, hook: H)
+    where
+        H: OverlayHook<AppState, Action> + 'static,
+    {
+        self.overlay_host.register(hook);
+    }
+
+    /// Removes an overlay hook by its unique identifier.
+    pub fn remove_overlay(
+        &mut self,
+        id: OverlayId,
+    ) -> Option<Box<dyn OverlayHook<AppState, Action>>> {
+        self.overlay_host.remove(id)
+    }
+
+    /// Evaluates whether any registered overlay hook is currently active.
+    #[must_use]
+    pub fn has_active_overlays(&self, state: &AppState) -> bool {
+        self.overlay_host.has_active_overlays(state)
     }
 
     /// Sets the top application menubar height in logical pixels.
@@ -276,131 +313,6 @@ where
         1.0
     }
 
-    /// Evaluates whether the UI currently captures the pointer or if the pointer is positioned over
-    /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
-    ///
-    /// Returns `false` if the pointer is positioned over the interactive non-UI viewport canvas
-    /// without any occluding UI layers.
-    #[must_use]
-    pub fn wants_pointer_input(
-        &self,
-        cursor_pos: Option<Point>,
-        dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
-    ) -> bool {
-        let pt = cursor_pos.or(self.last_cursor_pos);
-        let Some(point) = pt else {
-            return false;
-        };
-        self.wants_pointer_at_full(
-            [point.x, point.y],
-            self.interactive_viewport,
-            dock_state,
-            tree,
-        )
-    }
-
-    /// Evaluates whether the specified point is positioned over active workbench UI elements,
-    /// modal dialogs, or the top menubar rather than transparent canvas/viewport areas.
-    ///
-    /// Uses the internal dock state from the descriptor and the configured interactive viewport.
-    #[must_use]
-    pub fn wants_pointer_at_default(&self, pos: [f32; 2], non_ui_viewport: Option<Rect>) -> bool {
-        self.wants_pointer_at_with_dock(pos, non_ui_viewport, &self.descriptor.dock_state)
-    }
-
-    /// Evaluates whether the specified point is positioned over active workbench UI elements,
-    /// modal dialogs, floating windows, or elevated UI tree layers using the configured interactive viewport.
-    #[must_use]
-    pub fn wants_pointer_at(
-        &self,
-        pos: [f32; 2],
-        dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
-    ) -> bool {
-        self.wants_pointer_at_full(pos, self.interactive_viewport, dock_state, tree)
-    }
-
-    /// Evaluates whether the specified point is positioned over active workbench UI elements,
-    /// modal dialogs, or floating windows using an explicitly provided docking state.
-    #[must_use]
-    pub fn wants_pointer_at_with_dock(
-        &self,
-        pos: [f32; 2],
-        non_ui_viewport: Option<Rect>,
-        dock_state: &DockState<TabId>,
-    ) -> bool {
-        self.wants_pointer_at_full(pos, non_ui_viewport, dock_state, None)
-    }
-
-    /// Evaluates whether the specified point is positioned over active workbench UI elements,
-    /// modal dialogs, floating windows, or elevated UI tree layers.
-    #[must_use]
-    pub fn wants_pointer_at_full(
-        &self,
-        pos: [f32; 2],
-        non_ui_viewport: Option<Rect>,
-        dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
-    ) -> bool {
-        let point = Point::new(pos[0], pos[1]);
-
-        // 1. Top menubar & bottom statusbar & active modal dialogs (always highest priority chrome)
-        let is_over_statusbar = if self.descriptor.statusbar.is_some() {
-            if let Some(win_size) = self.last_window_size {
-                pos[1] >= (win_size.height - self.statusbar_height).max(0.0)
-                    && pos[1] <= win_size.height
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        if (self.descriptor.menubar.is_some() && pos[1] <= self.menubar_height)
-            || is_over_statusbar
-            || self.dialog_host.is_active()
-        {
-            return true;
-        }
-
-        // 2. Floating windows check (excluding floating window hosting the non_ui_tab)
-        let in_occluding_floating = dock_state.floating_windows.iter().any(|w| {
-            if let Some(non_ui) = self.non_ui_tab
-                && w.tree.all_tabs().contains(&non_ui)
-            {
-                return false;
-            }
-            w.rect.contains_point(point)
-        });
-
-        // 3. Interactive non-UI viewport exclusion
-        let effective_viewport = non_ui_viewport.or(self.interactive_viewport);
-        if let Some(vp) = effective_viewport
-            && vp.contains_point(point)
-        {
-            // If another floating window occludes this viewport point, UI captures pointer
-            if in_occluding_floating {
-                return true;
-            }
-
-            // If elevated popups, dropdowns, modals, or captured widgets in UiTree land over this point, UI captures pointer
-            if let Some(t) = tree
-                && t.wants_pointer_at(point)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        if in_occluding_floating {
-            return true;
-        }
-
-        true
-    }
-
     /// Evaluates whether the workbench currently requires active text keyboard focus
     /// (e.g. when a modal dialog text input is active).
     #[inline]
@@ -465,13 +377,19 @@ where
 
         // 2. Active framework modal dialog keyboard input
         if let UiEvent::KeyboardInput {
-            key, is_pressed, ..
+            key,
+            is_pressed,
+            shift_held,
+            ..
         } = event
             && self.dialog_host.is_active()
         {
-            let handled =
-                self.dialog_host
-                    .handle_keyboard_input(key, *is_pressed, &mut self.action_bus);
+            let handled = self.dialog_host.handle_keyboard_input_with_modifiers(
+                key,
+                *is_pressed,
+                *shift_held,
+                &mut self.action_bus,
+            );
             if handled {
                 let mut outcome = WorkbenchOutcome::consumed(None);
                 outcome.layout_changed = true;

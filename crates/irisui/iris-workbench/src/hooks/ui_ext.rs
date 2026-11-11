@@ -15,7 +15,8 @@ use iris_widgets::declarative::UiScope;
 
 use super::drag_drop::{DragDropController, DragDropPayload, DragDropPreviewStyle};
 use super::external_texture::{AspectRatio, ExternalTextureView};
-use super::overlay::CustomOverlayHook;
+use super::overlay::{CustomOverlayHook, OverlayHost};
+use crate::action_bus::ActionBus;
 use crate::dialogs::{
     ConfirmDialogDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor, ModalOutcome,
 };
@@ -91,6 +92,22 @@ pub trait WorkbenchUiScopeExt {
     fn volatile_overlay_hook<H>(&mut self, name: &'static str, tag: u64, rect: Rect, hook: H)
     where
         H: CustomOverlayHook;
+
+    /// Declaratively renders all active interactive overlay hooks into this scope.
+    ///
+    /// # Arguments
+    /// * `host` - Mutable reference to the autonomous [`OverlayHost`].
+    /// * `workspace` - Bounding rectangle of the available workspace.
+    /// * `state` - Mutable reference to the application domain state.
+    /// * `action_bus` - Decoupled action bus collecting emitted application actions.
+    fn overlay_layer<AppState, Action>(
+        &mut self,
+        host: &mut OverlayHost<AppState, Action>,
+        workspace: Rect,
+        state: &mut AppState,
+        action_bus: &mut ActionBus<Action>,
+    ) where
+        Action: 'static + Send + Sync;
 
     /// Declaratively renders the active floating drag-and-drop preview capsule at the specified cursor position.
     ///
@@ -287,6 +304,19 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
         self.immediate_canvas_styled(name, tag, style, |canvas| {
             hook.render_overlay(canvas, rect);
         });
+    }
+
+    #[inline]
+    fn overlay_layer<AppState, Action>(
+        &mut self,
+        host: &mut OverlayHost<AppState, Action>,
+        workspace: Rect,
+        state: &mut AppState,
+        action_bus: &mut ActionBus<Action>,
+    ) where
+        Action: 'static + Send + Sync,
+    {
+        host.render(self, workspace, state, action_bus);
     }
 
     fn drag_drop_preview(

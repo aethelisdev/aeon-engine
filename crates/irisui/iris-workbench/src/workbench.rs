@@ -8,6 +8,7 @@
 //! action dispatching into a unified desktop IDE framework component.
 
 pub mod outcome;
+pub mod pointer;
 pub mod runner;
 
 #[cfg(test)]

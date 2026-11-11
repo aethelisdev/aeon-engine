@@ -17,9 +17,13 @@ mod tests;
 
 pub use controller::ModalController;
 pub use descriptor::{
-    ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalDescriptor,
-    WorkbenchModal,
+    ConfirmDialogDescriptor, ConfirmationDialogDescriptor, CustomDialogDescriptor,
+    DialogDescriptor, FloatingWindowDescriptor, InfoCardDialogDescriptor, InfoEntry,
+    InputDialogDescriptor, ModalDescriptor, ProgressModalDescriptor, PromptDialogDescriptor,
+    SheetAnchor, SheetDialogDescriptor, WorkbenchModal,
 };
-pub use host::{ActiveDialog, CustomModalRenderFn, DialogHost, DialogKind};
+pub use host::{
+    ActiveDialog, CustomModalRenderFn, CustomSheetRenderFn, DialogFocusTrap, DialogHost, DialogKind,
+};
 pub use response::{ModalDismissReason, ModalOutcome};
 pub use style::ModalStyle;

@@ -52,6 +52,12 @@ pub struct ModalStyle {
 
     /// Standard width allocated for confirm / danger action buttons in logical pixels.
     pub confirm_button_width: f32,
+
+    /// Highlight border color pulsed when user clicks the backdrop of a non-dismissible modal.
+    pub attention_border_color: Color,
+
+    /// Peak lateral shake displacement amplitude in logical pixels for attention feedback.
+    pub attention_shake_amplitude: f32,
 }
 
 impl Default for ModalStyle {
@@ -71,6 +77,8 @@ impl Default for ModalStyle {
             danger_color: Color::rgba(1.0, 0.45, 0.45, 1.0),
             cancel_button_width: 80.0,
             confirm_button_width: 120.0,
+            attention_border_color: Color::rgba(0.38, 0.65, 0.98, 1.0),
+            attention_shake_amplitude: 6.0,
         }
     }
 }
@@ -108,6 +116,8 @@ impl ModalStyle {
             danger_color: Color::rgba(0.85, 0.15, 0.15, 1.0),
             cancel_button_width: 80.0,
             confirm_button_width: 120.0,
+            attention_border_color: Color::rgba(0.20, 0.50, 0.90, 1.0),
+            attention_shake_amplitude: 6.0,
         }
     }
 
@@ -214,6 +224,22 @@ impl ModalStyle {
     #[must_use]
     pub const fn with_cancel_button_width(mut self, width: f32) -> Self {
         self.cancel_button_width = width;
+        self
+    }
+
+    /// Sets the border glow color pulsed when attention is requested on backdrop clicks.
+    #[inline]
+    #[must_use]
+    pub const fn with_attention_border_color(mut self, color: Color) -> Self {
+        self.attention_border_color = color;
+        self
+    }
+
+    /// Sets the peak lateral shake displacement amplitude in logical pixels.
+    #[inline]
+    #[must_use]
+    pub const fn with_attention_shake_amplitude(mut self, amplitude: f32) -> Self {
+        self.attention_shake_amplitude = amplitude;
         self
     }
 }

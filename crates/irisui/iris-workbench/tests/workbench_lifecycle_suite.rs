@@ -11,6 +11,7 @@
 //! - Type-safe cross-panel drag-and-drop payload delivery.
 //! - External texture aspect-ratio fitting and HUD overlay execution.
 
+use iris_core::event::KeyCode;
 use iris_core::geometry::Rect;
 use iris_core::style::Style;
 use iris_core::{Color, DirtyFlags, UiTree, WidgetId};
@@ -389,4 +390,82 @@ fn test_e2e_external_texture_view_simulation() {
     assert_eq!(fitted_letterbox.height, 720.0 / (16.0 / 9.0));
     assert_eq!(fitted_letterbox.x, 0.0);
     assert!(fitted_letterbox.y > 0.0); // centered vertically
+}
+
+#[test]
+fn test_e2e_dialog_host_full_stack_lifecycle() {
+    let mut host = DialogHost::<String>::new();
+    let mut bus = ActionBus::<String>::new();
+
+    // 1. Initial empty stack state
+    assert_eq!(host.stack_depth(), 0);
+    assert!(!host.is_active());
+    assert!(!host.is_focus_trapped());
+    assert!(!host.wants_pointer_input());
+
+    // 2. Open long-running progress modal
+    let progress_desc = ProgressModalDescriptor::new("Asset Processing")
+        .with_status_message("Importing textures...")
+        .with_progress(0.25)
+        .with_cancellable(true)
+        .with_on_cancel("CancelImport".to_string());
+    host.open_progress(progress_desc);
+
+    assert_eq!(host.stack_depth(), 1);
+    assert!(host.is_active());
+    assert!(host.is_focus_trapped());
+    assert!(host.wants_pointer_input());
+
+    // 3. Mutate progress in-place ($O(1)$)
+    assert!(host.update_progress(0.75, Some("Compiling shaders...")));
+    if let Some(active) = host.active_dialog() {
+        if let DialogKind::Progress { progress, .. } = &active.kind {
+            assert!((*progress - 0.75).abs() < 1e-4);
+        } else {
+            panic!("Expected progress dialog kind");
+        }
+    }
+
+    // 4. Push nested confirmation dialogue card on top of progress modal
+    let confirm_desc = ConfirmationDialogDescriptor::new(
+        "Shader Conflict",
+        "A shader with this name exists. Overwrite?",
+        "ConfirmOverride".to_string(),
+    )
+    .with_cancel_action("CancelOverride".to_string());
+    host.open(confirm_desc);
+
+    assert_eq!(host.stack_depth(), 2);
+    assert_eq!(
+        host.active_dialog().map(|d| d.title()),
+        Some("Shader Conflict")
+    );
+
+    // Arbitrary keystrokes are trapped by topmost modal
+    assert!(host.handle_keyboard_input(&KeyCode::Character('x'), true, &mut bus));
+    assert!(bus.is_empty());
+
+    // 5. Confirm topmost dialogue via Enter key
+    let enter_handled = host.handle_keyboard_input(&KeyCode::Enter, true, &mut bus);
+    assert!(enter_handled);
+    assert_eq!(host.stack_depth(), 1);
+    assert_eq!(
+        host.active_dialog().map(|d| d.title()),
+        Some("Asset Processing")
+    );
+
+    // 6. Cancel underlying progress modal via Escape key
+    let escape_handled = host.handle_keyboard_input(&KeyCode::Escape, true, &mut bus);
+    assert!(escape_handled);
+    assert_eq!(host.stack_depth(), 0);
+    assert!(!host.is_active());
+    assert!(!host.is_focus_trapped());
+    assert!(!host.wants_pointer_input());
+
+    // 7. Verify all actions emitted in FIFO order to ActionBus
+    let emitted = bus.drain().collect::<Vec<_>>();
+    assert_eq!(
+        emitted,
+        vec!["ConfirmOverride".to_string(), "CancelImport".to_string()]
+    );
 }
