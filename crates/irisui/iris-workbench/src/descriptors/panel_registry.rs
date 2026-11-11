@@ -272,7 +272,7 @@ where
         let mut scope = UiScope::new(tree, leaf_id);
         self.draw(tab, &mut scope, context)?;
         tree.set_boundary(leaf_id, true);
-        tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
         Ok(())
     }
 
@@ -447,6 +447,8 @@ where
         let leaf_id = scope.parent();
         let _ = self.registry.draw(tab, scope, self.context);
         scope.tree_mut().set_boundary(leaf_id, true);
-        scope.tree_mut().mark_dirty(leaf_id, DirtyFlags::PAINT);
+        scope
+            .tree_mut()
+            .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
     }
 }

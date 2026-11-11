@@ -23,6 +23,9 @@ pub struct LayoutSyncMetrics {
 
     /// Number of leaf containers skipped due to non-positive bounds (e.g. collapsed splitters).
     pub skipped_count: usize,
+
+    /// Whether any layout subtree or leaf was reconstructed or synchronized, requiring text preparation.
+    pub needs_text_prepare: bool,
 }
 
 /// Mutable references to core framework rendering and layout engines.
@@ -82,6 +85,27 @@ impl<'a> SubtreeEngines<'a> {
     {
         DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)
     }
+
+    /// Atomically rebuilds an individual registered dock panel and tracks text preparation on `eliminator`.
+    #[inline]
+    pub fn rebuild_panel_with_eliminator<TabId, Context>(
+        &mut self,
+        eliminator: &mut DualLayoutEliminator,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+    {
+        let rebuilt =
+            DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)?;
+        if rebuilt {
+            eliminator.mark_needs_text_prepare();
+        }
+        Ok(rebuilt)
+    }
 }
 
 /// Autonomous coordinator synchronizing docking leaf containers with Taffy flexbox solvers.
@@ -94,15 +118,51 @@ impl<'a> SubtreeEngines<'a> {
 /// `DualLayoutEliminator` guarantees mathematical coordinate invariance between
 /// Branch 1 (Full Shell) and Branch 2 (Partial Subtree Rebuild) by immediately
 /// shaping typography and evaluating Taffy boundary geometry across all active leaves.
+///
+/// Automatically tracks whether text preparation is required (`needs_text_prepare`)
+/// when partial subtree rebuilds occur.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct DualLayoutEliminator;
+pub struct DualLayoutEliminator {
+    needs_text_prepare: bool,
+}
 
 impl DualLayoutEliminator {
     /// Creates a new autonomous dual-layout eliminator instance.
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
-        Self
+        Self {
+            needs_text_prepare: false,
+        }
+    }
+
+    /// Returns `true` if any partial subtree rebuild or layout pass triggered text preparation.
+    #[inline]
+    #[must_use]
+    pub const fn needs_text_prepare(&self) -> bool {
+        self.needs_text_prepare
+    }
+
+    /// Explicitly flags text preparation as required on the active frame.
+    #[inline]
+    pub fn mark_needs_text_prepare(&mut self) {
+        self.needs_text_prepare = true;
+    }
+
+    /// Resets the text preparation flag to `false`.
+    #[inline]
+    pub fn clear_needs_text_prepare(&mut self) {
+        self.needs_text_prepare = false;
+    }
+
+    /// Consumes and returns the current text preparation flag, resetting it to `false`.
+    ///
+    /// Useful for single-pass render loops to query and clear the flag atomically.
+    #[inline]
+    pub fn take_needs_text_prepare(&mut self) -> bool {
+        let needs = self.needs_text_prepare;
+        self.needs_text_prepare = false;
+        needs
     }
 
     /// Synchronizes a collection of dock leaf containers with Taffy boundary layouts.
@@ -144,10 +204,11 @@ impl DualLayoutEliminator {
             layout_engine.compute_boundary_subtree(tree, leaf_id)?;
 
             tree.set_boundary(leaf_id, true);
-            tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+            tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
             metrics.synchronized_count += 1;
         }
 
+        metrics.needs_text_prepare = metrics.synchronized_count > 0;
         Ok(metrics)
     }
 
@@ -157,7 +218,7 @@ impl DualLayoutEliminator {
     /// 1. Untracks previous child layout nodes from Taffy and purges descendant nodes.
     /// 2. Renders fresh declarative widgets under `leaf_id` via `render_fn`.
     /// 3. Shapes typography and resolves boundary Taffy flexbox geometry in $O(M)$ time.
-    /// 4. Re-seals the leaf as an Invalidation Boundary and flags it for repainting.
+    /// 4. Re-seals the leaf as an Invalidation Boundary and flags it for repainting and text preparation.
     ///
     /// # Errors
     /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
@@ -174,7 +235,7 @@ impl DualLayoutEliminator {
         SubtreeSession::rebuild(tree, layout_engine, text_system, leaf_id, render_fn)?;
 
         tree.set_boundary(leaf_id, true);
-        tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
         Ok(())
     }
 
@@ -185,7 +246,7 @@ impl DualLayoutEliminator {
     /// 2. Purges previous descendant nodes and untracks stale child layout nodes.
     /// 3. Declaratively synthesizes fresh widgets via [`WorkbenchPanelRegistry::draw`].
     /// 4. Shapes typography and resolves boundary Taffy flexbox geometry in $O(M)$ time.
-    /// 5. Seals the leaf as an Invalidation Boundary and marks it for repainting.
+    /// 5. Seals the leaf as an Invalidation Boundary and marks it for repainting and text preparation.
     ///
     /// Eliminates the need for manual [`SubtreeSession::begin`] and [`SubtreeSession::finish`]
     /// calls or tree extraction (`std::mem::take`) in external application/engine layers.
@@ -227,8 +288,29 @@ impl DualLayoutEliminator {
         draw_result?;
 
         engines.tree.set_boundary(leaf_id, true);
-        engines.tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        engines
+            .tree
+            .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
         Ok(true)
+    }
+
+    /// Atomically rebuilds an individual registered dock panel and records text preparation on this instance.
+    pub fn rebuild_panel_instance<TabId, Context>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+    {
+        let rebuilt = Self::rebuild_panel(engines, registry, context, panel_id, leaf_id)?;
+        if rebuilt {
+            self.needs_text_prepare = true;
+        }
+        Ok(rebuilt)
     }
 
     /// Atomically rebuilds an individual leaf panel with a fallible render closure.
@@ -273,7 +355,9 @@ impl DualLayoutEliminator {
         }
 
         engines.tree.set_boundary(leaf_id, true);
-        engines.tree.mark_dirty(leaf_id, DirtyFlags::PAINT);
+        engines
+            .tree
+            .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
         Ok(true)
     }
 
@@ -364,6 +448,10 @@ impl DualLayoutEliminator {
                     rebuilt_count += 1;
                 }
             }
+        }
+
+        if rebuilt_count > 0 {
+            self.needs_text_prepare = true;
         }
 
         Ok(rebuilt_count)

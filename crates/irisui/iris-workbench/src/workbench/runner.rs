@@ -13,13 +13,17 @@ use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::dialogs::host::DialogHost;
 use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
+use crate::layout_sync::dual_layout::{DualLayoutEliminator, SubtreeEngines};
+use iris_core::WidgetId;
 use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Rect, Size};
 use iris_core::tree::UiTree;
+use iris_dock::UiNotifier;
 use iris_dock::area::runner::{DockArea, DockInteractionConfig};
 use iris_dock::floating::FloatingWindowClampBounds;
 use iris_dock::state::DockState;
 use iris_dock::style::DockChromeStyle;
+use iris_layout::LayoutError;
 use iris_winit::frameless::{FramelessWindowHost, WindowDragHost, WindowInterface};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -64,6 +68,9 @@ pub struct Workbench<TabId, Action: 'static + Send + Sync, AppState> {
 
     /// Window drag host managing titlebar/menubar dragging and double-click maximize behavior.
     pub drag_host: WindowDragHost,
+
+    /// Autonomous dual-layout eliminator coordinating $O(M)$ Taffy subtree solves and text preparation.
+    pub dual_layout: DualLayoutEliminator,
 
     /// Standard menubar height in logical pixels. Defaults to 30.0.
     pub menubar_height: f32,
@@ -115,6 +122,7 @@ where
             overlay_host: OverlayHost::new(),
             frameless_host: FramelessWindowHost::new(),
             drag_host: WindowDragHost::new().with_title_bar_height(30.0),
+            dual_layout: DualLayoutEliminator::new(),
             menubar_height: 30.0,
             statusbar_height: 24.0,
             dock_style: DockChromeStyle::default(),
@@ -196,6 +204,60 @@ where
     #[must_use]
     pub fn has_active_overlays(&self, state: &AppState) -> bool {
         self.overlay_host.has_active_overlays(state)
+    }
+
+    /// Returns `true` if any partial subtree rebuild or layout pass triggered text preparation.
+    #[inline]
+    #[must_use]
+    pub fn needs_text_prepare(&self) -> bool {
+        self.dual_layout.needs_text_prepare()
+    }
+
+    /// Explicitly flags text preparation as required on the active frame.
+    #[inline]
+    pub fn mark_needs_text_prepare(&mut self) {
+        self.dual_layout.mark_needs_text_prepare();
+    }
+
+    /// Resets the text preparation flag to `false`.
+    #[inline]
+    pub fn clear_needs_text_prepare(&mut self) {
+        self.dual_layout.clear_needs_text_prepare();
+    }
+
+    /// Consumes and returns the current text preparation flag, resetting it to `false`.
+    ///
+    /// Useful for single-pass render loops to query and clear the flag atomically.
+    #[inline]
+    pub fn take_needs_text_prepare(&mut self) -> bool {
+        self.dual_layout.take_needs_text_prepare()
+    }
+
+    /// Rebuilds all dirty dock leaf panels flagged in `notifier` using the workbench's
+    /// internal [`DualLayoutEliminator`] and registered [`WorkbenchPanelRegistry`].
+    ///
+    /// Automatically marks [`Self::needs_text_prepare`] if any panels were reconstructed.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
+    pub fn rebuild_dirty_panels<F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        context: &mut AppState,
+        leaf_resolver: F,
+    ) -> Result<usize, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnMut(TabId) -> Option<WidgetId>,
+    {
+        self.dual_layout.rebuild_dirty_panels(
+            engines,
+            notifier,
+            &mut self.panel_registry,
+            context,
+            leaf_resolver,
+        )
     }
 
     /// Sets the top application menubar height in logical pixels.

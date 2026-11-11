@@ -282,3 +282,172 @@ fn test_atomic_rebuild_panel_clears_old_children_completely() {
         );
     }
 }
+
+#[test]
+fn test_dual_layout_needs_text_prepare_lifecycle() {
+    let mut eliminator = DualLayoutEliminator::new();
+    assert!(
+        !eliminator.needs_text_prepare(),
+        "Initial state must not need text prepare"
+    );
+
+    eliminator.mark_needs_text_prepare();
+    assert!(eliminator.needs_text_prepare());
+
+    eliminator.clear_needs_text_prepare();
+    assert!(!eliminator.needs_text_prepare());
+
+    eliminator.mark_needs_text_prepare();
+    assert!(eliminator.take_needs_text_prepare());
+    assert!(
+        !eliminator.needs_text_prepare(),
+        "take_needs_text_prepare must reset flag to false"
+    );
+}
+
+#[test]
+fn test_dual_layout_rebuild_dirty_panels_triggers_needs_text_prepare() {
+    use iris_core::DirtyFlags;
+    use iris_dock::UiNotifier;
+
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 300.0, 200.0));
+
+    // Initial Branch 1 layout synchronization
+    let initial_leaves = [(SessionTestTab::Console, leaf_id)];
+    let init_metrics = DualLayoutEliminator::synchronize_all_leaves(
+        &mut tree,
+        &mut layout_engine,
+        &mut text_system,
+        &initial_leaves,
+    )
+    .expect("Initial synchronization must succeed");
+    assert!(init_metrics.needs_text_prepare);
+
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext { render_count: 0 };
+    registry.register_panel(SessionTestTab::Console, |scope, ctx| {
+        ctx.render_count += 1;
+        scope.button("Text Element");
+    });
+
+    let mut notifier = UiNotifier::<SessionTestTab>::clean();
+    let mut eliminator = DualLayoutEliminator::new();
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    // 1. Clean run: no panels dirty -> 0 rebuilt, needs_text_prepare remains false
+    let zero_count = eliminator
+        .rebuild_dirty_panels(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut context,
+            |_tab| Some(leaf_id),
+        )
+        .expect("Rebuild with clean notifier must succeed");
+    assert_eq!(zero_count, 0);
+    assert!(!eliminator.needs_text_prepare());
+
+    // 2. Mark panel dirty in notifier -> 1 rebuilt, needs_text_prepare becomes true
+    notifier.tag_redraw(SessionTestTab::Console);
+    assert!(notifier.is_dirty(SessionTestTab::Console));
+
+    let rebuilt_count = eliminator
+        .rebuild_dirty_panels(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut context,
+            |_tab| Some(leaf_id),
+        )
+        .expect("Rebuild with dirty notifier must succeed");
+    assert_eq!(rebuilt_count, 1);
+    assert_eq!(context.render_count, 1);
+    assert!(!notifier.is_dirty(SessionTestTab::Console));
+
+    // Verify autonomous text prepare flag is raised
+    assert!(
+        eliminator.needs_text_prepare(),
+        "Rebuilding dirty panels must autonomously flag needs_text_prepare"
+    );
+
+    // Verify leaf node has both PAINT and TEXT dirty flags
+    let leaf_node = engines.tree.get(leaf_id).expect("Leaf node must exist");
+    assert!(leaf_node.dirty.contains(DirtyFlags::PAINT));
+    assert!(leaf_node.dirty.contains(DirtyFlags::TEXT));
+    assert!(engines.tree.is_boundary(leaf_id));
+
+    // Consuming flag resets it
+    assert!(eliminator.take_needs_text_prepare());
+    assert!(!eliminator.needs_text_prepare());
+}
+
+#[test]
+fn test_subtree_engines_rebuild_panel_with_eliminator_and_text_flag() {
+    use iris_core::DirtyFlags;
+
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 400.0, 300.0));
+
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext { render_count: 0 };
+    registry.register_panel(SessionTestTab::Console, |scope, ctx| {
+        ctx.render_count += 1;
+        scope.button("Log Viewer");
+    });
+
+    let mut eliminator = DualLayoutEliminator::new();
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let success = engines
+        .rebuild_panel_with_eliminator(
+            &mut eliminator,
+            &mut registry,
+            &mut context,
+            SessionTestTab::Console,
+            leaf_id,
+        )
+        .expect("rebuild_panel_with_eliminator must succeed");
+
+    assert!(success);
+    assert!(eliminator.needs_text_prepare());
+    assert!(engines.tree.is_boundary(leaf_id));
+    assert!(
+        engines
+            .tree
+            .get(leaf_id)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::TEXT)
+    );
+}
+
+#[test]
+fn test_synchronize_all_leaves_reports_needs_text_prepare() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(0.0, 0.0, 500.0, 400.0));
+
+    let leaves = [(SessionTestTab::Console, leaf_id)];
+    let metrics = DualLayoutEliminator::synchronize_all_leaves(
+        &mut tree,
+        &mut layout_engine,
+        &mut text_system,
+        &leaves,
+    )
+    .expect("synchronize_all_leaves must succeed");
+
+    assert_eq!(metrics.synchronized_count, 1);
+    assert!(
+        metrics.needs_text_prepare,
+        "Synchronizing leaves must raise needs_text_prepare in LayoutSyncMetrics"
+    );
+}
