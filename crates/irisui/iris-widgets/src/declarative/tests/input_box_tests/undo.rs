@@ -305,6 +305,9 @@ fn test_input_box_undo_event_consumption() {
 
 #[test]
 fn test_numeric_filter_typing_and_pasting() {
+    let _guard = crate::input::CLIPBOARD_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     use crate::declarative::scope::input_box::interaction::{
         TextInputFilter, TextInputKeyContext, process_text_input_keys,
     };

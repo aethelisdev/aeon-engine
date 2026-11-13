@@ -18,7 +18,7 @@ use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
 /// Visual styling configuration for a dock tab overflow dropdown popup menu.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DockOverflowMenuStyle {
     /// Background color of the popup menu container card.
     pub background: Color,

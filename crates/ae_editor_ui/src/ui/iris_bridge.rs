@@ -19,7 +19,6 @@ pub mod modals;
 pub mod params;
 pub mod preferences;
 pub mod render;
-pub mod shell_dialogs;
 pub mod stats;
 pub mod status_bar;
 pub mod subtree;

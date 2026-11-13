@@ -56,6 +56,18 @@ impl IrisEditorOverlay {
                 },
                 hud,
             );
+
+            // Asset Drag & Viewport Drop Overlays (3D ground landing ring and floating cursor card)
+            if let Some(payload) = &params.panel_data.asset_browser.drag_payload {
+                super::assets::build_asset_drag_overlays_scope(
+                    vp_scope,
+                    payload,
+                    cursor_pos,
+                    viewport_rect,
+                    params.viewport.camera,
+                    params.context.is_2d_mode,
+                );
+            }
         });
 
         hud.camera_angles = (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);

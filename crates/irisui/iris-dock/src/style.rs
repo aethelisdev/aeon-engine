@@ -7,6 +7,7 @@
 //! and drop zone highlight colors across the docking engine.
 
 use crate::navigator::DockNavigatorStyle;
+use crate::overflow::DockOverflowMenuStyle;
 use iris_core::{Color, CornerRadii};
 
 /// Default height in logical pixels for leaf tab bar header strips.
@@ -79,6 +80,8 @@ pub struct DockChromeStyle {
     pub chevron_icon_uv: Option<[f32; 4]>,
     /// Nested visual style for the 5-way blueprint drop navigator.
     pub navigator: DockNavigatorStyle,
+    /// Visual style for the tab overflow dropdown popup menu.
+    pub overflow_menu: DockOverflowMenuStyle,
 }
 
 impl Default for DockChromeStyle {
@@ -116,6 +119,7 @@ impl Default for DockChromeStyle {
             chevron_idle_icon_col: Color::from_u8(148, 163, 184, 255),
             chevron_icon_uv: None,
             navigator: DockNavigatorStyle::default(),
+            overflow_menu: DockOverflowMenuStyle::default(),
         }
     }
 }

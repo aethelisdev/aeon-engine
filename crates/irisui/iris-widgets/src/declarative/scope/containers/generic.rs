@@ -416,14 +416,17 @@ impl<'a> UiScope<'a> {
         dot_radius: f32,
         color: Color,
     ) {
+        let origin = self.parent_screen_origin();
+        let local_center = Point::new(center.x - origin.x, center.y - origin.y);
+
         let ring_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(ring_id) {
             node.set_name("ViewportDropLandingRing");
             node.set_style(
                 Style::new()
                     .position_absolute()
-                    .left(center.x - ring_radius)
-                    .top(center.y - ring_radius)
+                    .left(local_center.x - ring_radius)
+                    .top(local_center.y - ring_radius)
                     .width(ring_radius * 2.0)
                     .height(ring_radius * 2.0)
                     .border(2.0, color)
@@ -448,8 +451,8 @@ impl<'a> UiScope<'a> {
             node.set_style(
                 Style::new()
                     .position_absolute()
-                    .left(center.x - dot_radius)
-                    .top(center.y - dot_radius)
+                    .left(local_center.x - dot_radius)
+                    .top(local_center.y - dot_radius)
                     .width(dot_radius * 2.0)
                     .height(dot_radius * 2.0)
                     .background(color)

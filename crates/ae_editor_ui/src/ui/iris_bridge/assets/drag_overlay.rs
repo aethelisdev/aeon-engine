@@ -10,7 +10,7 @@
 
 use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
-use irisui::prelude::{Color, Point, Rect, UiScope, WorkbenchUiScopeExt};
+use irisui::prelude::{Color, Point, Rect, UiScope};
 
 /// Constructs topmost floating overlays for an active asset drag operation via a declarative [`UiScope`].
 ///
@@ -37,14 +37,11 @@ pub fn build_asset_drag_overlays_scope(
     }
 
     // 2. Floating Cursor Drag Tooltip Capsule
-    let mut controller = irisui::workbench::DragDropController::new();
-    let drag_payload =
-        irisui::workbench::TypedDragDropPayload::new((), payload.name.clone(), "Assets")
-            .with_badge(payload.category.badge(), payload.category.badge_color())
-            .into_erased();
-    controller.start_drag(drag_payload, cursor_pos);
-
-    scope.drag_drop_preview(&controller, cursor_pos, None);
+    scope.floating_drag_preview(
+        irisui::widgets::declarative::widget::FloatingDragPreview::new(&payload.name)
+            .with_cursor(cursor_pos)
+            .with_badge(payload.category.badge(), payload.category.badge_color()),
+    );
 }
 
 /// Computes the 2D screen coordinate center for the viewport landing drop target.

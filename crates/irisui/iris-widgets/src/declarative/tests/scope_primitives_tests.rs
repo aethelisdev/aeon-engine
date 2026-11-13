@@ -424,3 +424,39 @@ fn test_declarative_indeterminate_progress_layout() {
     // travel = 200 - 56 = 144; slug_x = 50 + 144 * 0.5 = 122.0
     assert_eq!(slug_node.computed_rect.x, 122.0);
 }
+
+/// Verifies that [`UiScope::landing_indicator`] correctly compensates for parent container screen origins.
+#[test]
+fn test_declarative_landing_indicator_parent_origin_compensation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let panel_id = tree.create_node();
+    if let Some(panel) = tree.get_mut(panel_id) {
+        panel.computed_rect = Rect::new(200.0, 50.0, 800.0, 600.0);
+    }
+    let _ = tree.add_child(root, panel_id);
+
+    let center = Point::new(450.0, 300.0);
+    {
+        let mut scope = UiScope::new(&mut tree, panel_id);
+        scope.landing_indicator(center, 18.0, 4.0, iris_core::Color::CYAN);
+    }
+
+    let panel_node = tree.get(panel_id).expect("Panel exists");
+    assert_eq!(panel_node.children.len(), 2);
+
+    let ring = tree.get(panel_node.children[0]).expect("Ring exists");
+    // Local inset in style = center.x - origin.x - radius = 450 - 200 - 18 = 232.0
+    assert_eq!(ring.style.inset_left, Some(232.0));
+    assert_eq!(ring.style.inset_top, Some(300.0 - 50.0 - 18.0));
+    // Measured screen rect = center.x - radius = 450 - 18 = 432.0
+    assert_eq!(ring.computed_rect.x, 432.0);
+    assert_eq!(ring.computed_rect.y, 282.0);
+
+    let dot = tree.get(panel_node.children[1]).expect("Dot exists");
+    assert_eq!(dot.style.inset_left, Some(450.0 - 200.0 - 4.0));
+    assert_eq!(dot.style.inset_top, Some(300.0 - 50.0 - 4.0));
+    assert_eq!(dot.computed_rect.x, 446.0);
+    assert_eq!(dot.computed_rect.y, 296.0);
+}

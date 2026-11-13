@@ -341,6 +341,26 @@ pub fn editor_dock_style_with_tokens(tokens: &EditorThemeTokens) -> DockChromeSt
             preview_border: tokens.accent,
             ..Default::default()
         },
+        overflow_menu: irisui::dock::DockOverflowMenuStyle {
+            background: tokens.panel_bg,
+            border_color: tokens.splitter_idle,
+            border_width: 1.0,
+            corner_radius: 6.0,
+            item_height: 24.0,
+            menu_padding: 4.0,
+            menu_width: 180.0,
+            item_active_hover_bg: tokens.tab_active_bg,
+            item_active_hover_border: tokens.accent,
+            item_hover_bg: tokens.tab_hover_bg,
+            item_hover_border: Color::TRANSPARENT,
+            item_active_bg: tokens.tab_active_bg,
+            item_active_border: Color::TRANSPARENT,
+            accent_color: tokens.accent,
+            text_active_color: tokens.text_active,
+            text_hover_color: Color::WHITE,
+            text_normal_color: tokens.text_muted,
+            font_size: 12.0,
+        },
     }
 }
 

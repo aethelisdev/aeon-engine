@@ -70,6 +70,9 @@ fn test_numeric_drag_enter_confirmation_and_submitted_response() {
 
 #[test]
 fn test_numeric_drag_clipboard_and_letter_filter() {
+    let _guard = crate::input::CLIPBOARD_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node");
     let tag = 0x112233;

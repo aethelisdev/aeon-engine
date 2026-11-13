@@ -148,12 +148,18 @@ impl Widget for FloatingDragPreview {
 
     fn ui(self, scope: &mut UiScope<'_>) -> Self::Response {
         let effective_offset = self.offset.unwrap_or(self.style.offset);
-        let pos = Point::new(
+        let screen_pos = Point::new(
             self.cursor.x + effective_offset.x,
             self.cursor.y + effective_offset.y,
         );
 
-        let root_parent = scope.tree().root().unwrap_or(scope.parent());
+        let parent_origin = scope.parent_screen_origin();
+        let local_pos = Point::new(
+            screen_pos.x - parent_origin.x,
+            screen_pos.y - parent_origin.y,
+        );
+
+        let parent_id = scope.parent();
         let card_id = scope.tree_mut().create_node();
 
         let s = self.style;
@@ -165,8 +171,8 @@ impl Widget for FloatingDragPreview {
             card.set_style(
                 Style::new()
                     .position_absolute()
-                    .left(pos.x)
-                    .top(pos.y)
+                    .left(local_pos.x)
+                    .top(local_pos.y)
                     .flex_row()
                     .align_items(AlignItems::Center)
                     .padding_insets(s.padding)
@@ -183,7 +189,7 @@ impl Widget for FloatingDragPreview {
             );
         }
 
-        let _ = scope.tree_mut().add_child(root_parent, card_id);
+        let _ = scope.tree_mut().add_child(parent_id, card_id);
 
         let mut child_scope = UiScope::new(scope.tree_mut(), card_id);
 
@@ -220,6 +226,7 @@ impl Widget for FloatingDragPreview {
             child_scope.label_custom(&sub, s.sub_font_size, s.sub_text_color, TextAlign::Left);
         }
 
-        WidgetResponse::default()
+        let computed_rect = child_scope.layout_subtree_measured(card_id, screen_pos, 0.0);
+        WidgetResponse::empty(card_id).with_rect(computed_rect)
     }
 }

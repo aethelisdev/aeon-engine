@@ -669,19 +669,6 @@ impl IrisEditorOverlay {
                 && params.viewport.viewport_rect.height > 20.0;
             self.viewport_hud.is_active = is_viewport_active;
 
-            // 5. SHELL DIALOGS (Modal windows rendered on elevated layers in the Shell tree):
-            self.build_shell_dialogs(
-                root,
-                &mut params,
-                super::shell_dialogs::ShellDialogsContext {
-                    screen_width,
-                    screen_height,
-                    cursor,
-                    workspace_rect,
-                    is_cursor_occluded,
-                },
-            );
-
             self.notifier.clear_all();
             self.command_list.clear();
             self.chrome.needs_text_prepare = true;

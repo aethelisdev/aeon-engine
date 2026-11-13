@@ -320,6 +320,32 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
             crate::navigator::build_floating_tab_badge(scope.tree_mut(), parent_id, badge_params);
         }
 
+        // 4. Autonomous tab overflow dropdown popup menu
+        if let Some((leaf_id, anchor_rect)) = self.state.active_overflow
+            && let Some(node) = self.state.tree.get(leaf_id)
+            && let DockNode::Leaf { tabs, active_tab } = node
+            && !tabs.is_empty()
+        {
+            let effective_cursor = if self.is_cursor_occluded {
+                Point::new(-1000.0, -1000.0)
+            } else {
+                self.cursor_pos
+            };
+            crate::overflow::build_dock_overflow_menu(
+                scope.tree_mut(),
+                parent_id,
+                crate::overflow::DockOverflowMenuParams {
+                    leaf_id,
+                    tabs,
+                    active_tab: *active_tab,
+                    anchor_rect,
+                    cursor_pos: effective_cursor,
+                },
+                viewer,
+                &self.style.overflow_menu,
+            );
+        }
+
         frame
     }
 
