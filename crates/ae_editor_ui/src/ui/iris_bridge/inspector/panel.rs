@@ -50,37 +50,62 @@ fn render_inspected_entity(
     session: &mut super::types::InspectorSessionRefs<'_>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
-        header::build_entity_header_modify_action(
-            scope,
-            entity,
-            &params.entity_display_name(entity),
-            session.inspected_name,
-            params.panel_rect.width,
-        ),
-        scope
-            .scroll_area(
-                "InspectorCardsContainer",
-                TAG_INSPECTOR_CARDS_CONTAINER,
-                None,
-                |cards_scope| {
-                    render_inspector_cards(
-                        cards_scope,
+        combine_card_actions(
+            combine_card_actions(
+                combine_card_actions(
+                    header::build_entity_header_modify_action(
+                        scope,
                         entity,
-                        params,
-                        session.saved_swatches,
-                        session.is_color_picker_open,
-                    )
-                },
-            )
-            .inner
-            .or_else(|| {
+                        &params.entity_display_name(entity),
+                        session.inspected_name,
+                        params.panel_rect.width,
+                    ),
+                    scope
+                        .scroll_area(
+                            "InspectorCardsContainer",
+                            TAG_INSPECTOR_CARDS_CONTAINER,
+                            None,
+                            |cards_scope| {
+                                render_inspector_cards(
+                                    cards_scope,
+                                    entity,
+                                    params,
+                                    session.saved_swatches,
+                                    session.is_color_picker_open,
+                                )
+                            },
+                        )
+                        .inner,
+                ),
                 footer::build_inspector_footer(
                     scope,
                     params,
                     session.is_add_menu_open,
                     session.active_submenu,
+                ),
+            ),
+            (*session.is_add_menu_open)
+                .then(|| {
+                    add_menu::draw_add_component_menu(
+                        scope,
+                        params,
+                        session.is_add_menu_open,
+                        session.active_submenu,
+                    )
+                    .1
+                })
+                .flatten(),
+        ),
+        (*session.is_color_picker_open)
+            .then(|| {
+                color_picker_popup::build_color_picker_popup_with_action(
+                    scope,
+                    params,
+                    session.is_color_picker_open,
                 )
-            }),
+                .1
+            })
+            .flatten(),
     )
 }
 

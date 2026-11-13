@@ -102,19 +102,42 @@ fn test_declarative_context_menu_item_click_closes_menu() {
         });
     }
     assert!(tree.event_state.active_context_menu.is_some());
+    let active = tree.event_state.active_context_menu.unwrap();
+    let container_id = active.container_id.unwrap();
+    let item_id = tree.get(container_id).unwrap().children[0];
+    let item_rect = tree.get(item_id).unwrap().computed_rect;
+
+    // Dispatch true mouse click on item center
+    let click_target = Point::new(
+        item_rect.x + item_rect.width * 0.5,
+        item_rect.y + item_rect.height * 0.5,
+    );
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_target,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: click_target,
+    });
 
     // Render again where item is clicked
+    let mut was_clicked = false;
     {
         let mut scope = UiScope::new(&mut tree, root);
         let card_resp = WidgetResponse::empty(card_id).with_secondary_clicked(false);
         card_resp.context_menu(&mut scope, |menu| {
             let item_resp = menu.context_menu_item("Action");
-            if !item_resp.clicked() {
-                menu.tree.event_state.close_context_menu();
+            if item_resp.clicked() {
+                was_clicked = true;
             }
         });
     }
 
+    assert!(
+        was_clicked,
+        "item_resp.clicked() must be true on real mouse click"
+    );
     assert!(
         tree.event_state.active_context_menu.is_none(),
         "Context menu must close after action item click"

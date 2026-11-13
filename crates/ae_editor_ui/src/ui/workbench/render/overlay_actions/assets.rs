@@ -88,7 +88,8 @@ impl EngineUi {
                     }
                     _ => {}
                 },
-                iris_bridge::AssetsPanelAction::InspectAsset(item) => {
+                iris_bridge::AssetsPanelAction::InspectAsset(item)
+                | iris_bridge::AssetsPanelAction::OpenInspectModal(item) => {
                     self.iris_overlay.assets.preview_modal = Some(
                         crate::ui::iris_bridge::assets::types::AssetPreviewModalState {
                             item,

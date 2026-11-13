@@ -293,6 +293,33 @@ impl<Action: 'static + Send + Sync> DialogHost<Action> {
         true
     }
 
+    /// Returns `true` if any progress monitoring dialogue is currently active on the modal stack.
+    ///
+    /// Iterates across active stacked dialogues and returns `true` as soon as a [`DialogKind::Progress`]
+    /// variant is encountered.
+    #[must_use]
+    pub fn has_progress(&self) -> bool {
+        self.dialog_stack
+            .iter()
+            .any(|d| matches!(d.kind, DialogKind::Progress { .. }))
+    }
+
+    /// Closes and removes the topmost progress dialogue from the modal stack, if active.
+    ///
+    /// Returns `true` if an active progress dialogue was found and dismissed, or `false` otherwise.
+    pub fn close_progress(&mut self) -> bool {
+        if let Some(pos) = self
+            .dialog_stack
+            .iter()
+            .rposition(|d| matches!(d.kind, DialogKind::Progress { .. }))
+        {
+            self.dialog_stack.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Opens a sliding sheet drawer dialogue anchored to a window boundary.
     pub fn open_sheet(&mut self, title: impl Into<String>, anchor: SheetAnchor, extent: f32) {
         self.open(SheetDialogDescriptor::new(title, anchor, extent));

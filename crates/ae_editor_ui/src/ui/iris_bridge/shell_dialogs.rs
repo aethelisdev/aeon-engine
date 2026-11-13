@@ -1,24 +1,19 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Top-Level Shell Dialogs and Transient Popups Subsystem
+//! # Top-Level Shell Overlays and Transient Popups Subsystem
 //!
-//! Directly constructs modal dialogues, right-click context menus, cascading dropdown cards,
-//! and asset drag-drop previews into the primary unified Shell [`UiTree`] elevated layers
-//! ([`UiLayer::Modal`], [`UiLayer::Popup`], and [`UiLayer::Tooltip`]).
+//! Handles remaining top-level floating overlays (asset drag-drop previews and dock tab overflow menus)
+//! directly into the primary Shell [`UiTree`] elevated layers ([`UiLayer::Modal`], [`UiLayer::Popup`]).
 //!
-//! Eliminates separate overlay trees and coordinate mapping wrappers in full compliance
-//! with Phase 5.1.5 of the unified retained UI tree architecture.
+//! Modal dialogues are rendered autonomously by [`irisui::workbench::DialogHost`].
+//! Preferences are managed via standard [`irisui::dock`] floating windows.
+//! Contextual popups and cascading menus are rendered declaratively in widget [`UiScope`].
 
-use super::hierarchy;
-use super::inspector;
-use super::modals::{self, build_loading_overlay};
-use super::preferences::{self, build_preferences_dialog};
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
-use crate::ui::PanelId;
 use irisui::prelude::*;
 
-/// Geometry and environment parameters required to construct top-level floating overlays and modal dialogues.
+/// Geometry and environment parameters required to construct top-level floating overlays.
 #[derive(Debug, Clone, Copy)]
 pub struct ShellDialogsContext {
     /// Total width of the application viewport in physical pixels.
@@ -34,180 +29,23 @@ pub struct ShellDialogsContext {
 }
 
 impl IrisEditorOverlay {
-    /// Builds all transient floating popups, context menus, and modal dialogs directly into the primary Shell tree.
+    /// Builds transient floating overlays (drag preview, tab overflow) directly into the primary Shell tree.
     ///
-    /// Every constructed element is tagged with appropriate [`UiLayer::Modal`] or [`UiLayer::Popup`]
-    /// attributes, allowing Iris UI's native multi-layer compositor and hit-testing engine to process
-    /// them with zero coordinate transformations and zero auxiliary tree overhead.
+    /// Modal dialogs are rendered autonomously by `iris-workbench::DialogHost`.
     pub(crate) fn build_shell_dialogs(
         &mut self,
         root: WidgetId,
         params: &mut OverlayUpdateParams<'_>,
         ctx: ShellDialogsContext,
     ) {
-        let screen_width = ctx.screen_width;
-        let screen_height = ctx.screen_height;
         let cursor = ctx.cursor;
         let is_cursor_occluded = ctx.is_cursor_occluded;
-        let elapsed_secs = self.start_time.elapsed().as_secs_f32();
 
-        // 1. Preferences Dialog
-        if params.dialogs.show_preferences {
-            let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
-            let caret_buf;
-            let active_number_input =
-                if let Some((t, ref s, is_all_selected)) = self.preferences.active_number_input {
-                    let text_with_caret = if !is_all_selected && blink_caret {
-                        caret_buf = format!("{}|", s);
-                        caret_buf.as_str()
-                    } else {
-                        s.as_str()
-                    };
-                    Some((t, text_with_caret, is_all_selected))
-                } else {
-                    None
-                };
-
-            let (_pref_id, card_rect, content_rect, _max_scroll_y) = build_preferences_dialog(
-                &mut self.tree,
-                preferences::PreferencesParams {
-                    screen_width,
-                    screen_height,
-                    window_pos: self.preferences.floating.pos,
-                    active_tab: &mut self.preferences.tab,
-                    collapsed_sections: &self.preferences.collapsed_sections,
-                    active_number_input,
-                    blink_caret,
-                    cursor_pos: cursor,
-                    zoom_factor: params.context.zoom_factor,
-                    graphics_settings: params.preferences.graphics_settings,
-                    snapping_settings: params.preferences.snapping_settings,
-                    editor_config: params.preferences.editor_config,
-                    enable_live_updates: params.context.enable_live_updates,
-                    enabled_modules: params.preferences.enabled_modules,
-                    events: &self.preferences.pending_interaction_events,
-                    current_theme: self.chrome.theme_preset,
-                },
-                &mut self.preferences.interactions.actions,
-            );
-            self.preferences.pending_interaction_events.clear();
-            self.preferences.floating.rect = Some(card_rect);
-            self.preferences.content_rect = Some(content_rect);
-        }
-
-        // 2. Framework Autonomous Dialog Host (Confirmations, Inputs, Custom Modals, Info Cards)
-        if let (Some(dialog_host), Some(action_bus)) = (
-            params.dialog_host.as_deref_mut(),
-            params.action_bus.as_deref_mut(),
-        ) && dialog_host.is_active()
-        {
-            let mut scope = UiScope::new(&mut self.tree, root);
-            let viewport = Rect::new(0.0, 0.0, screen_width, screen_height);
-            dialog_host.render(&mut scope, viewport, false, action_bus);
-        }
-
-        // 4. Asset Loading Splash
-        if params.dialogs.is_loading_assets {
-            build_loading_overlay(
-                &mut self.tree,
-                modals::LoadingOverlayParams {
-                    screen_width,
-                    screen_height,
-                    time_secs: elapsed_secs,
-                },
-            );
-        }
-
-        // 7. Hierarchy Add Menu and Context Menu
-        let hier_rect = self
-            .chrome
-            .dock_frame
-            .as_ref()
-            .and_then(|f| f.panel_rect(PanelId::Hierarchy));
-        if let Some(hier_rect) = hier_rect {
-            let hier_params = hierarchy::HierarchyPanelParams {
-                panel_rect: hier_rect,
-                world: params.scene.world,
-                selected_entity: params.scene.selected_entity,
-                search_query: self.hierarchy.search_input.text(),
-                is_editing: params.context.is_editing,
-                is_2d: params.context.is_2d_mode,
-                active_submenu: self.hierarchy.active_submenu,
-                active_sub_submenu: self.hierarchy.active_sub_submenu,
-                is_add_menu_open: self.hierarchy.is_add_menu_open,
-                active_context_menu: self.hierarchy.active_context_menu,
-                cursor_pos: cursor,
-                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                focus_state: &self.focus_state,
-                cursor_byte_idx: self.hierarchy.search_input.cursor_byte_idx,
-                ctrl_held: self.chrome.ctrl_held,
-                shift_held: self.chrome.shift_held,
-            };
-            let mut hierarchy_overlay_actions = Vec::new();
-            hierarchy::build_hierarchy_overlays(
-                &mut self.tree,
-                root,
-                &hier_params,
-                &mut hierarchy_overlay_actions,
-            );
-            self.hierarchy
-                .interactions
-                .actions
-                .append(&mut hierarchy_overlay_actions);
-        }
-
-        // 8. Inspector Add Component Cascading Menu and Color Picker
-        let insp_rect = self
-            .chrome
-            .dock_frame
-            .as_ref()
-            .and_then(|f| f.panel_rect(PanelId::Inspector));
-        if let Some(insp_rect) = insp_rect {
-            let rename_buf_ref = self
-                .inspector
-                .rename_input
-                .as_ref()
-                .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-                .map(|(_, input)| input.text());
-
-            let is_inspector_popup_open =
-                self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
-
-            if is_inspector_popup_open {
-                let insp_params = inspector::types::InspectorPanelParams {
-                    panel_rect: insp_rect,
-                    world: params.scene.world,
-                    selected_entity: params.scene.selected_entity,
-                    inspector_euler: params.panel_data.inspector_euler,
-                    inspector_color_hex: params.panel_data.inspector_color_hex,
-                    saved_swatches: params.panel_data.saved_swatches,
-                    cursor_pos: cursor,
-                    active_submenu: self.inspector.active_submenu,
-                    is_add_menu_open: self.inspector.is_add_menu_open,
-                    is_color_picker_open: self.inspector.is_color_picker_open,
-                    active_rename_buffer: rename_buf_ref,
-                    is_rename_all_selected: self.inspector.rename_is_all_selected
-                        && rename_buf_ref.is_some(),
-                    inspector_hsv: self.inspector.hsv,
-                };
-
-                if let (_, Some(ui_action)) = inspector::build_inspector_overlays_with_action(
-                    &mut UiScope::new(&mut self.tree, root),
-                    &insp_params,
-                    &mut self.inspector.is_color_picker_open,
-                    &mut self.inspector.is_add_menu_open,
-                    &mut self.inspector.active_submenu,
-                ) {
-                    self.pending_actions.push(ui_action);
-                }
-            }
-        }
-
-        // 9. Asset Drag & Viewport Drop Overlays
+        // 1. Asset Drag & Viewport Drop Overlays
         if let Some(payload) = &params.panel_data.asset_browser.drag_payload {
-            super::assets::build_asset_drag_overlays(
-                &mut self.tree,
-                root,
+            let mut root_scope = UiScope::new(&mut self.tree, root);
+            super::assets::build_asset_drag_overlays_scope(
+                &mut root_scope,
                 payload,
                 cursor,
                 params.viewport.viewport_rect,
@@ -216,7 +54,7 @@ impl IrisEditorOverlay {
             );
         }
 
-        // 10. Native Dock Tab Overflow Dropdown Menu
+        // 2. Native Dock Tab Overflow Dropdown Menu
         if let Some((leaf_id, anchor_rect)) = self.chrome.active_dock_overflow
             && let Some(node) = params.context.layout_state.dock_state.tree.get(leaf_id)
             && let irisui::dock::DockNode::Leaf { tabs, active_tab } = node

@@ -31,23 +31,15 @@ impl IrisEditorOverlay {
             return;
         }
 
-        if let Some(buf) = scope
-            .tree()
-            .event_state
-            .text_edit_buffer(ASSETS_TAG_SEARCH_INPUT)
-        {
+        if let Some(buf) = scope.text_edit_buffer(ASSETS_TAG_SEARCH_INPUT) {
             self.assets.interactions.search_input.set_text(buf);
-            if let Some(cur) = scope
-                .tree()
-                .event_state
-                .text_edit_cursor(ASSETS_TAG_SEARCH_INPUT)
-            {
+            if let Some(cur) = scope.text_edit_cursor(ASSETS_TAG_SEARCH_INPUT) {
                 self.assets.interactions.search_input.cursor_byte_idx = cur;
             }
-        } else if scope.tree().event_state.frame_clicked_tag == Some(ASSETS_TAG_SEARCH_CLEAR) {
+        } else if scope.is_tag_clicked(ASSETS_TAG_SEARCH_CLEAR) {
             self.assets.interactions.search_input.clear();
             self.clear_focus();
-            scope.tree_mut().event_state.clear_text_edit();
+            scope.clear_text_edit();
         }
 
         let query_text = self.assets.interactions.search_input.text().trim();
@@ -191,7 +183,7 @@ impl IrisEditorOverlay {
                 AssetsPanelAction::ClearSearch => {
                     self.assets.interactions.search_input.clear();
                     self.clear_focus();
-                    scope.tree_mut().event_state.clear_text_edit();
+                    scope.clear_text_edit();
                     self.assets.actions.push(action);
                     self.notifier.tag_all();
                 }

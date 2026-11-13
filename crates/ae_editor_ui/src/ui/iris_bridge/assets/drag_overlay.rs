@@ -10,27 +10,7 @@
 
 use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
-use irisui::prelude::{Color, Point, Rect, UiScope, UiTree, WidgetId, WorkbenchUiScopeExt};
-
-/// Constructs topmost floating overlays for an active asset drag operation into the `UiTree`.
-pub fn build_asset_drag_overlays(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    payload: &AssetDragPayload,
-    cursor_pos: Point,
-    viewport_rect: Rect,
-    camera: &Camera,
-    is_2d_mode: bool,
-) {
-    build_asset_drag_overlays_scope(
-        &mut UiScope::new(tree, parent_id),
-        payload,
-        cursor_pos,
-        viewport_rect,
-        camera,
-        is_2d_mode,
-    );
-}
+use irisui::prelude::{Color, Point, Rect, UiScope, WorkbenchUiScopeExt};
 
 /// Constructs topmost floating overlays for an active asset drag operation via a declarative [`UiScope`].
 ///

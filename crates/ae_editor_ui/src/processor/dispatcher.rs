@@ -52,7 +52,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 ctx.ui.layout_state.reset_to_default();
             }
             crate::ui::EngineUiAction::OpenPreferences => {
-                ctx.ui.show_preferences = true;
+                ctx.ui.open_preferences();
             }
             crate::ui::EngineUiAction::OpenAbout => {
                 ctx.ui.open_about_dialog();

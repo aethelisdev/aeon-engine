@@ -712,6 +712,11 @@ fn test_dialog_host_update_progress_in_place() {
         desc2.status_message.as_deref(),
         Some("Step 2: Compressing audio...")
     );
+
+    assert!(host.has_progress());
+    assert!(host.close_progress());
+    assert!(!host.has_progress());
+    assert!(!host.close_progress());
 }
 
 #[test]

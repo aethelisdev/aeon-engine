@@ -249,10 +249,7 @@ pub fn build_hierarchy_rows(
     actions: &mut Vec<HierarchyAction>,
     tree_state: &mut TreeState<hecs::Entity>,
 ) {
-    let query_from_event = scope
-        .tree()
-        .event_state
-        .text_edit_buffer(super::types::HIERARCHY_TAG_SEARCH_INPUT);
+    let query_from_event = scope.text_edit_buffer(super::types::HIERARCHY_TAG_SEARCH_INPUT);
     let active_query = query_from_event.unwrap_or(params.search_query);
     let query_lower = active_query.trim().to_lowercase();
 
@@ -353,8 +350,8 @@ pub fn build_hierarchy_rows(
             .with_row_index(filtered_idx);
 
             let mut eye_clicked = false;
-            let row_resp =
-                row_scope.tree_row("HierarchyEntityRow", row_props, &tree_config, |row_s| {
+            let row_resp = row_scope
+                .tree_row("HierarchyEntityRow", row_props, &tree_config, |row_s| {
                     // 1. Entity Type Icon
                     let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
                     match comp_icon {
@@ -435,6 +432,22 @@ pub fn build_hierarchy_rows(
                     if eye_resp.clicked() {
                         eye_clicked = true;
                     }
+                })
+                .context_menu(row_scope, |menu| {
+                    if menu
+                        .context_menu_item_with_icon("🗑", "Delete Entity", None)
+                        .clicked()
+                    {
+                        tree_state.select_single(row.entity);
+                        actions.push(HierarchyAction::SelectEntity(Some(row.entity)));
+                        actions.push(HierarchyAction::DeleteSelected);
+                    }
+                    if menu
+                        .context_menu_item_with_icon("👁", "Toggle Visibility", None)
+                        .clicked()
+                    {
+                        actions.push(HierarchyAction::ToggleVisibility(row.entity));
+                    }
                 });
 
             if eye_clicked {
@@ -460,10 +473,6 @@ pub fn build_hierarchy_rows(
             } else if row_resp.secondary_clicked() {
                 tree_state.select_single(row.entity);
                 actions.push(HierarchyAction::SelectEntity(Some(row.entity)));
-                actions.push(HierarchyAction::OpenContextMenu(
-                    row.entity,
-                    params.cursor_pos,
-                ));
             }
         });
 }

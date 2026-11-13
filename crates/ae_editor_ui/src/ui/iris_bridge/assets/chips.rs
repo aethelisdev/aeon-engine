@@ -65,18 +65,14 @@ pub fn build_category_chips_scope(
 /// Resolves the currently active or clicked category for instant visual feedback.
 #[inline]
 fn active_category(scope: &UiScope<'_>, default_cat: AssetCategory) -> AssetCategory {
-    scope
-        .tree()
-        .event_state
-        .frame_clicked_tag
-        .or(scope.tree().event_state.pressed_tag)
-        .and_then(|clicked_tag| {
-            CATEGORIES
-                .iter()
-                .enumerate()
-                .find(|(idx, _)| encode_chip_tag(*idx as u8) == clicked_tag)
-                .map(|(_, (cat, _))| *cat)
+    CATEGORIES
+        .iter()
+        .enumerate()
+        .find(|(idx, _)| {
+            let tag = encode_chip_tag(*idx as u8);
+            scope.is_tag_clicked(tag) || scope.is_tag_pressed(tag)
         })
+        .map(|(_, (cat, _))| *cat)
         .unwrap_or(default_cat)
 }
 
@@ -92,22 +88,6 @@ fn count_category_items(params: &AssetsPanelParams<'_>, cat: AssetCategory) -> u
                 && (cat == AssetCategory::All || item.category == cat)
         })
         .count()
-}
-
-/// Builds the category filter chips row with live item counters into the Iris tree.
-pub fn build_category_chips(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    chips_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    actions: &mut Vec<AssetsPanelAction>,
-) {
-    build_category_chips_scope(
-        &mut UiScope::new(tree, parent_id),
-        chips_rect,
-        params,
-        actions,
-    );
 }
 
 #[cfg(test)]
@@ -163,9 +143,8 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
-        build_category_chips(
-            &mut tree,
-            root_id,
+        build_category_chips_scope(
+            &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 800.0, 32.0),
             &params,
             &mut actions,

@@ -86,10 +86,6 @@ pub struct IrisOverlayEventResult {
     pub reset_layout: bool,
     /// Open preferences dialog request.
     pub open_preferences: bool,
-    /// Open about dialog request.
-    pub open_about: bool,
-    /// Close about dialog request.
-    pub close_about: bool,
     /// Close preferences dialog request.
     pub close_preferences: bool,
     /// Preferences action payload.

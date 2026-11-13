@@ -38,7 +38,26 @@ impl EngineUi {
         while let Some(act) = self.pending_preferences_actions.pop() {
             match act {
                 iris_bridge::PreferencesAction::Close => {
-                    self.show_preferences = false;
+                    if let Some(win_id) = self
+                        .layout_state
+                        .dock_state
+                        .floating_windows
+                        .iter()
+                        .find(|w| w.tree.find_tab(&crate::ui::PanelId::Preferences).is_some())
+                        .map(|w| w.id)
+                    {
+                        let _ = self.layout_state.dock_state.close_floating_window(win_id);
+                    } else if let Some((leaf, idx)) = self
+                        .layout_state
+                        .dock_state
+                        .tree
+                        .find_tab(&crate::ui::PanelId::Preferences)
+                    {
+                        let _ = self.layout_state.dock_state.tree.remove_tab(leaf, idx);
+                        self.layout_state.dock_state.tree.collapse_empty_leaves();
+                    }
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
                 iris_bridge::PreferencesAction::SelectTab(t) => {
                     self.preferences_tab = t;

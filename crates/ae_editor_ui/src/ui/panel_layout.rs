@@ -26,6 +26,8 @@ pub enum PanelId {
     AnimationTimeline,
     /// 2D Canvas & In-Game UI Designer panel.
     UiDesigner,
+    /// Engine & Editor Global Configuration and Preferences panel.
+    Preferences,
 }
 
 impl PanelId {
@@ -41,6 +43,7 @@ impl PanelId {
             Self::Console => "Console",
             Self::AnimationTimeline => "Timeline",
             Self::UiDesigner => "UI Designer",
+            Self::Preferences => "Preferences",
         }
     }
 
@@ -56,6 +59,7 @@ impl PanelId {
             Self::Console => "📜",
             Self::AnimationTimeline => "🎬",
             Self::UiDesigner => "📐",
+            Self::Preferences => "⚙️",
         }
     }
 
@@ -81,6 +85,7 @@ impl PanelId {
             Self::Console => "console",
             Self::AnimationTimeline => "animation_timeline",
             Self::UiDesigner => "ui_designer",
+            Self::Preferences => "preferences",
         }
     }
 
@@ -98,6 +103,7 @@ impl PanelId {
             "console" => Some(Self::Console),
             "animation_timeline" => Some(Self::AnimationTimeline),
             "ui_designer" => Some(Self::UiDesigner),
+            "preferences" => Some(Self::Preferences),
             _ => None,
         }
     }
@@ -113,10 +119,26 @@ impl PanelId {
             Self::Console,
             Self::AnimationTimeline,
             Self::UiDesigner,
+            Self::Preferences,
         ]
     }
 
-    /// Returns an immutable slice of all panel IDs including Viewport.
+    /// Returns an immutable slice of all panels pre-docked in the factory default layout.
+    pub fn all_default_layout() -> &'static [Self] {
+        &[
+            Self::Viewport,
+            Self::Hierarchy,
+            Self::Stats,
+            Self::Inspector,
+            Self::MaterialEditor,
+            Self::Assets,
+            Self::Console,
+            Self::AnimationTimeline,
+            Self::UiDesigner,
+        ]
+    }
+
+    /// Returns an immutable slice of all panel IDs including Viewport and on-demand panels.
     pub fn all() -> &'static [Self] {
         &[
             Self::Viewport,
@@ -128,6 +150,7 @@ impl PanelId {
             Self::Console,
             Self::AnimationTimeline,
             Self::UiDesigner,
+            Self::Preferences,
         ]
     }
 }
@@ -238,6 +261,7 @@ impl PanelLayoutState {
             PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
             PanelId::Viewport => PanelId::UiDesigner,
             PanelId::UiDesigner => PanelId::Viewport,
+            PanelId::Preferences => PanelId::Inspector,
         };
 
         // 1. Try docking as a tab alongside ideal partner leaf
@@ -255,7 +279,7 @@ impl PanelLayoutState {
                 PanelId::Hierarchy | PanelId::Stats => {
                     self.dock_state.tree.split_left(viewport_leaf, panel)
                 }
-                PanelId::Inspector | PanelId::MaterialEditor => {
+                PanelId::Inspector | PanelId::MaterialEditor | PanelId::Preferences => {
                     self.dock_state.tree.split_right(viewport_leaf, panel)
                 }
                 PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
@@ -275,6 +299,30 @@ impl PanelLayoutState {
 
         // 3. Fallback to focused leaf or root
         let _ = self.dock_state.tree.push_to_focused_leaf(panel);
+    }
+
+    /// Opens the Preferences panel as a detached floating window or brings it to the front.
+    ///
+    /// If the Preferences panel is currently docked as a tab in the workspace tree, focuses
+    /// that docked leaf and activates the Preferences tab. If it is already hosted within
+    /// a floating window, elevates that floating window to the top of the z-order.
+    /// Otherwise, creates a new centered floating window using default preference card dimensions.
+    pub fn open_preferences_floating(&mut self, screen_width: f32, screen_height: f32) {
+        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&PanelId::Preferences) {
+            let _ = self.dock_state.tree.set_active_tab(leaf, idx);
+            self.dock_state.tree.set_focused_leaf(Some(leaf));
+            return;
+        }
+
+        let width = 760.0_f32.min(screen_width.max(300.0));
+        let height = 540.0_f32.min(screen_height.max(200.0));
+        let x = ((screen_width - width) * 0.5).max(10.0);
+        let y = ((screen_height - height) * 0.5).max(36.0);
+        let rect = irisui::prelude::Rect::new(x, y, width, height);
+
+        let _ =
+            self.dock_state
+                .open_or_focus_floating_tab(PanelId::Preferences, "Preferences", rect);
     }
 
     /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
@@ -312,6 +360,7 @@ impl PanelLayoutState {
             PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
             PanelId::Viewport => PanelId::UiDesigner,
             PanelId::UiDesigner => PanelId::Viewport,
+            PanelId::Preferences => PanelId::Inspector,
         };
 
         // 1. Try docking as a tab alongside ideal partner leaf
@@ -328,7 +377,9 @@ impl PanelLayoutState {
         if let Some((viewport_leaf, _)) = self.dock_state.tree.find_tab(&PanelId::Viewport) {
             let target_zone = match panel {
                 PanelId::Hierarchy | PanelId::Stats => irisui::dock::DropZone::Left,
-                PanelId::Inspector | PanelId::MaterialEditor => irisui::dock::DropZone::Right,
+                PanelId::Inspector | PanelId::MaterialEditor | PanelId::Preferences => {
+                    irisui::dock::DropZone::Right
+                }
                 PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
                     irisui::dock::DropZone::Bottom
                 }
@@ -358,13 +409,32 @@ pub mod tests {
     #[test]
     fn test_default_layout_integrity() {
         let layout = PanelLayoutState::new_default();
-        for &panel in PanelId::all() {
+        for &panel in PanelId::all_default_layout() {
             assert!(
                 layout.is_panel_visible(panel),
                 "Panel {:?} must be visible in default layout",
                 panel
             );
         }
+    }
+
+    #[test]
+    fn test_open_preferences_floating() {
+        let mut layout = PanelLayoutState::new_default();
+        assert!(!layout.is_panel_visible(PanelId::Preferences));
+
+        // 1. Open Preferences floating window
+        layout.open_preferences_floating(1920.0, 1080.0);
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
+        assert!(
+            layout
+                .dock_state
+                .is_tab_in_floating_window(&PanelId::Preferences)
+        );
+
+        // 2. Re-invoking should not duplicate the floating window
+        layout.open_preferences_floating(1920.0, 1080.0);
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
     }
 
     #[test]

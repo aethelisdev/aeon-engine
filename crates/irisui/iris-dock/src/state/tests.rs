@@ -173,3 +173,36 @@ fn test_sync_floating_window_rects_and_clamping() {
     let rect = content_rect.unwrap();
     assert_eq!(rect.y, state.floating_windows[0].rect.y + 28.0);
 }
+
+#[test]
+fn test_open_or_focus_floating_tab() {
+    let mut tree = DockTree::new();
+    let root = tree.create_leaf(vec!["Tab A"]);
+    tree.set_root(root);
+    let mut state = DockState::new(tree);
+
+    assert_eq!(state.floating_windows.len(), 0);
+
+    // 1. Open new floating window
+    let rect1 = Rect::new(100.0, 100.0, 400.0, 300.0);
+    let id1 = state.open_or_focus_floating_tab("Tab Preferences", "Preferences", rect1);
+    assert_eq!(id1, 1);
+    assert_eq!(state.floating_windows.len(), 1);
+    assert!(state.is_tab_in_floating_window(&"Tab Preferences"));
+
+    // 2. Open another floating window
+    let rect2 = Rect::new(200.0, 200.0, 500.0, 400.0);
+    let id2 = state.open_or_focus_floating_tab("Tab Inspector", "Inspector", rect2);
+    assert_eq!(id2, 2);
+    assert_eq!(state.floating_windows.len(), 2);
+    // id2 is top-most
+    assert_eq!(state.floating_windows.last().unwrap().id, 2);
+
+    // 3. Re-requesting Tab Preferences should bring window 1 to front without creating duplicate
+    let id1_refocus =
+        state.open_or_focus_floating_tab("Tab Preferences", "Preferences", Rect::ZERO);
+    assert_eq!(id1_refocus, 1);
+    assert_eq!(state.floating_windows.len(), 2);
+    // id1 is now brought to top-most
+    assert_eq!(state.floating_windows.last().unwrap().id, 1);
+}

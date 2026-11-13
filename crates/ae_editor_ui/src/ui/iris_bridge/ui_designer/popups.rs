@@ -45,10 +45,7 @@ pub fn build_aspect_ratio_popup(
     }
 
     let anchor = scope
-        .tree()
-        .iter()
-        .find(|(_, n)| n.tag == super::types::UI_DESIGNER_TAG_ASPECT_BTN)
-        .map(|(_, n)| n.computed_rect)
+        .node_rect_tagged(super::types::UI_DESIGNER_TAG_ASPECT_BTN, Point::ZERO)
         .unwrap_or_else(|| {
             Rect::new(
                 params.panel_rect.x + 8.0,
@@ -96,7 +93,6 @@ pub fn build_add_element_popup(
         scope.popup_anchored_named(
             "AddElementPopup",
             scope
-                .tree()
                 .node_rect_tagged(super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN, Point::ZERO)
                 .unwrap_or(Rect::new(
                     params.panel_rect.x + 8.0,

@@ -8,8 +8,6 @@ use irisui::prelude::{InteractionEvent, WidgetId};
 /// Persistent interactive state for modal dialogs and splash overlays.
 #[derive(Debug, Default, Clone)]
 pub struct ModalsOverlayState {
-    /// Whether the About dialog is currently open.
-    pub is_about_active: bool,
     /// Whether the Delete Confirmation modal is currently open.
     pub is_delete_active: bool,
     /// Whether the New Folder modal is currently open.
@@ -34,7 +32,6 @@ impl ModalsOverlayState {
     /// Ensures modal visibility states remain authoritative and retained between frames
     /// without relying on transient build-pass mutations or per-frame wipe cycles.
     pub fn sync_from_dialogs(&mut self, dialogs: &crate::ui::iris_bridge::types::DialogParams<'_>) {
-        self.is_about_active = dialogs.show_about;
         self.is_delete_active = dialogs.delete_target.is_some();
         self.is_new_folder_active = dialogs.new_folder_parent.is_some();
         self.is_rename_active = dialogs.rename_target.is_some();
@@ -43,13 +40,12 @@ impl ModalsOverlayState {
 
     /// Evaluates whether any modal overlay managed by this state is currently active.
     ///
-    /// Consolidates About, Delete Confirmation, New Folder, Rename, and Asset Loading
+    /// Consolidates Delete Confirmation, New Folder, Rename, and Asset Loading
     /// modal flags into a single query without inspecting internal fields individually.
     #[inline]
     #[must_use]
     pub fn is_any_active(&self) -> bool {
-        self.is_about_active
-            || self.is_delete_active
+        self.is_delete_active
             || self.is_new_folder_active
             || self.is_rename_active
             || self.is_loading_active

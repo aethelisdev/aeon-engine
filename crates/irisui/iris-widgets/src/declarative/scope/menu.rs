@@ -337,6 +337,8 @@ impl<'a> UiScope<'a> {
             node.set_name(name);
             node.set_role(WidgetRole::DropdownPopup);
             node.set_layer(UiLayer::Popup);
+            node.interactive = true;
+            node.tag = crate::declarative::types::hash_label(name);
             node.set_style(
                 Style::new()
                     .position_absolute()
@@ -354,7 +356,8 @@ impl<'a> UiScope<'a> {
             node.computed_rect.y = y;
             node.computed_rect.width = width;
         }
-        let _ = self.tree.add_child(self.parent, node_id);
+        let root_anchor = self.tree.root().unwrap_or(self.parent);
+        let _ = self.tree.add_child(root_anchor, node_id);
 
         let child_seed = crate::declarative::types::combine_seeds(
             self.seed,
@@ -499,6 +502,20 @@ impl<'a> UiScope<'a> {
             && initial_rect.contains_point(cursor)
         {
             hovered = true;
+        }
+
+        if hovered && enabled {
+            let parent_tag = if let Some(n) = self.tree.get(self.parent) {
+                if n.tag != 0 {
+                    n.tag
+                } else {
+                    let name = n.name.as_deref().unwrap_or("MenuCard");
+                    crate::declarative::types::hash_label(name)
+                }
+            } else {
+                0
+            };
+            self.tree.close_submenu(parent_tag);
         }
 
         let theme = self.theme();
@@ -1007,6 +1024,8 @@ impl<'a> UiScope<'a> {
             node.set_name(name);
             node.set_role(WidgetRole::DropdownPopup);
             node.set_layer(UiLayer::Popup);
+            node.interactive = true;
+            node.tag = crate::declarative::types::hash_label(name);
             node.set_style(
                 Style::new()
                     .position_absolute()
@@ -1024,7 +1043,8 @@ impl<'a> UiScope<'a> {
             node.computed_rect.y = y;
             node.computed_rect.width = width;
         }
-        let _ = self.tree.add_child(self.parent, node_id);
+        let root_anchor = self.tree.root().unwrap_or(self.parent);
+        let _ = self.tree.add_child(root_anchor, node_id);
 
         let child_seed = crate::declarative::types::combine_seeds(
             self.seed,
@@ -1123,6 +1143,9 @@ impl<'a> UiScope<'a> {
             self.tree
                 .set_active_submenu(crate::declarative::types::hash_label(name), sub_tag);
         }
+        if let Some((p_tag, c_tag)) = config.active_nested_submenu {
+            self.tree.set_active_submenu(p_tag, c_tag);
+        }
 
         let anchor_rect = self
             .tree
@@ -1167,6 +1190,8 @@ pub struct CascadingPopupConfig {
     pub placement: PopupPlacement,
     /// Optional semantic tag of the currently active child submenu.
     pub active_submenu_tag: Option<u64>,
+    /// Optional pair of (parent_tag, child_tag) for nested cascading level-3 flyouts.
+    pub active_nested_submenu: Option<(u64, u64)>,
     /// Optional expected height of the popup menu card in physical pixels.
     pub expected_height: Option<f32>,
 }
@@ -1180,6 +1205,7 @@ impl CascadingPopupConfig {
             width,
             placement,
             active_submenu_tag: None,
+            active_nested_submenu: None,
             expected_height: None,
         }
     }
@@ -1189,6 +1215,14 @@ impl CascadingPopupConfig {
     #[must_use]
     pub const fn with_active_submenu(mut self, tag: Option<u64>) -> Self {
         self.active_submenu_tag = tag;
+        self
+    }
+
+    /// Sets the active nested (level-3) submenu tags.
+    #[inline]
+    #[must_use]
+    pub const fn with_nested_submenu(mut self, nested: Option<(u64, u64)>) -> Self {
+        self.active_nested_submenu = nested;
         self
     }
 

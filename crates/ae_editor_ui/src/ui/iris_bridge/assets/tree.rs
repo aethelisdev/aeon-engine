@@ -21,24 +21,6 @@ use std::path::{Path, PathBuf};
 /// Header height for the "FOLDERS" label and new subfolder button.
 pub const FOLDER_HEADER_HEIGHT: f32 = 28.0;
 
-/// Constructs the complete hierarchical folder tree sidebar into the Iris `UiTree`.
-pub fn build_folder_tree_sidebar(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    sidebar_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    tree_state: &mut TreeState<PathBuf>,
-    actions: &mut Vec<AssetsPanelAction>,
-) {
-    build_folder_tree_sidebar_scope(
-        &mut UiScope::new(tree, parent_id),
-        sidebar_rect,
-        params,
-        tree_state,
-        actions,
-    );
-}
-
 /// Constructs the complete hierarchical folder tree sidebar directly via a declarative [`UiScope`].
 pub fn build_folder_tree_sidebar_scope(
     scope: &mut UiScope<'_>,
@@ -249,9 +231,8 @@ mod tests {
         };
 
         let mut actions = Vec::new();
-        build_folder_tree_sidebar(
-            &mut tree,
-            root_id,
+        build_folder_tree_sidebar_scope(
+            &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 180.0, 500.0),
             &params,
             &mut tree_state,
@@ -318,9 +299,8 @@ mod tests {
             };
 
             let mut actions = Vec::new();
-            build_folder_tree_sidebar(
-                &mut tree,
-                root_id,
+            build_folder_tree_sidebar_scope(
+                &mut UiScope::new(&mut tree, root_id),
                 Rect::new(0.0, 0.0, 180.0, 500.0),
                 &params,
                 &mut tree_state,
@@ -373,9 +353,8 @@ mod tests {
         let mut tree_expanded = UiTree::new();
         let root_exp_id = tree_expanded.create_root().expect("Root creation failed");
         let mut actions_expanded = Vec::new();
-        build_folder_tree_sidebar(
-            &mut tree_expanded,
-            root_exp_id,
+        build_folder_tree_sidebar_scope(
+            &mut UiScope::new(&mut tree_expanded, root_exp_id),
             Rect::new(0.0, 0.0, 180.0, 500.0),
             &params_expanded,
             &mut tree_state,

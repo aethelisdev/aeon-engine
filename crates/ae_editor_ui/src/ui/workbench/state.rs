@@ -29,7 +29,6 @@ pub struct EngineUi {
     pub gizmo_space: ae_editor::gizmo::GizmoSpace,
     pub inspector_color_hex: String,
     pub saved_swatches: Vec<[f32; 4]>,
-    pub show_preferences: bool,
     pub preferences_tab: u8,
     /// Pending preferences actions to execute on the engine state.
     pub pending_preferences_actions: Vec<crate::ui::iris_bridge::PreferencesAction>,
@@ -162,7 +161,6 @@ impl EngineUi {
                 [0.2, 0.2, 1.0, 1.0],
                 [1.0, 1.0, 0.1, 1.0],
             ],
-            show_preferences: false,
             preferences_tab: 1,
             pending_preferences_actions: Vec::new(),
             should_save_scene: false,
@@ -376,7 +374,7 @@ impl EngineUi {
             self.ui_zoom_factor = zoom;
         }
         if outcome.toggle_preferences {
-            self.show_preferences = !self.show_preferences;
+            self.toggle_preferences();
         }
         if outcome.layout_changed {
             self.iris_overlay.chrome.needs_layout_rebuild = true;

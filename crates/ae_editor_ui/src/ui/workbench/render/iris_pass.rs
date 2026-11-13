@@ -144,12 +144,11 @@ impl EngineUi {
                     active_entities_count: params.world.len() as usize,
                 },
                 dialogs: iris_bridge::DialogParams {
-                    show_about: false,
-                    show_preferences: self.show_preferences,
+                    show_preferences: false,
                     delete_target: None,
                     new_folder_parent: None,
                     rename_target: None,
-                    is_loading_assets: self.is_loading_assets,
+                    is_loading_assets: false,
                 },
                 preferences: iris_bridge::OverlayPreferencesParams {
                     graphics_settings: params.graphics_settings,

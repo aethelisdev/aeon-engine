@@ -296,10 +296,10 @@ pub fn resolve_hierarchy_tag(tag: u64) -> Option<HierarchyTagTarget> {
 }
 
 /// Numerical tag for deleting the target entity via right-click context menu.
-pub const HIERARCHY_CTX_DELETE: u64 = 0;
+pub const HIERARCHY_CTX_DELETE: u64 = 0xE100_0001;
 
 /// Numerical tag for toggling target entity visibility via right-click context menu.
-pub const HIERARCHY_CTX_VISIBILITY: u64 = 1;
+pub const HIERARCHY_CTX_VISIBILITY: u64 = 0xE100_0002;
 
 /// Parameters passed to the Hierarchy panel declarative builder.
 pub struct HierarchyPanelParams<'a> {

@@ -28,23 +28,15 @@ impl IrisEditorOverlay {
             return;
         }
 
-        if let Some(buf) = scope
-            .tree()
-            .event_state
-            .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT)
-        {
+        if let Some(buf) = scope.text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT) {
             self.hierarchy.interactions.search_input.set_text(buf);
-            if let Some(cur) = scope
-                .tree()
-                .event_state
-                .text_edit_cursor(HIERARCHY_TAG_SEARCH_INPUT)
-            {
+            if let Some(cur) = scope.text_edit_cursor(HIERARCHY_TAG_SEARCH_INPUT) {
                 self.hierarchy.interactions.search_input.cursor_byte_idx = cur;
             }
-        } else if scope.tree().event_state.frame_clicked_tag == Some(HIERARCHY_TAG_SEARCH_CLEAR) {
+        } else if scope.is_tag_clicked(HIERARCHY_TAG_SEARCH_CLEAR) {
             self.hierarchy.interactions.search_input.clear();
             self.clear_focus();
-            scope.tree_mut().event_state.clear_text_edit();
+            scope.clear_text_edit();
         }
 
         let cursor_pos = self.cursor_pos();
@@ -98,7 +90,7 @@ impl IrisEditorOverlay {
         if should_clear {
             self.hierarchy.interactions.search_input.clear();
             self.clear_focus();
-            scope.tree_mut().event_state.clear_text_edit();
+            scope.clear_text_edit();
         } else if let Some(q) = set_query {
             self.hierarchy.interactions.search_input.set_text(&q);
         }

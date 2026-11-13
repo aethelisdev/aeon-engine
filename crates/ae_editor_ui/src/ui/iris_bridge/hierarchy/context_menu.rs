@@ -11,48 +11,46 @@ use super::types::{
 };
 use irisui::prelude::*;
 
-/// Builds the right-click entity context menu in the [`UiTree`] if active.
+/// Builds the right-click entity context menu directly into the active [`UiScope`] if active.
 ///
-/// Dispatches context menu actions directly via [`WidgetResponse::clicked`].
+/// Dispatches context menu actions directly via declarative [`WidgetResponse::on_click`].
 ///
 /// Returns the computed bounding [`Rect`] of the active context menu card if rendered.
-pub fn build_context_menu(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+pub fn draw_hierarchy_context_menu(
+    scope: &mut UiScope<'_>,
     params: &HierarchyPanelParams<'_>,
     actions: &mut Vec<HierarchyAction>,
 ) -> Option<Rect> {
-    let (target_entity, click_pos) = params.active_context_menu?;
+    params
+        .active_context_menu
+        .map(|(target_entity, click_pos)| {
+            scope
+                .dropdown_menu_card_named(
+                    "HierarchyContextMenu",
+                    click_pos.x,
+                    click_pos.y,
+                    160.0,
+                    |card| {
+                        card.dropdown_item(HIERARCHY_CTX_DELETE, "🗑", "Delete Entity", None, true)
+                            .on_click(|| {
+                                actions.push(HierarchyAction::DeleteSelected);
+                                actions.push(HierarchyAction::CloseContextMenu);
+                            });
 
-    let card_rect = UiScope::new(tree, parent_id)
-        .dropdown_menu_card_named(
-            "HierarchyContextMenu",
-            click_pos.x,
-            click_pos.y,
-            160.0,
-            |card| {
-                let del_resp =
-                    card.dropdown_item(HIERARCHY_CTX_DELETE, "🗑", "Delete Entity", None, true);
-                if del_resp.clicked() {
-                    actions.push(HierarchyAction::DeleteSelected);
-                    actions.push(HierarchyAction::CloseContextMenu);
-                }
-
-                let vis_resp = card.dropdown_item(
-                    HIERARCHY_CTX_VISIBILITY,
-                    "👁",
-                    "Toggle Visibility",
-                    None,
-                    true,
-                );
-                if vis_resp.clicked() {
-                    actions.push(HierarchyAction::ToggleVisibility(target_entity));
-                    actions.push(HierarchyAction::CloseContextMenu);
-                }
-            },
-        )
-        .response
-        .rect;
-
-    Some(card_rect)
+                        card.dropdown_item(
+                            HIERARCHY_CTX_VISIBILITY,
+                            "👁",
+                            "Toggle Visibility",
+                            None,
+                            true,
+                        )
+                        .on_click(|| {
+                            actions.push(HierarchyAction::ToggleVisibility(target_entity));
+                            actions.push(HierarchyAction::CloseContextMenu);
+                        });
+                    },
+                )
+                .response
+                .rect
+        })
 }

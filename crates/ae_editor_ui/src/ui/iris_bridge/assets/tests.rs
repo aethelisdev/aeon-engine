@@ -428,7 +428,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
 #[test]
 fn test_asset_drag_overlay_construction() {
     use crate::assets::types::{AssetCategory, AssetDragPayload};
-    use crate::ui::iris_bridge::assets::build_asset_drag_overlays;
     use ae_renderer::camera::Camera;
 
     let mut tree = UiTree::new();
@@ -457,8 +456,13 @@ fn test_asset_drag_overlay_construction() {
     let vp_rect = Rect::new(100.0, 50.0, 800.0, 600.0);
     let cursor = Point::new(500.0, 350.0);
 
-    build_asset_drag_overlays(
-        &mut tree, root_id, &payload, cursor, vp_rect, &camera, false,
+    super::drag_overlay::build_asset_drag_overlays_scope(
+        &mut UiScope::new(&mut tree, root_id),
+        &payload,
+        cursor,
+        vp_rect,
+        &camera,
+        false,
     );
 
     let child_ids = tree

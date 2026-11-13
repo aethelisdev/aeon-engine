@@ -599,6 +599,48 @@ impl<T> DockState<T> {
         crate::floating::FloatingWindowManager::new(bounds)
             .with_windows(self.floating_windows.clone())
     }
+
+    /// Opens an autonomous floating window containing the specified tab or focuses it if already present.
+    ///
+    /// If the tab is already open within an existing floating window, that window
+    /// is brought to the front of the z-order and its ID is returned without creating a new window.
+    /// If not present, a new floating window is allocated, appended to the top of the z-order,
+    /// and its newly assigned ID is returned.
+    ///
+    /// # Parameters
+    /// - `tab`: The panel or tool data item to host in the floating window.
+    /// - `title`: Window title display text shown on the floating window titlebar.
+    /// - `rect`: Initial bounds rectangle of the floating window in workspace screen space.
+    pub fn open_or_focus_floating_tab(
+        &mut self,
+        tab: T,
+        title: impl Into<String>,
+        rect: Rect,
+    ) -> u64
+    where
+        T: PartialEq + Clone,
+    {
+        if let Some(win_id) = self
+            .floating_windows
+            .iter()
+            .find(|w| w.tree.find_tab(&tab).is_some())
+            .map(|w| w.id)
+        {
+            self.bring_floating_to_front(win_id);
+            return win_id;
+        }
+
+        let next_id = self
+            .floating_windows
+            .iter()
+            .map(|w| w.id)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let window = FloatingWindow::new(next_id, title, rect, vec![tab]);
+        self.floating_windows.push(window);
+        next_id
+    }
 }
 
 fn collect_all_tabs_recursive<T>(tree: &mut DockTree<T>, node_id: DockNodeId, out: &mut Vec<T>) {

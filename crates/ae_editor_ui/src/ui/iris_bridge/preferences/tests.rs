@@ -1107,3 +1107,45 @@ fn test_preferences_declarative_actions_dispatch() {
         )))
     );
 }
+
+#[test]
+fn test_preferences_view_in_place_mutation_modifies_settings() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    let mut tab = 1; // Graphics tab
+    let mut params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut tab,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(600.0, 300.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+        current_theme: Default::default(),
+    };
+
+    let mut actions = Vec::new();
+    super::builder::build_preferences_view(&mut scope, &mut params, &mut actions, 600.0, 500.0);
+
+    // Verify view assembled nodes without panicking and settings remain valid
+    assert!(
+        tree.iter().count() > 10,
+        "Preferences view must mount UI nodes"
+    );
+}

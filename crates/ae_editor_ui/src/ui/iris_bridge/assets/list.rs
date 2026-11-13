@@ -20,18 +20,6 @@ pub const LIST_ROW_HEIGHT: f32 = ASSET_LIST_ROW_HEIGHT;
 /// Height of the table header row in pixels.
 pub const LIST_HEADER_HEIGHT: f32 = 26.0;
 
-/// Constructs the multi-column table rows into the Iris `UiTree`.
-pub fn build_asset_list_table(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    vp_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    actions: &mut Vec<AssetsPanelAction>,
-) {
-    let mut scope = UiScope::new(tree, parent_id);
-    build_asset_list_table_scope(&mut scope, vp_rect, params, actions);
-}
-
 /// Constructs the multi-column table rows directly via a declarative [`UiScope`].
 pub fn build_asset_list_table_scope(
     scope: &mut UiScope<'_>,
@@ -107,7 +95,7 @@ pub fn build_asset_list_table_scope(
 
     // 2. Table Data Rows via declarative VirtualList
     let available_table_h = (vp_rect.height - (LIST_HEADER_HEIGHT + 8.0)).max(10.0);
-    let scroll_y = scope.tree().scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
+    let scroll_y = scope.scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
 
     scope
         .virtual_list(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0)
@@ -122,9 +110,8 @@ pub fn build_asset_list_table_scope(
             let item = &params.filtered_items[idx];
             let item_idx = idx as u32;
             let item_tag = super::types::encode_item_tag(item_idx);
-            let is_clicked_this_frame =
-                rows_scope.tree().event_state.frame_clicked_tag == Some(item_tag);
-            let is_pressed_this_frame = rows_scope.tree().event_state.pressed_tag == Some(item_tag);
+            let is_clicked_this_frame = rows_scope.is_tag_clicked(item_tag);
+            let is_pressed_this_frame = rows_scope.is_tag_pressed(item_tag);
             let is_selected = is_clicked_this_frame
                 || is_pressed_this_frame
                 || params.selected_asset == Some(&item.path);
@@ -201,9 +188,8 @@ mod tests {
         };
 
         let mut actions = Vec::new();
-        build_asset_list_table(
-            &mut tree,
-            root_id,
+        build_asset_list_table_scope(
+            &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &params,
             &mut actions,

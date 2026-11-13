@@ -78,8 +78,6 @@ impl<'a> SceneParams<'a> {
 
 /// Modal dialog display flags and file system operation targets.
 pub struct DialogParams<'a> {
-    /// Whether the About Aeon Engine modal dialogue is currently visible.
-    pub show_about: bool,
     /// Whether the Preferences modal dialogue is currently visible.
     pub show_preferences: bool,
     /// Optional target path pending delete confirmation.
@@ -216,10 +214,13 @@ impl<'a> OverlayUpdateParams<'a> {
     #[inline]
     #[must_use]
     pub fn is_modal_active(&self) -> bool {
-        self.dialogs.show_about
-            || self.dialogs.delete_target.is_some()
+        self.dialogs.delete_target.is_some()
             || self.dialogs.new_folder_parent.is_some()
             || self.dialogs.rename_target.is_some()
             || self.dialogs.is_loading_assets
+            || self
+                .dialog_host
+                .as_ref()
+                .is_some_and(|host| host.active_dialog().is_some())
     }
 }

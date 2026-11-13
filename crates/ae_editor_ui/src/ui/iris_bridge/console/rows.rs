@@ -23,10 +23,7 @@ pub const CONSOLE_ROW_LINE_HEIGHT: f32 = 18.0;
 ///
 /// Automatically manages frustum culling, overscan buffer margins, and sub-pixel scroll offset.
 pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelParams<'_>) {
-    let query_from_event = panel_scope
-        .tree()
-        .event_state
-        .text_edit_buffer(super::types::CONSOLE_TAG_SEARCH_INPUT);
+    let query_from_event = panel_scope.text_edit_buffer(super::types::CONSOLE_TAG_SEARCH_INPUT);
     let active_query = query_from_event.unwrap_or(params.search_query);
     let query_lower = active_query.to_lowercase();
     let has_query = !query_lower.is_empty();

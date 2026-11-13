@@ -6,17 +6,41 @@
 //! Verifies that cascading Add Menu dropdowns, context menus, and declarative
 //! tree rows assign correct semantic hardware tags and retain their text labels without occlusion.
 
-use super::add_menu::build_add_menu;
+use super::add_menu::draw_hierarchy_add_menu;
 use super::types::{
     AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_PREFIX,
     HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX, HIERARCHY_TAG_SEARCH_CLEAR,
-    HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, is_hierarchy_tag,
-    make_eye_tag, make_row_tag, parse_eye_tag, parse_row_tag,
+    HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyAction, HierarchyPanelParams,
+    is_hierarchy_tag, make_eye_tag, make_row_tag, parse_eye_tag, parse_row_tag,
 };
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use hecs::World;
 use irisui::prelude::*;
 use irisui::widgets::controls::FocusState;
+
+fn build_add_menu(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &HierarchyPanelParams<'_>,
+    actions: &mut Vec<HierarchyAction>,
+) -> Vec<Rect> {
+    let mut rects = Vec::new();
+    if let Some(r) = draw_hierarchy_add_menu(&mut UiScope::new(tree, parent_id), params, actions) {
+        rects.push(r);
+    }
+    for (_, node) in tree.iter() {
+        if node.layer == UiLayer::Popup
+            && node.role == WidgetRole::DropdownPopup
+            && node
+                .name
+                .as_deref()
+                .is_some_and(|nm| nm.ends_with("Submenu"))
+        {
+            rects.push(node.computed_rect);
+        }
+    }
+    rects
+}
 
 #[test]
 fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
@@ -416,8 +440,11 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
     };
 
     let mut actions = Vec::new();
-    let card_rect_opt =
-        super::context_menu::build_context_menu(&mut tree, root_id, &params, &mut actions);
+    let card_rect_opt = super::context_menu::draw_hierarchy_context_menu(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut actions,
+    );
 
     assert!(card_rect_opt.is_some());
     let card_rect = card_rect_opt.unwrap();

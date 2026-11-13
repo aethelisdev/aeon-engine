@@ -63,9 +63,7 @@ pub fn build_inspector_footer(
         )
         .on_primary_click(|| {
             *is_add_menu_open = !*is_add_menu_open;
-            if !*is_add_menu_open {
-                *active_submenu = None;
-            }
+            *active_submenu = None;
         })
         .then_secondary(|| {
             params.selected_entity.map(|entity| {

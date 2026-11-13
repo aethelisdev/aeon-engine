@@ -52,7 +52,7 @@ where
     F: FnOnce(&mut UiScope<'_>),
 {
     let tag = encode_section_tag(sec_id);
-    let is_open = scope.tree().is_collapsing_open(tag, !is_collapsed);
+    let is_open = scope.is_collapsing_open(tag, !is_collapsed);
     let mut header_resp = WidgetResponse::default();
     let card_bg = scope.theme().card_bg;
     let card_border = scope.theme().card_border;
@@ -110,7 +110,7 @@ where
 
             let effective_open = if header_resp.clicked() {
                 let toggled = !is_open;
-                card.tree_mut().set_collapsing_open(tag, toggled);
+                card.set_collapsing_open(tag, toggled);
                 toggled
             } else {
                 is_open

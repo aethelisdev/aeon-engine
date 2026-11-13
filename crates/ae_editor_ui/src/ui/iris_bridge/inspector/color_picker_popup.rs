@@ -105,7 +105,7 @@ pub fn build_color_picker_popup_with_action(
     params: &InspectorPanelParams<'_>,
     is_color_picker_open: &mut bool,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
-    if !params.is_color_picker_open {
+    if !*is_color_picker_open {
         return (None, None);
     }
     match params.selected_entity.and_then(|ent| {

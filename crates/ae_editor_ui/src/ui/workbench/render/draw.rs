@@ -35,6 +35,22 @@ impl EngineUi {
         );
         self.layout_state.clamp_floating_windows(&clamp_bounds);
 
+        // Synchronize engine asset loading state with autonomous DialogHost progress modal
+        if self.is_loading_assets {
+            if !self.workbench.dialog_host.has_progress() {
+                self.workbench.dialog_host.open_progress(
+                    irisui::workbench::ProgressModalDescriptor::new("Loading Assets")
+                        .with_icon("🚀")
+                        .with_progress(0.65)
+                        .with_cancellable(false)
+                        .with_size(360.0, 140.0)
+                        .with_status_message("Processing geometry, materials & textures"),
+                );
+            }
+        } else if self.workbench.dialog_host.has_progress() {
+            let _ = self.workbench.dialog_host.close_progress();
+        }
+
         let workspace_rect = Rect::new(
             0.0,
             IrisEditorOverlay::MENUBAR_HEIGHT,
@@ -256,6 +272,7 @@ impl EngineUi {
         self.dispatch_action_bus(params.window, params.ui_actions);
 
         // 3b. Immediate post-pass action drain for declarative overlay actions produced during render
+        self.process_hierarchy_actions(params.ui_actions);
         self.pending_preferences_actions
             .append(&mut self.iris_overlay.preferences.interactions.actions);
         if !self.pending_preferences_actions.is_empty() {
@@ -276,29 +293,35 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
+        let had_pending = self.iris_overlay.has_pending_actions();
         params
             .ui_actions
             .append(&mut self.iris_overlay.pending_actions);
-        if self.iris_overlay.has_pending_actions() {
+        if had_pending {
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
 
         // 3c. Dispatch any settings modifications mutated in-place by declarative two-way bindings
-        if !gs_changed && cur_gs != *params.graphics_settings {
+        if gs_changed || cur_gs != *params.graphics_settings {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateGraphicsSettings(cur_gs.clone()));
         }
-        if !snap_changed && cur_snap != *params.snapping {
+        if snap_changed || cur_snap != *params.snapping {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateSnapSettings(cur_snap));
         }
-        if !cfg_changed && cur_cfg != params.editor_state.config {
+        if cfg_changed || cur_cfg != params.editor_state.config {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateEditorConfig(cur_cfg.clone()));
+        }
+        if live_changed {
+            params
+                .ui_actions
+                .push(EngineUiAction::SetLiveEditorUpdates(cur_live));
         }
 
         // 4. Viewport Texture Re-registration Check
@@ -348,7 +371,7 @@ impl EngineUi {
                     self.layout_state.reset_to_default();
                 }
                 EngineUiAction::OpenPreferences => {
-                    self.show_preferences = true;
+                    self.open_preferences();
                 }
                 EngineUiAction::OpenAbout => {
                     self.open_about_dialog();

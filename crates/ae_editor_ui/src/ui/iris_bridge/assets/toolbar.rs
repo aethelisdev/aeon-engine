@@ -133,7 +133,7 @@ fn build_search_box(
         .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR),
         ASSETS_TAG_SEARCH_INPUT,
     );
-    if scope.tree().event_state.frame_clicked_tag == Some(ASSETS_TAG_SEARCH_CLEAR) {
+    if scope.is_tag_clicked(ASSETS_TAG_SEARCH_CLEAR) {
         actions.push(AssetsPanelAction::ClearSearch);
     }
 }

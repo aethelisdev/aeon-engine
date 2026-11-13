@@ -48,7 +48,7 @@ pub fn build_hierarchy_header(
         .with_cursor_byte_idx(params.cursor_byte_idx)
         .with_clear_tag(HIERARCHY_TAG_SEARCH_CLEAR);
         let _ = bar.input_box_tagged(&search_props, HIERARCHY_TAG_SEARCH_INPUT);
-        if bar.tree().event_state.frame_clicked_tag == Some(HIERARCHY_TAG_SEARCH_CLEAR) {
+        if bar.is_tag_clicked(HIERARCHY_TAG_SEARCH_CLEAR) {
             actions.push(HierarchyAction::ClearSearchQuery);
         }
 
@@ -84,7 +84,7 @@ pub fn build_hierarchy_header(
                 .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
         }
 
-        let add_resp = bar.container_tagged_resp(
+        bar.container_tagged_resp(
             "AddEntityButton",
             add_btn_style,
             WidgetRole::Button,
@@ -96,14 +96,14 @@ pub fn build_hierarchy_header(
                     add_btn.icon_hover(ICON_PLUS, add_icon_col, Color::WHITE, 14.0);
                 }
             },
-        );
-        if add_resp.clicked() {
+        )
+        .on_click(|| {
             if params.is_add_menu_open {
                 actions.push(HierarchyAction::CloseAddMenu);
             } else {
                 actions.push(HierarchyAction::OpenAddMenu(None));
             }
-        }
+        });
 
         // 3. "🗑" Delete Entity Button (Permanently visible)
         let has_selection = params.selected_entity.is_some();

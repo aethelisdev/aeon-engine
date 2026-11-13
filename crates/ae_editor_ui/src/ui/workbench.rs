@@ -7,6 +7,7 @@
 
 pub mod dialogs;
 pub mod panels;
+pub mod preferences;
 pub mod render;
 pub mod state;
 

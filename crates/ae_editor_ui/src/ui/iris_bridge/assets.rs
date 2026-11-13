@@ -32,7 +32,7 @@ pub mod types;
 pub use card_builder::{
     AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
 };
-pub use chips::build_category_chips;
+pub use chips::build_category_chips_scope;
 pub use components::{
     ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, ASSET_LIST_ROW_HEIGHT,
     FOLDER_TREE_ROW_HEIGHT, asset_breadcrumb_bar, asset_empty_notice, asset_folder_tree_item,
@@ -42,7 +42,7 @@ pub use context_menu::{
     build_assets_context_menu, build_assets_context_menu_overlay, render_asset_context_menu_items,
     render_folder_context_menu_items,
 };
-pub use drag_overlay::build_asset_drag_overlays;
+pub use drag_overlay::build_asset_drag_overlays_scope;
 pub use panel::build_assets_panel;
 pub use types::AssetClickTracker;
 pub use types::{

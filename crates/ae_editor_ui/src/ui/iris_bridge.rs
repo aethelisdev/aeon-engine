@@ -43,8 +43,7 @@ pub use assets::{
 };
 pub use console::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, build_console_panel};
 pub use hierarchy::{
-    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyRow, build_hierarchy_overlays,
-    build_hierarchy_panel,
+    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyRow, build_hierarchy_panel,
 };
 pub use icons::*;
 pub use material::{

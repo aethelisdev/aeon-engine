@@ -379,7 +379,7 @@ fn test_ui_notifier_panel_tag_redraw() {
 fn test_update_loop_3_way_branching_and_retained_invariants() {
     use crate::ui::panel_layout::PanelId;
     use irisui::layout::LayoutEngine;
-    use irisui::prelude::{Button, Rect, Size, SubtreeSession, UiNotifier, UiScope, UiTree};
+    use irisui::prelude::{Button, Rect, Size, SubtreeEngines, UiNotifier, UiScope, UiTree};
     use irisui::text::TextSystem;
 
     let mut tree = UiTree::new();
@@ -433,14 +433,12 @@ fn test_update_loop_3_way_branching_and_retained_invariants() {
     assert_eq!(dirty_leaves.len(), 1);
     assert_eq!(dirty_leaves[0], (PanelId::Inspector, inspector_leaf));
 
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
     for (panel_id, leaf_id) in dirty_leaves {
-        let session = SubtreeSession::begin(&mut tree, &mut layout_engine, leaf_id);
-        {
-            let mut leaf_scope = UiScope::new(&mut tree, leaf_id);
+        let finish_res = engines.rebuild_leaf(leaf_id, |leaf_scope| {
             leaf_scope.add(Button::new("UpdatedInspectorBtn").tag(0x2003));
-        }
-        let finish_res = session.finish(&mut tree, &mut layout_engine, &mut text_system);
-        assert!(finish_res.is_ok(), "SubtreeSession finish must succeed");
+        });
+        assert!(finish_res.is_ok(), "rebuild_leaf must succeed");
         notifier.clear_panel(panel_id);
     }
 
@@ -478,7 +476,6 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
     use irisui::layout::LayoutEngine;
     use irisui::prelude::*;
     use irisui::text::TextSystem;
-    use irisui::widgets::declarative::SubtreeSession;
 
     let mut tree = UiTree::new();
     let mut layout_engine = LayoutEngine::new();
@@ -538,15 +535,13 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
     let dirty_panels: Vec<PanelId> = notifier.dirty_panels().iter().copied().collect();
     assert_eq!(dirty_panels, vec![PanelId::Hierarchy]);
 
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
     for pid in dirty_panels {
         if let Some(leaf_id) = dock_frame.leaf_container(pid) {
-            let session = SubtreeSession::begin(&mut tree, &mut layout_engine, leaf_id);
-            {
-                let mut leaf_scope = UiScope::new(&mut tree, leaf_id);
-                leaf_scope.label("Hierarchy Rebuilt V2");
-            }
-            session
-                .finish(&mut tree, &mut layout_engine, &mut text_system)
+            engines
+                .rebuild_leaf(leaf_id, |leaf_scope| {
+                    leaf_scope.label("Hierarchy Rebuilt V2");
+                })
                 .expect("partial layout recomputation must succeed");
             notifier.clear_panel(pid);
         }
@@ -666,7 +661,6 @@ fn test_overlay_params_accessors_and_invariants() {
         },
         scene,
         dialogs: DialogParams {
-            show_about: false,
             show_preferences: false,
             delete_target: None,
             new_folder_parent: None,

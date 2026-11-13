@@ -270,7 +270,8 @@ fn render_category_items(
 #[inline]
 #[must_use]
 fn fallback_add_menu_anchor(panel_rect: Rect) -> Rect {
-    Rect::new(panel_rect.x + 8.0, panel_rect.bottom() - 32.0, 140.0, 24.0)
+    let btn_w = ((panel_rect.width - 24.0) * 0.5).max(60.0);
+    Rect::new(panel_rect.x + 8.0, panel_rect.bottom() - 32.0, btn_w, 24.0)
 }
 
 /// Renders the root Add Component popup menu card into [`UiScope`], returning the outer bounding bounds and any triggered action.

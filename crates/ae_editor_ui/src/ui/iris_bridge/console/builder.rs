@@ -31,23 +31,15 @@ impl IrisEditorOverlay {
             return;
         }
 
-        if let Some(buf) = scope
-            .tree()
-            .event_state
-            .text_edit_buffer(CONSOLE_TAG_SEARCH_INPUT)
-        {
+        if let Some(buf) = scope.text_edit_buffer(CONSOLE_TAG_SEARCH_INPUT) {
             self.console.search_input.set_text(buf);
-            if let Some(cur) = scope
-                .tree()
-                .event_state
-                .text_edit_cursor(CONSOLE_TAG_SEARCH_INPUT)
-            {
+            if let Some(cur) = scope.text_edit_cursor(CONSOLE_TAG_SEARCH_INPUT) {
                 self.console.search_input.cursor_byte_idx = cur;
             }
-        } else if scope.tree().event_state.frame_clicked_tag == Some(CONSOLE_TAG_SEARCH_CLEAR) {
+        } else if scope.is_tag_clicked(CONSOLE_TAG_SEARCH_CLEAR) {
             self.console.search_input.clear();
             self.clear_focus();
-            scope.tree_mut().event_state.clear_text_edit();
+            scope.clear_text_edit();
         }
 
         let console_params = ConsolePanelParams {
@@ -95,7 +87,7 @@ impl IrisEditorOverlay {
                 ConsoleAction::ClearSearch => {
                     self.console.search_input.clear();
                     self.clear_focus();
-                    scope.tree_mut().event_state.clear_text_edit();
+                    scope.clear_text_edit();
                 }
                 ConsoleAction::CopyLog(_) => {}
                 ConsoleAction::SelectTab(tab) => {

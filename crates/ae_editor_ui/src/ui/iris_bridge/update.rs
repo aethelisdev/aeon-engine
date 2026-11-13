@@ -105,18 +105,19 @@ impl IrisEditorOverlay {
         }
 
         if let UiEvent::MouseDown { point, .. } = event {
-            let is_over_popup = self.tree.hit_test_layered(*point).is_some_and(|h| {
-                self.tree.effective_layer(h) >= UiLayer::Popup
-                    || self.tree.get(h).is_some_and(|n| {
-                        n.role == WidgetRole::DropdownItem
-                            || n.role == WidgetRole::DropdownPopup
-                            || n.tag == super::viewport_hud::TAG_VIEWPORT_CAMERA_MODE
-                            || n.tag == super::viewport_hud::TAG_VIEWPORT_SHADING_MODE
-                            || n.tag == super::viewport_hud::TAG_SNAP_GRID_DROPDOWN
-                            || n.tag == super::inspector::appearance_color_swatch_tag()
-                            || n.tag == super::inspector::TAG_INSPECTOR_ADD_COMPONENT
-                    })
-            });
+            let is_over_popup = self.tree.is_point_inside_popup(*point)
+                || self.tree.hit_test_layered(*point).is_some_and(|h| {
+                    self.tree.effective_layer(h) >= UiLayer::Popup
+                        || self.tree.get(h).is_some_and(|n| {
+                            n.role == WidgetRole::DropdownItem
+                                || n.role == WidgetRole::DropdownPopup
+                                || n.tag == super::viewport_hud::TAG_VIEWPORT_CAMERA_MODE
+                                || n.tag == super::viewport_hud::TAG_VIEWPORT_SHADING_MODE
+                                || n.tag == super::viewport_hud::TAG_SNAP_GRID_DROPDOWN
+                                || n.tag == super::inspector::appearance_color_swatch_tag()
+                                || n.tag == super::inspector::TAG_INSPECTOR_ADD_COMPONENT
+                        })
+                });
             if !is_over_popup && self.close_active_popups() {
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;

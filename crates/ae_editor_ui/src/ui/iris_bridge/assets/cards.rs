@@ -30,17 +30,6 @@ pub use super::components::resolve_category_color;
 /// Re-export canonical category icon resolver for module consumers.
 pub use super::components::resolve_category_icon;
 
-/// Constructs the responsive grid cards into the Iris `UiTree`.
-pub fn build_asset_grid_cards(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    vp_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    actions: &mut Vec<AssetsPanelAction>,
-) {
-    build_asset_grid_cards_scope(&mut UiScope::new(tree, parent_id), vp_rect, params, actions);
-}
-
 /// Constructs the responsive grid cards directly via a declarative [`UiScope`].
 ///
 /// Uses 100% declarative UI scope widgets with zero imperative node allocations.
@@ -57,7 +46,7 @@ pub fn build_asset_grid_cards_scope(
         return;
     }
 
-    let scroll_y = scope.tree().scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
+    let scroll_y = scope.scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
 
     scope
         .container_tagged_resp(
@@ -124,8 +113,8 @@ fn render_grid_card(
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     let item_tag = super::types::encode_item_tag(item_idx);
-    let is_clicked_this_frame = scope.tree().event_state.frame_clicked_tag == Some(item_tag);
-    let is_pressed_this_frame = scope.tree().event_state.pressed_tag == Some(item_tag);
+    let is_clicked_this_frame = scope.is_tag_clicked(item_tag);
+    let is_pressed_this_frame = scope.is_tag_pressed(item_tag);
     let is_selected =
         is_clicked_this_frame || is_pressed_this_frame || params.selected_asset == Some(&item.path);
 
@@ -207,9 +196,8 @@ mod tests {
         let mut actions = Vec::new();
 
         // 1. Empty items case -> triggers asset_empty_notice
-        build_asset_grid_cards(
-            &mut tree,
-            root_id,
+        build_asset_grid_cards_scope(
+            &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &test_assets_params(&[], &layers, &focus),
             &mut actions,
@@ -226,9 +214,8 @@ mod tests {
             test_asset_item("hero.gltf", 4096, true),
             test_asset_item("sword.gltf", 2048, false),
         ];
-        build_asset_grid_cards(
-            &mut tree,
-            root_id,
+        build_asset_grid_cards_scope(
+            &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &test_assets_params(&items, &layers, &focus),
             &mut actions,
