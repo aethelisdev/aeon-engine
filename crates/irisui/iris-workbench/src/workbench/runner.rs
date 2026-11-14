@@ -605,6 +605,10 @@ where
         W: WindowInterface,
         F: FnOnce(&UiEvent) -> (bool, Option<iris_core::node::WidgetCursor>, Vec<Action>),
     {
+        // Track pointer state immediately at entry so it is valid during content dispatch
+        self.pointer_state.update_from_event(event);
+        self.last_cursor_pos = self.pointer_state.position;
+
         let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
         if let Some(cursor) = content_cursor {
             window.set_widget_cursor(cursor);
@@ -657,7 +661,13 @@ where
         dock_state: &mut DockState<TabId>,
         tree: Option<&mut UiTree>,
     ) -> WorkbenchOutcome<Action> {
+        self.pointer_state.update_from_event(event);
+        self.last_cursor_pos = self.pointer_state.position;
+
         let (content_consumed, content_cursor, needs_redraw) = if let Some(t) = tree {
+            if let Some(pos) = self.last_cursor_pos {
+                t.set_cursor_position(pos);
+            }
             let dispatch = t.dispatch_event(event);
             (dispatch.consumed, dispatch.cursor, dispatch.needs_redraw)
         } else {

@@ -120,7 +120,7 @@ impl IrisEditorOverlay {
 
         self.assets.selected_asset = params.panel_data.asset_browser.selected_asset.clone();
 
-        let cursor_pos = self.cursor_pos();
+        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
         let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let screen_size = (self.screen_width, self.screen_height);
         let focus_state = &self.focus_state;

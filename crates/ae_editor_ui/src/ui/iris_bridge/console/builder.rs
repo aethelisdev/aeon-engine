@@ -48,7 +48,7 @@ impl IrisEditorOverlay {
             filter: self.console.filter,
             search_query: self.console.interactions.search_input.text(),
             auto_scroll: self.console.auto_scroll,
-            cursor_pos: self.cursor_pos(),
+            cursor_pos: scope.cursor_pos().unwrap_or_else(|| self.cursor_pos()),
             blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             focus_state: &self.focus_state,
             cursor_byte_idx: self.console.interactions.search_input.cursor_byte_idx,

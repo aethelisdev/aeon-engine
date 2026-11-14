@@ -207,7 +207,9 @@ impl Widget for FloatingDragPreview {
                 badge_color.b * 0.7,
                 0.9,
             );
+            let badge_text_w = iris_text::measure_text_advance(&badge_text, s.sub_font_size).ceil();
             let badge_style = Style::new()
+                .width(badge_text_w + 10.0)
                 .padding_insets(Insets::new(1.0, 5.0, 1.0, 5.0))
                 .background(badge_bg)
                 .border(1.0, badge_border)
@@ -227,6 +229,10 @@ impl Widget for FloatingDragPreview {
         }
 
         let computed_rect = child_scope.layout_subtree_measured(card_id, screen_pos, 0.0);
+        if let Some(card) = scope.tree_mut().get_mut(card_id) {
+            card.style.width = Some(computed_rect.width);
+            card.style.height = Some(computed_rect.height);
+        }
         WidgetResponse::empty(card_id).with_rect(computed_rect)
     }
 }

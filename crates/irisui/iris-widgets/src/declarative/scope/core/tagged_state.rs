@@ -227,4 +227,30 @@ impl<'a> UiScope<'a> {
             })
             .unwrap_or(Rect::new(0.0, 0.0, 1920.0, 1080.0))
     }
+
+    /// Returns the most recently observed logical cursor pointer position in screen coordinates, if known.
+    ///
+    /// Directly introspects the backing [`iris_core::UiTree`]'s tracked pointer event state
+    /// without heap allocation or imperative state traversal.
+    ///
+    /// # Returns
+    /// * `Some(Point)` containing the active physical/logical screen cursor coordinates.
+    /// * `None` if no pointer interactions have yet occurred or if the cursor exited the surface.
+    #[inline]
+    #[must_use]
+    pub fn cursor_pos(&self) -> Option<Point> {
+        self.tree.cursor_position()
+    }
+
+    /// Sets or updates the active cursor pointer position on the backing [`iris_core::UiTree`].
+    ///
+    /// Updates the autonomous event state on the widget tree to synchronize programmatic
+    /// or synthetic pointer interactions with subsequent layout and widget queries.
+    ///
+    /// # Arguments
+    /// * `pos` - Target screen coordinates for the cursor pointer.
+    #[inline]
+    pub fn set_cursor_pos(&mut self, pos: Point) {
+        self.tree.set_cursor_position(pos);
+    }
 }

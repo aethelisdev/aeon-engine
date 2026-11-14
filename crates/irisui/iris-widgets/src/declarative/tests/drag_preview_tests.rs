@@ -124,4 +124,13 @@ fn test_floating_drag_preview_nested_parent_origin_compensation() {
     // Computed screen rectangle resolved by layout_subtree_measured remains strictly in screen coordinates
     assert_eq!(card.computed_rect.x, expected_screen_pos.x);
     assert_eq!(card.computed_rect.y, expected_screen_pos.y);
+
+    // Verify that subsequent layout pass on the parent container preserves the compact measured size
+    let panel_rect = panel_node.computed_rect;
+    crate::declarative::layout_subtree(&mut tree, panel_id, panel_rect);
+    let card_after = tree.get(card_id).expect("Preview card node exists");
+    assert!(card_after.computed_rect.width < 250.0);
+    assert!(card_after.computed_rect.height < 50.0);
+    assert_eq!(card_after.computed_rect.x, expected_screen_pos.x);
+    assert_eq!(card_after.computed_rect.y, expected_screen_pos.y);
 }

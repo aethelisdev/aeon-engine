@@ -408,9 +408,15 @@ impl IrisEditorOverlay {
     }
 
     /// Returns the current logical cursor position.
+    ///
+    /// Resolves directly from the autonomous [`UiTree`]'s event state, falling back
+    /// to the cached chrome cursor coordinates.
     #[inline]
+    #[must_use]
     pub fn cursor_pos(&self) -> Point {
-        self.chrome.cursor_pos
+        self.tree
+            .cursor_position()
+            .unwrap_or(self.chrome.cursor_pos)
     }
 
     /// Returns the active pointer capture panel, if any.

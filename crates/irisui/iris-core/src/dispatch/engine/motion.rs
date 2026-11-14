@@ -180,6 +180,7 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
     }
 
     // 2. Perform layered hit-testing against active tree
+    tree.event_state.last_pointer_pos = Some(point);
     let hit_id = tree.hit_test_layered(point);
     tree.event_state.hovered = hit_id;
 

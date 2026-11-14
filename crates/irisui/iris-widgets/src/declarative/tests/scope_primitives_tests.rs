@@ -478,3 +478,45 @@ fn test_declarative_landing_indicator_parent_origin_compensation() {
     assert_eq!(dot.computed_rect.x, 446.0);
     assert_eq!(dot.computed_rect.y, 296.0);
 }
+
+/// Verifies that [`UiScope::cursor_pos`] and [`UiScope::set_cursor_pos`] correctly introspect
+/// and synchronize pointer coordinates against the backing [`UiTree`] and its event loop.
+#[test]
+fn test_declarative_scope_cursor_position_introspection_and_update() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node created");
+
+    // 1. Initial state without interaction should be None
+    {
+        let scope = UiScope::new(&mut tree, root);
+        assert_eq!(scope.cursor_pos(), None);
+    }
+
+    // 2. Programmatic cursor assignment via set_cursor_pos
+    let test_pos = Point::new(320.0, 240.0);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.set_cursor_pos(test_pos);
+        assert_eq!(scope.cursor_pos(), Some(test_pos));
+    }
+    assert_eq!(tree.cursor_position(), Some(test_pos));
+
+    // 3. Platform event dispatch (MouseMove) updates scope cursor position
+    let move_pos = Point::new(512.0, 384.0);
+    tree.dispatch_event(&iris_core::UiEvent::MouseMove { point: move_pos });
+    {
+        let scope = UiScope::new(&mut tree, root);
+        assert_eq!(scope.cursor_pos(), Some(move_pos));
+    }
+
+    // 4. MouseUp event resets last_pointer_pos to None per dispatch specification
+    let release_pos = Point::new(600.0, 400.0);
+    tree.dispatch_event(&iris_core::UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: release_pos,
+    });
+    {
+        let scope = UiScope::new(&mut tree, root);
+        assert_eq!(scope.cursor_pos(), None);
+    }
+}

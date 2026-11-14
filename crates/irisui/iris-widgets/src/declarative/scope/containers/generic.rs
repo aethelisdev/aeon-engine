@@ -306,6 +306,10 @@ impl<'a> UiScope<'a> {
     ) -> Rect {
         let w = crate::declarative::measure_width(self.tree, node_id);
         let h = crate::declarative::measure_height(self.tree, node_id).max(min_height);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.style.width = Some(w);
+            node.style.height = Some(h);
+        }
         let rect = Rect::new(origin.x, origin.y, w, h);
         crate::declarative::layout_subtree(self.tree, node_id, rect);
         rect
