@@ -69,16 +69,6 @@ impl IrisEditorOverlay {
     /// Interacts directly with the primary retained [`UiTree`], handling elevated modal and popup
     /// layers transparently through the single-tree architecture.
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
-        // Track logical cursor coordinates for layout, drag-drop, and inspection queries
-        if let UiEvent::MouseMove { point }
-        | UiEvent::MouseDown { point, .. }
-        | UiEvent::MouseUp { point, .. }
-        | UiEvent::FileHovered { point, .. }
-        | UiEvent::FileDropped { point, .. } = event
-        {
-            self.chrome.cursor_pos = *point;
-        }
-
         if let UiEvent::KeyboardInput {
             key: KeyCode::Escape,
             is_pressed: true,
