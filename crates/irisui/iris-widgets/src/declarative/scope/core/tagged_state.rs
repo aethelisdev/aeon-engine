@@ -253,4 +253,46 @@ impl<'a> UiScope<'a> {
     pub fn set_cursor_pos(&mut self, pos: Point) {
         self.tree.set_cursor_position(pos);
     }
+
+    /// Returns whether the specified semantic `tag` is registered as an active popup menu.
+    ///
+    /// Directly introspects the backing [`iris_core::UiTree`] without leaking mutable state.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target popup or dropdown widget.
+    #[inline]
+    #[must_use]
+    pub fn is_popup_tag_active(&self, tag: u64) -> bool {
+        self.tree.is_popup_tag_active(tag)
+    }
+
+    /// Registers or unregisters a 64-bit semantic `tag` as an active open popup menu or dropdown.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget.
+    /// * `active` - `true` to mark the popup as open; `false` to close it.
+    #[inline]
+    pub fn set_popup_tag_active(&mut self, tag: u64, active: bool) {
+        self.tree.set_popup_tag_active(tag, active);
+    }
+
+    /// Clears all registered active popup tags on the backing [`iris_core::UiTree`].
+    #[inline]
+    pub fn clear_active_popup_tags(&mut self) {
+        self.tree.clear_active_popup_tags();
+    }
+
+    /// Dismisses active popups and context menus if `point` falls outside their interactive bounds.
+    ///
+    /// Delegates directly to [`iris_core::UiTree::dismiss_popups_on_outside_click`].
+    ///
+    /// # Arguments
+    /// * `point` - Pointer coordinate where the mouse press occurred.
+    ///
+    /// # Returns
+    /// `true` if an outside click was detected and popups were dismissed; `false` otherwise.
+    #[inline]
+    pub fn dismiss_popups_on_outside_click(&mut self, point: Point) -> bool {
+        self.tree.dismiss_popups_on_outside_click(point)
+    }
 }

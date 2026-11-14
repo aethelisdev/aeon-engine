@@ -47,6 +47,9 @@ pub struct WorkbenchOutcome<Action> {
     /// Whether an Escape key gesture was intercepted and handled by the workbench
     /// (e.g. dismissing modal dialogs, closing popups, or clearing focus traps).
     pub escape_handled: bool,
+
+    /// Whether an outside-click gesture was detected and dismissed open popups or context menus.
+    pub popups_dismissed: bool,
 }
 
 impl<Action> Default for WorkbenchOutcome<Action> {
@@ -62,6 +65,7 @@ impl<Action> Default for WorkbenchOutcome<Action> {
             zoom_changed: None,
             toggle_preferences: false,
             escape_handled: false,
+            popups_dismissed: false,
         }
     }
 }
@@ -88,6 +92,7 @@ impl<Action> WorkbenchOutcome<Action> {
             zoom_changed: None,
             toggle_preferences: false,
             escape_handled: false,
+            popups_dismissed: false,
         }
     }
 
@@ -120,6 +125,14 @@ impl<Action> WorkbenchOutcome<Action> {
     #[must_use]
     pub fn with_escape_handled(mut self, handled: bool) -> Self {
         self.escape_handled = handled;
+        self
+    }
+
+    /// Marks whether open popups or context menus were dismissed by an outside-click gesture.
+    #[inline]
+    #[must_use]
+    pub fn with_popups_dismissed(mut self, dismissed: bool) -> Self {
+        self.popups_dismissed = dismissed;
         self
     }
 }

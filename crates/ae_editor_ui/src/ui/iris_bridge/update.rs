@@ -69,28 +69,6 @@ impl IrisEditorOverlay {
     /// Interacts directly with the primary retained [`UiTree`], handling elevated modal and popup
     /// layers transparently through the single-tree architecture.
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
-        if let UiEvent::KeyboardInput {
-            key: KeyCode::Escape,
-            is_pressed: true,
-            ..
-        } = event
-        {
-            self.clear_focus();
-            self.tree.event_state.clear_text_edit();
-            self.menubar.active_menu = None;
-            self.menubar.dropdown_rect = None;
-            self.close_active_popups();
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
-            let res = super::types::IrisOverlayEventResult::consumed(true);
-            if self.assets.dialog_host.is_active() {
-                self.assets.dialog_host.close();
-            }
-            self.tree.close_all_modals();
-            self.assets.preview_modal = None;
-            return res;
-        }
-
         if let UiEvent::MouseDown { point, .. } = event {
             let is_over_popup = self.tree.is_point_inside_popup(*point)
                 || self.tree.hit_test_layered(*point).is_some_and(|h| {

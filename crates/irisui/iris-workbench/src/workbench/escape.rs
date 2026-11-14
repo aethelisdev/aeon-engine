@@ -159,4 +159,42 @@ where
         }
         None
     }
+
+    /// Intercepts keyboard interaction when an elevated modal dialogue is active in [`DialogHost`].
+    ///
+    /// Modal dialogues trap keyboard navigation (`Tab`, `Shift+Tab`, `Enter`, `Escape`),
+    /// resolving confirmation or cancellation gestures and preventing keystrokes from leaking
+    /// down into background panel contents or dock splitters.
+    ///
+    /// # Arguments
+    /// * `event` - Reference to the incoming [`UiEvent`].
+    ///
+    /// # Returns
+    /// `Some(outcome)` with `consumed: true` if a modal consumed the keyboard event; `None` otherwise.
+    pub fn handle_modal_keyboard_event(
+        &mut self,
+        event: &UiEvent,
+    ) -> Option<WorkbenchOutcome<Action>> {
+        if self.dialog_host.is_active()
+            && let UiEvent::KeyboardInput {
+                key,
+                is_pressed: true,
+                shift_held,
+                ..
+            } = event
+            && self.dialog_host.handle_keyboard_input_with_modifiers(
+                key,
+                true,
+                *shift_held,
+                &mut self.action_bus,
+            )
+        {
+            let mut outcome = self.make_outcome(true, None);
+            outcome.layout_changed = true;
+            outcome.escape_handled = *key == KeyCode::Escape;
+            outcome.actions.extend(self.action_bus.drain());
+            return Some(outcome);
+        }
+        None
+    }
 }

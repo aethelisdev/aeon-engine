@@ -133,6 +133,7 @@ impl UiTree {
         let had_popup = self.has_open_popup();
         self.active_menu_bar_tag = None;
         self.active_combobox_tag = None;
+        self.active_popup_tags.clear();
         self.event_state.active_context_menu = None;
         self.active_submenus.clear();
         self.event_state.close_tooltip();
@@ -154,6 +155,34 @@ impl UiTree {
             || self.active_menu_bar_tag.is_some()
             || self.active_combobox_tag.is_some()
             || !self.active_submenus.is_empty()
+            || !self.active_popup_tags.is_empty()
+    }
+
+    /// Returns whether the specified semantic `tag` is registered as an active popup menu or dropdown.
+    #[inline]
+    #[must_use]
+    pub fn is_popup_tag_active(&self, tag: u64) -> bool {
+        self.active_popup_tags.contains(&tag)
+    }
+
+    /// Registers or unregisters a 64-bit semantic `tag` as an active open popup menu or dropdown.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget.
+    /// * `active` - `true` to mark the popup as open; `false` to remove it.
+    #[inline]
+    pub fn set_popup_tag_active(&mut self, tag: u64, active: bool) {
+        if active {
+            self.active_popup_tags.insert(tag);
+        } else {
+            self.active_popup_tags.remove(&tag);
+        }
+    }
+
+    /// Clears all registered active popup tags.
+    #[inline]
+    pub fn clear_active_popup_tags(&mut self) {
+        self.active_popup_tags.clear();
     }
 
     /// Returns `true` if any visible interactive widget currently exists on the [`UiLayer::Popup`] layer.
@@ -169,6 +198,10 @@ impl UiTree {
 
     /// Checks whether the specified screen-space coordinate lies within the boundary
     /// of an open popup, context menu, combobox dropdown, or elevated layer widget.
+    ///
+    /// Resolves semantic tags across the ancestor hierarchy so clicks on child labels,
+    /// glyph icons, or padding wrappers inside the popup trigger or popup card boundary
+    /// are accurately recognized as inside the popup.
     ///
     /// # Arguments
     /// * `point` - Screen coordinate in logical pixels.
@@ -210,10 +243,20 @@ impl UiTree {
             return true;
         }
 
-        let is_active_menu = self.active_menu_bar_tag.is_some_and(|t| t == node.tag);
-        let is_active_combo = self.active_combobox_tag.is_some_and(|t| t == node.tag);
+        let hit_tag = if node.tag != 0 {
+            node.tag
+        } else {
+            self.resolve_ancestor_tag(hid)
+        };
 
-        is_active_menu || is_active_combo
+        let is_active_menu = self.active_menu_bar_tag.is_some_and(|t| t == hit_tag);
+        let is_active_combo = self.active_combobox_tag.is_some_and(|t| t == hit_tag);
+        let is_active_submenu = hit_tag != 0
+            && (self.active_submenus.contains_key(&hit_tag)
+                || self.active_submenus.values().any(|&v| v == hit_tag));
+        let is_active_popup_tag = hit_tag != 0 && self.active_popup_tags.contains(&hit_tag);
+
+        is_active_menu || is_active_combo || is_active_submenu || is_active_popup_tag
     }
 
     /// Evaluates whether a screen coordinate falls outside currently active popups or context menus.
@@ -241,6 +284,26 @@ impl UiTree {
         self.close_all_popups();
         self.event_state.clear_pressed();
         true
+    }
+
+    /// Evaluates whether a screen coordinate falls outside currently active popups or context menus,
+    /// dismissing all open popups if an outside click occurred.
+    ///
+    /// This method enforces declarative popup layer and semantic tag protection. When any popup,
+    /// elevated context menu, combobox dropdown, cascading menu, or registered popup tag is active
+    /// and `point` is strictly outside its interactive boundaries, all open popups are dismissed,
+    /// pending press state is cleared, and this method returns `true` (signaling that the click was consumed by popup dismissal).
+    ///
+    /// If no popup is open, or if `point` lies inside an active popup or its anchor trigger tag, returns `false`.
+    ///
+    /// # Arguments
+    /// * `point` - Pointer coordinate where the mouse press occurred.
+    ///
+    /// # Returns
+    /// `true` if an outside click was detected and popups were dismissed; `false` otherwise.
+    #[inline]
+    pub fn dismiss_popups_on_outside_click(&mut self, point: Point) -> bool {
+        self.outside_click_detector(point)
     }
 
     /// Returns `true` if an autonomous tooltip is currently open and actively visible.

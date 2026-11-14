@@ -289,3 +289,81 @@ fn test_workbench_idle_escape_not_swallowed_when_nothing_active() {
         "Idle escape must not report escape_handled"
     );
 }
+
+#[test]
+fn test_workbench_handle_event_with_content_escape_traps_modal_before_content() {
+    let mut wb = create_mock_workbench();
+    let mut window = MockWindow::default();
+    let mut dock_tree = DockTree::new();
+    let root = dock_tree.create_leaf(vec![MockTab::Viewport]);
+    dock_tree.set_root(root);
+    let mut dock_state = DockState::new(dock_tree);
+
+    // Open a cancellable modal dialog on DialogHost
+    let dialog = ConfirmationDialogDescriptor::new(
+        "Delete Scene",
+        "Permanently delete this scene?",
+        MockAction::ModalConfirmed,
+    )
+    .with_cancel_action(MockAction::ModalCancelled);
+    wb.dialog_host.open(dialog);
+    assert!(wb.dialog_host.is_active());
+
+    let escape_event = UiEvent::KeyboardInput {
+        key: KeyCode::Escape,
+        is_pressed: true,
+        text: None,
+        ctrl_held: false,
+        shift_held: false,
+    };
+
+    let mut content_dispatcher_called = false;
+    let outcome = wb.handle_event_with_content(&mut window, &escape_event, &mut dock_state, |_| {
+        content_dispatcher_called = true;
+        (false, None, vec![])
+    });
+
+    assert!(
+        !content_dispatcher_called,
+        "Active modal dialog must trap Escape before background content"
+    );
+    assert!(outcome.consumed, "Outcome must be consumed");
+    assert!(outcome.escape_handled, "Escape must be marked as handled");
+    assert!(outcome.layout_changed, "Layout must be marked dirty");
+    assert!(
+        !wb.dialog_host.is_active(),
+        "Modal dialog must be dismissed"
+    );
+    assert_eq!(outcome.actions, vec![MockAction::ModalCancelled]);
+}
+
+#[test]
+fn test_workbench_handle_event_with_content_non_modal_escape_runs_content() {
+    let mut wb = create_mock_workbench();
+    let mut window = MockWindow::default();
+    let mut dock_tree = DockTree::new();
+    let root = dock_tree.create_leaf(vec![MockTab::Viewport]);
+    dock_tree.set_root(root);
+    let mut dock_state = DockState::new(dock_tree);
+
+    let escape_event = UiEvent::KeyboardInput {
+        key: KeyCode::Escape,
+        is_pressed: true,
+        text: None,
+        ctrl_held: false,
+        shift_held: false,
+    };
+
+    let mut content_dispatcher_called = false;
+    let outcome = wb.handle_event_with_content(&mut window, &escape_event, &mut dock_state, |_| {
+        content_dispatcher_called = true;
+        (true, None, vec![MockAction::OverlayDismissed])
+    });
+
+    assert!(
+        content_dispatcher_called,
+        "Content dispatcher must be invoked when no modal is active"
+    );
+    assert!(outcome.consumed, "Outcome must be consumed");
+    assert_eq!(outcome.actions, vec![MockAction::OverlayDismissed]);
+}

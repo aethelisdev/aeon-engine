@@ -9,6 +9,7 @@
 
 pub mod escape;
 pub mod outcome;
+pub mod outside_click;
 pub mod pointer;
 pub mod runner;
 pub mod shell;
@@ -17,6 +18,8 @@ pub mod shell;
 mod tests;
 #[cfg(test)]
 mod tests_escape;
+#[cfg(test)]
+mod tests_outside_click;
 
 pub use outcome::WorkbenchOutcome;
 pub use pointer::PointerState;

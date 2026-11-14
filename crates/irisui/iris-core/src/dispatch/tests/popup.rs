@@ -296,3 +296,46 @@ fn test_tooltip_closes_when_mouse_leaves() {
     );
     assert!(!tree.has_open_tooltip());
 }
+
+#[test]
+fn test_dismiss_popups_on_outside_click_with_active_popup_tags() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let trigger_btn = tree.create_node();
+    let child_text = tree.create_node();
+    tree.add_child(root, trigger_btn).unwrap();
+    tree.add_child(trigger_btn, child_text).unwrap();
+
+    {
+        let btn = tree.get_mut(trigger_btn).unwrap();
+        btn.visible = true;
+        btn.interactive = true;
+        btn.role = WidgetRole::Button;
+        btn.computed_rect = Rect::new(50.0, 50.0, 150.0, 36.0);
+        btn.tag = 5005;
+    }
+    {
+        let txt = tree.get_mut(child_text).unwrap();
+        txt.visible = true;
+        txt.tag = 0; // Untagged descendant
+        txt.computed_rect = Rect::new(60.0, 55.0, 80.0, 20.0);
+    }
+
+    // Register active popup tag
+    tree.set_popup_tag_active(5005, true);
+    assert!(tree.is_popup_tag_active(5005));
+    assert!(tree.has_open_popup());
+
+    // 1. Click on child text inside trigger button resolves ancestor tag and does NOT dismiss
+    let child_click = Point::new(70.0, 60.0);
+    assert!(tree.is_point_inside_popup(child_click));
+    assert!(!tree.dismiss_popups_on_outside_click(child_click));
+    assert!(tree.is_popup_tag_active(5005));
+
+    // 2. Click outside triggers dismissal and clears active popup tag
+    let outside_click = Point::new(600.0, 600.0);
+    assert!(!tree.is_point_inside_popup(outside_click));
+    assert!(tree.dismiss_popups_on_outside_click(outside_click));
+    assert!(!tree.is_popup_tag_active(5005));
+    assert!(!tree.has_open_popup());
+}

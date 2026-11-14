@@ -36,6 +36,8 @@ pub struct UiTree {
     pub active_menu_bar_tag: Option<u64>,
     /// Persistent 64-bit semantic tag identifying the currently opened combobox dropdown menu, if any.
     pub active_combobox_tag: Option<u64>,
+    /// Persistent set of 64-bit semantic tags identifying active open popup menus or custom dropdowns.
+    pub active_popup_tags: std::collections::HashSet<u64>,
     /// Persistent map tracking active cascading submenus (parent menu tag -> active child submenu tag).
     pub active_submenus: HashMap<u64, u64>,
     /// Persistent state map tracking active modal dialogs, keyed by 64-bit semantic tag.
@@ -64,6 +66,7 @@ impl UiTree {
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
             active_combobox_tag: None,
+            active_popup_tags: std::collections::HashSet::new(),
             active_submenus: HashMap::new(),
             modal_state: HashMap::new(),
             tag_rects: HashMap::new(),
@@ -89,6 +92,7 @@ impl UiTree {
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
             active_combobox_tag: None,
+            active_popup_tags: std::collections::HashSet::new(),
             active_submenus: HashMap::new(),
             modal_state: HashMap::new(),
             tag_rects: HashMap::new(),

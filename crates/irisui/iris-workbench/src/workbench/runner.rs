@@ -419,6 +419,7 @@ where
             zoom_changed: None,
             toggle_preferences: false,
             escape_handled: false,
+            popups_dismissed: false,
         }
     }
 
@@ -457,32 +458,11 @@ where
         }
 
         // 2. Active framework modal dialog keyboard input or Escape key cancellation
-        if let UiEvent::KeyboardInput {
-            key,
-            is_pressed: true,
-            shift_held,
-            ..
-        } = event
-        {
-            if self.dialog_host.is_active() {
-                let handled = self.dialog_host.handle_keyboard_input_with_modifiers(
-                    key,
-                    true,
-                    *shift_held,
-                    &mut self.action_bus,
-                );
-                if handled {
-                    let mut outcome = self.make_outcome(true, None);
-                    outcome.layout_changed = true;
-                    if *key == iris_core::event::KeyCode::Escape {
-                        outcome.escape_handled = true;
-                    }
-                    outcome.actions.extend(self.action_bus.drain());
-                    return outcome;
-                }
-            } else if let Some(outcome) = self.handle_escape_event(event, None, None) {
-                return outcome;
-            }
+        if let Some(outcome) = self.handle_modal_keyboard_event(event) {
+            return outcome;
+        }
+        if let Some(outcome) = self.handle_escape_event(event, None, None) {
+            return outcome;
         }
 
         // 3. Ingest dropped files directly into outcome
@@ -604,6 +584,11 @@ where
         self.pointer_state.update_from_event(event);
         self.last_cursor_pos = self.pointer_state.position;
 
+        // Active framework modal dialogues trap keyboard events before background content dispatch
+        if let Some(outcome) = self.handle_modal_keyboard_event(event) {
+            return outcome;
+        }
+
         let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
         if let Some(cursor) = content_cursor {
             window.set_widget_cursor(cursor);
@@ -659,7 +644,15 @@ where
         self.pointer_state.update_from_event(event);
         self.last_cursor_pos = self.pointer_state.position;
 
+        if let Some(outcome) = self.handle_modal_keyboard_event(event) {
+            return outcome;
+        }
+
         if let Some(outcome) = self.handle_escape_event(event, tree.as_deref_mut(), None) {
+            return outcome;
+        }
+
+        if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
             return outcome;
         }
 
