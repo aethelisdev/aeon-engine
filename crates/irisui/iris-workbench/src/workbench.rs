@@ -7,6 +7,7 @@
 //! retained-mode docking, frameless window management, modal dialogs, and decoupled
 //! action dispatching into a unified desktop IDE framework component.
 
+pub mod escape;
 pub mod outcome;
 pub mod pointer;
 pub mod runner;
@@ -14,6 +15,8 @@ pub mod shell;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_escape;
 
 pub use outcome::WorkbenchOutcome;
 pub use pointer::PointerState;

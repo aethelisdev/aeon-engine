@@ -43,6 +43,10 @@ pub struct WorkbenchOutcome<Action> {
 
     /// Toggle preferences modal dialog requested via keyboard shortcuts (e.g. Ctrl+,).
     pub toggle_preferences: bool,
+
+    /// Whether an Escape key gesture was intercepted and handled by the workbench
+    /// (e.g. dismissing modal dialogs, closing popups, or clearing focus traps).
+    pub escape_handled: bool,
 }
 
 impl<Action> Default for WorkbenchOutcome<Action> {
@@ -57,6 +61,7 @@ impl<Action> Default for WorkbenchOutcome<Action> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            escape_handled: false,
         }
     }
 }
@@ -82,6 +87,7 @@ impl<Action> WorkbenchOutcome<Action> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            escape_handled: false,
         }
     }
 
@@ -106,6 +112,14 @@ impl<Action> WorkbenchOutcome<Action> {
     #[must_use]
     pub fn with_cursor(mut self, cursor: Option<WidgetCursor>) -> Self {
         self.cursor = cursor;
+        self
+    }
+
+    /// Marks whether an Escape key gesture was intercepted and handled by the workbench.
+    #[inline]
+    #[must_use]
+    pub fn with_escape_handled(mut self, handled: bool) -> Self {
+        self.escape_handled = handled;
         self
     }
 }

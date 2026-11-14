@@ -53,40 +53,28 @@ pub type PreferencesActionBuilder<Action> = Box<dyn Fn() -> Action + Send + Sync
 pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, AppState> {
     /// Declarative configuration descriptor governing application shell chrome.
     pub descriptor: WorkbenchDescriptor<TabId>,
-
     /// Autonomous modal dialog host managing confirmations, text inputs, and focus traps.
     pub dialog_host: DialogHost<Action>,
-
     /// Central decoupled action bus collecting emitted application actions.
     pub action_bus: ActionBus<Action>,
-
     /// Autonomous panel registry storing panels and tab viewers.
     pub panel_registry: WorkbenchPanelRegistry<TabId, AppState>,
-
     /// Autonomous overlay layer host managing registered floating HUDs and contextual popovers.
     pub overlay_host: OverlayHost<AppState, Action>,
-
     /// Frameless window host managing 8-way border hit-testing and hardware resize operations.
     pub frameless_host: FramelessWindowHost,
-
     /// Window drag host managing titlebar/menubar dragging and double-click maximize behavior.
     pub drag_host: WindowDragHost,
-
     /// Autonomous dual-layout eliminator coordinating $O(M)$ Taffy subtree solves and text preparation.
     pub dual_layout: DualLayoutEliminator,
-
     /// Standard menubar height in logical pixels. Defaults to 30.0.
     pub menubar_height: f32,
-
     /// Standard statusbar height in logical pixels. Defaults to 24.0.
     pub statusbar_height: f32,
-
     /// Dock chrome visual style configuration.
     pub dock_style: DockChromeStyle,
-
     /// UI zoom scaling factor (e.g. 1.0 = 100%).
     pub zoom_factor: f32,
-
     /// Bounding rectangle of the interactive non-UI viewport canvas (e.g. 3D scene), if any.
     pub interactive_viewport: Option<Rect>,
 
@@ -430,6 +418,7 @@ where
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            escape_handled: false,
         }
     }
 
@@ -467,25 +456,31 @@ where
             return outcome;
         }
 
-        // 2. Active framework modal dialog keyboard input
+        // 2. Active framework modal dialog keyboard input or Escape key cancellation
         if let UiEvent::KeyboardInput {
             key,
-            is_pressed,
+            is_pressed: true,
             shift_held,
             ..
         } = event
-            && self.dialog_host.is_active()
         {
-            let handled = self.dialog_host.handle_keyboard_input_with_modifiers(
-                key,
-                *is_pressed,
-                *shift_held,
-                &mut self.action_bus,
-            );
-            if handled {
-                let mut outcome = self.make_outcome(true, None);
-                outcome.layout_changed = true;
-                outcome.actions.extend(self.action_bus.drain());
+            if self.dialog_host.is_active() {
+                let handled = self.dialog_host.handle_keyboard_input_with_modifiers(
+                    key,
+                    true,
+                    *shift_held,
+                    &mut self.action_bus,
+                );
+                if handled {
+                    let mut outcome = self.make_outcome(true, None);
+                    outcome.layout_changed = true;
+                    if *key == iris_core::event::KeyCode::Escape {
+                        outcome.escape_handled = true;
+                    }
+                    outcome.actions.extend(self.action_bus.drain());
+                    return outcome;
+                }
+            } else if let Some(outcome) = self.handle_escape_event(event, None, None) {
                 return outcome;
             }
         }
@@ -659,10 +654,14 @@ where
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
-        tree: Option<&mut UiTree>,
+        mut tree: Option<&mut UiTree>,
     ) -> WorkbenchOutcome<Action> {
         self.pointer_state.update_from_event(event);
         self.last_cursor_pos = self.pointer_state.position;
+
+        if let Some(outcome) = self.handle_escape_event(event, tree.as_deref_mut(), None) {
+            return outcome;
+        }
 
         let (content_consumed, content_cursor, needs_redraw) = if let Some(t) = tree {
             if let Some(pos) = self.last_cursor_pos {

@@ -515,6 +515,31 @@ impl<AppState, Action: 'static + Send + Sync> OverlayHost<AppState, Action> {
             .any(|h| h.is_active(state) && h.wants_pointer_at(point, workspace, state))
     }
 
+    /// Returns `true` if any currently active overlay hook is configured to dismiss on Escape.
+    #[must_use]
+    pub fn has_escape_dismissible(&self, state: &AppState) -> bool {
+        self.hooks
+            .iter()
+            .any(|h| h.is_active(state) && h.dismiss_on_escape())
+    }
+
+    /// Dismisses the topmost active overlay configured with `dismiss_on_escape`.
+    ///
+    /// Returns `true` if an overlay was dismissed and emitted its dismissal action; `false` otherwise.
+    pub fn handle_escape(
+        &mut self,
+        state: &mut AppState,
+        action_bus: &mut ActionBus<Action>,
+    ) -> bool {
+        for hook in self.hooks.iter_mut().rev() {
+            if hook.is_active(state) && hook.dismiss_on_escape() {
+                hook.on_dismiss(state, action_bus);
+                return true;
+            }
+        }
+        false
+    }
+
     /// Dispatches input events to active overlay hooks in reverse Z-order.
     ///
     /// Handles outside-click dismissals, Escape key cancellations, and custom event handlers.
