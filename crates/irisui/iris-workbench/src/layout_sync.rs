@@ -14,6 +14,8 @@ mod tests;
 #[cfg(test)]
 mod tests_session;
 #[cfg(test)]
+mod tests_single_leaf;
+#[cfg(test)]
 mod tests_stress;
 
 pub use dual_layout::{DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines};

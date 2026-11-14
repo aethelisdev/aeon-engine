@@ -71,6 +71,84 @@ impl<'a> SubtreeEngines<'a> {
         )
     }
 
+    /// Atomically rebuilds an individual leaf panel in-place via declarative closure.
+    ///
+    /// Validates that the container node exists and has non-zero computed dimensions.
+    /// Untracks previous child layout nodes from Taffy, purges previous descendant widgets,
+    /// synthesizes fresh widgets via `render_fn`, shapes typography, and resolves boundary
+    /// Taffy flexbox models in $O(M)$ time without full tree clears or generational resets.
+    /// Re-seals the leaf as an Invalidation Boundary and flags it for repainting and text preparation.
+    ///
+    /// Returns `Ok(true)` if reconstructed, or `Ok(false)` if the leaf was missing or collapsed (zero-area).
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    #[inline]
+    pub fn rebuild_single_panel_leaf<F>(
+        &mut self,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        DualLayoutEliminator::rebuild_single_panel_leaf(
+            self.tree,
+            self.layout_engine,
+            self.text_system,
+            leaf_id,
+            render_fn,
+        )
+    }
+
+    /// Atomically rebuilds an individual leaf panel with a fallible render closure.
+    ///
+    /// Encapsulates [`SubtreeSession`] execution, guaranteeing that any error returned by `render_fn`
+    /// safely aborts layout computation and is propagated as a [`LayoutError::Taffy`].
+    ///
+    /// Returns `Ok(true)` if reconstructed, or `Ok(false)` if missing or zero-sized.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if the node is missing, geometry is invalid, or `render_fn` fails.
+    #[inline]
+    pub fn rebuild_single_panel_leaf_fallible<E, F>(
+        &mut self,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
+        E: std::fmt::Display,
+    {
+        DualLayoutEliminator::rebuild_single_panel_leaf_fallible(
+            self.tree,
+            self.layout_engine,
+            self.text_system,
+            leaf_id,
+            render_fn,
+        )
+    }
+
+    /// Atomically rebuilds an individual leaf panel with an eliminator instance, recording text prepare.
+    #[inline]
+    pub fn rebuild_single_panel_leaf_with_eliminator<F>(
+        &mut self,
+        eliminator: &mut DualLayoutEliminator,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        eliminator.rebuild_single_panel_leaf_instance(
+            self.tree,
+            self.layout_engine,
+            self.text_system,
+            leaf_id,
+            render_fn,
+        )
+    }
+
     /// Atomically rebuilds an individual registered dock panel.
     #[inline]
     pub fn rebuild_panel<TabId, Context>(
@@ -237,6 +315,167 @@ impl DualLayoutEliminator {
         tree.set_boundary(leaf_id, true);
         tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
         Ok(())
+    }
+
+    /// Atomically rebuilds an individual leaf panel in-place during partial subtree invalidation.
+    ///
+    /// Executes an isolated, generational subtree reconstruction cycle:
+    /// 1. Validates that the container node exists and has non-zero computed dimensions (skips collapsed leaves).
+    /// 2. Untracks previous child layout nodes from Taffy and purges descendant nodes from [`UiTree`].
+    /// 3. Renders fresh declarative widgets under `leaf_id` via `render_fn`.
+    /// 4. Shapes typography and resolves boundary Taffy flexbox geometry in $O(M)$ time.
+    /// 5. Re-seals the leaf as an Invalidation Boundary and flags it for repainting and text preparation.
+    ///
+    /// Returns `Ok(true)` if the panel was successfully reconstructed, or `Ok(false)` if the leaf was
+    /// missing or collapsed (e.g. 0-width/0-height).
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    pub fn rebuild_single_panel_leaf<F>(
+        tree: &mut UiTree,
+        layout_engine: &mut LayoutEngine,
+        text_system: &mut TextSystem,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let Some(node) = tree.get(leaf_id) else {
+            return Ok(false);
+        };
+
+        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
+            return Ok(false);
+        }
+
+        SubtreeSession::rebuild(tree, layout_engine, text_system, leaf_id, render_fn)?;
+
+        tree.set_boundary(leaf_id, true);
+        tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
+        Ok(true)
+    }
+
+    /// Atomically rebuilds an individual leaf panel in-place with a fallible render closure.
+    ///
+    /// Guarantees that any error returned by `render_fn` safely aborts layout computation
+    /// and is propagated as a [`LayoutError::Taffy`].
+    ///
+    /// Returns `Ok(true)` if reconstructed, or `Ok(false)` if missing or zero-sized.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry or `render_fn` fails.
+    pub fn rebuild_single_panel_leaf_fallible<E, F>(
+        tree: &mut UiTree,
+        layout_engine: &mut LayoutEngine,
+        text_system: &mut TextSystem,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
+        E: std::fmt::Display,
+    {
+        let Some(node) = tree.get(leaf_id) else {
+            return Ok(false);
+        };
+
+        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
+            return Ok(false);
+        }
+
+        let mut render_err = None;
+        SubtreeSession::rebuild(tree, layout_engine, text_system, leaf_id, |scope| {
+            if let Err(err) = render_fn(scope) {
+                render_err = Some(LayoutError::Taffy(err.to_string()));
+            }
+        })?;
+
+        if let Some(err) = render_err {
+            return Err(err);
+        }
+
+        tree.set_boundary(leaf_id, true);
+        tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
+        Ok(true)
+    }
+
+    /// Atomically rebuilds an individual leaf panel and records text preparation on this instance.
+    pub fn rebuild_single_panel_leaf_instance<F>(
+        &mut self,
+        tree: &mut UiTree,
+        layout_engine: &mut LayoutEngine,
+        text_system: &mut TextSystem,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let rebuilt =
+            Self::rebuild_single_panel_leaf(tree, layout_engine, text_system, leaf_id, render_fn)?;
+        if rebuilt {
+            self.needs_text_prepare = true;
+        }
+        Ok(rebuilt)
+    }
+
+    /// Atomically rebuilds an individual leaf panel and clears its dirty flag in [`UiNotifier`].
+    ///
+    /// If the leaf exists and has positive area, it is rebuilt and sealed as an Invalidation Boundary,
+    /// its dirty state in `notifier` is cleared, and `needs_text_prepare` is flagged on this eliminator instance.
+    pub fn rebuild_single_panel_leaf_notified<TabId, F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let rebuilt = Self::rebuild_single_panel_leaf(
+            engines.tree,
+            engines.layout_engine,
+            engines.text_system,
+            leaf_id,
+            render_fn,
+        )?;
+        if rebuilt {
+            notifier.clear_panel(panel_id);
+            self.needs_text_prepare = true;
+        }
+        Ok(rebuilt)
+    }
+
+    /// Atomically rebuilds an individual leaf panel with a fallible closure and clears its flag in [`UiNotifier`].
+    pub fn rebuild_single_panel_leaf_notified_fallible<TabId, E, F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
+        E: std::fmt::Display,
+    {
+        let rebuilt = Self::rebuild_single_panel_leaf_fallible(
+            engines.tree,
+            engines.layout_engine,
+            engines.text_system,
+            leaf_id,
+            render_fn,
+        )?;
+        if rebuilt {
+            notifier.clear_panel(panel_id);
+            self.needs_text_prepare = true;
+        }
+        Ok(rebuilt)
     }
 
     /// Atomically rebuilds an individual registered dock panel in-place under `leaf_id`.
