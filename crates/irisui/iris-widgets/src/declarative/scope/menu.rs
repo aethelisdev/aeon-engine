@@ -386,6 +386,9 @@ impl<'a> UiScope<'a> {
             node.style.inset_top = Some(clamped_y);
             node.style.height = Some(height);
         }
+        let name_tag = crate::declarative::types::hash_label(name);
+        self.tree.set_tag_rect(name_tag, bounds);
+        self.tree.set_popup_tag_active(name_tag, true);
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
         }
@@ -1084,6 +1087,7 @@ impl<'a> UiScope<'a> {
             node.style.height = Some(height);
         }
         self.tree.set_tag_rect(name_tag, bounds);
+        self.tree.set_popup_tag_active(name_tag, true);
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
         }
@@ -1106,6 +1110,10 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        if anchor_tag != 0 {
+            self.tree.set_popup_tag_active(anchor_tag, true);
+        }
+
         let anchor_rect = self
             .tree
             .node_rect_tagged(anchor_tag, Point::ZERO)
@@ -1139,6 +1147,10 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        if anchor_tag != 0 {
+            self.tree.set_popup_tag_active(anchor_tag, true);
+        }
+
         if let Some(sub_tag) = config.active_submenu_tag {
             self.tree
                 .set_active_submenu(crate::declarative::types::hash_label(name), sub_tag);

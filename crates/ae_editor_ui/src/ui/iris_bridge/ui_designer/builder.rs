@@ -31,6 +31,11 @@ impl IrisEditorOverlay {
             return;
         }
 
+        if scope.popups_dismissed() {
+            self.ui_designer.is_add_menu_open = false;
+            self.ui_designer.is_aspect_open = false;
+        }
+
         let designer_params = UiDesignerPanelParams {
             panel_rect,
             world: params.scene.world,

@@ -29,6 +29,12 @@ impl IrisEditorOverlay {
             return;
         }
 
+        if scope.popups_dismissed() {
+            self.inspector.is_add_menu_open = false;
+            self.inspector.is_color_picker_open = false;
+            self.inspector.active_submenu = None;
+        }
+
         let rename_buf_ref = self
             .inspector
             .rename_input

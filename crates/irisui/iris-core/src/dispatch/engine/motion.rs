@@ -176,6 +176,7 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         };
     }
 
@@ -252,6 +253,7 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
             is_key_pressed: false,
             text_input: None,
             next_timeout,
+            popups_dismissed: false,
         }
     } else {
         if tree.event_state.has_open_tooltip() {
@@ -270,6 +272,7 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         }
     }
 }

@@ -31,6 +31,10 @@ impl IrisEditorOverlay {
             return;
         }
 
+        if scope.popups_dismissed() {
+            self.assets.context_menu = None;
+        }
+
         if let Some(buf) = scope.text_edit_buffer(ASSETS_TAG_SEARCH_INPUT) {
             self.assets.interactions.search_input.set_text(buf);
             if let Some(cur) = scope.text_edit_cursor(ASSETS_TAG_SEARCH_INPUT) {

@@ -175,6 +175,9 @@ pub struct EventState {
     /// Autonomous bounded undo/redo stack for committed scalar and vector numeric transitions
     /// (drag scrubbing releases, post-`Enter` or focus-loss numeric expression commits, and vector resets).
     pub numeric_undo: NumericUndoStack,
+    /// Whether an outside-click gesture was detected and dismissed open popups or context menus
+    /// during the current event cycle.
+    pub frame_popups_dismissed: bool,
 }
 
 impl EventState {
@@ -224,6 +227,7 @@ impl EventState {
             cached_color_hsv: None,
             color_edit_origin: None,
             numeric_undo: NumericUndoStack::new(),
+            frame_popups_dismissed: false,
         }
     }
 
@@ -341,6 +345,7 @@ impl EventState {
         self.frame_key_pressed = false;
         self.frame_ctrl_held = false;
         self.frame_shift_held = false;
+        self.frame_popups_dismissed = false;
     }
 
     /// Invalidates all generational [`WidgetId`] references across the event state when
@@ -681,6 +686,8 @@ pub struct DispatchResult {
     pub text_input: Option<String>,
     /// Optional timeout delay until the next required UI tick (e.g. for tooltip hover timer).
     pub next_timeout: Option<std::time::Duration>,
+    /// Whether an outside-click gesture was detected and dismissed open popups during dispatch.
+    pub popups_dismissed: bool,
 }
 
 impl DispatchResult {
@@ -699,6 +706,7 @@ impl DispatchResult {
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         }
     }
 
@@ -717,6 +725,7 @@ impl DispatchResult {
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         }
     }
 

@@ -295,4 +295,89 @@ impl<'a> UiScope<'a> {
     pub fn dismiss_popups_on_outside_click(&mut self, point: Point) -> bool {
         self.tree.dismiss_popups_on_outside_click(point)
     }
+
+    /// Evaluates whether any floating popup layer or dropdown menu is actively open in the tree.
+    ///
+    /// Delegates directly to [`iris_core::UiTree::has_open_popup`].
+    #[inline]
+    #[must_use]
+    pub fn has_open_popup(&self) -> bool {
+        self.tree.has_open_popup()
+    }
+
+    /// Dismisses and closes all active floating popup layers and dropdown menus across the tree.
+    ///
+    /// Returns `true` if at least one popup layer was actively open and closed.
+    #[inline]
+    pub fn close_all_popups(&mut self) -> bool {
+        self.tree.close_all_popups()
+    }
+
+    /// Returns `true` if an outside-click or dismiss gesture closed popups or context menus during the current frame.
+    #[inline]
+    #[must_use]
+    pub fn popups_dismissed(&self) -> bool {
+        self.tree.popups_dismissed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iris_core::geometry::{Point, Rect};
+    use iris_core::node::{UiLayer, WidgetRole};
+    use iris_core::tree::UiTree;
+
+    #[test]
+    fn test_ui_scope_popup_introspection_and_dismissal() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        assert!(!scope.has_open_popup());
+        assert!(!scope.is_popup_tag_active(42));
+
+        scope.set_popup_tag_active(42, true);
+        assert!(scope.is_popup_tag_active(42));
+
+        // Create a popup node
+        let popup_node = scope.tree.create_node();
+        if let Some(node) = scope.tree.get_mut(popup_node) {
+            node.set_layer(UiLayer::Popup);
+            node.set_role(WidgetRole::DropdownPopup);
+            node.computed_rect = Rect::new(100.0, 100.0, 200.0, 150.0);
+            node.interactive = true;
+        }
+        let _ = scope.tree.add_child(root, popup_node);
+
+        assert!(scope.has_open_popup());
+
+        // Inside click should not dismiss
+        let inside_click = Point::new(150.0, 150.0);
+        assert!(!scope.dismiss_popups_on_outside_click(inside_click));
+        assert!(scope.has_open_popup());
+        assert!(scope.is_popup_tag_active(42));
+
+        // Outside click should dismiss popups and clear active tags
+        let outside_click = Point::new(500.0, 500.0);
+        assert!(scope.dismiss_popups_on_outside_click(outside_click));
+        assert!(!scope.has_open_popup());
+        assert!(!scope.is_popup_tag_active(42));
+        assert!(scope.popups_dismissed());
+    }
+
+    #[test]
+    fn test_ui_scope_close_all_popups() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        assert!(!scope.has_open_popup());
+
+        scope.set_popup_tag_active(99, true);
+        assert!(scope.has_open_popup());
+        assert!(scope.close_all_popups());
+        assert!(!scope.has_open_popup());
+        assert!(!scope.close_all_popups());
+    }
 }

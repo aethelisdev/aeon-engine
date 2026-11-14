@@ -106,3 +106,115 @@ fn test_hierarchy_state_open_close_and_submenu_flow() {
     assert!(!state.is_add_menu_open);
     assert_eq!(state.active_submenu, None);
 }
+
+#[test]
+fn test_hierarchy_add_menu_outside_click() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let world = World::new();
+    let focus_state = FocusState::new();
+
+    let mut actions = Vec::new();
+    let panel_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
+    let add_btn_rect = Rect::new(240.0, 4.0, 24.0, 24.0);
+
+    // 1. Create Hierarchy Add button anchor in tree
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.container_tagged(
+            "HierarchyAddButton",
+            Style::new()
+                .position_absolute()
+                .left(add_btn_rect.x)
+                .top(add_btn_rect.y)
+                .width(add_btn_rect.width)
+                .height(add_btn_rect.height),
+            WidgetRole::Button,
+            HIERARCHY_TAG_ADD_BUTTON,
+            |_btn| {},
+        );
+        scope.finish_layout(panel_rect);
+    }
+
+    let params = HierarchyPanelParams {
+        panel_rect,
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: true,
+        active_context_menu: None,
+        cursor_pos: Point::new(100.0, 100.0),
+        blink_caret: false,
+        ctrl_held: false,
+        shift_held: false,
+        focus_state: &focus_state,
+        cursor_byte_idx: 0,
+    };
+
+    // 2. Build cascading add menu
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut actions);
+    }
+
+    // 3. Verify HIERARCHY_TAG_ADD_BUTTON is registered as active popup tag
+    assert!(
+        tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON),
+        "Hierarchy add button tag must be registered as active popup tag"
+    );
+
+    // 4. Click on trigger button: inside popup check
+    let btn_click = Point::new(250.0, 10.0);
+    assert!(
+        tree.is_point_inside_popup(btn_click),
+        "Click on Add button must be recognized as inside popup"
+    );
+    assert!(
+        !tree.dismiss_popups_on_outside_click(btn_click),
+        "Click on Add button must not dismiss popup"
+    );
+    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
+
+    // 5. Click outside: dismiss popups
+    let outside_point = Point::new(800.0, 800.0);
+    assert!(
+        !tree.is_point_inside_popup(outside_point),
+        "Point (800, 800) must be outside popup"
+    );
+    assert!(
+        tree.dismiss_popups_on_outside_click(outside_point),
+        "Outside click must dismiss popup"
+    );
+    assert!(
+        !tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON),
+        "Active popup tag must be cleared on dismissal"
+    );
+    assert!(tree.popups_dismissed());
+
+    // 6. Next frame: scope.popups_dismissed() resets hierarchy panel state
+    {
+        let scope = UiScope::new(&mut tree, root);
+        assert!(scope.popups_dismissed());
+        let mut hierarchy_state = super::types::HierarchyState {
+            is_add_menu_open: true,
+            active_submenu: Some(AddSubmenuId::Objects3D),
+            active_sub_submenu: Some(AddSubmenuId::Objects3D),
+            ..Default::default()
+        };
+
+        if scope.popups_dismissed() {
+            hierarchy_state.is_add_menu_open = false;
+            hierarchy_state.active_submenu = None;
+            hierarchy_state.active_sub_submenu = None;
+            hierarchy_state.active_context_menu = None;
+        }
+
+        assert!(!hierarchy_state.is_add_menu_open);
+        assert!(hierarchy_state.active_submenu.is_none());
+        assert!(hierarchy_state.active_sub_submenu.is_none());
+    }
+}

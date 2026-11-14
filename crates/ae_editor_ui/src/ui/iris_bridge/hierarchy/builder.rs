@@ -28,6 +28,13 @@ impl IrisEditorOverlay {
             return;
         }
 
+        if scope.popups_dismissed() {
+            self.hierarchy.is_add_menu_open = false;
+            self.hierarchy.active_submenu = None;
+            self.hierarchy.active_sub_submenu = None;
+            self.hierarchy.active_context_menu = None;
+        }
+
         if let Some(buf) = scope.text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT) {
             self.hierarchy.interactions.search_input.set_text(buf);
             if let Some(cur) = scope.text_edit_cursor(HIERARCHY_TAG_SEARCH_INPUT) {

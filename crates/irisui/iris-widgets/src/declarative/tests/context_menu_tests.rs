@@ -425,3 +425,82 @@ fn test_dropdown_item_with_texture_atlas_icon() {
     assert_eq!(icon_node.style.width, Some(14.0));
     assert_eq!(icon_node.style.height, Some(14.0));
 }
+
+#[test]
+fn test_cascading_popup_anchored_registers_active_tag_and_outside_click() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+
+    const ANCHOR_TAG: u64 = 7771;
+    let anchor_rect = Rect::new(100.0, 50.0, 120.0, 30.0);
+
+    // Create anchor node in tree
+    let anchor_node = tree.create_node();
+    if let Some(node) = tree.get_mut(anchor_node) {
+        node.tag = ANCHOR_TAG;
+        node.computed_rect = anchor_rect;
+    }
+    let _ = tree.add_child(root, anchor_node);
+
+    // Render cascading popup anchored to tag
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.cascading_popup_anchored_to_tag(
+            "TestCascadingMenu",
+            ANCHOR_TAG,
+            anchor_rect,
+            crate::declarative::scope::menu::CascadingPopupConfig::new(
+                160.0,
+                crate::declarative::scope::menu::PopupPlacement::Below,
+            ),
+            |card| {
+                card.dropdown_item(901, "➕", "Item One", None, true);
+                card.dropdown_item(902, "✂", "Item Two", None, true);
+            },
+        );
+    }
+
+    // Verify anchor tag is registered as active popup tag
+    assert!(
+        tree.is_popup_tag_active(ANCHOR_TAG),
+        "Anchor tag must be registered as active popup tag"
+    );
+    let name_tag = crate::declarative::types::hash_label("TestCascadingMenu");
+    assert!(
+        tree.is_popup_tag_active(name_tag),
+        "Menu name tag must be registered as active popup tag"
+    );
+    assert!(tree.has_open_popup(), "Popup must be open in tree");
+
+    // Click on the anchor button itself: should NOT dismiss
+    let anchor_click = Point::new(110.0, 60.0);
+    assert!(
+        tree.is_point_inside_popup(anchor_click),
+        "Click on anchor button must be inside popup bounds"
+    );
+    assert!(
+        !tree.dismiss_popups_on_outside_click(anchor_click),
+        "Click on anchor button must not dismiss popup"
+    );
+    assert!(tree.has_open_popup());
+    assert!(tree.is_popup_tag_active(ANCHOR_TAG));
+
+    // Click outside: MUST dismiss popup and clear active popup tags
+    let outside_click = Point::new(700.0, 700.0);
+    assert!(
+        !tree.is_point_inside_popup(outside_click),
+        "Point (700, 700) must be outside popup"
+    );
+    assert!(
+        tree.dismiss_popups_on_outside_click(outside_click),
+        "Outside click must dismiss popups"
+    );
+    assert!(
+        !tree.has_open_popup(),
+        "Popups must be closed after outside click"
+    );
+    assert!(
+        !tree.is_popup_tag_active(ANCHOR_TAG),
+        "Anchor tag must be removed from active popup tags"
+    );
+}

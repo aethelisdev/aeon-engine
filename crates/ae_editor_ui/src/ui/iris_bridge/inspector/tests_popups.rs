@@ -479,3 +479,187 @@ fn test_color_picker_popup_close_button_interaction() {
         "Clicking close button must set is_color_picker_open to false"
     );
 }
+
+#[test]
+fn test_inspector_cascading_add_component_menu_outside_click() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let mut world = hecs::World::new();
+    let entity = world.spawn((Position::default(),));
+
+    let mut is_add_menu_open = true;
+    let mut active_submenu = None;
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+
+    // 1. Create Add Component button anchor in tree
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.container_tagged(
+            "AddComponentButton",
+            Style::new()
+                .position_absolute()
+                .left(50.0)
+                .top(400.0)
+                .width(200.0)
+                .height(28.0),
+            WidgetRole::Button,
+            TAG_INSPECTOR_ADD_COMPONENT,
+            |btn| {
+                btn.label_styled_passive(
+                    "AddButtonLabel",
+                    "➕ Add Component",
+                    12.0,
+                    Color::WHITE,
+                    TextAlign::Center,
+                    Style::new().height(24.0),
+                );
+            },
+        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+    }
+
+    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    params.is_add_menu_open = true;
+
+    // 2. Build cascading add menu
+    add_menu::draw_add_component_menu(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut is_add_menu_open,
+        &mut active_submenu,
+    );
+
+    // 3. Verify TAG_INSPECTOR_ADD_COMPONENT is registered as active popup tag
+    assert!(
+        tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
+        "Add component trigger tag must be registered as active popup tag"
+    );
+
+    // 4. Click on trigger button: inside popup check
+    let btn_click = Point::new(60.0, 410.0);
+    assert!(
+        tree.is_point_inside_popup(btn_click),
+        "Click on Add Component button must be recognized as inside popup"
+    );
+    assert!(
+        !tree.dismiss_popups_on_outside_click(btn_click),
+        "Click on Add Component button must not dismiss popup"
+    );
+    assert!(tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT));
+
+    // 5. Click outside: dismiss popups
+    let outside_point = Point::new(800.0, 800.0);
+    assert!(
+        !tree.is_point_inside_popup(outside_point),
+        "Point (800, 800) must be outside popup"
+    );
+    assert!(
+        tree.dismiss_popups_on_outside_click(outside_point),
+        "Outside click must dismiss popup"
+    );
+    assert!(
+        !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
+        "Active popup tag must be cleared on dismissal"
+    );
+    assert!(tree.popups_dismissed());
+
+    // 6. Next frame: scope.popups_dismissed() resets is_add_menu_open
+    {
+        let scope = UiScope::new(&mut tree, root);
+        if scope.popups_dismissed() {
+            is_add_menu_open = false;
+            active_submenu = None;
+        }
+        assert!(!is_add_menu_open);
+        assert!(active_submenu.is_none());
+    }
+}
+
+#[test]
+fn test_inspector_color_picker_popup_outside_click() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let mut world = hecs::World::new();
+    let entity = world.spawn((Position::default(),));
+
+    let mut is_color_picker_open = true;
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+
+    let swatch_tag = super::appearance::appearance_color_swatch_tag();
+
+    // 1. Create color swatch trigger button in tree
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.container_tagged(
+            "ColorSwatchButton",
+            Style::new()
+                .position_absolute()
+                .left(50.0)
+                .top(200.0)
+                .width(40.0)
+                .height(20.0),
+            WidgetRole::Button,
+            swatch_tag,
+            |_btn| {},
+        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+    }
+
+    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    params.is_color_picker_open = true;
+
+    // 2. Build color picker popup
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        color_picker_popup::build_color_picker_popup(
+            &mut scope,
+            &params,
+            &mut is_color_picker_open,
+        );
+    }
+
+    // 3. Verify swatch tag is registered as active popup tag
+    assert!(
+        tree.is_popup_tag_active(swatch_tag),
+        "Color swatch trigger tag must be registered as active popup tag"
+    );
+
+    // 4. Click on swatch button: inside popup check
+    let swatch_click = Point::new(60.0, 210.0);
+    assert!(
+        tree.is_point_inside_popup(swatch_click),
+        "Click on color swatch button must be recognized as inside popup"
+    );
+    assert!(
+        !tree.dismiss_popups_on_outside_click(swatch_click),
+        "Click on color swatch button must not dismiss popup"
+    );
+    assert!(tree.is_popup_tag_active(swatch_tag));
+
+    // 5. Click outside: dismiss popups
+    let outside_point = Point::new(800.0, 800.0);
+    assert!(
+        !tree.is_point_inside_popup(outside_point),
+        "Point (800, 800) must be outside popup"
+    );
+    assert!(
+        tree.dismiss_popups_on_outside_click(outside_point),
+        "Outside click must dismiss popup"
+    );
+    assert!(
+        !tree.is_popup_tag_active(swatch_tag),
+        "Active popup tag must be cleared on dismissal"
+    );
+    assert!(tree.popups_dismissed());
+
+    // 6. Next frame: scope.popups_dismissed() resets is_color_picker_open
+    {
+        let scope = UiScope::new(&mut tree, root);
+        if scope.popups_dismissed() {
+            is_color_picker_open = false;
+        }
+        assert!(!is_color_picker_open);
+    }
+}

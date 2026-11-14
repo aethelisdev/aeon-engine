@@ -73,6 +73,22 @@ pub enum ViewportHudDropdownId {
     GridSnap,
 }
 
+impl ViewportHudDropdownId {
+    /// Returns the semantic tag of the trigger button associated with this dropdown.
+    ///
+    /// Maps each dropdown variant to its dedicated constant ([`TAG_VIEWPORT_CAMERA_MODE`],
+    /// [`TAG_VIEWPORT_SHADING_MODE`], or [`TAG_SNAP_GRID_DROPDOWN`]).
+    #[inline]
+    #[must_use]
+    pub const fn tag(self) -> u64 {
+        match self {
+            Self::CameraMode => TAG_VIEWPORT_CAMERA_MODE,
+            Self::ShadingMode => TAG_VIEWPORT_SHADING_MODE,
+            Self::GridSnap => TAG_SNAP_GRID_DROPDOWN,
+        }
+    }
+}
+
 /// Dispatched user interaction actions originating from the Viewport HUD.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ViewportHudAction {

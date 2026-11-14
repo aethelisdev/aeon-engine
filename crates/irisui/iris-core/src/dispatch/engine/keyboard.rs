@@ -65,6 +65,7 @@ pub(crate) fn try_handle_numeric_undo_shortcut(
         is_key_pressed: true,
         text_input: None,
         next_timeout: None,
+        popups_dismissed: false,
     })
 }
 
@@ -195,6 +196,7 @@ pub(crate) fn handle_keyboard(
             is_key_pressed: is_pressed,
             text_input: if is_pressed && consumed { text } else { None },
             next_timeout: None,
+            popups_dismissed: false,
         }
     } else {
         tree.event_state.frame_key = None;
@@ -244,6 +246,7 @@ pub(crate) fn handle_ime(tree: &mut UiTree, ime_event: ImeEvent) -> DispatchResu
             is_key_pressed: false,
             text_input: committed_text,
             next_timeout: None,
+            popups_dismissed: false,
         }
     } else {
         tree.event_state.frame_key = None;

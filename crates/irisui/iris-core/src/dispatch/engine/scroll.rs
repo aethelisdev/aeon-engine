@@ -94,6 +94,7 @@ pub(crate) fn handle_mouse_scroll(
                         is_key_pressed: false,
                         text_input: None,
                         next_timeout: None,
+                        popups_dismissed: false,
                     };
                 } else {
                     return DispatchResult {
@@ -112,6 +113,7 @@ pub(crate) fn handle_mouse_scroll(
                         is_key_pressed: false,
                         text_input: None,
                         next_timeout: None,
+                        popups_dismissed: false,
                     };
                 }
             }

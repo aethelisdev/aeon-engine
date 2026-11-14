@@ -144,7 +144,18 @@ impl UiTree {
             }
         }
 
+        if had_popup {
+            self.event_state.frame_popups_dismissed = true;
+        }
+
         had_popup
+    }
+
+    /// Returns `true` if an outside-click or dismiss gesture closed popups or context menus during the current frame.
+    #[inline]
+    #[must_use]
+    pub fn popups_dismissed(&self) -> bool {
+        self.event_state.frame_popups_dismissed
     }
 
     /// Returns whether any popup, context menu, combobox dropdown, or menu bar dropdown is currently open.

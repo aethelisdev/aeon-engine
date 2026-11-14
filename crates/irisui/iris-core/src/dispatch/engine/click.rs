@@ -46,6 +46,7 @@ pub(crate) fn handle_mouse_down(
         return DispatchResult {
             consumed: true,
             needs_redraw: true,
+            popups_dismissed: true,
             target: None,
             target_tag: 0,
             ..DispatchResult::default()
@@ -226,6 +227,7 @@ pub(crate) fn handle_mouse_down(
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         }
     } else {
         // Clicking on empty area clears active keyboard and tag focus
@@ -403,6 +405,7 @@ pub(crate) fn handle_mouse_up(
             is_key_pressed: false,
             text_input: None,
             next_timeout: None,
+            popups_dismissed: false,
         };
     }
 
@@ -581,6 +584,7 @@ pub(crate) fn handle_mouse_up(
                 is_key_pressed: false,
                 text_input: None,
                 next_timeout: None,
+                popups_dismissed: false,
             }
         } else {
             DispatchResult {
@@ -599,6 +603,7 @@ pub(crate) fn handle_mouse_up(
                 is_key_pressed: false,
                 text_input: None,
                 next_timeout: None,
+                popups_dismissed: false,
             }
         }
     } else {

@@ -604,7 +604,8 @@ where
         }
         if matches!(
             event,
-            UiEvent::MouseUp { .. }
+            UiEvent::MouseDown { .. }
+                | UiEvent::MouseUp { .. }
                 | UiEvent::KeyboardInput {
                     is_pressed: true,
                     ..

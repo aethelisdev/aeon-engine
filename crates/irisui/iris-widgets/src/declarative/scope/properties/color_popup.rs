@@ -270,6 +270,10 @@ impl<'a> UiScope<'a> {
         config: ColorPickerPopupConfig<'_>,
         prefer_initial_hsv: bool,
     ) -> ColorPickerPopupResponse {
+        if config.tags.anchor_tag != 0 {
+            self.tree.set_popup_tag_active(config.tags.anchor_tag, true);
+        }
+
         let anchor_rect = self
             .tree
             .node_rect_tagged(config.tags.anchor_tag, Point::ZERO)

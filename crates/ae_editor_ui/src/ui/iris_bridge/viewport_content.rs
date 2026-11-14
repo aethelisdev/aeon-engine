@@ -32,6 +32,10 @@ impl IrisEditorOverlay {
             .with_aspect_ratio(AspectRatio::Stretch)
         });
 
+        if scope.popups_dismissed() {
+            self.viewport_hud.dropdown = None;
+        }
+
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
         let hud = &mut self.viewport_hud;

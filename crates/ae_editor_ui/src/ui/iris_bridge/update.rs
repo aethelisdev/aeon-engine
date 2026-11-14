@@ -69,26 +69,6 @@ impl IrisEditorOverlay {
     /// Interacts directly with the primary retained [`UiTree`], handling elevated modal and popup
     /// layers transparently through the single-tree architecture.
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
-        if let UiEvent::MouseDown { point, .. } = event {
-            let is_over_popup = self.tree.is_point_inside_popup(*point)
-                || self.tree.hit_test_layered(*point).is_some_and(|h| {
-                    self.tree.effective_layer(h) >= UiLayer::Popup
-                        || self.tree.get(h).is_some_and(|n| {
-                            n.role == WidgetRole::DropdownItem
-                                || n.role == WidgetRole::DropdownPopup
-                                || n.tag == super::viewport_hud::TAG_VIEWPORT_CAMERA_MODE
-                                || n.tag == super::viewport_hud::TAG_VIEWPORT_SHADING_MODE
-                                || n.tag == super::viewport_hud::TAG_SNAP_GRID_DROPDOWN
-                                || n.tag == super::inspector::appearance_color_swatch_tag()
-                                || n.tag == super::inspector::TAG_INSPECTOR_ADD_COMPONENT
-                        })
-                });
-            if !is_over_popup && self.close_active_popups() {
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-            }
-        }
-
         let dispatch = self.tree.dispatch_event(event);
         let clicked_tag = self.tree.event_state.frame_clicked_tag;
 
@@ -756,59 +736,5 @@ impl IrisEditorOverlay {
         self.chrome.needs_layout_rebuild = false;
         self.notifier.clear_all();
         self.tree.clear_frame_clicks();
-    }
-
-    /// Closes all transient active popups and context menus, returning `true` if any were open.
-    fn close_active_popups(&mut self) -> bool {
-        let mut closed_any = false;
-        if self.tree.has_open_popup() {
-            self.tree.close_all_popups();
-            closed_any = true;
-        }
-        if self.tree.active_combobox_tag.is_some() {
-            self.tree.active_combobox_tag = None;
-            closed_any = true;
-        }
-        if self.viewport_hud.dropdown.is_some() {
-            self.viewport_hud.dropdown = None;
-            closed_any = true;
-        }
-        if self.inspector.is_add_menu_open {
-            self.inspector.is_add_menu_open = false;
-            self.inspector.active_submenu = None;
-            closed_any = true;
-        }
-        if self.inspector.is_color_picker_open {
-            self.inspector.is_color_picker_open = false;
-            closed_any = true;
-        }
-        if self.hierarchy.is_add_menu_open {
-            self.hierarchy.is_add_menu_open = false;
-            self.hierarchy.active_submenu = None;
-            self.hierarchy.active_sub_submenu = None;
-            closed_any = true;
-        }
-        if self.hierarchy.active_context_menu.is_some() {
-            self.hierarchy.active_context_menu = None;
-            closed_any = true;
-        }
-        if self.ui_designer.is_add_menu_open {
-            self.ui_designer.is_add_menu_open = false;
-            closed_any = true;
-        }
-        if self.ui_designer.is_aspect_open {
-            self.ui_designer.is_aspect_open = false;
-            closed_any = true;
-        }
-        if self.assets.context_menu.is_some() {
-            self.assets.context_menu = None;
-            closed_any = true;
-        }
-        if self.menubar.active_menu.is_some() {
-            self.menubar.active_menu = None;
-            self.menubar.dropdown_rect = None;
-            closed_any = true;
-        }
-        closed_any
     }
 }

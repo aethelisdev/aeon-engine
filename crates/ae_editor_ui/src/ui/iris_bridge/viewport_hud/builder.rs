@@ -25,6 +25,10 @@ pub fn build_viewport_hud_scope(
         return;
     }
 
+    if scope.popups_dismissed() {
+        hud.dropdown = None;
+    }
+
     if params.is_editing {
         // 1. Top-left floating toolbar
         toolbar::build_viewport_toolbar(scope, params, hud);
@@ -40,6 +44,7 @@ pub fn build_viewport_hud_scope(
 
         // 4. Active dropdown popup if open (rendered before layout resolution so popup receives full layout & hover passes)
         if let Some(active_dd) = params.active_dropdown {
+            scope.set_popup_tag_active(active_dd.tag(), true);
             popup::render_viewport_hud_dropdown_popup(scope, active_dd, params, hud);
         }
 
@@ -69,6 +74,7 @@ pub fn build_viewport_hud(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::iris_bridge::ViewportHudDropdownId;
     use crate::ui::iris_bridge::viewport_hud::{
         TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
         TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE,
@@ -201,5 +207,84 @@ mod tests {
         assert!(!tags.contains(&TAG_COMPASS_CANVAS));
         assert!(tags.contains(&TAG_PLAY_EXIT));
         assert!(tags.contains(&TAG_PLAY_RESUME));
+    }
+
+    #[test]
+    fn test_build_viewport_hud_registers_active_dropdown_tag_and_outside_click() {
+        let camera = make_test_camera();
+        let snapping = SnapSettings::default();
+        let world = World::new();
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root creation failed");
+
+        let params = ViewportHudParams {
+            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
+            camera: &camera,
+            wireframe_enabled: false,
+            gizmo_mode: GizmoMode::Translate,
+            gizmo_space: GizmoSpace::World,
+            snapping: &snapping,
+            cursor_pos: Point::new(100.0, 100.0),
+            active_dropdown: Some(ViewportHudDropdownId::CameraMode),
+            selected_entity: None,
+            world: &world,
+            is_editing: true,
+            is_2d: false,
+        };
+
+        let mut hud = ViewportHudState::default();
+        build_viewport_hud(&mut tree, root, &params, &mut hud);
+
+        // Verify camera mode dropdown trigger tag is actively registered
+        assert!(
+            tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
+            "Camera mode dropdown tag must be registered as active popup tag"
+        );
+
+        // Find camera mode button rect
+        let cam_btn_rect = tree
+            .node_rect_tagged(TAG_VIEWPORT_CAMERA_MODE, Point::ZERO)
+            .or_else(|| tree.tag_rect(TAG_VIEWPORT_CAMERA_MODE))
+            .expect("Camera mode trigger button must have geometry in tree");
+
+        let btn_center = Point::new(
+            cam_btn_rect.x + cam_btn_rect.width * 0.5,
+            cam_btn_rect.y + cam_btn_rect.height * 0.5,
+        );
+
+        // Click on trigger button must be recognized as inside popup
+        assert!(
+            tree.is_point_inside_popup(btn_center),
+            "Trigger button click must be considered inside popup"
+        );
+        assert!(
+            !tree.dismiss_popups_on_outside_click(btn_center),
+            "Trigger button click must not dismiss popup"
+        );
+        assert!(tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE));
+
+        // Click on an outside coordinate must dismiss popups
+        let outside_point = Point::new(750.0, 550.0);
+        assert!(
+            !tree.is_point_inside_popup(outside_point),
+            "Coordinate (750, 550) must be outside popup"
+        );
+        assert!(
+            tree.dismiss_popups_on_outside_click(outside_point),
+            "Outside click must dismiss active popups"
+        );
+        assert!(
+            !tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
+            "Active popup tag must be cleared on dismissal"
+        );
+        assert!(tree.popups_dismissed());
+
+        // Rebuilding HUD when popups were dismissed resets hud.dropdown
+        hud.dropdown = Some(ViewportHudDropdownId::CameraMode);
+        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        assert!(
+            hud.dropdown.is_none(),
+            "HUD dropdown must be reset to None when popups were dismissed"
+        );
     }
 }
