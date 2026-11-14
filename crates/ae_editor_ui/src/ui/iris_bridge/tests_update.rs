@@ -480,7 +480,7 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
     let mut tree = UiTree::new();
     let mut layout_engine = LayoutEngine::new();
     let mut text_system = TextSystem::new();
-    let mut notifier = UiNotifier::<PanelId>::new();
+    let mut notifier = UiNotifier::<PanelId>::clean();
 
     // 1. Initial Shell Bake (tree.clear() + full construction)
     let root = tree.create_root().expect("root widget must exist");
@@ -539,7 +539,7 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
     for pid in dirty_panels {
         if let Some(leaf_id) = dock_frame.leaf_container(pid) {
             engines
-                .rebuild_leaf(leaf_id, |leaf_scope| {
+                .rebuild_single_panel_leaf(leaf_id, |leaf_scope| {
                     leaf_scope.label("Hierarchy Rebuilt V2");
                 })
                 .expect("partial layout recomputation must succeed");
@@ -740,4 +740,187 @@ fn test_domain_revision_sync_invalidates_inspector_and_hierarchy() {
     // Same revision does not re-dirty
     assert!(!notifier.sync_domain_revision(1));
     assert!(!notifier.is_dirty(PanelId::Inspector));
+}
+
+#[test]
+fn test_branch_2_subtree_rebuilding_with_dual_layout_eliminator() {
+    use crate::ui::panel_layout::PanelId;
+    use irisui::dock::DockChromeFrame;
+    use irisui::prelude::UiNotifier;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let leaf_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.panel("Hierarchy").show(|s| {
+            s.button("Hierarchy Initial");
+        });
+        resp.response.id
+    };
+    tree.set_boundary(leaf_id, true);
+    tree.set_computed_rect(leaf_id, Rect::new(0.0, 0.0, 300.0, 600.0));
+
+    let mut dock_frame = DockChromeFrame::default();
+    dock_frame
+        .leaf_containers
+        .push((PanelId::Hierarchy, leaf_id));
+
+    let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+    notifier.tag_redraw(PanelId::Hierarchy);
+    assert!(notifier.is_dirty(PanelId::Hierarchy));
+
+    let mut eliminator = irisui::workbench::DualLayoutEliminator::new();
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let mut text_system = irisui::text::TextSystem::new();
+    let mut engines =
+        irisui::workbench::SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let mut registry = irisui::workbench::WorkbenchPanelRegistry::new();
+    struct MockHierarchy;
+    impl irisui::workbench::WorkbenchPanel<PanelId, ()> for MockHierarchy {
+        fn id(&self) -> PanelId {
+            PanelId::Hierarchy
+        }
+        fn title(&self) -> &str {
+            "Hierarchy"
+        }
+        fn render(&mut self, scope: &mut UiScope<'_>, _ctx: &mut ()) {
+            scope.button("Hierarchy Content");
+        }
+    }
+    registry.register(MockHierarchy);
+    let count = eliminator
+        .rebuild_dirty_panels_with_boundaries(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            |id| {
+                if id == PanelId::Hierarchy {
+                    Some(leaf_id)
+                } else {
+                    None
+                }
+            },
+            |bid| {
+                if bid == leaf_id {
+                    Some(PanelId::Hierarchy)
+                } else {
+                    None
+                }
+            },
+        )
+        .expect("Rebuild should succeed");
+
+    assert_eq!(count, 1);
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+    assert!(eliminator.needs_text_prepare());
+}
+
+#[test]
+fn test_dual_layout_eliminator_rebuild_single_panel_notified_multiple_panels() {
+    use crate::ui::panel_layout::PanelId;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let (hier_leaf, insp_leaf, pref_leaf) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp_h = scope.panel("Hierarchy").show(|s| {
+            s.button("Hierarchy");
+        });
+        let resp_i = scope.panel("Inspector").show(|s| {
+            s.button("Inspector");
+        });
+        let resp_p = scope.panel("Preferences").show(|s| {
+            s.button("Preferences");
+        });
+        (resp_h.response.id, resp_i.response.id, resp_p.response.id)
+    };
+
+    tree.set_boundary(hier_leaf, true);
+    tree.set_boundary(insp_leaf, true);
+    tree.set_boundary(pref_leaf, true);
+
+    tree.set_computed_rect(hier_leaf, Rect::new(0.0, 0.0, 300.0, 600.0));
+    tree.set_computed_rect(insp_leaf, Rect::new(300.0, 0.0, 350.0, 600.0));
+    tree.set_computed_rect(pref_leaf, Rect::new(100.0, 100.0, 600.0, 500.0));
+
+    let mut notifier: irisui::dock::UiNotifier<PanelId> = irisui::dock::UiNotifier::clean();
+    notifier.tag_redraw(PanelId::Hierarchy);
+    notifier.tag_redraw(PanelId::Inspector);
+    notifier.tag_redraw(PanelId::Preferences);
+
+    assert!(notifier.is_dirty(PanelId::Hierarchy));
+    assert!(notifier.is_dirty(PanelId::Inspector));
+    assert!(notifier.is_dirty(PanelId::Preferences));
+
+    let mut eliminator = irisui::workbench::DualLayoutEliminator::new();
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let mut text_system = irisui::text::TextSystem::new();
+    let mut engines =
+        irisui::workbench::SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let mut registry = irisui::workbench::WorkbenchPanelRegistry::new();
+    struct MockPanel(PanelId, &'static str);
+    impl irisui::workbench::WorkbenchPanel<PanelId, ()> for MockPanel {
+        fn id(&self) -> PanelId {
+            self.0
+        }
+        fn title(&self) -> &str {
+            self.1
+        }
+        fn render(&mut self, scope: &mut UiScope<'_>, _ctx: &mut ()) {
+            scope.button(self.1);
+        }
+    }
+
+    registry.register(MockPanel(PanelId::Hierarchy, "Hierarchy"));
+    registry.register(MockPanel(PanelId::Inspector, "Inspector"));
+    registry.register(MockPanel(PanelId::Preferences, "Preferences"));
+
+    let hier_rebuilt = eliminator
+        .rebuild_single_panel_notified(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            PanelId::Hierarchy,
+            hier_leaf,
+        )
+        .expect("hierarchy rebuild should succeed");
+    assert!(hier_rebuilt);
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+    assert!(notifier.is_dirty(PanelId::Inspector));
+    assert!(notifier.is_dirty(PanelId::Preferences));
+
+    let insp_rebuilt = eliminator
+        .rebuild_single_panel_notified(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            PanelId::Inspector,
+            insp_leaf,
+        )
+        .expect("inspector rebuild should succeed");
+    assert!(insp_rebuilt);
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+    assert!(!notifier.is_dirty(PanelId::Inspector));
+    assert!(notifier.is_dirty(PanelId::Preferences));
+
+    let pref_rebuilt = eliminator
+        .rebuild_single_panel_notified(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            PanelId::Preferences,
+            pref_leaf,
+        )
+        .expect("preferences rebuild should succeed");
+    assert!(pref_rebuilt);
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+    assert!(!notifier.is_dirty(PanelId::Inspector));
+    assert!(!notifier.is_dirty(PanelId::Preferences));
+    assert!(eliminator.needs_text_prepare());
 }

@@ -27,6 +27,10 @@ pub struct UiNotifier<P: Eq + Hash + Copy + Send + Sync + 'static> {
     domain_panels: HashSet<P>,
     /// Monotonic revision counter of domain transactions, enabling $O(1)$ synchronization.
     domain_revision: u64,
+    /// Whether dirty panel tags automatically escalate to global dirty state in standalone environments.
+    auto_propagate_panels: bool,
+    /// Tracks pending dirty panel invalidations that were recorded after layout evaluation in the active frame.
+    unconsumed_dirty: bool,
 }
 
 impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
@@ -36,6 +40,8 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
             global_dirty: true,
             domain_panels: HashSet::new(),
             domain_revision: 0,
+            auto_propagate_panels: true,
+            unconsumed_dirty: false,
         }
     }
 }
@@ -43,33 +49,62 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
 impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
     /// Initializes an empty UI notifier with zero dirty panels and global dirty state set to `true`
     /// to guarantee an initial first-frame full bake.
+    ///
+    /// Enables `auto_propagate_panels` by default to ensure standalone or transition environments
+    /// consistently trigger layout passes when individual panels request redrawing.
     pub fn new() -> Self {
         Self {
             dirty_panels: HashSet::new(),
             global_dirty: true,
             domain_panels: HashSet::new(),
             domain_revision: 0,
+            auto_propagate_panels: true,
+            unconsumed_dirty: false,
         }
     }
 
     /// Initializes an empty UI notifier in a completely clean/sleeping state.
     ///
-    /// Useful in unit tests or when explicit invalidation triggers are required.
+    /// Disables `auto_propagate_panels` to allow precise granular invalidation testing.
     pub fn clean() -> Self {
         Self {
             dirty_panels: HashSet::new(),
             global_dirty: false,
             domain_panels: HashSet::new(),
             domain_revision: 0,
+            auto_propagate_panels: false,
+            unconsumed_dirty: false,
         }
+    }
+
+    /// Configures whether individual dirty panel tags automatically escalate to global dirty state.
+    ///
+    /// When enabled, any invocation of [`Self::tag_redraw`], [`Self::sync_domain_revision`],
+    /// or [`Self::notify_domain_mutation`] sets [`Self::global_dirty`] to `true`.
+    #[inline]
+    pub fn set_auto_propagate_panels(&mut self, enabled: bool) {
+        self.auto_propagate_panels = enabled;
+    }
+
+    /// Builder method configuring automatic panel invalidation escalation to global layout dirty state.
+    #[inline]
+    #[must_use]
+    pub fn with_auto_propagate_panels(mut self, enabled: bool) -> Self {
+        self.auto_propagate_panels = enabled;
+        self
     }
 
     /// Tags a specific panel for a selective redraw on the next frame.
     ///
     /// Only the specified panel's contents will be reconstructed, leaving other panels and the UI shell untouched.
+    /// When `auto_propagate_panels` is enabled, also sets global dirty and tracks unconsumed invalidation
+    /// to guarantee execution across frame boundaries.
     /// Passes the panel identifier `panel_id` by copy without heap allocation.
     pub fn tag_redraw(&mut self, panel_id: P) {
         self.dirty_panels.insert(panel_id);
+        if self.auto_propagate_panels {
+            self.unconsumed_dirty = true;
+        }
     }
 
     /// Tags the entire UI shell and all panels for a full global reconstruction.
@@ -95,22 +130,44 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
         self.global_dirty || !self.dirty_panels.is_empty()
     }
 
-    /// Returns `true` if the global layout is dirty (requiring a full shell and panel reconstruction).
-    pub fn is_global_dirty(&self) -> bool {
+    /// Returns `true` if the application shell itself (menubar, statusbar, window chrome) is marked dirty via [`Self::tag_all`].
+    ///
+    /// Distinct from [`Self::is_global_dirty`] which includes escalated panel dirty states in fallback modes.
+    #[inline]
+    #[must_use]
+    pub fn is_shell_dirty(&self) -> bool {
         self.global_dirty
+    }
+
+    /// Returns `true` if the global layout is dirty (requiring a full shell and panel reconstruction).
+    ///
+    /// When `auto_propagate_panels` is active, also returns `true` whenever any panel is dirty.
+    #[inline]
+    #[must_use]
+    pub fn is_global_dirty(&self) -> bool {
+        self.global_dirty || (self.auto_propagate_panels && !self.dirty_panels.is_empty())
     }
 
     /// Clears the dirty flag for an individual panel once its redraw pass has completed.
     pub fn clear_panel(&mut self, panel_id: P) {
         self.dirty_panels.remove(&panel_id);
+        if self.dirty_panels.is_empty() {
+            self.unconsumed_dirty = false;
+        }
     }
 
     /// Clears all dirty flags, returning the notifier to a clean sleep state.
     ///
-    /// Typically invoked at the end of the frame once all dirty commands have been dispatched to the GPU.
+    /// If unconsumed panel invalidations were registered after layout evaluation within the active frame,
+    /// preserves dirty state so the subsequent frame executes a complete update cycle.
     pub fn clear_all(&mut self) {
-        self.dirty_panels.clear();
-        self.global_dirty = false;
+        if self.auto_propagate_panels && self.unconsumed_dirty {
+            self.unconsumed_dirty = false;
+        } else {
+            self.dirty_panels.clear();
+            self.global_dirty = false;
+            self.unconsumed_dirty = false;
+        }
     }
 
     /// Returns an immutable reference to the set of currently dirty panel identifiers.
@@ -173,6 +230,9 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
         for &panel in &self.domain_panels {
             self.dirty_panels.insert(panel);
         }
+        if self.auto_propagate_panels {
+            self.unconsumed_dirty = true;
+        }
     }
 
     /// Synchronizes this notifier with an external monotonic transaction revision counter.
@@ -189,6 +249,9 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
             self.domain_revision = current_revision;
             for &panel in &self.domain_panels {
                 self.dirty_panels.insert(panel);
+            }
+            if self.auto_propagate_panels {
+                self.unconsumed_dirty = true;
             }
             true
         } else {
@@ -383,5 +446,38 @@ mod tests {
         // Syncing with same revision again does not dirty
         assert!(!notifier.sync_domain_revision(42));
         assert!(!notifier.is_dirty("inspector"));
+    }
+
+    #[test]
+    fn test_notifier_auto_propagate_panels_triggers_global_dirty() {
+        let mut notifier: UiNotifier<&'static str> =
+            UiNotifier::clean().with_auto_propagate_panels(true);
+        assert!(!notifier.is_global_dirty());
+
+        notifier.tag_redraw("inspector");
+        assert!(notifier.is_global_dirty());
+        assert!(notifier.is_any_dirty());
+        assert!(notifier.is_dirty("inspector"));
+
+        notifier.clear_all();
+        // Since unconsumed_dirty was set when tag_redraw was called, first clear_all keeps global_dirty
+        assert!(notifier.is_global_dirty());
+
+        // Subsequent clear_all after bake resets cleanly
+        notifier.clear_all();
+        assert!(!notifier.is_global_dirty());
+        assert!(!notifier.is_any_dirty());
+    }
+
+    #[test]
+    fn test_notifier_domain_revision_auto_propagation() {
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
+        notifier.set_auto_propagate_panels(true);
+        notifier.register_domain_panel("hierarchy");
+
+        assert!(!notifier.is_global_dirty());
+        assert!(notifier.sync_domain_revision(100));
+        assert!(notifier.is_global_dirty());
+        assert!(notifier.is_dirty("hierarchy"));
     }
 }

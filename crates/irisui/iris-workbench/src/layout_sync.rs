@@ -7,6 +7,7 @@
 //! between coarse initial shell passes and granular Taffy CSS flexbox boundary solvers.
 
 pub mod dual_layout;
+pub mod engines;
 pub mod leaf_pipeline;
 
 #[cfg(test)]
@@ -18,5 +19,6 @@ mod tests_single_leaf;
 #[cfg(test)]
 mod tests_stress;
 
-pub use dual_layout::{DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines};
+pub use dual_layout::{DualLayoutEliminator, LayoutSyncMetrics};
+pub use engines::SubtreeEngines;
 pub use leaf_pipeline::{synchronize_dock_frame, synchronize_dock_leaves};

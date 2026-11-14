@@ -73,7 +73,7 @@ impl IrisEditorOverlay {
                     ae_editor::editor_logger::LOGGER
                         .log_count
                         .store(0, std::sync::atomic::Ordering::Relaxed);
-                    self.tree.set_scroll_offset(CONSOLE_TAG_VIEWPORT, 0.0);
+                    scope.set_scroll_offset(CONSOLE_TAG_VIEWPORT, 0.0);
                 }
                 ConsoleAction::SetFilter(level) => {
                     self.console.filter = level;

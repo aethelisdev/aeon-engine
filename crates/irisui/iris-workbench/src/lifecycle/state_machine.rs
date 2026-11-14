@@ -243,7 +243,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
     where
         TabId: Copy + Send + Sync + 'static,
     {
-        if notifier.is_global_dirty() {
+        if notifier.is_shell_dirty() {
             self.mark_shell_dirty();
         }
         for &tab in notifier.dirty_panels() {

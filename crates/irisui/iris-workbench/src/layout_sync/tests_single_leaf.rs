@@ -8,6 +8,8 @@
 //! leakage, correct Taffy layout solving, boundary sealing, and notifier state clearing.
 
 use super::dual_layout::{DualLayoutEliminator, SubtreeEngines};
+use crate::descriptors::panel::WorkbenchPanel;
+use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use iris_core::geometry::Rect;
 use iris_core::style::Style;
 use iris_core::{DirtyFlags, UiTree, WidgetId};
@@ -221,4 +223,129 @@ fn test_rebuild_single_panel_leaf_zero_layout_leak_repeated_cycles() {
             "Taffy physical node count leaked on cycle {cycle}"
         );
     }
+}
+
+struct MockInspectorPanel;
+
+impl WorkbenchPanel<TestPanelId, ()> for MockInspectorPanel {
+    fn id(&self) -> TestPanelId {
+        TestPanelId::Inspector
+    }
+
+    fn title(&self) -> &str {
+        "Inspector"
+    }
+
+    fn render(&mut self, scope: &mut UiScope<'_>, _context: &mut ()) {
+        scope.button("Inspector Component Field");
+    }
+}
+
+#[test]
+fn test_rebuild_single_panel_via_registry_and_notified() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_test_leaf_container(&mut tree, Rect::new(0.0, 0.0, 400.0, 600.0));
+    let mut notifier = UiNotifier::clean();
+    notifier.tag_redraw(TestPanelId::Inspector);
+
+    let mut registry = WorkbenchPanelRegistry::new();
+    registry.register(MockInspectorPanel);
+
+    let mut eliminator = DualLayoutEliminator::new();
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let rebuilt = eliminator
+        .rebuild_single_panel_notified(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            TestPanelId::Inspector,
+            leaf_id,
+        )
+        .expect("rebuild must succeed");
+
+    assert!(rebuilt);
+    assert!(!notifier.is_dirty(TestPanelId::Inspector));
+    assert!(eliminator.needs_text_prepare());
+    assert!(tree.is_boundary(leaf_id));
+
+    let node = tree.get(leaf_id).expect("leaf exists");
+    assert_eq!(node.children.len(), 1);
+    let child = tree.get(node.children[0]).expect("child exists");
+    assert_eq!(child.text.as_deref(), Some("Inspector Component Field"));
+}
+
+#[test]
+fn test_sync_dirty_boundaries_maps_to_tab_and_clears() {
+    let mut tree = UiTree::new();
+    let boundary_id = tree.create_node();
+    tree.set_boundary(boundary_id, true);
+    tree.dirty_boundaries.insert(boundary_id);
+
+    let mut notifier = UiNotifier::clean();
+    assert!(!notifier.is_dirty(TestPanelId::Inspector));
+
+    DualLayoutEliminator::sync_dirty_boundaries(&mut tree, &mut notifier, |id| {
+        if id == boundary_id {
+            Some(TestPanelId::Inspector)
+        } else {
+            None
+        }
+    });
+
+    assert!(notifier.is_dirty(TestPanelId::Inspector));
+    assert!(!tree.has_dirty_boundaries());
+}
+
+#[test]
+fn test_rebuild_dirty_panels_with_boundaries_full_flow() {
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+
+    let leaf_id = create_test_leaf_container(&mut tree, Rect::new(0.0, 0.0, 400.0, 600.0));
+    tree.set_boundary(leaf_id, true);
+    tree.dirty_boundaries.insert(leaf_id);
+
+    let mut notifier = UiNotifier::clean();
+    let mut registry = WorkbenchPanelRegistry::new();
+    registry.register(MockInspectorPanel);
+
+    let mut eliminator = DualLayoutEliminator::new();
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let count = eliminator
+        .rebuild_dirty_panels_with_boundaries(
+            &mut engines,
+            &mut notifier,
+            &mut registry,
+            &mut (),
+            |id| {
+                if id == TestPanelId::Inspector {
+                    Some(leaf_id)
+                } else {
+                    None
+                }
+            },
+            |bid| {
+                if bid == leaf_id {
+                    Some(TestPanelId::Inspector)
+                } else {
+                    None
+                }
+            },
+        )
+        .expect("rebuild must succeed");
+
+    assert_eq!(count, 1);
+    assert!(!notifier.is_dirty(TestPanelId::Inspector));
+    assert!(engines.tree.has_dirty_boundaries());
+    assert!(eliminator.needs_text_prepare());
+
+    let node = engines.tree.get(leaf_id).expect("leaf exists");
+    assert_eq!(node.children.len(), 1);
 }

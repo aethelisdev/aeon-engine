@@ -10,6 +10,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use iris_core::WidgetId;
 use iris_core::geometry::{Point, Rect, Size};
 use iris_dock::UiNotifier;
 use iris_dock::area::runner::DockArea;
@@ -132,26 +133,97 @@ where
         notifier: &mut UiNotifier<TabId>,
         context: &mut AppState,
     ) -> Result<usize, LayoutError> {
-        // Map physical boundary invalidations back to tab IDs
-        if engines.tree.has_dirty_boundaries() {
-            if let Some(dock_frame) = &self.dock_frame {
-                for boundary_id in engines.tree.dirty_boundaries.clone() {
-                    if let Some(tab_id) = dock_frame.tab_for_leaf_container(boundary_id) {
-                        notifier.tag_redraw(tab_id);
-                    }
-                }
-            }
-            engines.tree.clear_dirty_boundaries();
-        }
-
         let dock_frame_ref = self.dock_frame.as_ref();
-        self.dual_layout.rebuild_dirty_panels(
+        self.dual_layout.rebuild_dirty_panels_with_boundaries(
             engines,
             notifier,
             &mut self.panel_registry,
             context,
             |tab_id| dock_frame_ref.and_then(|df| df.leaf_container(tab_id)),
+            |boundary_id| dock_frame_ref.and_then(|df| df.tab_for_leaf_container(boundary_id)),
         )
+    }
+
+    /// Rebuilds an individual dirty dock leaf panel in-place using [`DualLayoutEliminator`](crate::layout_sync::dual_layout::DualLayoutEliminator)
+    /// and the registered [`WorkbenchPanelRegistry`](crate::descriptors::panel_registry::WorkbenchPanelRegistry).
+    ///
+    /// Clears the panel in `notifier` and flags text preparation if rebuilt.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    pub fn rebuild_single_panel<F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        context: &mut AppState,
+        panel_id: TabId,
+        mut leaf_resolver: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnMut(TabId) -> Option<WidgetId>,
+    {
+        let Some(leaf_id) = leaf_resolver(panel_id) else {
+            notifier.clear_panel(panel_id);
+            return Ok(false);
+        };
+        self.dual_layout.rebuild_single_panel_notified(
+            engines,
+            notifier,
+            &mut self.panel_registry,
+            context,
+            panel_id,
+            leaf_id,
+        )
+    }
+
+    /// Autonomously rebuilds an individual dirty dock leaf panel in-place.
+    ///
+    /// Resolves the leaf container for `panel_id` from the retained [`DockChromeFrame`],
+    /// invokes the panel drawer via [`DualLayoutEliminator::rebuild_panel`](crate::layout_sync::dual_layout::DualLayoutEliminator::rebuild_panel),
+    /// clears the panel in `notifier`, and flags text preparation.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
+    pub fn rebuild_single_panel_autonomous(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        context: &mut AppState,
+        panel_id: TabId,
+    ) -> Result<bool, LayoutError> {
+        let Some(dock_frame) = &self.dock_frame else {
+            return Ok(false);
+        };
+        let Some(leaf_id) = dock_frame.leaf_container(panel_id) else {
+            notifier.clear_panel(panel_id);
+            return Ok(false);
+        };
+        self.dual_layout.rebuild_single_panel_notified(
+            engines,
+            notifier,
+            &mut self.panel_registry,
+            context,
+            panel_id,
+            leaf_id,
+        )
+    }
+
+    /// Rebuilds an individual leaf container directly using a custom declarative drawing closure.
+    ///
+    /// Delegates directly to [`DualLayoutEliminator::rebuild_single_panel_leaf`](crate::layout_sync::dual_layout::DualLayoutEliminator::rebuild_single_panel_leaf).
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    pub fn rebuild_single_panel_leaf<F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        leaf_id: WidgetId,
+        render_fn: F,
+    ) -> Result<bool, LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        engines.rebuild_single_panel_leaf_with_eliminator(&mut self.dual_layout, leaf_id, render_fn)
     }
 
     /// Executes the complete autonomous 3-branch lifecycle update pass for the workbench shell.

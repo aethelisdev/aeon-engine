@@ -21,7 +21,6 @@ pub mod preferences;
 pub mod render;
 pub mod stats;
 pub mod status_bar;
-pub mod subtree;
 pub mod theme;
 pub mod timeline;
 pub mod types;

@@ -672,44 +672,6 @@ impl IrisEditorOverlay {
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
         } else {
             // =========================================================================
-            // Branch 2: Granular Subtree Invalidation (Zero tree.clear(), O(M) Layout)
-            // =========================================================================
-            // When the shell layout is intact, dirty panels are rebuilt in-place within their
-            // isolated boundary leaf containers without destroying the tree or other panels.
-            let mut dirty_panels: Vec<crate::ui::panel_layout::PanelId> =
-                self.notifier.dirty_panels().iter().copied().collect();
-
-            if self.tree.has_dirty_boundaries() {
-                if let Some(dock_frame) = &self.chrome.dock_frame {
-                    for boundary_id in self.tree.dirty_boundaries.clone() {
-                        if let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
-                            && !dirty_panels.contains(&panel_id)
-                        {
-                            dirty_panels.push(panel_id);
-                        }
-                    }
-                }
-                self.tree.clear_dirty_boundaries();
-            }
-
-            let mut rebuilt_any_panel = false;
-            for panel_id in dirty_panels {
-                if let Some(dock_frame) = &self.chrome.dock_frame {
-                    if let Some(leaf_id) = dock_frame.leaf_container(panel_id) {
-                        if let Err(err) = self.rebuild_panel_content(panel_id, leaf_id, &params) {
-                            log::warn!(
-                                "Failed partial subtree rebuild for panel {panel_id:?}: {err:?}"
-                            );
-                        } else {
-                            rebuilt_any_panel = true;
-                        }
-                    } else {
-                        self.notifier.clear_panel(panel_id);
-                    }
-                }
-            }
-
-            // =========================================================================
             // Branch 3: Retained Sleep In-Place Draw Refresh (Zero Tree Mutation)
             // =========================================================================
             let has_stats_canvas = self
@@ -794,8 +756,7 @@ impl IrisEditorOverlay {
                 || focus_target_changed
                 || blink_changed;
 
-            let should_repopulate =
-                rebuilt_any_panel || non_boundary_change || self.tree.has_dirty_boundaries();
+            let should_repopulate = non_boundary_change || self.tree.has_dirty_boundaries();
 
             if should_repopulate {
                 self.command_list.clear();

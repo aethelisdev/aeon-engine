@@ -8,7 +8,7 @@
 
 use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use iris_core::{DirtyFlags, UiTree, WidgetId};
-use iris_dock::UiNotifier;
+use iris_dock::{TabViewer, UiNotifier};
 use iris_layout::{LayoutEngine, LayoutError};
 use iris_text::TextSystem;
 use iris_widgets::declarative::{SubtreeSession, UiScope};
@@ -28,163 +28,7 @@ pub struct LayoutSyncMetrics {
     pub needs_text_prepare: bool,
 }
 
-/// Mutable references to core framework rendering and layout engines.
-///
-/// Bundles [`UiTree`], [`LayoutEngine`], and [`TextSystem`] into a single ergonomic descriptor
-/// to ensure clean architecture and prevent argument proliferation across layout sync passes.
-pub struct SubtreeEngines<'a> {
-    /// Generational UI widget tree.
-    pub tree: &'a mut UiTree,
-    /// Flexbox boundary solver layout engine.
-    pub layout_engine: &'a mut LayoutEngine,
-    /// Text measurement and font layout system.
-    pub text_system: &'a mut TextSystem,
-}
-
-impl<'a> SubtreeEngines<'a> {
-    /// Constructs a new bundle of framework layout engines.
-    #[inline]
-    pub fn new(
-        tree: &'a mut UiTree,
-        layout_engine: &'a mut LayoutEngine,
-        text_system: &'a mut TextSystem,
-    ) -> Self {
-        Self {
-            tree,
-            layout_engine,
-            text_system,
-        }
-    }
-
-    /// Atomically rebuilds an individual leaf panel via declarative closure.
-    #[inline]
-    pub fn rebuild_leaf<F>(&mut self, leaf_id: WidgetId, render_fn: F) -> Result<(), LayoutError>
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        DualLayoutEliminator::rebuild_leaf_panel(
-            self.tree,
-            self.layout_engine,
-            self.text_system,
-            leaf_id,
-            render_fn,
-        )
-    }
-
-    /// Atomically rebuilds an individual leaf panel in-place via declarative closure.
-    ///
-    /// Validates that the container node exists and has non-zero computed dimensions.
-    /// Untracks previous child layout nodes from Taffy, purges previous descendant widgets,
-    /// synthesizes fresh widgets via `render_fn`, shapes typography, and resolves boundary
-    /// Taffy flexbox models in $O(M)$ time without full tree clears or generational resets.
-    /// Re-seals the leaf as an Invalidation Boundary and flags it for repainting and text preparation.
-    ///
-    /// Returns `Ok(true)` if reconstructed, or `Ok(false)` if the leaf was missing or collapsed (zero-area).
-    ///
-    /// # Errors
-    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
-    #[inline]
-    pub fn rebuild_single_panel_leaf<F>(
-        &mut self,
-        leaf_id: WidgetId,
-        render_fn: F,
-    ) -> Result<bool, LayoutError>
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        DualLayoutEliminator::rebuild_single_panel_leaf(
-            self.tree,
-            self.layout_engine,
-            self.text_system,
-            leaf_id,
-            render_fn,
-        )
-    }
-
-    /// Atomically rebuilds an individual leaf panel with a fallible render closure.
-    ///
-    /// Encapsulates [`SubtreeSession`] execution, guaranteeing that any error returned by `render_fn`
-    /// safely aborts layout computation and is propagated as a [`LayoutError::Taffy`].
-    ///
-    /// Returns `Ok(true)` if reconstructed, or `Ok(false)` if missing or zero-sized.
-    ///
-    /// # Errors
-    /// Returns [`LayoutError`] if the node is missing, geometry is invalid, or `render_fn` fails.
-    #[inline]
-    pub fn rebuild_single_panel_leaf_fallible<E, F>(
-        &mut self,
-        leaf_id: WidgetId,
-        render_fn: F,
-    ) -> Result<bool, LayoutError>
-    where
-        F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
-        E: std::fmt::Display,
-    {
-        DualLayoutEliminator::rebuild_single_panel_leaf_fallible(
-            self.tree,
-            self.layout_engine,
-            self.text_system,
-            leaf_id,
-            render_fn,
-        )
-    }
-
-    /// Atomically rebuilds an individual leaf panel with an eliminator instance, recording text prepare.
-    #[inline]
-    pub fn rebuild_single_panel_leaf_with_eliminator<F>(
-        &mut self,
-        eliminator: &mut DualLayoutEliminator,
-        leaf_id: WidgetId,
-        render_fn: F,
-    ) -> Result<bool, LayoutError>
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        eliminator.rebuild_single_panel_leaf_instance(
-            self.tree,
-            self.layout_engine,
-            self.text_system,
-            leaf_id,
-            render_fn,
-        )
-    }
-
-    /// Atomically rebuilds an individual registered dock panel.
-    #[inline]
-    pub fn rebuild_panel<TabId, Context>(
-        &mut self,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
-        context: &mut Context,
-        panel_id: TabId,
-        leaf_id: WidgetId,
-    ) -> Result<bool, LayoutError>
-    where
-        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
-    {
-        DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)
-    }
-
-    /// Atomically rebuilds an individual registered dock panel and tracks text preparation on `eliminator`.
-    #[inline]
-    pub fn rebuild_panel_with_eliminator<TabId, Context>(
-        &mut self,
-        eliminator: &mut DualLayoutEliminator,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
-        context: &mut Context,
-        panel_id: TabId,
-        leaf_id: WidgetId,
-    ) -> Result<bool, LayoutError>
-    where
-        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
-    {
-        let rebuilt =
-            DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)?;
-        if rebuilt {
-            eliminator.mark_needs_text_prepare();
-        }
-        Ok(rebuilt)
-    }
-}
+pub use super::engines::SubtreeEngines;
 
 /// Autonomous coordinator synchronizing docking leaf containers with Taffy flexbox solvers.
 ///
@@ -480,19 +324,11 @@ impl DualLayoutEliminator {
 
     /// Atomically rebuilds an individual registered dock panel in-place under `leaf_id`.
     ///
-    /// Fully encapsulates the [`SubtreeSession`] lifecycle within [`DualLayoutEliminator`]:
-    /// 1. Validates the boundary node existence and non-zero dimensions.
-    /// 2. Purges previous descendant nodes and untracks stale child layout nodes.
-    /// 3. Declaratively synthesizes fresh widgets via [`WorkbenchPanelRegistry::draw`].
-    /// 4. Shapes typography and resolves boundary Taffy flexbox geometry in $O(M)$ time.
-    /// 5. Seals the leaf as an Invalidation Boundary and marks it for repainting and text preparation.
-    ///
-    /// Eliminates the need for manual [`SubtreeSession::begin`] and [`SubtreeSession::finish`]
-    /// calls or tree extraction (`std::mem::take`) in external application/engine layers.
+    /// Delegates directly to [`Self::rebuild_single_panel_leaf_fallible`] with [`WorkbenchPanelRegistry::draw`].
+    /// Clears previous children, shapes typography, resolves boundary flexbox geometry, and marks the leaf dirty.
     ///
     /// # Errors
-    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry
-    /// or if registry drawing fails.
+    /// Returns [`LayoutError`] if boundary layout computation fails or registry drawing encounters an error.
     pub fn rebuild_panel<TabId, Context>(
         engines: &mut SubtreeEngines<'_>,
         registry: &mut WorkbenchPanelRegistry<TabId, Context>,
@@ -503,34 +339,43 @@ impl DualLayoutEliminator {
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
     {
-        let Some(node) = engines.tree.get(leaf_id) else {
-            return Ok(false);
-        };
+        Self::rebuild_single_panel_leaf_fallible(
+            engines.tree,
+            engines.layout_engine,
+            engines.text_system,
+            leaf_id,
+            |scope| registry.draw(&panel_id, scope, context),
+        )
+    }
 
-        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
-            return Ok(false);
-        }
-
-        let mut draw_result = Ok(());
-        SubtreeSession::rebuild(
+    /// Atomically rebuilds an individual dock panel using an arbitrary [`TabViewer`] implementation.
+    ///
+    /// Clears previous child nodes, invokes [`TabViewer::ui`] inside [`SubtreeSession`],
+    /// shapes typography, resolves boundary layout, seals the leaf as an Invalidation Boundary,
+    /// and schedules repainting.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    pub fn rebuild_panel_with_viewer<TabId, V>(
+        engines: &mut SubtreeEngines<'_>,
+        viewer: &mut V,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        V: TabViewer<TabId>,
+    {
+        Self::rebuild_single_panel_leaf_fallible(
             engines.tree,
             engines.layout_engine,
             engines.text_system,
             leaf_id,
             |scope| {
-                if let Err(err) = registry.draw(&panel_id, scope, context) {
-                    draw_result = Err(LayoutError::Taffy(err.to_string()));
-                }
+                viewer.ui(scope, &panel_id);
+                Ok::<(), std::convert::Infallible>(())
             },
-        )?;
-
-        draw_result?;
-
-        engines.tree.set_boundary(leaf_id, true);
-        engines
-            .tree
-            .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
-        Ok(true)
+        )
     }
 
     /// Atomically rebuilds an individual registered dock panel and records text preparation on this instance.
@@ -552,10 +397,32 @@ impl DualLayoutEliminator {
         Ok(rebuilt)
     }
 
+    /// Rebuilds an individual registered dock panel in-place under `leaf_id`, clearing its dirty state in `notifier`.
+    ///
+    /// Delegates directly to [`Self::rebuild_panel`] and flags typography preparation on this eliminator instance.
+    pub fn rebuild_single_panel_notified<TabId, Context>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        panel_id: TabId,
+        leaf_id: WidgetId,
+    ) -> Result<bool, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+    {
+        let rebuilt = Self::rebuild_panel(engines, registry, context, panel_id, leaf_id)?;
+        if rebuilt {
+            notifier.clear_panel(panel_id);
+            self.needs_text_prepare = true;
+        }
+        Ok(rebuilt)
+    }
+
     /// Atomically rebuilds an individual leaf panel with a fallible render closure.
     ///
-    /// Encapsulates [`SubtreeSession`] execution, guaranteeing that any error returned by `render_fn`
-    /// safely aborts layout computation and is propagated as [`LayoutError`].
+    /// Delegates directly to [`Self::rebuild_single_panel_leaf_fallible`].
     ///
     /// # Errors
     /// Returns [`LayoutError`] if the node is missing, geometry is invalid, or `render_fn` fails.
@@ -568,36 +435,13 @@ impl DualLayoutEliminator {
         F: FnOnce(&mut UiScope<'_>) -> Result<(), E>,
         E: std::fmt::Display,
     {
-        let Some(node) = engines.tree.get(leaf_id) else {
-            return Ok(false);
-        };
-
-        if node.computed_rect.width <= 0.0 || node.computed_rect.height <= 0.0 {
-            return Ok(false);
-        }
-
-        let mut render_err = None;
-        SubtreeSession::rebuild(
+        Self::rebuild_single_panel_leaf_fallible(
             engines.tree,
             engines.layout_engine,
             engines.text_system,
             leaf_id,
-            |scope| {
-                if let Err(err) = render_fn(scope) {
-                    render_err = Some(LayoutError::Taffy(err.to_string()));
-                }
-            },
-        )?;
-
-        if let Some(err) = render_err {
-            return Err(err);
-        }
-
-        engines.tree.set_boundary(leaf_id, true);
-        engines
-            .tree
-            .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
-        Ok(true)
+            render_fn,
+        )
     }
 
     /// Granularly rebuilds all dirty docking leaf panels flagged in [`UiNotifier`].
@@ -710,5 +554,62 @@ impl DualLayoutEliminator {
         F: FnMut(TabId) -> Option<WidgetId>,
     {
         Self::new().rebuild_dirty_panels(engines, notifier, registry, context, leaf_resolver)
+    }
+
+    /// Maps physical dirty boundaries in the tree back to tab identifiers and flags them in `notifier`.
+    ///
+    /// Clears `tree.dirty_boundaries` after synchronization with zero redundant heap allocation.
+    pub fn sync_dirty_boundaries<TabId, F>(
+        tree: &mut UiTree,
+        notifier: &mut UiNotifier<TabId>,
+        mut tab_resolver: F,
+    ) where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnMut(WidgetId) -> Option<TabId>,
+    {
+        if tree.has_dirty_boundaries() {
+            let mut boundaries = std::mem::take(&mut tree.dirty_boundaries);
+            for boundary_id in &boundaries {
+                if let Some(tab_id) = tab_resolver(*boundary_id) {
+                    notifier.tag_redraw(tab_id);
+                }
+            }
+            boundaries.clear();
+            tree.dirty_boundaries = boundaries;
+        }
+    }
+
+    /// Synchronizes dirty boundaries from `tree` and rebuilds all dirty docking leaf panels in $O(M)$ time.
+    ///
+    /// Clears physical dirty boundaries, synchronizes affected tabs into `notifier`,
+    /// and invokes [`Self::rebuild_dirty_panels`].
+    ///
+    /// # Generics
+    /// * `TabId` - The application's unique dock panel identifier type.
+    /// * `Context` - Application state passed to registered declarative panel drawing routines.
+    /// * `F` - Closure resolving a tab identifier to its active container [`WidgetId`].
+    /// * `B` - Closure resolving a boundary container [`WidgetId`] back to its tab identifier.
+    ///
+    /// # Returns
+    /// Number of panels successfully reconstructed.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
+    pub fn rebuild_dirty_panels_with_boundaries<TabId, Context, F, B>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        context: &mut Context,
+        leaf_resolver: F,
+        boundary_resolver: B,
+    ) -> Result<usize, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnMut(TabId) -> Option<WidgetId>,
+        B: FnMut(WidgetId) -> Option<TabId>,
+    {
+        Self::sync_dirty_boundaries(engines.tree, notifier, boundary_resolver);
+        self.rebuild_dirty_panels(engines, notifier, registry, context, leaf_resolver)
     }
 }
