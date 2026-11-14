@@ -92,18 +92,11 @@ impl IrisEditorOverlay {
             self.close_active_popups();
             self.notifier.tag_all();
             self.chrome.needs_layout_rebuild = true;
-            let mut res = super::types::IrisOverlayEventResult::consumed(true);
+            let res = super::types::IrisOverlayEventResult::consumed(true);
             if self.assets.dialog_host.is_active() {
                 self.assets.dialog_host.close();
             }
             self.tree.close_all_modals();
-            if self.modals.is_delete_active {
-                res.cancel_delete = true;
-            } else if self.modals.is_new_folder_active {
-                res.cancel_new_folder = true;
-            } else if self.modals.is_rename_active {
-                res.cancel_rename = true;
-            }
             self.assets.preview_modal = None;
             return res;
         }
@@ -247,13 +240,6 @@ impl IrisEditorOverlay {
                     if self.assets.dialog_host.is_active() {
                         self.assets.dialog_host.close();
                     }
-                    if self.modals.is_delete_active {
-                        result.cancel_delete = true;
-                    } else if self.modals.is_new_folder_active {
-                        result.cancel_new_folder = true;
-                    } else if self.modals.is_rename_active {
-                        result.cancel_rename = true;
-                    }
                     self.assets.preview_modal = None;
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
@@ -262,13 +248,6 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     if self.assets.dialog_host.is_active() {
                         self.assets.dialog_host.close();
-                    }
-                    if self.modals.is_delete_active {
-                        result.cancel_delete = true;
-                    } else if self.modals.is_new_folder_active {
-                        result.cancel_new_folder = true;
-                    } else if self.modals.is_rename_active {
-                        result.cancel_rename = true;
                     }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
@@ -283,20 +262,11 @@ impl IrisEditorOverlay {
                 }
                 ModalDialogAction::TAG_CONFIRM => {
                     result.consumed = true;
-                    if self.modals.is_new_folder_active {
-                        result.create_folder =
-                            Some(self.modals.new_folder_input.text().to_string());
-                    } else if self.modals.is_rename_active {
-                        result.apply_rename = Some(self.modals.rename_input.text().to_string());
-                    }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
                 ModalDialogAction::TAG_DANGER => {
                     result.consumed = true;
-                    if self.modals.is_delete_active {
-                        result.confirm_delete = true;
-                    }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
@@ -316,12 +286,9 @@ impl IrisEditorOverlay {
         let active_tokens = self.chrome.theme_preset.tokens();
         self.tree.set_theme(active_tokens.to_iris_theme());
 
-        self.modals.sync_from_dialogs(&params.dialogs);
-
         let modal_active = self.tree.is_any_modal_open()
             || self.assets.dialog_host.is_active()
             || self.assets.preview_modal.is_some()
-            || self.modals.is_any_active()
             || params.dialogs.show_preferences;
 
         let floating_count = params

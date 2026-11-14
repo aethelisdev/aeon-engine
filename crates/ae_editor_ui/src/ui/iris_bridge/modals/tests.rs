@@ -341,41 +341,9 @@ fn test_declarative_modals_buttons_hover_reactivity() {
 }
 
 #[test]
-fn test_modals_state_sync_from_dialogs_authoritative_retention() {
-    let mut state = ModalsOverlayState::default();
-    assert!(!state.is_delete_active);
-    assert!(!state.is_new_folder_active);
-    assert!(!state.is_rename_active);
-    assert!(!state.is_loading_active);
-
-    // 1. Synchronize with Delete and Loading active
-    let path = Path::new("test/path");
-    let dialogs = crate::ui::iris_bridge::types::DialogParams {
-        show_preferences: false,
-        delete_target: Some(path),
-        new_folder_parent: None,
-        rename_target: None,
-        is_loading_assets: true,
-    };
-    state.sync_from_dialogs(&dialogs);
-    assert!(state.is_delete_active);
-    assert!(!state.is_new_folder_active);
-    assert!(!state.is_rename_active);
-    assert!(state.is_loading_active);
-
-    // 2. Synchronize with all dialogs closed
-    let empty_dialogs = crate::ui::iris_bridge::types::DialogParams {
-        show_preferences: false,
-        delete_target: None,
-        new_folder_parent: None,
-        rename_target: None,
-        is_loading_assets: false,
-    };
-    state.sync_from_dialogs(&empty_dialogs);
-    assert!(!state.is_delete_active);
-    assert!(!state.is_new_folder_active);
-    assert!(!state.is_rename_active);
-    assert!(!state.is_loading_active);
+fn test_modals_state_default_state() {
+    let state = ModalsOverlayState::default();
+    assert!(!state.last_modal_active);
 }
 
 #[test]
