@@ -423,3 +423,210 @@ fn test_workbench_handle_event_with_content_and_action_hooks() {
     assert!(outcome_pref.consumed);
     assert_eq!(outcome_pref.actions, vec![MockAction::OpenPreferences]);
 }
+
+struct MockViewportPanel;
+
+impl crate::descriptors::panel::WorkbenchPanel<MockTab, ()> for MockViewportPanel {
+    fn id(&self) -> MockTab {
+        MockTab::Viewport
+    }
+
+    fn title(&self) -> &str {
+        "Viewport"
+    }
+
+    fn render(&mut self, scope: &mut iris_widgets::declarative::UiScope<'_>, _context: &mut ()) {
+        scope.button("3D Viewport Render Target");
+    }
+}
+
+#[test]
+fn test_workbench_rebuild_single_panel_leaf_and_registered() {
+    let mut wb = create_test_workbench();
+    wb.panel_registry.register(MockViewportPanel);
+
+    let mut tree = iris_core::UiTree::new();
+    let mut layout_engine = iris_layout::LayoutEngine::new();
+    let mut text_system = iris_text::TextSystem::new();
+    let mut notifier = iris_dock::UiNotifier::clean();
+
+    let leaf_id = tree.create_node();
+    {
+        let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, leaf_id);
+        scope.configure_container(
+            "ViewportLeaf",
+            iris_core::style::Style::new().width(800.0).height(600.0),
+            false,
+        );
+    }
+    if let Some(node) = tree.get_mut(leaf_id) {
+        node.computed_rect = iris_core::geometry::Rect::new(0.0, 0.0, 800.0, 600.0);
+    }
+
+    let mut engines = crate::layout_sync::dual_layout::SubtreeEngines::new(
+        &mut tree,
+        &mut layout_engine,
+        &mut text_system,
+    );
+
+    // 1. Direct leaf rebuilding with custom closure
+    let rebuilt_leaf = wb
+        .rebuild_single_panel_leaf(&mut engines, leaf_id, |scope| {
+            scope.button("Dynamic Direct Button");
+        })
+        .expect("rebuild single panel leaf must succeed");
+    assert!(rebuilt_leaf);
+    assert!(engines.tree.is_boundary(leaf_id));
+    let leaf_node = engines.tree.get(leaf_id).expect("node exists");
+    assert_eq!(leaf_node.children.len(), 1);
+
+    // 2. Rebuild via leaf resolver with panel registry
+    notifier.tag_redraw(MockTab::Viewport);
+    let rebuilt_panel = wb
+        .rebuild_single_panel(
+            &mut engines,
+            &mut notifier,
+            &mut (),
+            MockTab::Viewport,
+            |_| Some(leaf_id),
+        )
+        .expect("rebuild single panel must succeed");
+    assert!(rebuilt_panel);
+    assert!(!notifier.is_dirty(MockTab::Viewport));
+    let child = engines
+        .tree
+        .get(engines.tree.get(leaf_id).unwrap().children[0])
+        .expect("child exists");
+    assert_eq!(child.text.as_deref(), Some("3D Viewport Render Target"));
+}
+
+#[test]
+fn test_pointer_state_event_tracking() {
+    let mut state = crate::workbench::PointerState::new();
+    assert_eq!(state.position(), None);
+    assert!(!state.is_primary_down());
+    assert!(!state.is_secondary_down());
+    assert!(!state.is_middle_down());
+    assert!(!state.is_any_down());
+
+    // 1. MouseMove updates position
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(150.0, 250.0),
+    };
+    state.update_from_event(&move_ev);
+    assert_eq!(state.position(), Some(Point::new(150.0, 250.0)));
+    assert!(!state.is_any_down());
+
+    // 2. MouseDown (Left) updates position and primary_down
+    let down_left = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(160.0, 260.0),
+    };
+    state.update_from_event(&down_left);
+    assert_eq!(state.position(), Some(Point::new(160.0, 260.0)));
+    assert!(state.is_primary_down());
+    assert!(state.is_any_down());
+
+    // 3. MouseDown (Right) updates secondary_down
+    let down_right = UiEvent::MouseDown {
+        button: MouseButton::Right,
+        point: Point::new(170.0, 270.0),
+    };
+    state.update_from_event(&down_right);
+    assert!(state.is_secondary_down());
+
+    // 4. MouseUp (Left) clears primary_down but keeps secondary_down
+    let up_left = UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(175.0, 275.0),
+    };
+    state.update_from_event(&up_left);
+    assert!(!state.is_primary_down());
+    assert!(state.is_secondary_down());
+    assert!(state.is_any_down());
+
+    // 5. Release all buttons
+    state.release_all_buttons();
+    assert!(!state.is_any_down());
+    assert_eq!(state.position(), Some(Point::new(175.0, 275.0)));
+
+    // 6. MouseScroll and FileHovered update position
+    let scroll_ev = UiEvent::MouseScroll {
+        delta_x: 0.0,
+        delta_y: 1.0,
+        point: Point::new(200.0, 300.0),
+    };
+    state.update_from_event(&scroll_ev);
+    assert_eq!(state.position(), Some(Point::new(200.0, 300.0)));
+
+    let file_hover = UiEvent::FileHovered {
+        path: std::path::PathBuf::from("/test.txt"),
+        point: Point::new(220.0, 320.0),
+    };
+    state.update_from_event(&file_hover);
+    assert_eq!(state.position(), Some(Point::new(220.0, 320.0)));
+}
+
+#[test]
+fn test_workbench_outcome_cursor_pos_export() {
+    let mut wb = create_test_workbench();
+    let mut win = MockWindow {
+        logical_size: Size::new(1920.0, 1080.0),
+        ..Default::default()
+    };
+    let mut dock_state = wb.descriptor.dock_state.clone();
+
+    // 1. Initial state has no cursor_pos
+    assert_eq!(wb.cursor_pos(), None);
+    assert_eq!(wb.pointer_state().position(), None);
+
+    // 2. MouseMove updates workbench cursor_pos and outcome.cursor_pos
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(450.0, 350.0),
+    };
+    let outcome = wb.handle_event_with_dock(&mut win, &move_ev, &mut dock_state);
+    assert_eq!(outcome.cursor_pos, Some(Point::new(450.0, 350.0)));
+    assert_eq!(wb.cursor_pos(), Some(Point::new(450.0, 350.0)));
+    assert_eq!(
+        wb.pointer_state().position(),
+        Some(Point::new(450.0, 350.0))
+    );
+
+    // 3. Non-pointer event (e.g. keyboard) preserves last known cursor_pos in outcome
+    let key_ev = UiEvent::KeyboardInput {
+        key: KeyCode::Character('a'),
+        text: Some("a".into()),
+        is_pressed: true,
+        ctrl_held: false,
+        shift_held: false,
+    };
+    let outcome_key = wb.handle_event_with_dock(&mut win, &key_ev, &mut dock_state);
+    assert_eq!(outcome_key.cursor_pos, Some(Point::new(450.0, 350.0)));
+
+    // 4. Content-consumed event in handle_event_with_content retains cursor_pos
+    let click_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(500.0, 400.0),
+    };
+    let outcome_content =
+        wb.handle_event_with_content(&mut win, &click_ev, &mut dock_state, |_| {
+            (true, Some(iris_core::node::WidgetCursor::Pointer), vec![])
+        });
+    assert!(outcome_content.consumed);
+    assert_eq!(
+        outcome_content.cursor,
+        Some(iris_core::node::WidgetCursor::Pointer)
+    );
+    assert_eq!(outcome_content.cursor_pos, Some(Point::new(500.0, 400.0)));
+    assert_eq!(wb.cursor_pos(), Some(Point::new(500.0, 400.0)));
+    assert!(wb.pointer_state().is_primary_down());
+
+    // 5. MouseUp clears button state while preserving coordinate
+    let up_ev = UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(505.0, 405.0),
+    };
+    let outcome_up = wb.handle_event_with_dock(&mut win, &up_ev, &mut dock_state);
+    assert_eq!(outcome_up.cursor_pos, Some(Point::new(505.0, 405.0)));
+    assert!(!wb.pointer_state().is_primary_down());
+}

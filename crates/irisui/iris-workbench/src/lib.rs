@@ -53,7 +53,8 @@ pub use hooks::{
     TypedDragDropPayload, WorkbenchUiScopeExt,
 };
 pub use layout_sync::{
-    DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,
+    DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines, synchronize_dock_frame,
+    synchronize_dock_leaves,
 };
 pub use lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
-pub use workbench::{Workbench, WorkbenchOutcome};
+pub use workbench::{PointerState, Workbench, WorkbenchOutcome};

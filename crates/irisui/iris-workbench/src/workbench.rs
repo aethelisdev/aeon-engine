@@ -16,4 +16,5 @@ pub mod shell;
 mod tests;
 
 pub use outcome::WorkbenchOutcome;
+pub use pointer::PointerState;
 pub use runner::Workbench;

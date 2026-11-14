@@ -8,6 +8,7 @@
 //! into a unified, crates.io-grade desktop IDE framework component.
 
 use super::outcome::WorkbenchOutcome;
+use super::pointer::PointerState;
 use crate::action_bus::ActionBus;
 use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
@@ -92,6 +93,9 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
     /// Most recently observed cursor position in logical points.
     pub last_cursor_pos: Option<Point>,
 
+    /// Autonomous pointer state tracker recording cursor position and button down states.
+    pub pointer_state: PointerState,
+
     /// Most recently observed host window size in logical pixels.
     pub last_window_size: Option<Size>,
 
@@ -137,6 +141,7 @@ where
             zoom_factor: 1.0,
             interactive_viewport: None,
             last_cursor_pos: None,
+            pointer_state: PointerState::new(),
             last_window_size: None,
             non_ui_tab: None,
             file_drop_action: None,
@@ -369,6 +374,7 @@ where
     #[inline]
     pub fn set_cursor_pos(&mut self, point: Option<Point>) {
         self.last_cursor_pos = point;
+        self.pointer_state.set_position(point);
     }
 
     /// Returns the most recently observed window size in logical pixels, if available.
@@ -406,6 +412,27 @@ where
         outcome
     }
 
+    /// Creates a base [`WorkbenchOutcome`] configured with consumption status, cursor shape,
+    /// and the active pointer coordinate.
+    #[inline]
+    #[must_use]
+    pub fn make_outcome(
+        &self,
+        consumed: bool,
+        cursor: Option<iris_core::node::WidgetCursor>,
+    ) -> WorkbenchOutcome<Action> {
+        WorkbenchOutcome {
+            consumed,
+            cursor,
+            cursor_pos: self.last_cursor_pos,
+            layout_changed: false,
+            actions: Vec::new(),
+            dropped_files: None,
+            zoom_changed: None,
+            toggle_preferences: false,
+        }
+    }
+
     /// Dispatches a platform [`UiEvent`] through the autonomous shell layer coordinating
     /// frameless window border resizing, titlebar dragging on empty menubar space, modal dialog
     /// keyboard traps, global shortcuts, and dock interaction while respecting content consumption.
@@ -421,30 +448,23 @@ where
         let screen_h = logical_size.height;
         self.last_window_size = Some(logical_size);
 
-        // Track cursor position from pointer events
-        match event {
-            UiEvent::MouseMove { point }
-            | UiEvent::MouseDown { point, .. }
-            | UiEvent::MouseUp { point, .. }
-            | UiEvent::MouseScroll { point, .. }
-            | UiEvent::FileHovered { point, .. }
-            | UiEvent::FileDropped { point, .. } => {
-                self.last_cursor_pos = Some(*point);
-            }
-            _ => {}
-        }
+        // Track cursor position and pointer states from events
+        self.pointer_state.update_from_event(event);
+        self.last_cursor_pos = self.pointer_state.position;
 
         // 1. Frameless Window 8-way Native Edge Resizing
         if self
             .frameless_host
             .handle_ui_event(window, event, logical_size)
         {
-            return WorkbenchOutcome::consumed(None);
+            return self.make_outcome(true, None);
         }
 
         // If the inner panel/overlay content already consumed the event, skip shell and dock interaction
         if content_consumed {
-            return WorkbenchOutcome::consumed(None);
+            let mut outcome = self.make_outcome(true, None);
+            outcome.actions.extend(self.action_bus.drain());
+            return outcome;
         }
 
         // 2. Active framework modal dialog keyboard input
@@ -463,7 +483,7 @@ where
                 &mut self.action_bus,
             );
             if handled {
-                let mut outcome = WorkbenchOutcome::consumed(None);
+                let mut outcome = self.make_outcome(true, None);
                 outcome.layout_changed = true;
                 outcome.actions.extend(self.action_bus.drain());
                 return outcome;
@@ -474,7 +494,7 @@ where
         if let UiEvent::FileDropped { paths, point } = event
             && !paths.is_empty()
         {
-            let mut outcome = WorkbenchOutcome::consumed(None);
+            let mut outcome = self.make_outcome(true, None);
             if let Some(builder) = &self.file_drop_action {
                 outcome.actions.push(builder(paths.clone(), *point));
             }
@@ -487,7 +507,7 @@ where
         if self.descriptor.menubar.is_some() {
             let menubar_rect = Rect::new(0.0, 0.0, screen_w, self.menubar_height);
             if self.drag_host.handle_ui_event(window, event, menubar_rect) {
-                return WorkbenchOutcome::consumed(None);
+                return self.make_outcome(true, None);
             }
         }
 
@@ -517,7 +537,7 @@ where
                 };
 
                 if let Some(new_zoom) = zoom_target {
-                    let mut outcome = WorkbenchOutcome::consumed(None);
+                    let mut outcome = self.make_outcome(true, None);
                     if let Some(builder) = &self.zoom_action {
                         outcome.actions.push(builder(new_zoom));
                     }
@@ -527,7 +547,7 @@ where
                 }
 
                 if c == ',' {
-                    let mut outcome = WorkbenchOutcome::consumed(None);
+                    let mut outcome = self.make_outcome(true, None);
                     if let Some(builder) = &self.preferences_action {
                         outcome.actions.push(builder());
                     }
@@ -558,21 +578,16 @@ where
         }
 
         if dock_res.consumed {
-            let mut outcome = WorkbenchOutcome::consumed(dock_res.cursor_override);
+            let mut outcome = self.make_outcome(true, dock_res.cursor_override);
             outcome.layout_changed = dock_res.layout_changed;
             outcome.actions.extend(self.action_bus.drain());
             return outcome;
         }
 
-        WorkbenchOutcome {
-            consumed: false,
-            cursor: dock_res.cursor_override,
-            layout_changed: dock_res.layout_changed,
-            actions: self.action_bus.drain().collect(),
-            dropped_files: None,
-            zoom_changed: None,
-            toggle_preferences: false,
-        }
+        let mut outcome = self.make_outcome(false, dock_res.cursor_override);
+        outcome.layout_changed = dock_res.layout_changed;
+        outcome.actions.extend(self.action_bus.drain());
+        outcome
     }
 
     /// Dispatches an event through both content and shell layers in industry-standard sequence.
@@ -598,9 +613,22 @@ where
         let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
         if !content_actions.is_empty() {
             outcome.actions.extend(content_actions);
+            outcome.layout_changed = true;
         }
         if content_consumed {
             outcome.consumed = true;
+        }
+        if matches!(
+            event,
+            UiEvent::MouseUp { .. }
+                | UiEvent::KeyboardInput {
+                    is_pressed: true,
+                    ..
+                }
+                | UiEvent::Ime(_)
+                | UiEvent::FileDropped { .. }
+        ) {
+            outcome.layout_changed = true;
         }
         if outcome.cursor.is_none() {
             outcome.cursor = content_cursor;

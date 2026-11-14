@@ -32,4 +32,4 @@ pub use crate::layout_sync::{
     synchronize_dock_leaves,
 };
 pub use crate::lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
-pub use crate::workbench::{Workbench, WorkbenchOutcome};
+pub use crate::workbench::{PointerState, Workbench, WorkbenchOutcome};

@@ -7,17 +7,135 @@
 //! elevated floating windows, active modal dialogs, or transparent 3D viewports.
 
 use super::runner::Workbench;
+use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
 use iris_dock::state::DockState;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+/// Tracks the state of the system pointer device across interaction events,
+/// recording cursor coordinates and mouse button down states.
+///
+/// Designed to provide high-level, decoupled pointer telemetry to the workbench orchestrator
+/// and application shells without leaking low-level window event structures.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PointerState {
+    /// Most recently observed cursor coordinate in logical screen points.
+    pub position: Option<Point>,
+
+    /// Whether the primary (left) mouse button is currently held down.
+    pub primary_down: bool,
+
+    /// Whether the secondary (right) mouse button is currently held down.
+    pub secondary_down: bool,
+
+    /// Whether the middle mouse button is currently held down.
+    pub middle_down: bool,
+}
+
+impl PointerState {
+    /// Creates a default, uninitialized pointer state with no active buttons or coordinates.
+    #[must_use]
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            position: None,
+            primary_down: false,
+            secondary_down: false,
+            middle_down: false,
+        }
+    }
+
+    /// Updates internal cursor position and button pressed states from an incoming [`UiEvent`].
+    pub fn update_from_event(&mut self, event: &UiEvent) {
+        if let Some(pos) = event.pointer_position() {
+            self.position = Some(pos);
+        }
+        match event {
+            UiEvent::MouseDown { button, .. } => match button {
+                MouseButton::Left => self.primary_down = true,
+                MouseButton::Right => self.secondary_down = true,
+                MouseButton::Middle => self.middle_down = true,
+                MouseButton::Other(_) => {}
+            },
+            UiEvent::MouseUp { button, .. } => match button {
+                MouseButton::Left => self.primary_down = false,
+                MouseButton::Right => self.secondary_down = false,
+                MouseButton::Middle => self.middle_down = false,
+                MouseButton::Other(_) => {}
+            },
+            _ => {}
+        }
+    }
+
+    /// Returns the most recently observed pointer position in logical points.
+    #[must_use]
+    #[inline]
+    pub const fn position(&self) -> Option<Point> {
+        self.position
+    }
+
+    /// Sets or overrides the recorded pointer position.
+    #[inline]
+    pub fn set_position(&mut self, position: Option<Point>) {
+        self.position = position;
+    }
+
+    /// Returns whether the primary (left) mouse button is currently held down.
+    #[must_use]
+    #[inline]
+    pub const fn is_primary_down(&self) -> bool {
+        self.primary_down
+    }
+
+    /// Returns whether the secondary (right) mouse button is currently held down.
+    #[must_use]
+    #[inline]
+    pub const fn is_secondary_down(&self) -> bool {
+        self.secondary_down
+    }
+
+    /// Returns whether the middle mouse button is currently held down.
+    #[must_use]
+    #[inline]
+    pub const fn is_middle_down(&self) -> bool {
+        self.middle_down
+    }
+
+    /// Returns whether any mouse button is currently held down.
+    #[must_use]
+    #[inline]
+    pub const fn is_any_down(&self) -> bool {
+        self.primary_down || self.secondary_down || self.middle_down
+    }
+
+    /// Resets all mouse button states to released.
+    #[inline]
+    pub fn release_all_buttons(&mut self) {
+        self.primary_down = false;
+        self.secondary_down = false;
+        self.middle_down = false;
+    }
+}
+
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
     TabId: Clone + Copy + Eq + Hash + Debug + 'static,
     Action: Send + Sync + 'static,
 {
+    /// Returns an immutable reference to the autonomous pointer state tracker.
+    #[must_use]
+    #[inline]
+    pub fn pointer_state(&self) -> &PointerState {
+        &self.pointer_state
+    }
+
+    /// Returns a mutable reference to the autonomous pointer state tracker.
+    #[inline]
+    pub fn pointer_state_mut(&mut self) -> &mut PointerState {
+        &mut self.pointer_state
+    }
     /// Evaluates whether the UI currently captures the pointer or if the pointer is positioned over
     /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
     ///

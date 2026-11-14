@@ -7,6 +7,7 @@
 //! the autonomous [`Workbench`] coordinator, including event consumption,
 //! requested platform cursor, and emitted type-safe application actions.
 
+use iris_core::geometry::Point;
 use iris_core::node::WidgetCursor;
 
 /// Summarized outcome returned after processing an event in [`crate::workbench::Workbench::handle_event`].
@@ -22,6 +23,9 @@ pub struct WorkbenchOutcome<Action> {
     /// Requested platform cursor icon override (e.g. `ResizeNorth`, `ColResize`, `Grabbing`, `Pointer`),
     /// to be synchronized with the OS window via [`iris_winit::frameless::WindowInterface::set_widget_cursor`].
     pub cursor: Option<WidgetCursor>,
+
+    /// Most recently observed cursor coordinate in logical screen points.
+    pub cursor_pos: Option<Point>,
 
     /// Whether the docking hierarchy, splitter ratios, or floating window boundaries changed,
     /// signaling that a layout rebuild or visual refresh is required.
@@ -47,6 +51,7 @@ impl<Action> Default for WorkbenchOutcome<Action> {
         Self {
             consumed: false,
             cursor: None,
+            cursor_pos: None,
             layout_changed: false,
             actions: Vec::new(),
             dropped_files: None,
@@ -71,6 +76,7 @@ impl<Action> WorkbenchOutcome<Action> {
         Self {
             consumed: true,
             cursor,
+            cursor_pos: None,
             layout_changed: false,
             actions: Vec::new(),
             dropped_files: None,
@@ -84,6 +90,22 @@ impl<Action> WorkbenchOutcome<Action> {
     pub fn with_action(mut self, action: Action) -> Self {
         self.consumed = true;
         self.actions.push(action);
+        self
+    }
+
+    /// Attaches an observed logical cursor coordinate to the outcome.
+    #[inline]
+    #[must_use]
+    pub fn with_cursor_pos(mut self, pos: Option<Point>) -> Self {
+        self.cursor_pos = pos;
+        self
+    }
+
+    /// Attaches a requested cursor shape override to the outcome.
+    #[inline]
+    #[must_use]
+    pub fn with_cursor(mut self, cursor: Option<WidgetCursor>) -> Self {
+        self.cursor = cursor;
         self
     }
 }
