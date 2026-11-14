@@ -4,7 +4,7 @@
 //! Layout engine integration and regression test suite.
 
 use super::*;
-use iris_core::{DirtyFlags, Rect, Size, Style, UiTree};
+use iris_core::{DirtyFlags, JustifyContent, Rect, Size, Style, UiLayer, UiTree};
 
 #[test]
 fn test_layout_computation_simple_column() {
@@ -459,4 +459,168 @@ fn test_layout_untrack_and_rebuild_zero_leak_100_iterations() {
     engine.untrack_subtree(&tree, panel);
     assert_eq!(engine.len(), baseline_nodes);
     assert_eq!(engine.taffy_node_count(), baseline_nodes);
+}
+
+#[test]
+fn test_compute_boundary_subtree_preserves_modal_overlay_coordinates() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // Create an offset dock panel boundary at (300.0, 700.0) simulating Assets panel
+    let panel = tree.create_node();
+    tree.set_boundary(panel, true);
+    if let Some(node) = tree.get_mut(panel) {
+        let style = Style::new()
+            .position_absolute()
+            .left(300.0)
+            .top(700.0)
+            .width(1200.0)
+            .height(300.0)
+            .flex_col()
+            .padding(8.0);
+        node.set_style(style);
+        node.computed_rect = Rect::new(300.0, 700.0, 1200.0, 300.0);
+    }
+    tree.add_child(root, panel).unwrap();
+
+    // Regular panel content child
+    let content_child = tree.create_node();
+    if let Some(node) = tree.get_mut(content_child) {
+        node.set_style(Style::new().width(400.0).height(40.0));
+    }
+    tree.add_child(panel, content_child).unwrap();
+
+    // Modal overlay attached to panel scope, but spanning entire window (1920x1080)
+    let modal_scrim = tree.create_node();
+    let screen_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    if let Some(node) = tree.get_mut(modal_scrim) {
+        node.layer = UiLayer::Modal;
+        node.computed_rect = screen_rect;
+        node.set_style(
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(0.0)
+                .width(1920.0)
+                .height(1080.0),
+        );
+    }
+    tree.add_child(panel, modal_scrim).unwrap();
+
+    // Modal dialog card centered in window
+    let modal_card = tree.create_node();
+    let card_rect = Rect::new(750.0, 420.0, 420.0, 240.0);
+    if let Some(node) = tree.get_mut(modal_card) {
+        node.layer = UiLayer::Modal;
+        node.computed_rect = card_rect;
+    }
+    tree.add_child(modal_scrim, modal_card).unwrap();
+
+    let mut engine = LayoutEngine::new();
+    // Compute boundary subtree for panel
+    assert!(engine.compute_boundary_subtree(&mut tree, panel).is_ok());
+
+    // Regular content child received layout offset from boundary
+    let content_rect = tree.get(content_child).unwrap().computed_rect;
+    assert_eq!(content_rect.x, 308.0);
+    assert_eq!(content_rect.y, 708.0);
+
+    // CRITICAL INVARIANT: Modal scrim and card coordinates were PRESERVED and not shifted by panel.y (700)
+    let scrim_rect = tree.get(modal_scrim).unwrap().computed_rect;
+    assert_eq!(
+        scrim_rect, screen_rect,
+        "Modal scrim must retain window bounds"
+    );
+
+    let final_card_rect = tree.get(modal_card).unwrap().computed_rect;
+    assert_eq!(
+        final_card_rect, card_rect,
+        "Modal card must retain centered screen coordinates"
+    );
+}
+
+#[test]
+fn test_compute_layout_preserves_modal_overlay_coordinates_under_flex_root() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // Configure root as flex column with SpaceBetween, typical of desktop IDE shell
+    if let Some(node) = tree.get_mut(root) {
+        node.set_style(
+            Style::new()
+                .flex_col()
+                .justify_content(JustifyContent::SpaceBetween)
+                .width(1920.0)
+                .height(1080.0),
+        );
+    }
+
+    // Top menubar child
+    let menubar = tree.create_node();
+    if let Some(node) = tree.get_mut(menubar) {
+        node.set_style(Style::new().width(1920.0).height(36.0));
+    }
+    tree.add_child(root, menubar).unwrap();
+
+    // Bottom statusbar child
+    let statusbar = tree.create_node();
+    if let Some(node) = tree.get_mut(statusbar) {
+        node.set_style(Style::new().width(1920.0).height(24.0));
+    }
+    tree.add_child(root, statusbar).unwrap();
+
+    // Modal overlay attached to root
+    let modal_scrim = tree.create_node();
+    let screen_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    if let Some(node) = tree.get_mut(modal_scrim) {
+        node.layer = UiLayer::Modal;
+        node.computed_rect = screen_rect;
+        node.set_style(
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(0.0)
+                .width(1920.0)
+                .height(1080.0),
+        );
+    }
+    tree.add_child(root, modal_scrim).unwrap();
+
+    // Modal dialog card centered in window
+    let modal_card = tree.create_node();
+    let card_rect = Rect::new(720.0, 420.0, 480.0, 240.0);
+    if let Some(node) = tree.get_mut(modal_card) {
+        node.layer = UiLayer::Modal;
+        node.computed_rect = card_rect;
+    }
+    tree.add_child(modal_scrim, modal_card).unwrap();
+
+    let mut engine = LayoutEngine::new();
+    assert!(
+        engine
+            .compute_layout(&mut tree, Size::new(1920.0, 1080.0))
+            .is_ok()
+    );
+
+    // Menubar and statusbar are positioned by SpaceBetween
+    let menubar_rect = tree.get(menubar).unwrap().computed_rect;
+    assert_eq!(menubar_rect.y, 0.0);
+    assert_eq!(menubar_rect.height, 36.0);
+
+    let statusbar_rect = tree.get(statusbar).unwrap().computed_rect;
+    assert_eq!(statusbar_rect.y, 1056.0);
+    assert_eq!(statusbar_rect.height, 24.0);
+
+    // CRITICAL INVARIANT: Modal scrim and card coordinates were NOT pushed to bottom by SpaceBetween
+    let scrim_rect = tree.get(modal_scrim).unwrap().computed_rect;
+    assert_eq!(
+        scrim_rect, screen_rect,
+        "Modal scrim must retain window bounds and not be flexed to bottom"
+    );
+
+    let final_card_rect = tree.get(modal_card).unwrap().computed_rect;
+    assert_eq!(
+        final_card_rect, card_rect,
+        "Modal card must retain centered coordinates (420.0), NOT bottom-of-screen (1000+)"
+    );
 }

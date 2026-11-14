@@ -343,6 +343,22 @@ impl EventState {
         self.frame_shift_held = false;
     }
 
+    /// Invalidates all generational [`WidgetId`] references across the event state when
+    /// the underlying node arena is cleared or rebuilt, while preserving persistent 64-bit
+    /// semantic tags, screen coordinates, and gesture timing.
+    #[inline]
+    pub fn clear_arena_ids(&mut self) {
+        self.pointer_capture = None;
+        self.hovered = None;
+        self.pressed = None;
+        self.focused = None;
+        self.last_click_id = None;
+        self.frame_clicked_id = None;
+        self.frame_double_clicked_id = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_drag_released_id = None;
+    }
+
     /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures
     /// are currently pending consumption within the current frame.
     #[inline]

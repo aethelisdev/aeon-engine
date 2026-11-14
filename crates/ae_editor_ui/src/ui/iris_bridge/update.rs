@@ -93,6 +93,10 @@ impl IrisEditorOverlay {
             self.notifier.tag_all();
             self.chrome.needs_layout_rebuild = true;
             let mut res = super::types::IrisOverlayEventResult::consumed(true);
+            if self.assets.dialog_host.is_active() {
+                self.assets.dialog_host.close();
+            }
+            self.tree.close_all_modals();
             if self.modals.is_delete_active {
                 res.cancel_delete = true;
             } else if self.modals.is_new_folder_active {
@@ -240,6 +244,9 @@ impl IrisEditorOverlay {
             match clicked_tag {
                 ModalDialogAction::TAG_CLOSE => {
                     result.consumed = true;
+                    if self.assets.dialog_host.is_active() {
+                        self.assets.dialog_host.close();
+                    }
                     if self.modals.is_delete_active {
                         result.cancel_delete = true;
                     } else if self.modals.is_new_folder_active {
@@ -253,6 +260,9 @@ impl IrisEditorOverlay {
                 }
                 ModalDialogAction::TAG_CANCEL => {
                     result.consumed = true;
+                    if self.assets.dialog_host.is_active() {
+                        self.assets.dialog_host.close();
+                    }
                     if self.modals.is_delete_active {
                         result.cancel_delete = true;
                     } else if self.modals.is_new_folder_active {
@@ -262,6 +272,14 @@ impl IrisEditorOverlay {
                     }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
+                }
+                ModalDialogAction::TAG_SCRIM => {
+                    if self.assets.preview_modal.is_some() {
+                        result.consumed = true;
+                        self.assets.preview_modal = None;
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
+                    }
                 }
                 ModalDialogAction::TAG_CONFIRM => {
                     result.consumed = true;
@@ -300,9 +318,11 @@ impl IrisEditorOverlay {
 
         self.modals.sync_from_dialogs(&params.dialogs);
 
-        let modal_active = self.modals.is_any_active()
-            || params.dialogs.show_preferences
-            || params.dialog_host.as_ref().is_some_and(|h| h.is_active());
+        let modal_active = self.tree.is_any_modal_open()
+            || self.assets.dialog_host.is_active()
+            || self.assets.preview_modal.is_some()
+            || self.modals.is_any_active()
+            || params.dialogs.show_preferences;
 
         let floating_count = params
             .context
@@ -434,6 +454,7 @@ impl IrisEditorOverlay {
                 .is_some()
             || params.context.layout_state.dock_state.active_drag.is_some()
             || modal_active_changed
+            || modal_active
             || menu_changed
             || inspector_popups_changed
             || hierarchy_popups_changed
@@ -542,8 +563,7 @@ impl IrisEditorOverlay {
             // 1. Top MenuBar rendered via MenuBarDescriptor directly into ActionBus
             if let Some(action_bus) = params.action_bus.as_deref_mut() {
                 menubar::build_top_menu_bar(
-                    &mut self.tree,
-                    root,
+                    &mut root_scope,
                     &menubar::MenuBarParams {
                         screen_width,
                         layout_state: params.context.layout_state,
@@ -552,6 +572,16 @@ impl IrisEditorOverlay {
                         is_editing: params.context.is_editing,
                     },
                     action_bus,
+                );
+            }
+
+            // 1b. Window-Level Modal Dialogs (rendered directly on Root Scope, matching About pattern)
+            if self.assets.dialog_host.is_active() {
+                super::assets::panel::render_assets_dialog_host(
+                    &mut root_scope,
+                    &mut self.assets.dialog_host,
+                    &mut self.assets.action_bus,
+                    (screen_width, screen_height),
                 );
             }
 

@@ -13,9 +13,8 @@ mod tests;
 pub mod types;
 
 pub use file_ops::{
-    DELETE_MODAL_HEIGHT, DELETE_MODAL_WIDTH, FolderModalParams, INPUT_MODAL_HEIGHT,
-    INPUT_MODAL_WIDTH, RenameModalParams, build_delete_modal, build_new_folder_modal,
-    build_rename_modal,
+    DELETE_MODAL_HEIGHT, DELETE_MODAL_WIDTH, INPUT_MODAL_HEIGHT, INPUT_MODAL_WIDTH,
+    build_delete_modal, build_new_folder_modal, build_rename_modal,
 };
 pub use loading::{LoadingOverlayParams, build_loading_overlay};
 pub use types::ModalsOverlayState;

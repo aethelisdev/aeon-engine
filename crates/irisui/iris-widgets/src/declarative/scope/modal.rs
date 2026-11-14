@@ -11,7 +11,8 @@ use super::containers::InnerResponse;
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use crate::modal::{
-    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
+    MODAL_TAG_CANCEL, MODAL_TAG_CARD, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER,
+    MODAL_TAG_SCRIM,
 };
 use iris_core::{
     AlignItems, Color, Insets, JustifyContent, KeyCode, Rect, Style, TextAlign, UiLayer,
@@ -199,11 +200,33 @@ impl<'a> UiScope<'a> {
         });
 
         // 3. Autonomous backdrop scrim click dismissal
-        if desc.dismiss_on_scrim
-            && (scrim_res.response.clicked()
-                || self.tree.event_state.frame_clicked_tag == Some(MODAL_TAG_SCRIM))
-        {
-            *is_open = false;
+        if desc.dismiss_on_scrim {
+            let card_id = scrim_res.inner.response.id;
+            let fallback_card_rect = Rect::new(
+                screen_bounds.x + (screen_bounds.width - desc.width) * 0.5,
+                screen_bounds.y + (screen_bounds.height - desc.height) * 0.5,
+                desc.width,
+                desc.height,
+            );
+            let card_rect = self
+                .tree
+                .get(card_id)
+                .map(|n| n.computed_rect)
+                .filter(|r| r.width > 0.0 && r.height > 0.0)
+                .unwrap_or(fallback_card_rect);
+            let is_inside_card = self
+                .tree
+                .event_state
+                .frame_clicked_pos
+                .or(self.tree.event_state.last_pointer_pos)
+                .is_some_and(|pos| card_rect.contains_point(pos));
+
+            if !is_inside_card
+                && (scrim_res.response.clicked()
+                    || self.tree.event_state.frame_clicked_tag == Some(MODAL_TAG_SCRIM))
+            {
+                *is_open = false;
+            }
         }
 
         if close_requested {
@@ -214,6 +237,71 @@ impl<'a> UiScope<'a> {
             scrim_res.response,
             scrim_res.inner.inner.inner,
         ))
+    }
+
+    /// Returns whether the modal dialog identified by semantic `tag` is currently opened.
+    #[inline]
+    #[must_use]
+    pub fn is_modal_open(&self, tag: u64) -> bool {
+        self.tree.is_modal_open(tag)
+    }
+
+    /// Sets the persistent visibility state of a modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn set_modal_open(&mut self, tag: u64, open: bool) {
+        self.tree.set_modal_open(tag, open);
+    }
+
+    /// Opens the modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn open_modal(&mut self, tag: u64) {
+        self.tree.open_modal(tag);
+    }
+
+    /// Closes the modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn close_modal(&mut self, tag: u64) {
+        self.tree.close_modal(tag);
+    }
+
+    /// Closes all active modal dialogs in the UI tree.
+    #[inline]
+    pub fn close_all_modals(&mut self) {
+        self.tree.close_all_modals();
+    }
+
+    /// Returns whether any modal dialog is currently opened in the UI tree.
+    #[inline]
+    #[must_use]
+    pub fn is_any_modal_open(&self) -> bool {
+        self.tree.is_any_modal_open()
+    }
+
+    /// Declaratively renders an autonomous modal dialog window when the modal with `tag` is open.
+    ///
+    /// Automatically manages persistent modal open/closed state on [`UiTree`]. When open, renders
+    /// the full-screen backdrop blocker on [`UiLayer::Modal`] and the centered modal card with title,
+    /// and invokes the child builder closure `f`. If the user presses Escape, clicks the backdrop scrim,
+    /// or clicks the '✕' close button, closes the modal and updates persistent state.
+    pub fn modal_tagged<M, R, F>(
+        &mut self,
+        tag: u64,
+        descriptor: M,
+        f: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        M: Into<ModalDescriptor>,
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let mut is_open = self.is_modal_open(tag);
+        if !is_open {
+            return None;
+        }
+        let res = self.modal(descriptor, &mut is_open, f);
+        if !is_open {
+            self.set_modal_open(tag, false);
+        }
+        res
     }
     /// Emits a full-screen backdrop modal scrim container elevating its subtree to [`UiLayer::Modal`].
     ///
@@ -246,7 +334,8 @@ impl<'a> UiScope<'a> {
                     .background(color),
             );
         }
-        let _ = self.tree.add_child(self.parent, node_id);
+        let attach_parent = self.tree.root().unwrap_or(self.parent);
+        let _ = self.tree.add_child(attach_parent, node_id);
 
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
@@ -268,6 +357,11 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        let effective_bounds = if bounds.width > 0.0 && bounds.height > 0.0 {
+            bounds
+        } else {
+            self.screen_bounds()
+        };
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("ModalScrim");
@@ -277,20 +371,25 @@ impl<'a> UiScope<'a> {
             node.layer = UiLayer::Modal;
             node.set_style(
                 Style::new()
-                    .flex_grow(1.0)
-                    .flex_shrink(0.0)
+                    .position_absolute()
+                    .left(effective_bounds.x)
+                    .top(effective_bounds.y)
+                    .width(effective_bounds.width)
+                    .height(effective_bounds.height)
                     .flex_col()
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .background(color),
             );
+            node.computed_rect = effective_bounds;
         }
-        let _ = self.tree.add_child(self.parent, node_id);
+        let attach_parent = self.tree.root().unwrap_or(self.parent);
+        let _ = self.tree.add_child(attach_parent, node_id);
 
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
         let _ = self.tree.set_layer_recursive(node_id, UiLayer::Modal);
-        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        crate::declarative::layout_subtree(self.tree, node_id, effective_bounds);
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
         }
@@ -316,6 +415,8 @@ impl<'a> UiScope<'a> {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("ModalDialogCard");
+            node.tag = MODAL_TAG_CARD;
+            node.interactive = true;
             node.role = WidgetRole::ModalWindow;
             node.layer = UiLayer::Modal;
             node.set_style(

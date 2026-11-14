@@ -658,7 +658,7 @@ impl<'a> UiScope<'a> {
         });
     }
 
-    /// Emits a clickable text hyperlink with persistent tag and automatic hover styling.
+    /// Emits a clickable text hyperlink with persistent tag, left text alignment, and automatic hover styling.
     ///
     /// Changes text color dynamically on hover and returns an interactive [`WidgetResponse`].
     ///
@@ -666,6 +666,21 @@ impl<'a> UiScope<'a> {
     /// * `label` - Hyperlink anchor text.
     /// * `font_size` - Size of the typography in logical points.
     pub fn link(&mut self, label: impl Into<String>, font_size: f32) -> WidgetResponse {
+        self.link_aligned(label, font_size, TextAlign::Left)
+    }
+
+    /// Emits an interactive hyperlink text label with custom text alignment.
+    ///
+    /// # Arguments
+    /// * `label` - Hyperlink anchor text.
+    /// * `font_size` - Size of the typography in logical points.
+    /// * `align` - Text alignment within available bounds.
+    pub fn link_aligned(
+        &mut self,
+        label: impl Into<String>,
+        font_size: f32,
+        align: TextAlign,
+    ) -> WidgetResponse {
         let label_str = label.into();
         let (visible, _) = crate::declarative::types::split_label_id(&label_str);
         let tag = self.tag_for(&label_str);
@@ -682,7 +697,7 @@ impl<'a> UiScope<'a> {
             node.set_text(visible);
             node.font_size = font_size;
             node.line_height = (font_size * 1.3).max(16.0).round();
-            node.text_align = TextAlign::Center;
+            node.text_align = align;
             node.text_color = if hovered {
                 Color::rgba(0.35, 0.95, 1.0, 1.0)
             } else {

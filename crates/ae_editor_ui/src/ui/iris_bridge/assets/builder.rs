@@ -157,6 +157,10 @@ impl IrisEditorOverlay {
             &mut actions,
         );
 
+        for bus_action in self.assets.action_bus.drain() {
+            actions.push(bus_action);
+        }
+
         for action in actions {
             match action {
                 AssetsPanelAction::NavigateFolder(ref path) => {
@@ -185,6 +189,59 @@ impl IrisEditorOverlay {
                     self.clear_focus();
                     scope.clear_text_edit();
                     self.assets.actions.push(action);
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::OpenDelete(ref path) => {
+                    let file_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("selected item")
+                        .to_string();
+                    let target = path.clone();
+                    self.assets.dialog_host.open_confirm_danger(
+                        "Delete Asset",
+                        format!(
+                            "Are you sure you want to permanently delete '{}'?",
+                            file_name
+                        ),
+                        AssetsPanelAction::ConfirmDelete(target),
+                    );
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::OpenRename(ref path, ref name, is_folder) => {
+                    let kind = if is_folder { "Folder" } else { "Asset" };
+                    let target = path.clone();
+                    self.assets.dialog_host.open_input(
+                        format!("Rename {}", kind),
+                        "New Name:",
+                        name.clone(),
+                        move |new_name| AssetsPanelAction::ConfirmRename(target.clone(), new_name),
+                    );
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::OpenCreateSubfolder(ref parent) => {
+                    let parent_clone = parent.clone();
+                    self.assets.dialog_host.open_input(
+                        "New Folder",
+                        "Folder Name:",
+                        "New Folder",
+                        move |name| AssetsPanelAction::ConfirmNewFolder(parent_clone.clone(), name),
+                    );
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::ConfirmDelete(ref path) => {
+                    let _ = crate::assets::file_ops::delete_asset_or_folder(path);
+                    if self.assets.selected_asset.as_ref() == Some(path) {
+                        self.assets.selected_asset = None;
+                    }
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::ConfirmRename(ref path, ref new_name) => {
+                    let _ = crate::assets::file_ops::rename_asset_or_folder(path, new_name);
+                    self.notifier.tag_all();
+                }
+                AssetsPanelAction::ConfirmNewFolder(ref parent, ref name) => {
+                    let _ = crate::assets::file_ops::create_subfolder(parent, name);
                     self.notifier.tag_all();
                 }
                 other => {

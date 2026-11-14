@@ -297,9 +297,11 @@ impl UiTree {
             }
         }
 
-        // Viewports and passive panel containers never claim clicks originating from child widgets
+        // Viewports, passive panel containers, and modal backdrop scrims never claim clicks originating from child widgets
         if let Some(anc_node) = self.nodes.get(ancestor)
-            && anc_node.role == crate::node::WidgetRole::ScrollAreaViewport
+            && (anc_node.role == crate::node::WidgetRole::ScrollAreaViewport
+                || anc_node.role == crate::node::WidgetRole::ModalWindow
+                || anc_node.tag == 0xF001)
         {
             return false;
         }

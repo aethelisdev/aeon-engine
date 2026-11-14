@@ -38,6 +38,8 @@ pub struct UiTree {
     pub active_combobox_tag: Option<u64>,
     /// Persistent map tracking active cascading submenus (parent menu tag -> active child submenu tag).
     pub active_submenus: HashMap<u64, u64>,
+    /// Persistent state map tracking active modal dialogs, keyed by 64-bit semantic tag.
+    pub modal_state: HashMap<u64, bool>,
     /// Persistent state map tracking computed bounding rectangles across tree rebuilds, keyed by 64-bit semantic tag.
     pub tag_rects: HashMap<u64, Rect>,
     /// Set of widget IDs acting as invalidation boundaries that are currently marked dirty.
@@ -63,6 +65,7 @@ impl UiTree {
             active_menu_bar_tag: None,
             active_combobox_tag: None,
             active_submenus: HashMap::new(),
+            modal_state: HashMap::new(),
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
@@ -87,6 +90,7 @@ impl UiTree {
             active_menu_bar_tag: None,
             active_combobox_tag: None,
             active_submenus: HashMap::new(),
+            modal_state: HashMap::new(),
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
@@ -118,6 +122,7 @@ impl UiTree {
         self.root = None;
         self.dirty_boundaries.clear();
         self.volatile_canvas_commands.clear();
+        self.event_state.clear_arena_ids();
     }
 
     /// Clears transient frame click and gesture records recorded for the current frame.

@@ -181,6 +181,8 @@ fn test_declarative_label_customization() {
 
     scope.label("Standard Label");
     scope.heading("Heading Title");
+    scope.link("Hyperlink Text", 11.0);
+    scope.link_aligned("Centered Link", 12.0, iris_core::TextAlign::Center);
 
     let node = tree
         .find_node_by_text("Custom Title")
@@ -204,6 +206,22 @@ fn test_declarative_label_customization() {
         .and_then(|id| tree.get(id))
         .expect("Heading exists");
     assert_eq!(head_node.font_size, 13.5);
+
+    let link_node = tree
+        .find_node_by_text("Hyperlink Text")
+        .and_then(|id| tree.get(id))
+        .expect("Link exists");
+    assert_eq!(link_node.font_size, 11.0);
+    assert_eq!(link_node.text_align, iris_core::TextAlign::Left);
+    assert!(link_node.interactive);
+
+    let center_link_node = tree
+        .find_node_by_text("Centered Link")
+        .and_then(|id| tree.get(id))
+        .expect("Centered link exists");
+    assert_eq!(center_link_node.font_size, 12.0);
+    assert_eq!(center_link_node.text_align, iris_core::TextAlign::Center);
+    assert!(center_link_node.interactive);
 }
 
 #[test]

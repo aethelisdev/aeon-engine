@@ -55,7 +55,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 ctx.ui.open_preferences();
             }
             crate::ui::EngineUiAction::OpenAbout => {
-                ctx.ui.open_about_dialog();
+                // Handled declaratively by modal tag 0x5001 on UiScope in menubar
             }
             crate::ui::EngineUiAction::TitleBarAction(_) => {
                 // Window titlebar actions are dispatched in the render pass where Window handle is present

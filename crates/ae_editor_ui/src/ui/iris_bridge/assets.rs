@@ -43,7 +43,7 @@ pub use context_menu::{
     render_folder_context_menu_items,
 };
 pub use drag_overlay::build_asset_drag_overlays_scope;
-pub use panel::build_assets_panel;
+pub use panel::{build_assets_panel, render_assets_dialog_host};
 pub use types::AssetClickTracker;
 pub use types::{
     ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_DOMAIN,

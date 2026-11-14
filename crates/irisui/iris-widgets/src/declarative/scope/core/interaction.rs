@@ -24,11 +24,12 @@ impl<'a> UiScope<'a> {
         // 1. Autonomous dispatch event integration from UiTree::event_state
         if self.tree.event_state.frame_clicked_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_clicked_tag == Some(tag))
-            || self
-                .tree
-                .event_state
-                .frame_clicked_id
-                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id))
+            || (tag != crate::modal::MODAL_TAG_SCRIM
+                && self
+                    .tree
+                    .event_state
+                    .frame_clicked_id
+                    .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id)))
         {
             clicked = true;
         }
@@ -103,25 +104,28 @@ impl<'a> UiScope<'a> {
         let (clicked, hovered, drag_delta) = self.check_interaction(id);
         let double_clicked = self.tree.event_state.frame_double_clicked_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_double_clicked_tag == Some(tag))
-            || self
-                .tree
-                .event_state
-                .frame_double_clicked_id
-                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+            || (tag != crate::modal::MODAL_TAG_SCRIM
+                && self
+                    .tree
+                    .event_state
+                    .frame_double_clicked_id
+                    .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id)));
         let secondary_clicked = self.tree.event_state.frame_secondary_clicked_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_secondary_clicked_tag == Some(tag))
-            || self
-                .tree
-                .event_state
-                .frame_secondary_clicked_id
-                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+            || (tag != crate::modal::MODAL_TAG_SCRIM
+                && self
+                    .tree
+                    .event_state
+                    .frame_secondary_clicked_id
+                    .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id)));
         let is_drag_released = self.tree.event_state.frame_drag_released_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_drag_released_tag == Some(tag))
-            || self
-                .tree
-                .event_state
-                .frame_drag_released_id
-                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+            || (tag != crate::modal::MODAL_TAG_SCRIM
+                && self
+                    .tree
+                    .event_state
+                    .frame_drag_released_id
+                    .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id)));
         let is_dragged = drag_delta.is_some()
             || (self.tree.event_state.is_pointer_drag_active
                 && (self.tree.event_state.pointer_capture == Some(id)

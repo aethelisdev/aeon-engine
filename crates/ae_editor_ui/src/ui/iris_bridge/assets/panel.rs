@@ -19,6 +19,7 @@ use super::types::{
 };
 use crate::assets::types::AssetViewMode;
 use irisui::prelude::*;
+use irisui::workbench::WorkbenchUiScopeExt;
 
 pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP_BAR_HEIGHT};
 
@@ -144,4 +145,24 @@ pub fn build_assets_panel(
     super::preview::build_asset_preview_modal(scope, params);
 
     metrics
+}
+
+/// Declaratively renders the assets panel's autonomous dialog host onto [`UiLayer::Modal`].
+///
+/// Connects modal dialogues (confirmations, inputs, and custom alerts) directly into
+/// the panel's active [`UiScope`] by delegating to [`WorkbenchUiScopeExt::dialog_host`].
+pub fn render_assets_dialog_host(
+    scope: &mut UiScope<'_>,
+    host: &mut irisui::workbench::DialogHost<AssetsPanelAction>,
+    bus: &mut irisui::workbench::ActionBus<AssetsPanelAction>,
+    screen_size: (f32, f32),
+) {
+    if host.is_active() {
+        scope.dialog_host(
+            host,
+            Rect::new(0.0, 0.0, screen_size.0, screen_size.1),
+            false,
+            bus,
+        );
+    }
 }

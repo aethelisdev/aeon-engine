@@ -981,3 +981,181 @@ fn test_assets_toolbar_width_and_search_ux() {
     });
     assert!(toolbar_found, "AssetsTopToolbar node must exist in UiTree");
 }
+
+#[test]
+fn test_assets_dialog_host_delete_and_rename_modals_render() {
+    use super::panel::render_assets_dialog_host;
+    use crate::ui::iris_bridge::assets::types::AssetsPanelAction;
+    use irisui::workbench::{ActionBus, DialogHost};
+
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let mut host = DialogHost::<AssetsPanelAction>::new();
+    let mut bus = ActionBus::<AssetsPanelAction>::new();
+    let target = PathBuf::from("assets/models/character.gltf");
+
+    // 1. Verify idle state renders no modal layer nodes
+    {
+        let mut scope = UiScope::new(&mut tree, root_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+    assert_eq!(tree.len(), 1, "Idle host must not render any modal nodes");
+
+    // 2. Open delete confirmation danger dialog
+    host.open_confirm_danger(
+        "Delete Asset",
+        "Are you sure you want to permanently delete 'character.gltf'?",
+        AssetsPanelAction::ConfirmDelete(target.clone()),
+    );
+    assert!(
+        host.is_active(),
+        "Host must be active after opening delete modal"
+    );
+
+    // 3. Render onto UiScope and verify modal nodes
+    {
+        let mut scope = UiScope::new(&mut tree, root_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+    assert!(
+        tree.len() > 1,
+        "Active host must construct modal nodes into UiTree"
+    );
+
+    // Verify modal layer contains nodes
+    let mut has_modal_layer = false;
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.layer == irisui::core::UiLayer::Modal {
+            has_modal_layer = true;
+        }
+    });
+    assert!(
+        has_modal_layer,
+        "Delete dialog must emit nodes on UiLayer::Modal"
+    );
+
+    // 4. Test escape dismissal
+    assert!(
+        host.cancel_top(&mut bus),
+        "Top modal must be cancellable on escape"
+    );
+    assert!(!host.is_active(), "Host must be idle after cancellation");
+
+    // 5. Open rename dialog
+    let target_rename = PathBuf::from("assets/textures/albedo.png");
+    host.open_input("Rename Asset", "New Name:", "albedo.png", move |new_name| {
+        AssetsPanelAction::ConfirmRename(target_rename.clone(), new_name)
+    });
+    assert!(
+        host.is_active(),
+        "Host must be active after opening rename input modal"
+    );
+
+    // Render rename input modal
+    {
+        let mut scope = UiScope::new(&mut tree, root_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+    assert!(
+        tree.len() > 1,
+        "Rename modal must construct nodes into UiTree"
+    );
+}
+
+#[test]
+fn test_assets_dialog_host_rendered_from_dock_leaf_attaches_to_root_and_click_invariants() {
+    use super::panel::render_assets_dialog_host;
+    use crate::ui::iris_bridge::assets::types::AssetsPanelAction;
+    use irisui::core::event::{MouseButton, UiEvent};
+    use irisui::core::geometry::Point;
+    use irisui::workbench::{ActionBus, DialogHost};
+
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let leaf_id = {
+        let mut scope = UiScope::new(&mut tree, root_id);
+        scope.configure_container(
+            "Root",
+            irisui::core::Style::new().width(1920.0).height(1080.0),
+            false,
+        );
+        scope
+            .container(
+                irisui::core::Style::new().width(800.0).height(400.0),
+                |leaf| {
+                    leaf.label("Mock Assets Panel Content");
+                },
+            )
+            .response
+            .id
+    };
+
+    let mut host = DialogHost::<AssetsPanelAction>::new();
+    let mut bus = ActionBus::<AssetsPanelAction>::new();
+    host.open_confirm_danger(
+        "Delete Folder",
+        "Are you sure you want to permanently delete this folder?",
+        AssetsPanelAction::ConfirmDelete(PathBuf::from("assets/models")),
+    );
+    assert!(host.is_active());
+
+    // Render from the dock leaf scope
+    {
+        let mut scope = UiScope::new(&mut tree, leaf_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+
+    // 1. Verify that ModalScrim is attached directly to root_id, NOT leaf_id
+    let root_node = tree.get(root_id).unwrap();
+    let leaf_node = tree.get(leaf_id).unwrap();
+    assert_eq!(
+        root_node.children.len(),
+        2,
+        "Root must have dock leaf AND modal scrim"
+    );
+    let scrim_id = root_node.children[1];
+    let scrim_node = tree.get(scrim_id).unwrap();
+    assert_eq!(scrim_node.tag, irisui::widgets::modal::MODAL_TAG_SCRIM);
+    assert!(
+        !leaf_node.children.contains(&scrim_id),
+        "Dock leaf must NOT contain the modal scrim"
+    );
+
+    // 2. Dispatch click INSIDE the modal card (center of screen: 960, 540)
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: Point::new(960.0, 540.0),
+        button: MouseButton::Left,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: Point::new(960.0, 540.0),
+        button: MouseButton::Left,
+    });
+
+    // Re-render and verify modal is STILL active (did not dismiss on card click)
+    {
+        let mut scope = UiScope::new(&mut tree, leaf_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+    assert!(host.is_active(), "Click inside card must NOT dismiss modal");
+
+    // 3. Dispatch click OUTSIDE the modal card (top-left scrim: 50, 50)
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: Point::new(50.0, 50.0),
+        button: MouseButton::Left,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: Point::new(50.0, 50.0),
+        button: MouseButton::Left,
+    });
+
+    // Re-render and verify modal dismissed on backdrop click
+    {
+        let mut scope = UiScope::new(&mut tree, leaf_id);
+        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
+    }
+    assert!(
+        !host.is_active(),
+        "Click on backdrop scrim MUST dismiss modal"
+    );
+}

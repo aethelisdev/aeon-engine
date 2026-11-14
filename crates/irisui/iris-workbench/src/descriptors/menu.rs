@@ -343,6 +343,44 @@ impl MenuSectionDescriptor {
         self.with_item(MenuItemDescriptor::action_full(icon, label, shortcut, tag))
     }
 
+    /// Appends an action item with an icon via fluent chaining.
+    ///
+    /// # Arguments
+    /// * `icon` - Icon identifier or unicode glyph.
+    /// * `label` - User-visible text label.
+    /// * `tag` - Semantic interaction tag.
+    #[inline]
+    #[must_use]
+    pub fn with_action_with_icon(
+        self,
+        icon: impl Into<String>,
+        label: impl Into<String>,
+        tag: u64,
+    ) -> Self {
+        self.with_item(MenuItemDescriptor::action_with_icon(icon, label, tag))
+    }
+
+    /// Appends a disabled action item with an optional icon and shortcut via fluent chaining.
+    ///
+    /// # Arguments
+    /// * `icon` - Optional icon identifier or unicode glyph.
+    /// * `label` - User-visible text label.
+    /// * `shortcut` - Optional keyboard shortcut text.
+    /// * `tag` - Semantic interaction tag.
+    #[inline]
+    #[must_use]
+    pub fn with_disabled_action_full(
+        self,
+        icon: Option<impl Into<String>>,
+        label: impl Into<String>,
+        shortcut: Option<impl Into<String>>,
+        tag: u64,
+    ) -> Self {
+        self.with_item(MenuItemDescriptor::disabled_action_full(
+            icon, label, shortcut, tag,
+        ))
+    }
+
     /// Appends a separator divider via fluent chaining.
     #[inline]
     #[must_use]

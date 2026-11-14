@@ -374,7 +374,7 @@ impl EngineUi {
                     self.open_preferences();
                 }
                 EngineUiAction::OpenAbout => {
-                    self.open_about_dialog();
+                    // Handled declaratively on UiScope via tag 0x5001
                 }
                 EngineUiAction::TitleBarAction(action) => {
                     let mut win = window;

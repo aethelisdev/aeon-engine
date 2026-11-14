@@ -16,6 +16,25 @@ use super::descriptor::{
 };
 use super::response::{ModalDismissReason, ModalOutcome};
 
+/// Determines whether a confirmed pointer click or interaction point falls inside the given modal card bounding box.
+#[inline]
+fn is_click_inside_card(
+    tree: &iris_core::UiTree,
+    scrim_id: iris_core::WidgetId,
+    fallback_rect: Rect,
+) -> bool {
+    let card_id = tree.get(scrim_id).and_then(|n| n.children.first().copied());
+    let card_rect = card_id
+        .and_then(|id| tree.get(id))
+        .map(|n| n.computed_rect)
+        .filter(|r| r.width > 0.0 && r.height > 0.0)
+        .unwrap_or(fallback_rect);
+    tree.event_state
+        .frame_clicked_pos
+        .or(tree.event_state.last_pointer_pos)
+        .is_some_and(|pos| card_rect.contains_point(pos))
+}
+
 /// Autonomous coordinator rendering declarative modal dialogues.
 pub struct ModalController;
 
@@ -173,7 +192,19 @@ impl ModalController {
         }
 
         // 3. Evaluate backdrop click (clicked outside modal card)
-        if scrim_resp.response.clicked() {
+        let fallback = if let Some(pos) = descriptor.position {
+            Rect::new(pos.x, pos.y, descriptor.size.0, descriptor.size.1)
+        } else {
+            Rect::new(
+                viewport.x + (viewport.width - descriptor.size.0) * 0.5,
+                viewport.y + (viewport.height - descriptor.size.1) * 0.5,
+                descriptor.size.0,
+                descriptor.size.1,
+            )
+        };
+        if scrim_resp.response.clicked()
+            && !is_click_inside_card(scope.tree(), scrim_resp.response.id, fallback)
+        {
             if descriptor.dismiss_on_backdrop {
                 return ModalOutcome::Dismissed(ModalDismissReason::BackdropClick);
             }
@@ -313,7 +344,15 @@ impl ModalController {
             return ModalOutcome::Dismissed(ModalDismissReason::CloseButton);
         }
 
-        if scrim_resp.response.clicked() {
+        let fallback = Rect::new(
+            viewport.x + (viewport.width - descriptor.size.0) * 0.5,
+            viewport.y + (viewport.height - descriptor.size.1) * 0.5,
+            descriptor.size.0,
+            descriptor.size.1,
+        );
+        if scrim_resp.response.clicked()
+            && !is_click_inside_card(scope.tree(), scrim_resp.response.id, fallback)
+        {
             if descriptor.dismiss_on_backdrop {
                 return ModalOutcome::Dismissed(ModalDismissReason::BackdropClick);
             }
@@ -440,7 +479,15 @@ impl ModalController {
             return ModalOutcome::Dismissed(ModalDismissReason::CloseButton);
         }
 
-        if scrim_resp.response.clicked() {
+        let fallback = Rect::new(
+            viewport.x + (viewport.width - descriptor.size.0) * 0.5,
+            viewport.y + (viewport.height - descriptor.size.1) * 0.5,
+            descriptor.size.0,
+            descriptor.size.1,
+        );
+        if scrim_resp.response.clicked()
+            && !is_click_inside_card(scope.tree(), scrim_resp.response.id, fallback)
+        {
             if descriptor.dismiss_on_backdrop {
                 return ModalOutcome::Dismissed(ModalDismissReason::BackdropClick);
             }
@@ -545,7 +592,7 @@ impl ModalController {
                 card.column(|col| {
                     if let Some(app) = &descriptor.app_name {
                         if let Some(color) = descriptor.app_name_color {
-                            col.label_custom(app, 20.0, color, iris_core::TextAlign::Center);
+                            col.label_custom(app, 20.0, color, iris_core::TextAlign::Left);
                         } else {
                             col.heading(app);
                         }
@@ -604,7 +651,15 @@ impl ModalController {
             return ModalOutcome::Dismissed(ModalDismissReason::CloseButton);
         }
 
-        if scrim_resp.response.clicked() {
+        let fallback = Rect::new(
+            viewport.x + (viewport.width - descriptor.size.0) * 0.5,
+            viewport.y + (viewport.height - descriptor.size.1) * 0.5,
+            descriptor.size.0,
+            descriptor.size.1,
+        );
+        if scrim_resp.response.clicked()
+            && !is_click_inside_card(scope.tree(), scrim_resp.response.id, fallback)
+        {
             if descriptor.dismiss_on_backdrop {
                 return ModalOutcome::Dismissed(ModalDismissReason::BackdropClick);
             }
@@ -750,7 +805,15 @@ impl ModalController {
             return ModalOutcome::Action(true);
         }
 
-        if scrim_resp.response.clicked() {
+        let fallback = Rect::new(
+            viewport.x + (viewport.width - descriptor.size.0) * 0.5,
+            viewport.y + (viewport.height - descriptor.size.1) * 0.5,
+            descriptor.size.0,
+            descriptor.size.1,
+        );
+        if scrim_resp.response.clicked()
+            && !is_click_inside_card(scope.tree(), scrim_resp.response.id, fallback)
+        {
             if descriptor.is_cancellable && descriptor.dismiss_on_backdrop {
                 return ModalOutcome::Action(true);
             }

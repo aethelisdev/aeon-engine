@@ -204,4 +204,27 @@ impl<'a> UiScope<'a> {
     pub fn viewport_size(&self, tag: u64) -> Option<Size> {
         self.tree.viewport_size(tag)
     }
+
+    /// Returns the physical bounding rectangle of the root window/surface.
+    ///
+    /// Resolves the root node's `computed_rect`, falling back to its styled dimensions or a
+    /// standard `(0, 0, 1920, 1080)` viewport if the root has not yet undergone initial layout computation.
+    #[inline]
+    #[must_use]
+    pub fn screen_bounds(&self) -> Rect {
+        self.tree
+            .root()
+            .and_then(|r| self.tree.get(r))
+            .and_then(|n| {
+                if n.computed_rect.width > 0.0 && n.computed_rect.height > 0.0 {
+                    Some(n.computed_rect)
+                } else {
+                    match (n.style.width, n.style.height) {
+                        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => Some(Rect::new(0.0, 0.0, w, h)),
+                        _ => None,
+                    }
+                }
+            })
+            .unwrap_or(Rect::new(0.0, 0.0, 1920.0, 1080.0))
+    }
 }

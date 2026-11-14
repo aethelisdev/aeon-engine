@@ -5,8 +5,8 @@
 
 use crate::error::LayoutError;
 use iris_core::{
-    AlignItems, DirtyFlags, FlexDirection, Insets, JustifyContent, Rect, Size, UiTree, WidgetId,
-    WidgetRole,
+    AlignItems, DirtyFlags, FlexDirection, Insets, JustifyContent, Rect, Size, UiLayer, UiTree,
+    WidgetId, WidgetRole,
 };
 use std::collections::HashMap;
 use taffy::prelude as tf;
@@ -28,6 +28,14 @@ impl Default for LayoutEngine {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Returns whether `node` represents an autonomous modal overlay with pre-computed geometry.
+#[inline]
+fn is_autonomous_modal_overlay(node: &iris_core::WidgetNode) -> bool {
+    (node.role == WidgetRole::ModalWindow || node.layer >= UiLayer::Modal)
+        && node.computed_rect.width > 0.0
+        && node.computed_rect.height > 0.0
 }
 
 impl LayoutEngine {
@@ -229,8 +237,8 @@ impl LayoutEngine {
         self.last_available_size = Some(available_size);
         tree.clear_dirty_boundaries();
 
-        // Synchronize Taffy tree structure with UiTree
-        self.sync_tree(tree, root_id)?;
+        // Synchronize Taffy tree structure with UiTree, skipping floating modal overlays
+        self.sync_tree_filtered(tree, root_id, true)?;
 
         let root_taffy_node = *self
             .node_map
@@ -247,8 +255,8 @@ impl LayoutEngine {
             .compute_layout(root_taffy_node, available_space)
             .map_err(|e| LayoutError::Taffy(format!("{:?}", e)))?;
 
-        // Write back computed coordinates to UiTree nodes recursively without allocating temporary vectors
-        self.apply_layout(tree, root_id, 0.0, 0.0);
+        // Write back computed coordinates to UiTree nodes recursively, preserving autonomous modal overlay geometry
+        self.apply_layout_filtered(tree, root_id, 0.0, 0.0, true);
 
         Ok(())
     }
@@ -292,7 +300,7 @@ impl LayoutEngine {
         }
 
         // Synchronize boundary subtree with Taffy
-        let boundary_taffy_node = self.sync_tree(tree, boundary_id)?;
+        let boundary_taffy_node = self.sync_tree_filtered(tree, boundary_id, true)?;
 
         let available_space = tf::Size {
             width: tf::AvailableSpace::Definite(boundary_rect.width),
@@ -341,7 +349,10 @@ impl LayoutEngine {
                 .get(boundary_id)
                 .and_then(|n| n.children.get(i).copied())
             {
-                self.apply_layout(tree, child_id, child_parent_x, child_parent_y);
+                if tree.get(child_id).is_some_and(is_autonomous_modal_overlay) {
+                    continue;
+                }
+                self.apply_layout_filtered(tree, child_id, child_parent_x, child_parent_y, true);
             }
         }
 
@@ -349,10 +360,11 @@ impl LayoutEngine {
     }
 
     /// Synchronizes the hierarchical structure and styles between `UiTree` and Taffy.
-    fn sync_tree(
+    fn sync_tree_filtered(
         &mut self,
         tree: &UiTree,
         current_id: WidgetId,
+        skip_modal_overlays: bool,
     ) -> Result<tf::NodeId, LayoutError> {
         let Some(node) = tree.get(current_id) else {
             return Err(LayoutError::Taffy(format!(
@@ -385,7 +397,12 @@ impl LayoutEngine {
         if is_dirty || node.children.is_empty() {
             let mut child_taffy_nodes = Vec::with_capacity(node.children.len());
             for &child_id in &node.children {
-                let child_taffy = self.sync_tree(tree, child_id)?;
+                if skip_modal_overlays
+                    && tree.get(child_id).is_some_and(is_autonomous_modal_overlay)
+                {
+                    continue;
+                }
+                let child_taffy = self.sync_tree_filtered(tree, child_id, skip_modal_overlays)?;
                 child_taffy_nodes.push(child_taffy);
             }
 
@@ -394,7 +411,12 @@ impl LayoutEngine {
                 .map_err(|e| LayoutError::Taffy(format!("{:?}", e)))?;
         } else {
             for &child_id in &node.children {
-                self.sync_tree(tree, child_id)?;
+                if skip_modal_overlays
+                    && tree.get(child_id).is_some_and(is_autonomous_modal_overlay)
+                {
+                    continue;
+                }
+                self.sync_tree_filtered(tree, child_id, skip_modal_overlays)?;
             }
         }
 
@@ -402,7 +424,14 @@ impl LayoutEngine {
     }
 
     /// Recursively applies computed layout offsets and sizes back into the `UiTree` with zero allocation.
-    fn apply_layout(&self, tree: &mut UiTree, current_id: WidgetId, parent_x: f32, parent_y: f32) {
+    fn apply_layout_filtered(
+        &self,
+        tree: &mut UiTree,
+        current_id: WidgetId,
+        parent_x: f32,
+        parent_y: f32,
+        skip_modal_overlays: bool,
+    ) {
         let Some(&taffy_node) = self.node_map.get(&current_id) else {
             return;
         };
@@ -435,7 +464,18 @@ impl LayoutEngine {
                 .get(current_id)
                 .and_then(|n| n.children.get(i).copied())
             {
-                self.apply_layout(tree, child_id, abs_x, child_parent_y);
+                if skip_modal_overlays
+                    && tree.get(child_id).is_some_and(is_autonomous_modal_overlay)
+                {
+                    continue;
+                }
+                self.apply_layout_filtered(
+                    tree,
+                    child_id,
+                    abs_x,
+                    child_parent_y,
+                    skip_modal_overlays,
+                );
             }
         }
     }

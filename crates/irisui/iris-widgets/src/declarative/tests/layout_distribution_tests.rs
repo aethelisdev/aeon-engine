@@ -11,7 +11,9 @@ use iris_core::{CornerRadii, Point, Rect, UiTree, WidgetRole};
 
 #[test]
 fn test_declarative_modal_hierarchy_and_tags() {
-    use crate::modal::{MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_SCRIM};
+    use crate::modal::{
+        MODAL_TAG_CANCEL, MODAL_TAG_CARD, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_SCRIM,
+    };
     use iris_core::{Color, UiLayer, WidgetRole};
 
     let mut tree = UiTree::new();
@@ -55,6 +57,8 @@ fn test_declarative_modal_hierarchy_and_tags() {
 
     let card_id = scrim_resp.inner;
     let card_node = tree.get(card_id).expect("Card node exists");
+    assert_eq!(card_node.tag, MODAL_TAG_CARD);
+    assert!(card_node.interactive);
     assert_eq!(card_node.role, WidgetRole::ModalWindow);
     assert_eq!(card_node.layer, UiLayer::Modal);
     assert_eq!(card_node.computed_rect.width, card_w);

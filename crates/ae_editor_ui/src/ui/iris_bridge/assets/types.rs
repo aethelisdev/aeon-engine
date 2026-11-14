@@ -85,6 +85,12 @@ pub enum AssetsPanelAction {
     OpenRename(PathBuf, String, bool),
     /// Requests opening the Delete confirmation dialog for an asset or folder.
     OpenDelete(PathBuf),
+    /// Confirms permanent deletion of an asset or folder.
+    ConfirmDelete(PathBuf),
+    /// Confirms renaming of an asset or folder.
+    ConfirmRename(PathBuf, String),
+    /// Confirms creation of a new subfolder.
+    ConfirmNewFolder(PathBuf, String),
     /// Initiates dragging an asset item towards the 3D viewport or editor panels via generic workbench payload.
     StartAssetDrag(irisui::workbench::DragDropPayload),
     /// Completes or cancels active asset dragging.
@@ -575,7 +581,7 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
 }
 
 /// Persistent interactive state for the Asset Browser panel overlay.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AssetsPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>,
@@ -587,6 +593,10 @@ pub struct AssetsPanelState {
     pub context_menu: Option<(AssetsContextMenuTarget, Point)>,
     /// Active Quick Asset Preview modal state.
     pub preview_modal: Option<AssetPreviewModalState>,
+    /// Autonomous dialog host managing file operation confirmations and prompts.
+    pub dialog_host: irisui::workbench::DialogHost<AssetsPanelAction>,
+    /// Action bus collecting actions dispatched by file operation dialogues.
+    pub action_bus: irisui::workbench::ActionBus<AssetsPanelAction>,
     /// Currently selected asset path.
     pub selected_asset: Option<PathBuf>,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (32..255).
@@ -623,6 +633,8 @@ impl Default for AssetsPanelState {
             click_tracker: AssetClickTracker::default(),
             context_menu: None,
             preview_modal: None,
+            dialog_host: irisui::workbench::DialogHost::new(),
+            action_bus: irisui::workbench::ActionBus::new(),
             selected_asset: None,
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,

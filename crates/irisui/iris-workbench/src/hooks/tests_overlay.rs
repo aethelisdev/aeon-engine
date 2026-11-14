@@ -7,11 +7,12 @@
 //! outside-click and Escape key dismissals, and action bus dispatching.
 
 use crate::action_bus::ActionBus;
+use crate::dialogs::InfoCardDialogDescriptor;
 use crate::hooks::overlay::{
     ClosureOverlayHook, OverlayAnchor, OverlayHook, OverlayHost, OverlayId,
 };
 use crate::hooks::ui_ext::WorkbenchUiScopeExt;
-use iris_core::event::{KeyCode, UiEvent};
+use iris_core::event::{KeyCode, MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
 use iris_widgets::declarative::UiScope;
@@ -263,4 +264,279 @@ fn test_overlay_host_render_and_ui_scope_ext() {
 
     let actions: Vec<_> = bus.drain().collect();
     assert_eq!(actions, vec![TestAction::ToolbarClicked(7)]);
+}
+
+#[test]
+fn test_workbench_ui_scope_ext_dialog_host() {
+    let mut host = crate::dialogs::DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::<TestAction>::new();
+    let workspace = Rect::new(0.0, 0.0, 1024.0, 768.0);
+
+    host.open_confirm(
+        "Confirm Action",
+        "Are you sure you want to proceed?",
+        TestAction::ToolbarClicked(42),
+    );
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.dialog_host(&mut host, workspace, false, &mut bus);
+    }
+
+    // Verify modal layer nodes were emitted into the tree
+    let has_modal_nodes = tree
+        .iter()
+        .any(|(_, n)| n.layer == iris_core::UiLayer::Modal);
+    assert!(
+        has_modal_nodes,
+        "Dialog host must construct nodes on UiLayer::Modal"
+    );
+
+    // Dismiss dialog via Escape simulation
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.dialog_host(&mut host, workspace, true, &mut bus);
+    }
+    assert!(
+        !host.is_active(),
+        "Escape key must dismiss cancellable modal dialog"
+    );
+}
+
+#[test]
+fn test_workbench_ui_scope_ext_info_modal_tagged() {
+    let workspace = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    let desc = InfoCardDialogDescriptor::new("About Dialog")
+        .with_app_name("Test App")
+        .with_version("1.0.0");
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    const MODAL_TAG: u64 = 0x5001;
+
+    // 1. Initially closed
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(outcome.is_active());
+    }
+    assert!(!tree.is_modal_open(MODAL_TAG));
+
+    // 2. Open modal via tag
+    tree.open_modal(MODAL_TAG);
+    assert!(tree.is_modal_open(MODAL_TAG));
+
+    // 3. Render modal tagged; modal nodes should be emitted
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(outcome.is_active());
+    }
+    let has_modal_nodes = tree
+        .iter()
+        .any(|(_, n)| n.layer == iris_core::UiLayer::Modal);
+    assert!(
+        has_modal_nodes,
+        "info_modal_tagged must emit nodes on UiLayer::Modal when open"
+    );
+
+    // 4. Simulate Escape to close modal
+    tree.event_state.frame_key = Some(iris_core::KeyCode::Escape);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(!outcome.is_active());
+    }
+    assert!(
+        !tree.is_modal_open(MODAL_TAG),
+        "info_modal_tagged must close modal on Escape"
+    );
+}
+
+#[test]
+fn test_two_consecutive_clicks_inside_info_modal() {
+    use iris_core::event::{MouseButton, UiEvent};
+    use iris_core::geometry::Point;
+
+    let workspace = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    let desc = InfoCardDialogDescriptor::new("About Dialog")
+        .with_app_name("Test App")
+        .with_version("1.0.0");
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    tree.get_mut(root).unwrap().computed_rect = workspace;
+    const MODAL_TAG: u64 = 0x5001;
+
+    // 1. Open modal via tag
+    tree.open_modal(MODAL_TAG);
+
+    // Initial render
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(outcome.is_active());
+    }
+
+    let center = Point::new(960.0, 540.0);
+
+    // Click 1: Mouse down + mouse up
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: center,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: center,
+    });
+
+    // Render after Click 1
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(
+            outcome.is_active(),
+            "Click 1 inside modal must keep modal active"
+        );
+        assert!(
+            tree.is_modal_open(MODAL_TAG),
+            "Click 1 inside modal must keep modal open"
+        );
+    }
+
+    // Click 2: Mouse down + mouse up
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: center,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: center,
+    });
+
+    // Render after Click 2
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(
+            outcome.is_active(),
+            "Click 2 inside modal must keep modal active"
+        );
+        assert!(
+            tree.is_modal_open(MODAL_TAG),
+            "Click 2 inside modal must keep modal open"
+        );
+    }
+}
+
+#[test]
+fn test_two_consecutive_clicks_inside_info_modal_with_tree_clear() {
+    let workspace = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    let desc = InfoCardDialogDescriptor::new("About Aeon Engine")
+        .with_icon("ℹ")
+        .with_app_name("Aeon Engine")
+        .with_version("v0.9.0")
+        .with_size(480.0, 250.0);
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    tree.get_mut(root).unwrap().computed_rect = workspace;
+    const MODAL_TAG: u64 = 0x5001;
+
+    tree.open_modal(MODAL_TAG);
+
+    // Initial render
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(outcome.is_active());
+    }
+
+    let center = Point::new(960.0, 540.0);
+
+    // Click 1: Mouse down + mouse up inside the card
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: center,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: center,
+    });
+
+    // Simulate shell rebuild with tree.clear()
+    tree.clear();
+    let new_root = tree.create_root().unwrap();
+    tree.get_mut(new_root).unwrap().computed_rect = workspace;
+
+    // Render after Click 1 with reconstructed tree
+    {
+        let mut scope = UiScope::new(&mut tree, new_root);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(
+            outcome.is_active(),
+            "Click 1 with tree.clear() must keep modal active"
+        );
+        assert!(
+            tree.is_modal_open(MODAL_TAG),
+            "Click 1 with tree.clear() must keep modal open"
+        );
+    }
+
+    // Click 2: Second click inside the card (e.g. on label or empty area)
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: center,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: center,
+    });
+
+    // Simulate shell rebuild with tree.clear() again
+    tree.clear();
+    let new_root2 = tree.create_root().unwrap();
+    tree.get_mut(new_root2).unwrap().computed_rect = workspace;
+
+    // Render after Click 2
+    {
+        let mut scope = UiScope::new(&mut tree, new_root2);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(
+            outcome.is_active(),
+            "Click 2 with tree.clear() must keep modal active"
+        );
+        assert!(
+            tree.is_modal_open(MODAL_TAG),
+            "Click 2 with tree.clear() must keep modal open"
+        );
+    }
+
+    // Click 3: Click OUTSIDE on the backdrop scrim (e.g. at (100, 100))
+    let outside = Point::new(100.0, 100.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: outside,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: outside,
+    });
+
+    // Render after Click 3 (outside)
+    {
+        let mut scope = UiScope::new(&mut tree, new_root2);
+        let outcome = scope.info_modal_tagged(MODAL_TAG, &desc, workspace);
+        assert!(
+            !outcome.is_active(),
+            "Click outside on backdrop scrim must dismiss modal"
+        );
+        assert!(
+            !tree.is_modal_open(MODAL_TAG),
+            "Click outside on backdrop scrim must set modal open to false"
+        );
+    }
 }

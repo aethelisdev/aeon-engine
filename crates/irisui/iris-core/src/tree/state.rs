@@ -61,6 +61,48 @@ impl UiTree {
         self.active_menu_bar_tag = None;
     }
 
+    /// Returns whether the modal dialog identified by semantic `tag` is currently opened.
+    #[inline]
+    #[must_use]
+    pub fn is_modal_open(&self, tag: u64) -> bool {
+        self.modal_state.get(&tag).copied().unwrap_or(false)
+    }
+
+    /// Sets the persistent visibility state of a modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn set_modal_open(&mut self, tag: u64, open: bool) {
+        if open {
+            self.modal_state.insert(tag, true);
+        } else {
+            self.modal_state.remove(&tag);
+        }
+    }
+
+    /// Opens a modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn open_modal(&mut self, tag: u64) {
+        self.set_modal_open(tag, true);
+    }
+
+    /// Closes a modal dialog identified by semantic `tag`.
+    #[inline]
+    pub fn close_modal(&mut self, tag: u64) {
+        self.set_modal_open(tag, false);
+    }
+
+    /// Closes all active modal dialogs in the UI tree.
+    #[inline]
+    pub fn close_all_modals(&mut self) {
+        self.modal_state.clear();
+    }
+
+    /// Returns whether any modal dialog is currently opened in the UI tree.
+    #[inline]
+    #[must_use]
+    pub fn is_any_modal_open(&self) -> bool {
+        !self.modal_state.is_empty()
+    }
+
     /// Returns whether the combobox identified by semantic `tag` is currently opened.
     #[inline]
     #[must_use]

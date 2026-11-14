@@ -18,7 +18,8 @@ use super::external_texture::{AspectRatio, ExternalTextureView};
 use super::overlay::{CustomOverlayHook, OverlayHost};
 use crate::action_bus::ActionBus;
 use crate::dialogs::{
-    ConfirmDialogDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor, ModalOutcome,
+    ConfirmDialogDescriptor, DialogHost, InfoCardDialogDescriptor, InputDialogDescriptor,
+    ModalController, ModalDescriptor, ModalOutcome,
 };
 
 /// Extension trait providing high-level declarative workbench primitives on [`UiScope`].
@@ -169,6 +170,44 @@ pub trait WorkbenchUiScopeExt {
         viewport: Rect,
         escape_pressed: bool,
     ) -> ModalOutcome<String>;
+
+    /// Declaratively renders an informational card dialogue into this scope.
+    fn info_modal(
+        &mut self,
+        descriptor: &InfoCardDialogDescriptor<()>,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<bool>;
+
+    /// Declaratively renders an informational card dialogue when the modal with `tag` is open.
+    ///
+    /// Automatically manages persistent modal open/closed state on [`UiTree`]. If open, renders
+    /// the full-screen backdrop scrim blocker on [`UiLayer::Modal`] and the centered info card.
+    /// Closes the modal and updates persistent state if dismissed or confirmed.
+    fn info_modal_tagged(
+        &mut self,
+        tag: u64,
+        descriptor: &InfoCardDialogDescriptor<()>,
+        viewport: Rect,
+    ) -> ModalOutcome<bool>;
+
+    /// Declaratively renders the active dialog stack from a [`DialogHost`] into this scope.
+    ///
+    /// Manages full-screen backdrop scrim presentation, layered dialog stacking, keyboard
+    /// focus trapping, and dispatches confirmed actions directly to the provided [`ActionBus`].
+    ///
+    /// # Arguments
+    /// * `host` - Mutable reference to the autonomous [`DialogHost`] managing dialog states.
+    /// * `viewport` - Bounding rectangle of the visible application window or container.
+    /// * `escape_pressed` - Whether the Escape key was pressed this frame to trigger dismissal.
+    /// * `action_bus` - Target event bus receiving user-confirmed actions.
+    fn dialog_host<Action: 'static + Send + Sync>(
+        &mut self,
+        host: &mut DialogHost<Action>,
+        viewport: Rect,
+        escape_pressed: bool,
+        action_bus: &mut ActionBus<Action>,
+    );
 
     /// Declaratively renders the entire application shell chrome (top menubar, bottom statusbar,
     /// and baseline dividers) in a single unified invocation from [`WorkbenchDescriptor`].
@@ -415,6 +454,55 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
             viewport,
             escape_pressed,
         )
+    }
+
+    fn info_modal(
+        &mut self,
+        descriptor: &InfoCardDialogDescriptor<()>,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<bool> {
+        let resolved_viewport = if viewport.width > 0.0 && viewport.height > 0.0 {
+            viewport
+        } else {
+            self.screen_bounds()
+        };
+        ModalController::render_info_dialog(self, descriptor, resolved_viewport, escape_pressed)
+    }
+
+    fn info_modal_tagged(
+        &mut self,
+        tag: u64,
+        descriptor: &InfoCardDialogDescriptor<()>,
+        viewport: Rect,
+    ) -> ModalOutcome<bool> {
+        if !self.is_modal_open(tag) {
+            return ModalOutcome::Active;
+        }
+        let resolved_viewport = if viewport.width > 0.0 && viewport.height > 0.0 {
+            viewport
+        } else {
+            self.screen_bounds()
+        };
+        let is_escape = self.tree().event_state.frame_key == Some(iris_core::KeyCode::Escape);
+        let outcome =
+            ModalController::render_info_dialog(self, descriptor, resolved_viewport, is_escape);
+        if !outcome.is_active() {
+            self.close_modal(tag);
+        }
+        outcome
+    }
+
+    fn dialog_host<Action: 'static + Send + Sync>(
+        &mut self,
+        host: &mut DialogHost<Action>,
+        viewport: Rect,
+        escape_pressed: bool,
+        action_bus: &mut ActionBus<Action>,
+    ) {
+        let is_escape =
+            escape_pressed || self.tree().event_state.frame_key == Some(iris_core::KeyCode::Escape);
+        host.render(self, viewport, is_escape, action_bus);
     }
 
     fn workbench_chrome<TabId>(

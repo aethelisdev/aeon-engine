@@ -58,17 +58,8 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::CleanVram => {
                     ui_actions.push(EngineUiAction::GarbageCollect);
                 }
-                iris_bridge::AssetsPanelAction::OpenCreateSubfolder(parent) => {
-                    let parent_clone = parent.clone();
-                    self.workbench.dialog_host.open_input(
-                        "New Folder",
-                        "Folder Name:",
-                        "New Folder",
-                        move |name| EngineUiAction::CreateSubfolder {
-                            parent: parent_clone.clone(),
-                            name,
-                        },
-                    );
+                iris_bridge::AssetsPanelAction::OpenCreateSubfolder(_) => {
+                    // Handled declaratively via Assets panel dialog host on UiScope
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                     self.iris_overlay.notifier.tag_all();
                 }
@@ -100,34 +91,13 @@ impl EngineUi {
                         },
                     );
                 }
-                iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
-                    let kind = if is_folder { "Folder" } else { "Asset" };
-                    let path_clone = path.clone();
-                    self.workbench.dialog_host.open_input(
-                        format!("Rename {}", kind),
-                        "New Name:",
-                        name,
-                        move |new_name| EngineUiAction::RenameAssetOrFolder {
-                            target: path_clone.clone(),
-                            new_name,
-                        },
-                    );
+                iris_bridge::AssetsPanelAction::OpenRename(..) => {
+                    // Handled declaratively via Assets panel dialog host on UiScope
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                     self.iris_overlay.notifier.tag_all();
                 }
-                iris_bridge::AssetsPanelAction::OpenDelete(path) => {
-                    let file_name = path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("selected item");
-                    self.workbench.dialog_host.open_confirm_danger(
-                        "Delete Asset",
-                        format!(
-                            "Are you sure you want to permanently delete '{}'?",
-                            file_name
-                        ),
-                        EngineUiAction::DeleteAssetOrFolder(path),
-                    );
+                iris_bridge::AssetsPanelAction::OpenDelete(_) => {
+                    // Handled declaratively via Assets panel dialog host on UiScope
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                     self.iris_overlay.notifier.tag_all();
                 }

@@ -20,6 +20,8 @@ pub const MODAL_TAG_CANCEL: u64 = 0xF004;
 pub const MODAL_TAG_DANGER: u64 = 0xF005;
 /// Persistent semantic tag for modal text input fields.
 pub const MODAL_TAG_INPUT: u64 = 0xF006;
+/// Persistent semantic tag for modal dialog elevated body cards.
+pub const MODAL_TAG_CARD: u64 = 0xF007;
 
 /// High-level semantic actions triggered by modal dialog clicks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +49,8 @@ impl ModalDialogAction {
     pub const TAG_DANGER: u64 = MODAL_TAG_DANGER;
     /// Persistent semantic tag for modal text input fields (`0xF006`).
     pub const TAG_INPUT: u64 = MODAL_TAG_INPUT;
+    /// Persistent semantic tag for modal dialog elevated body cards (`0xF007`).
+    pub const TAG_CARD: u64 = MODAL_TAG_CARD;
 }
 
 /// Evaluates a semantic tag dispatched from a hit test to resolve modal action.
@@ -159,6 +163,7 @@ mod tests {
             evaluate_modal_tag(MODAL_TAG_CANCEL),
             Some(ModalDialogAction::Cancel)
         );
+        assert_eq!(evaluate_modal_tag(MODAL_TAG_CARD), None);
         assert_eq!(evaluate_modal_tag(0x1234), None);
     }
 }

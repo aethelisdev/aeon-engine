@@ -16,19 +16,19 @@ use std::path::Path;
 #[test]
 fn test_new_folder_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let _root = tree.create_root().expect("Root node must be created");
+    let root = tree.create_root().expect("Root node must be created");
 
     let mut folder_name = "characters".to_string();
-    build_new_folder_modal(
-        &mut tree,
-        FolderModalParams {
-            parent_path: Path::new("assets/models"),
-            input_text: &mut folder_name,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
-            cursor_pos: Point::new(0.0, 0.0),
-        },
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_new_folder_modal(
+            &mut scope,
+            Path::new("assets/models"),
+            &mut folder_name,
+            Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            false,
+        );
+    }
 
     // Collect text sections with the modal card's dialog_rect registered as an active modal
     let active_modals = [Rect::new(
@@ -62,20 +62,20 @@ fn test_new_folder_modal_text_sections_not_occluded() {
 #[test]
 fn test_rename_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let _root = tree.create_root().expect("Root node must be created");
+    let root = tree.create_root().expect("Root node must be created");
 
     let mut asset_name = "albedo.png".to_string();
-    build_rename_modal(
-        &mut tree,
-        RenameModalParams {
-            target_path: Path::new("assets/textures/diffuse.png"),
-            input_text: &mut asset_name,
-            is_folder: false,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
-            cursor_pos: Point::new(0.0, 0.0),
-        },
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_rename_modal(
+            &mut scope,
+            Path::new("assets/textures/diffuse.png"),
+            false,
+            &mut asset_name,
+            Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            false,
+        );
+    }
 
     let active_modals = [Rect::new(
         (1920.0 - INPUT_MODAL_WIDTH) * 0.5,
@@ -104,15 +104,17 @@ fn test_rename_modal_text_sections_not_occluded() {
 #[test]
 fn test_delete_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let _root = tree.create_root().expect("Root node must be created");
+    let root = tree.create_root().expect("Root node must be created");
 
-    build_delete_modal(
-        &mut tree,
-        Path::new("assets/temp.obj"),
-        1920.0,
-        1080.0,
-        Point::new(0.0, 0.0),
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_delete_modal(
+            &mut scope,
+            Path::new("assets/temp.obj"),
+            Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            false,
+        );
+    }
 
     let active_modals = [Rect::new(
         (1920.0 - DELETE_MODAL_WIDTH) * 0.5,
@@ -296,22 +298,25 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
 #[test]
 fn test_declarative_modals_buttons_hover_reactivity() {
     let mut tree = UiTree::new();
-    let _root = tree.create_root().expect("Root node must be created");
+    let root = tree.create_root().expect("Root node must be created");
 
     let screen_w = 1920.0;
     let screen_h = 1080.0;
 
     // 1. Build delete modal with cursor hovering the close button
-    build_delete_modal(
-        &mut tree,
-        Path::new("assets/test.mesh"),
-        screen_w,
-        screen_h,
-        Point::new(
-            (screen_w + DELETE_MODAL_WIDTH) * 0.5 - 20.0,
-            (screen_h - DELETE_MODAL_HEIGHT) * 0.5 + 20.0,
-        ),
-    );
+    tree.set_cursor_position(Point::new(
+        (screen_w + DELETE_MODAL_WIDTH) * 0.5 - 20.0,
+        (screen_h - DELETE_MODAL_HEIGHT) * 0.5 + 20.0,
+    ));
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_delete_modal(
+            &mut scope,
+            Path::new("assets/test.mesh"),
+            Rect::new(0.0, 0.0, screen_w, screen_h),
+            false,
+        );
+    }
     let del_id = tree
         .find_node_by_tag(ModalDialogAction::TAG_SCRIM)
         .expect("Modal scrim must exist");
@@ -420,18 +425,18 @@ fn test_modal_action_buttons_layer_and_tags() {
 #[test]
 fn test_modal_input_box_tag_and_layer() {
     let mut tree = UiTree::new();
-    let _root = tree.create_root().unwrap();
+    let root = tree.create_root().unwrap();
     let mut folder_name = "NewFolder".to_string();
-    build_new_folder_modal(
-        &mut tree,
-        FolderModalParams {
-            parent_path: Path::new("assets/scenes"),
-            input_text: &mut folder_name,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
-            cursor_pos: Point::new(0.0, 0.0),
-        },
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        build_new_folder_modal(
+            &mut scope,
+            Path::new("assets/scenes"),
+            &mut folder_name,
+            Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            false,
+        );
+    }
 
     let input_node = tree
         .node_named("TextInput")
@@ -446,5 +451,83 @@ fn test_modal_input_box_tag_and_layer() {
         input_node.layer,
         UiLayer::Modal,
         "Modal text input must inherit Modal layer"
+    );
+}
+
+#[test]
+fn test_modal_second_open_click_inside_card_does_not_dismiss_root_cause() {
+    use crate::ui::iris_bridge::menubar::render_about_modal_if_active;
+    use irisui::core::event::{MouseButton, UiEvent};
+    use irisui::core::geometry::Point;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // 1. Open About Modal on UiTree
+    tree.open_modal(0x5001);
+    assert!(tree.is_modal_open(0x5001));
+
+    // First render pass
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        render_about_modal_if_active(&mut scope);
+    }
+    assert!(tree.is_modal_open(0x5001));
+
+    // Dismiss About Modal (click Close / Escape / Scrim)
+    tree.close_modal(0x5001);
+    assert!(!tree.is_modal_open(0x5001));
+
+    // 2. Open About Modal SECOND time
+    tree.open_modal(0x5001);
+    assert!(tree.is_modal_open(0x5001));
+
+    // Simulate shell rebuild pass with tree.clear()
+    tree.clear();
+    let root = tree.create_root().unwrap();
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        render_about_modal_if_active(&mut scope);
+    }
+    assert!(tree.is_modal_open(0x5001));
+
+    // Dispatch click INSIDE the modal card (center of screen: 960, 540)
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: Point::new(960.0, 540.0),
+        button: MouseButton::Left,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: Point::new(960.0, 540.0),
+        button: MouseButton::Left,
+    });
+
+    // Re-render and verify modal is STILL OPEN on 2nd open when clicked inside
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        render_about_modal_if_active(&mut scope);
+    }
+    assert!(
+        tree.is_modal_open(0x5001),
+        "Clicking inside the modal card on the 2nd open must NOT dismiss the modal"
+    );
+
+    // Dispatch click OUTSIDE the modal card on the backdrop scrim (50, 50)
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: Point::new(50.0, 50.0),
+        button: MouseButton::Left,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: Point::new(50.0, 50.0),
+        button: MouseButton::Left,
+    });
+
+    // Re-render and verify modal DISMISSES on backdrop click
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        render_about_modal_if_active(&mut scope);
+    }
+    assert!(
+        !tree.is_modal_open(0x5001),
+        "Clicking outside on the backdrop scrim MUST dismiss the modal"
     );
 }

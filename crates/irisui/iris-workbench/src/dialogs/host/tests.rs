@@ -635,6 +635,31 @@ fn test_dialog_host_info_card_click_scrim_dismisses() {
 }
 
 #[test]
+fn test_dialog_host_info_card_click_card_does_not_dismiss() {
+    let mut host = DialogHost::<TestAction>::new();
+    let mut bus = ActionBus::new();
+    let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+    let desc = crate::dialogs::descriptor::info::InfoCardDialogDescriptor::new("About")
+        .with_dismiss_on_backdrop(true);
+
+    host.open_info(desc);
+    assert!(host.is_active());
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    // Simulate clicking on the modal card body or non-interactive label inside the card (center of viewport)
+    tree.event_state.frame_clicked_pos = Some(Point::new(960.0, 540.0));
+    let mut scope = UiScope::new(&mut tree, root);
+    host.render(&mut scope, viewport, false, &mut bus);
+
+    assert!(
+        host.is_active(),
+        "Clicking on modal card body must NOT dismiss the info card dialog"
+    );
+}
+
+#[test]
 fn test_dialog_host_open_progress_and_render() {
     let mut host = DialogHost::new();
     let mut bus = ActionBus::new();
