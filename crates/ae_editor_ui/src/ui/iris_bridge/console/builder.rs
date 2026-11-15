@@ -31,6 +31,9 @@ impl IrisEditorOverlay {
             return;
         }
 
+        scope.auto_sync_core_focus(&mut self.focus_manager);
+        scope.auto_sync_focus_state(&mut self.focus_state);
+
         if let Some(buf) = scope.text_edit_buffer(CONSOLE_TAG_SEARCH_INPUT) {
             self.console.search_input.set_text(buf);
             if let Some(cur) = scope.text_edit_cursor(CONSOLE_TAG_SEARCH_INPUT) {

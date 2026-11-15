@@ -152,6 +152,13 @@ pub struct EventState {
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline text or numeric input editing session tracking tag, buffer, cursor, and selection.
     pub active_text_edit: Option<ActiveTextEditSession>,
+    /// Last blurred or completed inline text editing buffer snapshot `(tag, text)`.
+    ///
+    /// Preserved when an active text edit session is blurred due to an outside click
+    /// or programmatic focus clear so consumer widgets (e.g. numeric input fields) can
+    /// parse, clamp, and commit the pending expression during the layout/render frame.
+    /// Cleared automatically at the end of the frame via [`Self::clear_frame_clicks`].
+    pub last_completed_text_edit: Option<(u64, String)>,
     /// Drag selection anchor byte index during an active mouse drag-select gesture within a text input.
     pub text_drag_anchor: Option<usize>,
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
@@ -218,6 +225,7 @@ impl EventState {
             frame_shift_held: false,
             active_context_menu: None,
             active_text_edit: None,
+            last_completed_text_edit: None,
             text_drag_anchor: None,
             is_pointer_drag_active: false,
             active_tooltip: None,
@@ -346,6 +354,7 @@ impl EventState {
         self.frame_ctrl_held = false;
         self.frame_shift_held = false;
         self.frame_popups_dismissed = false;
+        self.last_completed_text_edit = None;
     }
 
     /// Invalidates all generational [`WidgetId`] references across the event state when
@@ -385,7 +394,9 @@ impl EventState {
         self.focused_tag = None;
         self.pressed = None;
         self.pressed_tag = None;
-        self.active_text_edit = None;
+        if let Some(session) = self.active_text_edit.take() {
+            self.last_completed_text_edit = Some((session.tag, session.buffer));
+        }
         self.text_drag_anchor = None;
         self.pointer_capture = None;
         self.pointer_capture_tag = None;
@@ -596,7 +607,10 @@ impl EventState {
             self.focused = None;
             self.focused_tag = None;
         }
-        self.active_text_edit = None;
+        if let Some(session) = self.active_text_edit.take() {
+            self.last_completed_text_edit = Some((session.tag, session.buffer));
+        }
+        self.text_drag_anchor = None;
     }
 
     /// Returns `true` if any widget node, semantic tag, or text/numeric edit currently holds keyboard focus.

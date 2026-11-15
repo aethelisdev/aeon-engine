@@ -459,35 +459,55 @@ impl IrisEditorOverlay {
     }
 
     /// Returns true if the specified 64-bit semantic tag currently holds keyboard input focus.
+    /// Returns `true` if the specified 64-bit semantic tag is currently focused.
+    ///
+    /// Evaluates the core [`FocusManager`], widget [`FocusState`], and backing [`UiTree`].
     #[must_use]
     #[inline]
     pub fn is_tag_focused(&self, tag: u64) -> bool {
-        self.focus_state.is_tag_focused(tag)
+        self.focus_manager.is_tag_focused(tag)
+            || self.focus_state.is_tag_focused(tag)
+            || self.tree.is_tag_focused(tag)
     }
 
-    /// Assigns keyboard input focus to the specified 64-bit semantic tag and synchronizes the core focus manager.
+    /// Assigns keyboard input focus to the specified 64-bit semantic tag directly on the core focus manager.
+    ///
+    /// Synchronizes both the core [`FocusManager`] and the widget [`FocusState`].
     #[inline]
     pub fn set_focus_tag(&mut self, tag: u64) {
-        if self.focus_state.set_focus_tag(tag) {
-            self.focus_state.sync_to_core(&mut self.focus_manager);
-        }
+        self.focus_manager.set_focus_tag(tag);
+        self.focus_state.sync_from_core(&self.focus_manager);
     }
 
-    /// Clears any active keyboard input focus from both the autonomous focus state and the core focus manager.
+    /// Clears any active keyboard input focus from both the core focus manager and the autonomous focus state.
     ///
     /// Returns `true` if an active focus target was cleared.
     #[inline]
     pub fn clear_focus(&mut self) -> bool {
-        let changed = self.focus_state.clear_focus();
-        if changed {
-            self.focus_state.sync_to_core(&mut self.focus_manager);
-        }
-        changed
+        let core_cleared = self.focus_manager.has_focus();
+        self.focus_manager.clear_focus();
+        let state_cleared = self.focus_state.clear_focus();
+        self.tree.event_state.clear_focus();
+        core_cleared || state_cleared
+    }
+
+    /// Automatically synchronizes keyboard focus with the active text editing state of the UI tree.
+    ///
+    /// Drops focus from both the core [`FocusManager`] and widget [`FocusState`] when text editing concludes.
+    /// Returns `true` if active focus was cleared during synchronization.
+    #[inline]
+    pub fn auto_sync_focus(&mut self) -> bool {
+        self.focus_state
+            .auto_sync_with_focus_manager(&mut self.focus_manager, &self.tree)
     }
 
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
+    #[must_use]
+    #[inline]
     pub fn is_any_text_input_focused(&self) -> bool {
-        self.tree.is_text_input_focused() || self.inspector.rename_input.is_some()
+        self.focus_manager.has_focus()
+            || self.tree.is_text_input_focused()
+            || self.inspector.rename_input.is_some()
     }
 
     /// Configures whether the editor UI overlay reconstructs the tree on every frame (immediate mode)

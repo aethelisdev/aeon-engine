@@ -469,3 +469,91 @@ fn test_pointer_pos_retained_on_pointer_up() {
         "MouseUp must retain physical pointer position on UiTree::cursor_position"
     );
 }
+
+/// Verifies that an active inline text editing session blurs immediately when the pointer
+/// presses down outside the text input (such as on the 3D viewport, background, or another widget),
+/// while preserving the session when clicking inside the input bounds.
+#[test]
+fn test_text_input_blur_on_outside_click_and_viewport_press() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let input_node = tree.create_node();
+    tree.add_child(root, input_node).unwrap();
+    {
+        let n = tree.get_mut(input_node).unwrap();
+        n.visible = true;
+        n.interactive = true;
+        n.role = WidgetRole::TextInput;
+        n.tag = 0x5001;
+        n.computed_rect = Rect::new(50.0, 50.0, 200.0, 30.0);
+    }
+
+    let viewport_surface = tree.create_node();
+    tree.add_child(root, viewport_surface).unwrap();
+    {
+        let v = tree.get_mut(viewport_surface).unwrap();
+        v.visible = true;
+        v.interactive = false;
+        v.role = WidgetRole::Default;
+        v.tag = 0;
+        v.computed_rect = Rect::new(300.0, 0.0, 800.0, 600.0);
+    }
+
+    // 1. Start text editing session on the input
+    tree.event_state
+        .start_text_edit(Some(input_node), 0x5001, "search query", 12, None);
+    assert!(tree.is_text_input_focused());
+    assert!(tree.event_state.active_text_edit.is_some());
+
+    // 2. Click INSIDE the text input must retain text editing
+    let inside_pt = Point::new(100.0, 65.0);
+    let inside_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: inside_pt,
+    });
+    assert!(inside_res.consumed);
+    assert!(
+        tree.is_text_input_focused(),
+        "Clicking inside input bounds must retain active text edit session"
+    );
+    assert!(tree.event_state.active_text_edit.is_some());
+
+    // 3. Click OUTSIDE on the 3D viewport surface (passive/non-interactive node)
+    let vp_pt = Point::new(500.0, 300.0);
+    let vp_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: vp_pt,
+    });
+    assert!(
+        !vp_res.consumed,
+        "Clicking on passive viewport surface must NOT consume the event (allows 3D camera / picking)"
+    );
+    assert!(
+        vp_res.needs_redraw,
+        "Blurring text edit on outside click must signal needs_redraw to clear focus glow / caret"
+    );
+    assert!(
+        !tree.is_text_input_focused(),
+        "Clicking outside on viewport surface must immediately blur active text input"
+    );
+    assert!(
+        tree.event_state.active_text_edit.is_none(),
+        "active_text_edit must be cleared on outside viewport press"
+    );
+
+    // 4. Click outside on completely empty space (hit_test returns None)
+    tree.event_state
+        .start_text_edit(Some(input_node), 0x5001, "another query", 13, None);
+    assert!(tree.is_text_input_focused());
+
+    let empty_pt = Point::new(2000.0, 2000.0);
+    let empty_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: empty_pt,
+    });
+    assert!(!empty_res.consumed);
+    assert!(empty_res.needs_redraw);
+    assert!(!tree.is_text_input_focused());
+    assert!(tree.event_state.active_text_edit.is_none());
+}

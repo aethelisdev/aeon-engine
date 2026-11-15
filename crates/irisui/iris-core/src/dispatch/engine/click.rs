@@ -55,6 +55,60 @@ pub(crate) fn handle_mouse_down(
 
     let hit_id = tree.hit_test_layered(point);
 
+    // Autonomous text input blur on outside click:
+    // If an inline text editing session is currently active and the pointer press occurs outside
+    // the editing widget (e.g. on the 3D viewport, background container, or another UI widget),
+    // blur the active text edit session immediately on mouse down.
+    let mut text_edit_blurred = false;
+    if let Some(ref edit) = tree.event_state.active_text_edit {
+        let active_tag = edit.tag;
+        let is_inside_edit = if let Some(target_id) = hit_id {
+            let target_tag = tree.get(target_id).map(|n| n.tag).unwrap_or(0);
+            let effective_tag = if target_tag != 0 {
+                target_tag
+            } else {
+                tree.resolve_ancestor_tag(target_id)
+            };
+
+            let is_same_tag =
+                active_tag != 0 && (target_tag == active_tag || effective_tag == active_tag);
+            let is_focused_node = tree.event_state.focused == Some(target_id)
+                || tree
+                    .event_state
+                    .focused
+                    .is_some_and(|fid| tree.is_descendant_of(target_id, fid));
+            let is_text_input_ancestor = tree
+                .find_ancestor_with_role(target_id, WidgetRole::TextInput)
+                .is_some_and(|ti_id| {
+                    tree.event_state.focused == Some(ti_id)
+                        || tree
+                            .get(ti_id)
+                            .is_some_and(|n| active_tag != 0 && n.tag == active_tag)
+                });
+            let is_rect_contained = tree
+                .event_state
+                .focused
+                .or_else(|| {
+                    if active_tag != 0 {
+                        tree.find_node_by_tag(active_tag)
+                    } else {
+                        None
+                    }
+                })
+                .and_then(|id| tree.get(id))
+                .is_some_and(|n| n.computed_rect.contains_point(point));
+
+            is_same_tag || is_focused_node || is_text_input_ancestor || is_rect_contained
+        } else {
+            false
+        };
+
+        if !is_inside_edit {
+            tree.event_state.clear_text_edit();
+            text_edit_blurred = true;
+        }
+    }
+
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
     tree.event_state.press_origin = Some(point);
@@ -217,7 +271,7 @@ pub(crate) fn handle_mouse_down(
 
         DispatchResult {
             consumed: is_interactive,
-            needs_redraw: is_interactive,
+            needs_redraw: is_interactive || text_edit_blurred,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -232,7 +286,11 @@ pub(crate) fn handle_mouse_down(
     } else {
         // Clicking on empty area clears active keyboard and tag focus
         tree.event_state.clear_focus();
-        DispatchResult::ignored()
+        DispatchResult {
+            consumed: false,
+            needs_redraw: text_edit_blurred,
+            ..DispatchResult::default()
+        }
     }
 }
 

@@ -255,9 +255,23 @@ pub fn handle_numeric_edit_interaction(
         }
 
         if is_clicked_outside {
-            if let Some(session) = scope.tree.event_state.active_text_edit.take()
-                && let Some(parsed) =
-                    crate::declarative::types::eval_numeric_expression(&session.buffer)
+            let session_buffer = scope
+                .tree
+                .event_state
+                .active_text_edit
+                .take()
+                .map(|s| s.buffer)
+                .or_else(|| {
+                    scope
+                        .tree
+                        .event_state
+                        .last_completed_text_edit
+                        .as_ref()
+                        .filter(|(t, _)| *t == tag)
+                        .map(|(_, b)| b.clone())
+                });
+            if let Some(ref buffer) = session_buffer
+                && let Some(parsed) = crate::declarative::types::eval_numeric_expression(buffer)
             {
                 let next = parsed.clamp(min_val, max_val);
                 if (next - *value).abs() > f32::EPSILON {

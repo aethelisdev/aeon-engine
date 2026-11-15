@@ -35,6 +35,9 @@ impl IrisEditorOverlay {
             self.assets.context_menu = None;
         }
 
+        scope.auto_sync_core_focus(&mut self.focus_manager);
+        scope.auto_sync_focus_state(&mut self.focus_state);
+
         if let Some(buf) = scope.text_edit_buffer(ASSETS_TAG_SEARCH_INPUT) {
             self.assets.interactions.search_input.set_text(buf);
             if let Some(cur) = scope.text_edit_cursor(ASSETS_TAG_SEARCH_INPUT) {

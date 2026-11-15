@@ -150,6 +150,79 @@ fn test_search_input_focus_blur_lifecycle() {
 }
 
 #[test]
+fn test_focus_manager_auto_sync_lifecycle_with_ui_scope() {
+    use super::assets::ASSETS_TAG_SEARCH_INPUT;
+    use irisui::widgets::controls::focus::FocusState;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let mut focus_manager = FocusManager::new();
+    let mut focus_state = FocusState::new();
+
+    // 1. Initially no focus
+    assert!(!focus_manager.has_focus());
+    assert!(!focus_state.has_focus());
+
+    // 2. Focus set on search input
+    focus_manager.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
+    focus_state.sync_from_core(&focus_manager);
+    assert!(focus_manager.has_focus());
+    assert!(focus_state.has_focus());
+    assert!(focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
+
+    // 3. UiScope auto_sync_core_focus when text editing is NOT active drops focus
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
+        assert!(
+            cleared,
+            "auto_sync_core_focus must clear focus when active_text_edit is none"
+        );
+        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
+        assert!(
+            state_cleared,
+            "auto_sync_focus_state must clear focus when active_text_edit is none"
+        );
+    }
+    assert!(!focus_manager.has_focus());
+    assert!(!focus_state.has_focus());
+
+    // 4. When text editing IS active, focus is retained
+    tree.event_state
+        .start_text_edit(None, ASSETS_TAG_SEARCH_INPUT, "test", 4, None);
+    focus_manager.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
+    focus_state.sync_from_core(&focus_manager);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
+        assert!(
+            !cleared,
+            "auto_sync_core_focus must retain focus while text edit is active"
+        );
+        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
+        assert!(
+            !state_cleared,
+            "auto_sync_focus_state must retain focus while text edit is active"
+        );
+    }
+    assert!(focus_manager.has_focus());
+    assert!(focus_state.has_focus());
+
+    // 5. When text editing finishes, auto_sync drops focus
+    tree.event_state.clear_text_edit();
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
+        assert!(cleared);
+        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
+        assert!(state_cleared);
+    }
+    assert!(!focus_manager.has_focus());
+    assert!(!focus_state.has_focus());
+}
+
+#[test]
 fn test_pointer_capture_state_machine() {
     use crate::ui::panel_layout::PanelId;
 
