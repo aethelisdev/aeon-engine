@@ -18,6 +18,8 @@ pub mod trap;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_click;
+#[cfg(test)]
 mod tests_focus;
 #[cfg(test)]
 mod tests_stacking;

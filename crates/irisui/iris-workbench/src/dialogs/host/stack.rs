@@ -415,6 +415,101 @@ impl<Action: 'static + Send + Sync> DialogHost<Action> {
     ) {
         super::render::render_dialog_host(self, scope, viewport, escape_pressed, action_bus);
     }
+
+    /// Processes a clicked modal tag against the active dialog stack and emits actions to `action_bus`.
+    ///
+    /// Maps framework modal tags (`MODAL_TAG_CONFIRM`, `MODAL_TAG_DANGER`, `MODAL_TAG_CANCEL`,
+    /// `MODAL_TAG_CLOSE`, `MODAL_TAG_SCRIM`, `MODAL_TAG_CARD`) to dialog stack transitions and
+    /// pushes the resulting application `Action` directly into [`ActionBus`].
+    ///
+    /// Returns `true` if the clicked tag belonged to an active modal control and was consumed.
+    pub fn handle_clicked_tag(
+        &mut self,
+        clicked_tag: u64,
+        action_bus: &mut ActionBus<Action>,
+    ) -> bool {
+        let Some(top) = self.dialog_stack.last() else {
+            return false;
+        };
+        if clicked_tag == 0 {
+            return false;
+        }
+
+        match clicked_tag {
+            iris_widgets::modal::MODAL_TAG_CONFIRM | iris_widgets::modal::MODAL_TAG_DANGER => {
+                self.confirm_top(action_bus)
+            }
+            iris_widgets::modal::MODAL_TAG_CANCEL => self.dismiss_top_cancellable(action_bus),
+            iris_widgets::modal::MODAL_TAG_CLOSE => {
+                if matches!(top.kind, DialogKind::InfoCard { .. }) {
+                    self.confirm_top(action_bus)
+                } else {
+                    self.dismiss_top_cancellable(action_bus)
+                }
+            }
+            iris_widgets::modal::MODAL_TAG_SCRIM => {
+                if !top.dismiss_on_backdrop {
+                    self.trigger_attention();
+                    true
+                } else {
+                    self.dismiss_top_cancellable(action_bus)
+                }
+            }
+            iris_widgets::modal::MODAL_TAG_CARD => true,
+            _ => false,
+        }
+    }
+
+    /// Confirms the topmost confirmable dialog, popping it and emitting its action to `action_bus`.
+    fn confirm_top(&mut self, action_bus: &mut ActionBus<Action>) -> bool {
+        let is_confirmable = matches!(
+            self.dialog_stack.last().map(|d| &d.kind),
+            Some(
+                DialogKind::Confirm { .. } | DialogKind::Input { .. } | DialogKind::InfoCard { .. }
+            )
+        );
+        if !is_confirmable {
+            return false;
+        }
+        let Some(dialog) = self.dialog_stack.pop() else {
+            return false;
+        };
+        match dialog.kind {
+            DialogKind::Confirm { on_confirm, .. } => {
+                action_bus.emit(on_confirm);
+            }
+            DialogKind::Input {
+                text, on_submit, ..
+            } => {
+                action_bus.emit(on_submit(text));
+            }
+            DialogKind::InfoCard {
+                on_close: Some(action),
+                ..
+            } => {
+                action_bus.emit(action);
+            }
+            _ => {}
+        }
+        true
+    }
+
+    /// Dismisses the topmost dialog if cancellable, or triggers attention feedback if locked.
+    fn dismiss_top_cancellable(&mut self, action_bus: &mut ActionBus<Action>) -> bool {
+        let Some(top) = self.dialog_stack.last() else {
+            return false;
+        };
+        if !top.is_cancellable {
+            self.trigger_attention();
+            return true;
+        }
+        if let Some(mut dialog) = self.dialog_stack.pop()
+            && let Some(action) = dialog.take_cancel_action()
+        {
+            action_bus.emit(action);
+        }
+        true
+    }
 }
 
 impl<Action: 'static + Send + Sync> Default for DialogHost<Action> {

@@ -42,6 +42,46 @@ where
         outcome
     }
 
+    /// Dispatches a platform [`UiEvent`] into the [`UiTree`], processes autonomous [`DialogHost`]
+    /// modal tag clicks into `action_bus`, and computes the invalidation route.
+    fn dispatch_tree_with_modals(
+        &mut self,
+        tree: &mut UiTree,
+        event: &UiEvent,
+    ) -> (
+        bool,
+        Option<iris_core::node::WidgetCursor>,
+        bool,
+        EventInvalidationRoute<TabId>,
+    ) {
+        if let Some(pos) = self.last_cursor_pos {
+            tree.set_cursor_position(pos);
+        }
+        let dispatch = tree.dispatch_event(event);
+        let modal_click_consumed = tree
+            .event_state
+            .frame_clicked_tag
+            .filter(|&tag| tag != 0)
+            .is_some_and(|tag| {
+                self.dialog_host
+                    .handle_clicked_tag(tag, &mut self.action_bus)
+            });
+        if modal_click_consumed {
+            tree.event_state.frame_clicked_tag = None;
+        }
+        let route = if modal_click_consumed {
+            EventInvalidationRoute::Shell
+        } else {
+            self.route_event_invalidation(tree, event, &dispatch)
+        };
+        (
+            dispatch.consumed || modal_click_consumed,
+            dispatch.cursor,
+            dispatch.needs_redraw || modal_click_consumed,
+            route,
+        )
+    }
+
     /// Creates a base [`WorkbenchOutcome`] configured with consumption status, cursor shape,
     /// and the active pointer coordinate.
     #[inline]
@@ -368,17 +408,8 @@ where
         }
 
         let (tree_consumed, tree_cursor, tree_redraw, tree_route) = if let Some(t) = tree {
-            if let Some(pos) = self.last_cursor_pos {
-                t.set_cursor_position(pos);
-            }
-            let dispatch = t.dispatch_event(event);
-            let route = self.route_event_invalidation(t, event, &dispatch);
-            (
-                dispatch.consumed,
-                dispatch.cursor,
-                dispatch.needs_redraw,
-                Some(route),
-            )
+            let (consumed, cursor, redraw, route) = self.dispatch_tree_with_modals(t, event);
+            (consumed, cursor, redraw, Some(route))
         } else {
             (false, None, false, None)
         };
@@ -395,6 +426,10 @@ where
         }
 
         let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
+        if !self.action_bus.is_empty() {
+            outcome.actions.extend(self.action_bus.drain());
+            outcome.layout_changed = true;
+        }
         if !content_actions.is_empty() {
             outcome.actions.extend(content_actions);
             outcome.layout_changed = true;
@@ -528,17 +563,8 @@ where
 
         let (content_consumed, content_cursor, needs_redraw, invalidation_route) =
             if let Some(t) = tree {
-                if let Some(pos) = self.last_cursor_pos {
-                    t.set_cursor_position(pos);
-                }
-                let dispatch = t.dispatch_event(event);
-                let route = self.route_event_invalidation(t, event, &dispatch);
-                (
-                    dispatch.consumed,
-                    dispatch.cursor,
-                    dispatch.needs_redraw,
-                    Some(route),
-                )
+                let (consumed, cursor, redraw, route) = self.dispatch_tree_with_modals(t, event);
+                (consumed, cursor, redraw, Some(route))
             } else {
                 (false, None, false, None)
             };
@@ -548,6 +574,10 @@ where
         }
 
         let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
+        if !self.action_bus.is_empty() {
+            outcome.actions.extend(self.action_bus.drain());
+            outcome.layout_changed = true;
+        }
         if content_consumed {
             outcome.consumed = true;
         }
