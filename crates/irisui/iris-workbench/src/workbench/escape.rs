@@ -143,7 +143,7 @@ where
         event: &UiEvent,
         tree: Option<&mut UiTree>,
         app_state: Option<&mut AppState>,
-    ) -> Option<WorkbenchOutcome<Action>> {
+    ) -> Option<WorkbenchOutcome<Action, TabId>> {
         if let UiEvent::KeyboardInput {
             key: KeyCode::Escape,
             is_pressed: true,
@@ -154,6 +154,8 @@ where
             let mut outcome = self.make_outcome(true, None);
             outcome.layout_changed = true;
             outcome.escape_handled = true;
+            outcome.shell_dirty = true;
+            outcome.invalidation_route = Some(crate::lifecycle::EventInvalidationRoute::Shell);
             outcome.actions.extend(self.action_bus.drain());
             return Some(outcome);
         }
@@ -174,7 +176,7 @@ where
     pub fn handle_modal_keyboard_event(
         &mut self,
         event: &UiEvent,
-    ) -> Option<WorkbenchOutcome<Action>> {
+    ) -> Option<WorkbenchOutcome<Action, TabId>> {
         if self.dialog_host.is_active()
             && let UiEvent::KeyboardInput {
                 key,
@@ -192,6 +194,8 @@ where
             let mut outcome = self.make_outcome(true, None);
             outcome.layout_changed = true;
             outcome.escape_handled = *key == KeyCode::Escape;
+            outcome.shell_dirty = true;
+            outcome.invalidation_route = Some(crate::lifecycle::EventInvalidationRoute::Shell);
             outcome.actions.extend(self.action_bus.drain());
             return Some(outcome);
         }

@@ -110,6 +110,13 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.force_shell_rebuild = true;
     }
 
+    /// Returns whether the shell has been explicitly marked dirty via [`Self::mark_shell_dirty`].
+    #[inline]
+    #[must_use]
+    pub const fn is_forced_shell_rebuild(&self) -> bool {
+        self.force_shell_rebuild
+    }
+
     /// Marks a specific dock panel as dirty, requesting a granular partial subtree rebuild.
     ///
     /// If the shell itself is not dirty, only this panel (and any other concurrently marked

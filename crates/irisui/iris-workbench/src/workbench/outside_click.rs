@@ -82,7 +82,7 @@ where
         &mut self,
         event: &UiEvent,
         tree: Option<&mut UiTree>,
-    ) -> Option<WorkbenchOutcome<Action>> {
+    ) -> Option<WorkbenchOutcome<Action, TabId>> {
         let UiEvent::MouseDown { point, .. } = event else {
             return None;
         };
@@ -91,6 +91,8 @@ where
             let mut outcome = self.make_outcome(true, None);
             outcome.popups_dismissed = true;
             outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            outcome.invalidation_route = Some(crate::lifecycle::EventInvalidationRoute::Shell);
             outcome.actions.extend(self.action_bus.drain());
             Some(outcome)
         } else {

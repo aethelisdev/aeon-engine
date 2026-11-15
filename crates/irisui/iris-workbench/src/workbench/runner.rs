@@ -3,7 +3,7 @@
 
 //! # Autonomous Workbench Application Orchestrator
 //!
-//! Provides the primary [`Workbench`] struct combining retained-mode docking,
+//! Provides the primary [] struct combining retained-mode docking,
 //! frameless window management, modal dialogs, and decoupled action dispatching
 //! into a unified, crates.io-grade desktop IDE framework component.
 
@@ -31,10 +31,10 @@ use iris_layout::LayoutError;
 use iris_winit::frameless::{FramelessWindowHost, WindowDragHost, WindowInterface};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::path::PathBuf;
 
 /// Type alias for external file drag-and-drop action handler closure.
-pub type FileDropActionBuilder<Action> =
-    Box<dyn Fn(Vec<std::path::PathBuf>, Point) -> Action + Send + Sync>;
+pub type FileDropActionBuilder<Action> = Box<dyn Fn(Vec<PathBuf>, Point) -> Action + Send + Sync>;
 
 /// Type alias for UI zoom alteration action handler closure.
 pub type ZoomActionBuilder<Action> = Box<dyn Fn(f32) -> Action + Send + Sync>;
@@ -145,7 +145,7 @@ where
     #[must_use]
     pub fn with_file_drop_action<F>(mut self, builder: F) -> Self
     where
-        F: Fn(Vec<std::path::PathBuf>, Point) -> Action + 'static + Send + Sync,
+        F: Fn(Vec<PathBuf>, Point) -> Action + 'static + Send + Sync,
     {
         self.file_drop_action = Some(Box::new(builder));
         self
@@ -210,60 +210,6 @@ where
         self.overlay_host.has_active_overlays(state)
     }
 
-    /// Returns `true` if any partial subtree rebuild or layout pass triggered text preparation.
-    #[inline]
-    #[must_use]
-    pub fn needs_text_prepare(&self) -> bool {
-        self.dual_layout.needs_text_prepare()
-    }
-
-    /// Explicitly flags text preparation as required on the active frame.
-    #[inline]
-    pub fn mark_needs_text_prepare(&mut self) {
-        self.dual_layout.mark_needs_text_prepare();
-    }
-
-    /// Resets the text preparation flag to `false`.
-    #[inline]
-    pub fn clear_needs_text_prepare(&mut self) {
-        self.dual_layout.clear_needs_text_prepare();
-    }
-
-    /// Consumes and returns the current text preparation flag, resetting it to `false`.
-    ///
-    /// Useful for single-pass render loops to query and clear the flag atomically.
-    #[inline]
-    pub fn take_needs_text_prepare(&mut self) -> bool {
-        self.dual_layout.take_needs_text_prepare()
-    }
-
-    /// Rebuilds all dirty dock leaf panels flagged in `notifier` using the workbench's
-    /// internal [`DualLayoutEliminator`] and registered [`WorkbenchPanelRegistry`].
-    ///
-    /// Automatically marks [`Self::needs_text_prepare`] if any panels were reconstructed.
-    ///
-    /// # Errors
-    /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
-    pub fn rebuild_dirty_panels<F>(
-        &mut self,
-        engines: &mut SubtreeEngines<'_>,
-        notifier: &mut UiNotifier<TabId>,
-        context: &mut AppState,
-        leaf_resolver: F,
-    ) -> Result<usize, LayoutError>
-    where
-        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
-        F: FnMut(TabId) -> Option<WidgetId>,
-    {
-        self.dual_layout.rebuild_dirty_panels(
-            engines,
-            notifier,
-            &mut self.panel_registry,
-            context,
-            leaf_resolver,
-        )
-    }
-
     /// Sets the top application menubar height in logical pixels.
     #[must_use]
     pub fn with_menubar_height(mut self, height: f32) -> Self {
@@ -284,58 +230,6 @@ where
     pub fn with_dock_style(mut self, style: DockChromeStyle) -> Self {
         self.dock_style = style;
         self
-    }
-
-    /// Computes the active dock workspace bounding rectangle excluding the menubar and statusbar.
-    #[inline]
-    #[must_use]
-    pub fn compute_workspace_rect(&self, screen_w: f32, screen_h: f32) -> Rect {
-        let top_inset = if self.descriptor.menubar.is_some() {
-            self.menubar_height
-        } else {
-            0.0
-        };
-        let bottom_inset = if self.descriptor.statusbar.is_some() {
-            self.statusbar_height
-        } else {
-            0.0
-        };
-        let height = (screen_h - top_inset - bottom_inset).max(0.0);
-        Rect::new(0.0, top_inset, screen_w, height)
-    }
-
-    /// Returns the active UI scale factor clamped to the valid range `[0.6, 2.0]`.
-    #[inline]
-    #[must_use]
-    pub fn scale_factor(&self) -> f32 {
-        if self.zoom_factor.is_finite() && self.zoom_factor > 0.1 {
-            self.zoom_factor.clamp(0.6, 2.0)
-        } else {
-            1.0
-        }
-    }
-
-    /// Steps the active UI zoom factor up or down across the predefined scale presets.
-    ///
-    /// Presets: `[0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50]`.
-    pub fn step_zoom(&mut self, increase: bool) -> f32 {
-        const PRESETS: [f32; 7] = [0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50];
-        let current = self.scale_factor();
-        let target = if increase {
-            PRESETS
-                .iter()
-                .copied()
-                .find(|&s| s > current + 0.01)
-                .unwrap_or(*PRESETS.last().unwrap_or(&1.50))
-        } else {
-            PRESETS
-                .iter()
-                .copied()
-                .rfind(|&s| s < current - 0.01)
-                .unwrap_or(*PRESETS.first().unwrap_or(&0.75))
-        };
-        self.zoom_factor = target;
-        target
     }
 
     /// Sets the bounding rectangle of the interactive non-UI viewport canvas (in logical points).
@@ -373,13 +267,6 @@ where
         self.last_window_size
     }
 
-    /// Resets the UI zoom factor to default 100% (1.0).
-    #[inline]
-    pub fn reset_zoom(&mut self) -> f32 {
-        self.zoom_factor = 1.0;
-        1.0
-    }
-
     /// Evaluates whether the workbench currently requires active text keyboard focus
     /// (e.g. when a modal dialog text input is active).
     #[inline]
@@ -388,13 +275,157 @@ where
         self.dialog_host.is_active()
     }
 
+    /// Returns a mutable reference to the underlying docking state.
+    #[inline]
+    pub fn dock_state_mut(&mut self) -> &mut DockState<TabId> {
+        &mut self.descriptor.dock_state
+    }
+
+    /// Returns an immutable reference to the underlying docking state.
+    #[inline]
+    #[must_use]
+    pub fn dock_state(&self) -> &DockState<TabId> {
+        &self.descriptor.dock_state
+    }
+}
+
+impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
+where
+    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    Action: Send + Sync + 'static,
+{
+    /// Returns `true` if any partial subtree rebuild or layout pass triggered text preparation.
+    #[inline]
+    #[must_use]
+    pub fn needs_text_prepare(&self) -> bool {
+        self.dual_layout.needs_text_prepare()
+    }
+
+    /// Explicitly flags text preparation as required on the active frame.
+    #[inline]
+    pub fn mark_needs_text_prepare(&mut self) {
+        self.dual_layout.mark_needs_text_prepare();
+    }
+
+    /// Resets the text preparation flag to `false`.
+    #[inline]
+    pub fn clear_needs_text_prepare(&mut self) {
+        self.dual_layout.clear_needs_text_prepare();
+    }
+
+    /// Consumes and returns the current text preparation flag, resetting it to `false`.
+    ///
+    /// Useful for single-pass render loops to query and clear the flag atomically.
+    #[inline]
+    pub fn take_needs_text_prepare(&mut self) -> bool {
+        self.dual_layout.take_needs_text_prepare()
+    }
+
+    /// Rebuilds all dirty dock leaf panels flagged in `notifier` using the workbench's
+    /// internal [`crate::layout_sync::dual_layout::DualLayoutEliminator`] and registered [`crate::descriptors::panel_registry::WorkbenchPanelRegistry`].
+    ///
+    /// Automatically marks [`Self::needs_text_prepare`] if any panels were reconstructed.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
+    pub fn rebuild_dirty_panels<F>(
+        &mut self,
+        engines: &mut SubtreeEngines<'_>,
+        notifier: &mut UiNotifier<TabId>,
+        context: &mut AppState,
+        leaf_resolver: F,
+    ) -> Result<usize, LayoutError>
+    where
+        TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        F: FnMut(TabId) -> Option<WidgetId>,
+    {
+        self.dual_layout.rebuild_dirty_panels(
+            engines,
+            notifier,
+            &mut self.panel_registry,
+            context,
+            leaf_resolver,
+        )
+    }
+
+    /// Computes the active dock workspace bounding rectangle excluding the menubar and statusbar.
+    #[inline]
+    #[must_use]
+    pub fn compute_workspace_rect(&self, screen_w: f32, screen_h: f32) -> Rect {
+        let top_inset = if self.descriptor.menubar.is_some() {
+            self.menubar_height
+        } else {
+            0.0
+        };
+        let bottom_inset = if self.descriptor.statusbar.is_some() {
+            self.statusbar_height
+        } else {
+            0.0
+        };
+        let height = (screen_h - top_inset - bottom_inset).max(0.0);
+        Rect::new(0.0, top_inset, screen_w, height)
+    }
+}
+
+impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
+where
+    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    Action: Send + Sync + 'static,
+{
+    /// Returns the active UI scale factor clamped to the valid range `[0.6, 2.0]`.
+    #[inline]
+    #[must_use]
+    pub fn scale_factor(&self) -> f32 {
+        if self.zoom_factor.is_finite() && self.zoom_factor > 0.1 {
+            self.zoom_factor.clamp(0.6, 2.0)
+        } else {
+            1.0
+        }
+    }
+
+    /// Steps the active UI zoom factor up or down across the predefined scale presets.
+    ///
+    /// Presets: `[0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50]`.
+    pub fn step_zoom(&mut self, increase: bool) -> f32 {
+        const PRESETS: [f32; 7] = [0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50];
+        let current = self.scale_factor();
+        let target = if increase {
+            PRESETS
+                .iter()
+                .copied()
+                .find(|&s| s > current + 0.01)
+                .unwrap_or(*PRESETS.last().unwrap_or(&1.50))
+        } else {
+            PRESETS
+                .iter()
+                .copied()
+                .rfind(|&s| s < current - 0.01)
+                .unwrap_or(*PRESETS.first().unwrap_or(&0.75))
+        };
+        self.zoom_factor = target;
+        target
+    }
+
+    /// Resets the UI zoom factor to default 100% (1.0).
+    #[inline]
+    pub fn reset_zoom(&mut self) -> f32 {
+        self.zoom_factor = 1.0;
+        1.0
+    }
+}
+
+impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
+where
+    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    Action: Send + Sync + 'static,
+{
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
     /// using the internal docking state.
     pub fn handle_event<W: WindowInterface>(
         &mut self,
         window: &mut W,
         event: &UiEvent,
-    ) -> WorkbenchOutcome<Action> {
+    ) -> WorkbenchOutcome<Action, TabId> {
         let mut dock_state = std::mem::take(&mut self.descriptor.dock_state);
         let outcome = self.handle_event_full(window, event, &mut dock_state, None);
         self.descriptor.dock_state = dock_state;
@@ -409,7 +440,7 @@ where
         &self,
         consumed: bool,
         cursor: Option<iris_core::node::WidgetCursor>,
-    ) -> WorkbenchOutcome<Action> {
+    ) -> WorkbenchOutcome<Action, TabId> {
         WorkbenchOutcome {
             consumed,
             cursor,
@@ -421,6 +452,9 @@ where
             toggle_preferences: false,
             escape_handled: false,
             popups_dismissed: false,
+            invalidated_panel: None,
+            shell_dirty: false,
+            invalidation_route: None,
         }
     }
 
@@ -433,7 +467,7 @@ where
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
         content_consumed: bool,
-    ) -> WorkbenchOutcome<Action> {
+    ) -> WorkbenchOutcome<Action, TabId> {
         let logical_size = window.logical_size();
         let screen_w = logical_size.width;
         let screen_h = logical_size.height;
@@ -448,7 +482,11 @@ where
             .frameless_host
             .handle_ui_event(window, event, logical_size)
         {
-            return self.make_outcome(true, None);
+            let mut outcome = self.make_outcome(true, None);
+            outcome.shell_dirty = true;
+            outcome.layout_changed = true;
+            outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+            return outcome;
         }
 
         // If the inner panel/overlay content already consumed the event, skip shell and dock interaction
@@ -476,6 +514,8 @@ where
             }
             outcome.dropped_files = Some((paths.clone(), *point));
             outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
             return outcome;
         }
 
@@ -483,7 +523,10 @@ where
         if self.descriptor.menubar.is_some() {
             let menubar_rect = Rect::new(0.0, 0.0, screen_w, self.menubar_height);
             if self.drag_host.handle_ui_event(window, event, menubar_rect) {
-                return self.make_outcome(true, None);
+                let mut outcome = self.make_outcome(true, None);
+                outcome.shell_dirty = true;
+                outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+                return outcome;
             }
         }
 
@@ -519,6 +562,8 @@ where
                     }
                     outcome.zoom_changed = Some(new_zoom);
                     outcome.layout_changed = true;
+                    outcome.shell_dirty = true;
+                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
                     return outcome;
                 }
 
@@ -529,6 +574,8 @@ where
                     }
                     outcome.toggle_preferences = true;
                     outcome.layout_changed = true;
+                    outcome.shell_dirty = true;
+                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
                     return outcome;
                 }
             }
@@ -556,12 +603,20 @@ where
         if dock_res.consumed {
             let mut outcome = self.make_outcome(true, dock_res.cursor_override);
             outcome.layout_changed = dock_res.layout_changed;
+            if dock_res.layout_changed {
+                outcome.shell_dirty = true;
+                outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+            }
             outcome.actions.extend(self.action_bus.drain());
             return outcome;
         }
 
         let mut outcome = self.make_outcome(false, dock_res.cursor_override);
         outcome.layout_changed = dock_res.layout_changed;
+        if dock_res.layout_changed {
+            outcome.shell_dirty = true;
+            outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+        }
         outcome.actions.extend(self.action_bus.drain());
         outcome
     }
@@ -570,13 +625,43 @@ where
     ///
     /// Evaluates content first. If content produces actions, requests cursor change, or consumes the event,
     /// those actions are aggregated and shell dragging/dock interaction is bypassed.
+    ///
+    /// Automatically forwards to [`Self::handle_event_with_content_tree`] with `tree = None`.
     pub fn handle_event_with_content<W, F>(
         &mut self,
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
         content_dispatcher: F,
-    ) -> WorkbenchOutcome<Action>
+    ) -> WorkbenchOutcome<Action, TabId>
+    where
+        W: WindowInterface,
+        F: FnOnce(&UiEvent) -> (bool, Option<iris_core::node::WidgetCursor>, Vec<Action>),
+    {
+        self.handle_event_with_content_tree(window, event, dock_state, None, content_dispatcher)
+    }
+
+    /// Dispatches an event through both content and shell layers, optionally accepting an active [`UiTree`]
+    /// for automatic targeted panel invalidation routing and lifecycle reconciliation.
+    ///
+    /// # Arguments
+    /// * `window` - Host window implementing [`WindowInterface`] for cursor updates.
+    /// * `event` - The platform [`UiEvent`] being processed.
+    /// * `dock_state` - Mutable reference to the active docking layout state.
+    /// * `tree` - Optional mutable reference to the active [`UiTree`] for cursor sync and invalidation routing.
+    /// * `content_dispatcher` - Callback closure evaluating inner panel/overlay interaction.
+    ///
+    /// # Returns
+    /// A complete [`WorkbenchOutcome`] including consumption, cursor requests, emitted actions,
+    /// and targeted panel or shell invalidation routing.
+    pub fn handle_event_with_content_tree<W, F>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        mut tree: Option<&mut UiTree>,
+        content_dispatcher: F,
+    ) -> WorkbenchOutcome<Action, TabId>
     where
         W: WindowInterface,
         F: FnOnce(&UiEvent) -> (bool, Option<iris_core::node::WidgetCursor>, Vec<Action>),
@@ -590,7 +675,37 @@ where
             return outcome;
         }
 
-        let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
+        if let Some(outcome) = self.handle_escape_event(event, tree.as_deref_mut(), None) {
+            return outcome;
+        }
+
+        if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
+            return outcome;
+        }
+
+        let (tree_consumed, tree_cursor, tree_redraw, tree_route) = if let Some(t) = tree {
+            if let Some(pos) = self.last_cursor_pos {
+                t.set_cursor_position(pos);
+            }
+            let dispatch = t.dispatch_event(event);
+            let route = self.route_event_invalidation(t, event, &dispatch);
+            (
+                dispatch.consumed,
+                dispatch.cursor,
+                dispatch.needs_redraw,
+                Some(route),
+            )
+        } else {
+            (false, None, false, None)
+        };
+
+        let (mut content_consumed, mut content_cursor, content_actions) = content_dispatcher(event);
+        if tree_consumed {
+            content_consumed = true;
+        }
+        if content_cursor.is_none() {
+            content_cursor = tree_cursor;
+        }
         if let Some(cursor) = content_cursor {
             window.set_widget_cursor(cursor);
         }
@@ -603,22 +718,36 @@ where
         if content_consumed {
             outcome.consumed = true;
         }
-        if matches!(
-            event,
-            UiEvent::MouseDown { .. }
-                | UiEvent::MouseUp { .. }
-                | UiEvent::KeyboardInput {
-                    is_pressed: true,
-                    ..
-                }
-                | UiEvent::Ime(_)
-                | UiEvent::FileDropped { .. }
-        ) {
+        if tree_redraw
+            || matches!(
+                event,
+                UiEvent::MouseDown { .. }
+                    | UiEvent::MouseUp { .. }
+                    | UiEvent::KeyboardInput {
+                        is_pressed: true,
+                        ..
+                    }
+                    | UiEvent::Ime(_)
+                    | UiEvent::FileDropped { .. }
+            )
+        {
             outcome.layout_changed = true;
         }
         if outcome.cursor.is_none() {
             outcome.cursor = content_cursor;
         }
+
+        // Reconcile targeted invalidation from tree or lifecycle state machine
+        if let Some(route) = tree_route {
+            outcome = outcome.with_invalidation_route(route);
+        } else if self.lifecycle.is_panel_dirty() {
+            if let Some(&dirty_tab) = self.lifecycle.dirty_tabs().iter().next() {
+                outcome = outcome.with_invalidation_route(EventInvalidationRoute::Panel(dirty_tab));
+            }
+        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
+            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+        }
+
         outcome
     }
 
@@ -629,20 +758,38 @@ where
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
-    ) -> WorkbenchOutcome<Action> {
+    ) -> WorkbenchOutcome<Action, TabId> {
         self.handle_event_full(window, event, dock_state, None)
+    }
+
+    /// Dispatches a platform [`UiEvent`] with an explicit [`UiTree`], providing complete
+    /// event dispatch and automatic targeted panel invalidation routing in the returned outcome.
+    pub fn handle_event_with_tree<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        tree: &mut UiTree,
+    ) -> WorkbenchOutcome<Action, TabId> {
+        let mut dock_state = std::mem::take(&mut self.descriptor.dock_state);
+        let outcome = self.handle_event_full(window, event, &mut dock_state, Some(tree));
+        self.descriptor.dock_state = dock_state;
+        outcome
     }
 
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
     /// coordinating frameless window management, titlebar dragging, modal dialogs, docking splitters,
     /// and declarative [`UiTree`] event routing in a single unified retained pass.
+    ///
+    /// Automatically routes discrete gestures and click events to their owning dock panel leaf
+    /// container via [`Self::route_event_invalidation`], attaching the resulting [`EventInvalidationRoute`]
+    /// directly to the returned [`WorkbenchOutcome`].
     pub fn handle_event_full<W: WindowInterface>(
         &mut self,
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
         mut tree: Option<&mut UiTree>,
-    ) -> WorkbenchOutcome<Action> {
+    ) -> WorkbenchOutcome<Action, TabId> {
         self.pointer_state.update_from_event(event);
         self.last_cursor_pos = self.pointer_state.position;
 
@@ -658,15 +805,22 @@ where
             return outcome;
         }
 
-        let (content_consumed, content_cursor, needs_redraw) = if let Some(t) = tree {
-            if let Some(pos) = self.last_cursor_pos {
-                t.set_cursor_position(pos);
-            }
-            let dispatch = t.dispatch_event(event);
-            (dispatch.consumed, dispatch.cursor, dispatch.needs_redraw)
-        } else {
-            (false, None, false)
-        };
+        let (content_consumed, content_cursor, needs_redraw, invalidation_route) =
+            if let Some(t) = tree {
+                if let Some(pos) = self.last_cursor_pos {
+                    t.set_cursor_position(pos);
+                }
+                let dispatch = t.dispatch_event(event);
+                let route = self.route_event_invalidation(t, event, &dispatch);
+                (
+                    dispatch.consumed,
+                    dispatch.cursor,
+                    dispatch.needs_redraw,
+                    Some(route),
+                )
+            } else {
+                (false, None, false, None)
+            };
 
         if let Some(cursor) = content_cursor {
             window.set_widget_cursor(cursor);
@@ -682,6 +836,11 @@ where
         if outcome.cursor.is_none() {
             outcome.cursor = content_cursor;
         }
+        if let Some(route) = invalidation_route {
+            outcome = outcome.with_invalidation_route(route);
+        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
+            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+        }
         outcome
     }
 
@@ -689,8 +848,8 @@ where
     /// or marks the overall shell as dirty if the interaction occurred outside any leaf.
     ///
     /// Automatically updates [`Workbench::lifecycle`] by marking the resolved tab dirty
-    /// via [`WorkbenchLifecycle::mark_tab_dirty`], or marking the shell dirty via
-    /// [`WorkbenchLifecycle::mark_shell_dirty`].
+    /// via [`crate::lifecycle::WorkbenchLifecycle::mark_tab_dirty`], or marking the shell dirty via
+    /// [`crate::lifecycle::WorkbenchLifecycle::mark_shell_dirty`].
     pub fn route_event_invalidation(
         &mut self,
         tree: &UiTree,
@@ -731,16 +890,38 @@ where
         route
     }
 
-    /// Returns a mutable reference to the underlying docking state.
-    #[inline]
-    pub fn dock_state_mut(&mut self) -> &mut DockState<TabId> {
-        &mut self.descriptor.dock_state
-    }
-
-    /// Returns an immutable reference to the underlying docking state.
-    #[inline]
-    #[must_use]
-    pub fn dock_state(&self) -> &DockState<TabId> {
-        &self.descriptor.dock_state
+    /// Routes an interaction event dispatch result to its owning dock panel leaf container,
+    /// accepting a custom fallback resolver before falling back to coarse shell invalidation.
+    ///
+    /// Automatically updates [`Workbench::lifecycle`] by marking the resolved tab dirty
+    /// via [`crate::lifecycle::WorkbenchLifecycle::mark_tab_dirty`], or marking the shell dirty via
+    /// [`crate::lifecycle::WorkbenchLifecycle::mark_shell_dirty`].
+    pub fn route_event_invalidation_with_fallback<F>(
+        &mut self,
+        tree: &UiTree,
+        event: &UiEvent,
+        dispatch: &DispatchResult,
+        custom_resolver: F,
+    ) -> EventInvalidationRoute<TabId>
+    where
+        F: FnOnce(&DispatchResult, &UiEvent) -> Option<TabId>,
+    {
+        let route = crate::lifecycle::route_event_invalidation_with_fallback(
+            tree,
+            self.dock_frame.as_ref(),
+            event,
+            dispatch,
+            custom_resolver,
+        );
+        match &route {
+            EventInvalidationRoute::Panel(tab) => {
+                self.lifecycle.mark_tab_dirty(*tab);
+            }
+            EventInvalidationRoute::Shell => {
+                self.lifecycle.mark_shell_dirty();
+            }
+            EventInvalidationRoute::None => {}
+        }
+        route
     }
 }

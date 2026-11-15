@@ -7,15 +7,18 @@
 //! the autonomous [`Workbench`] coordinator, including event consumption,
 //! requested platform cursor, and emitted type-safe application actions.
 
+use crate::lifecycle::EventInvalidationRoute;
 use iris_core::geometry::Point;
 use iris_core::node::WidgetCursor;
+use iris_dock::notifier::UiNotifier;
+use std::hash::Hash;
 
 /// Summarized outcome returned after processing an event in [`crate::workbench::Workbench::handle_event`].
 ///
 /// Designed to provide complete event telemetry to the hosting application without requiring
 /// any internal knowledge of window borders, title bar dragging, dock splitters, or modal focus traps.
 #[derive(Debug, Clone, PartialEq)]
-pub struct WorkbenchOutcome<Action> {
+pub struct WorkbenchOutcome<Action, TabId = ()> {
     /// Whether the event was intercepted and consumed by the workbench shell,
     /// stopping propagation to underlying game engines, 3D canvases, or custom tools.
     pub consumed: bool,
@@ -50,9 +53,18 @@ pub struct WorkbenchOutcome<Action> {
 
     /// Whether an outside-click gesture was detected and dismissed open popups or context menus.
     pub popups_dismissed: bool,
+
+    /// Optional targeted dock panel leaf container invalidated by an interaction event.
+    pub invalidated_panel: Option<TabId>,
+
+    /// Whether an interaction event invalidated the overall application shell.
+    pub shell_dirty: bool,
+
+    /// Detailed invalidation routing outcome, if determined.
+    pub invalidation_route: Option<EventInvalidationRoute<TabId>>,
 }
 
-impl<Action> Default for WorkbenchOutcome<Action> {
+impl<Action, TabId> Default for WorkbenchOutcome<Action, TabId> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -66,11 +78,14 @@ impl<Action> Default for WorkbenchOutcome<Action> {
             toggle_preferences: false,
             escape_handled: false,
             popups_dismissed: false,
+            invalidated_panel: None,
+            shell_dirty: false,
+            invalidation_route: None,
         }
     }
 }
 
-impl<Action> WorkbenchOutcome<Action> {
+impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
     /// Constructs an unconsumed, empty event outcome with no requested actions or layout alterations.
     #[inline]
     #[must_use]
@@ -93,6 +108,9 @@ impl<Action> WorkbenchOutcome<Action> {
             toggle_preferences: false,
             escape_handled: false,
             popups_dismissed: false,
+            invalidated_panel: None,
+            shell_dirty: false,
+            invalidation_route: None,
         }
     }
 
@@ -134,5 +152,115 @@ impl<Action> WorkbenchOutcome<Action> {
     pub fn with_popups_dismissed(mut self, dismissed: bool) -> Self {
         self.popups_dismissed = dismissed;
         self
+    }
+
+    /// Attaches an invalidation route to the outcome, updating `invalidated_panel`
+    /// and `shell_dirty` automatically.
+    #[inline]
+    #[must_use]
+    pub fn with_invalidation_route(mut self, route: EventInvalidationRoute<TabId>) -> Self
+    where
+        TabId: Clone,
+    {
+        match &route {
+            EventInvalidationRoute::Panel(tab) => {
+                self.invalidated_panel = Some(tab.clone());
+            }
+            EventInvalidationRoute::Shell => {
+                self.shell_dirty = true;
+                self.layout_changed = true;
+            }
+            EventInvalidationRoute::None => {}
+        }
+        self.invalidation_route = Some(route);
+        self
+    }
+
+    /// Explicitly flags a specific panel tab as invalidated.
+    #[inline]
+    #[must_use]
+    pub fn with_invalidated_panel(mut self, tab: Option<TabId>) -> Self {
+        self.invalidated_panel = tab;
+        self
+    }
+
+    /// Explicitly flags the overall shell as dirty.
+    #[inline]
+    #[must_use]
+    pub fn with_shell_dirty(mut self, dirty: bool) -> Self {
+        self.shell_dirty = dirty;
+        if dirty {
+            self.layout_changed = true;
+        }
+        self
+    }
+
+    /// Returns a reference to the invalidated dock panel tab identifier, if targeted.
+    #[inline]
+    #[must_use]
+    pub const fn invalidated_panel(&self) -> Option<&TabId> {
+        self.invalidated_panel.as_ref()
+    }
+
+    /// Returns whether the event invalidated the application shell.
+    #[inline]
+    #[must_use]
+    pub const fn is_shell_dirty(&self) -> bool {
+        self.shell_dirty
+    }
+
+    /// Returns the resolved event invalidation route, if present.
+    #[inline]
+    #[must_use]
+    pub const fn invalidation_route(&self) -> Option<&EventInvalidationRoute<TabId>> {
+        self.invalidation_route.as_ref()
+    }
+
+    /// Applies the invalidation routing decision directly to an external [`UiNotifier`].
+    ///
+    /// If an invalidation route is attached, it delegates directly to
+    /// [`EventInvalidationRoute::apply_to_notifier`]. Otherwise, synchronizes
+    /// `invalidated_panel` via [`UiNotifier::tag_redraw`] and `shell_dirty`
+    /// via [`UiNotifier::tag_all`].
+    #[inline]
+    pub fn apply_to_notifier(&self, notifier: &mut UiNotifier<TabId>)
+    where
+        TabId: Copy + Eq + Hash + Send + Sync + 'static,
+    {
+        if let Some(route) = &self.invalidation_route {
+            route.apply_to_notifier(notifier);
+        } else {
+            if self.shell_dirty {
+                notifier.tag_all();
+            }
+            if let Some(tab) = self.invalidated_panel {
+                notifier.tag_redraw(tab);
+            }
+        }
+    }
+
+    /// Discards panel invalidation telemetry, converting this outcome into an action-only outcome.
+    #[inline]
+    #[must_use]
+    pub fn into_action_only(self) -> WorkbenchOutcome<Action, ()> {
+        WorkbenchOutcome {
+            consumed: self.consumed,
+            cursor: self.cursor,
+            cursor_pos: self.cursor_pos,
+            layout_changed: self.layout_changed,
+            actions: self.actions,
+            dropped_files: self.dropped_files,
+            zoom_changed: self.zoom_changed,
+            toggle_preferences: self.toggle_preferences,
+            escape_handled: self.escape_handled,
+            popups_dismissed: self.popups_dismissed,
+            invalidated_panel: None,
+            shell_dirty: self.shell_dirty,
+            invalidation_route: match self.invalidation_route {
+                Some(EventInvalidationRoute::Shell) => Some(EventInvalidationRoute::Shell),
+                Some(EventInvalidationRoute::None) => Some(EventInvalidationRoute::None),
+                _ => None,
+            },
+        }
     }
 }
