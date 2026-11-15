@@ -100,15 +100,17 @@ where
         }
 
         // If the inner panel/overlay content already consumed the event, skip shell and dock interaction
-        // UNLESS an active floating window drag owns pointer capture, or pointer is over a floating window/border
-        let has_active_floating_drag = dock_state.has_active_floating_drag();
+        // UNLESS an active floating window drag or tab drag owns pointer capture, or pointer is over a floating window/border
+        let has_active_drag = dock_state.has_active_floating_drag()
+            || dock_state.active_drag.is_some()
+            || dock_state.pending_tab_drag.is_some();
         let is_over_floating = match event {
             UiEvent::MouseMove { point } | UiEvent::MouseDown { point, .. } => {
                 dock_state.is_point_over_floating_window_or_border(*point, DEFAULT_RESIZE_MARGIN)
             }
             _ => false,
         };
-        if content_consumed && !has_active_floating_drag && !is_over_floating {
+        if content_consumed && !has_active_drag && !is_over_floating {
             let mut outcome = self.make_outcome(true, None);
             outcome.actions.extend(self.action_bus.drain());
             return outcome;
@@ -328,9 +330,12 @@ where
             return outcome;
         }
 
-        // 1. If an active floating window drag is in progress, it owns pointer capture
+        // 1. If an active floating window drag or active tab drag is in progress, it owns pointer capture
         // and takes absolute precedence over background content and tree dispatch
-        if dock_state.has_active_floating_drag() {
+        if dock_state.has_active_floating_drag()
+            || dock_state.active_drag.is_some()
+            || dock_state.pending_tab_drag.is_some()
+        {
             let mut outcome = self.handle_shell_event(window, event, dock_state, false);
             outcome.consumed = true;
             outcome.layout_changed = true;
@@ -339,7 +344,7 @@ where
             return outcome;
         }
 
-        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back)
+        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back, tab selection)
         // take priority over background content on left mouse down
         if let UiEvent::MouseDown {
             button: MouseButton::Left,
@@ -348,6 +353,9 @@ where
         {
             let floating_res = self.handle_floating_event(window, event, dock_state);
             if floating_res.consumed {
+                if let Some(pending) = floating_res.pending_tab_drag {
+                    dock_state.pending_tab_drag = Some(pending);
+                }
                 let mut outcome = self.make_outcome(true, floating_res.cursor);
                 outcome.layout_changed = floating_res.layout_changed;
                 if floating_res.layout_changed {
@@ -481,9 +489,12 @@ where
             return outcome;
         }
 
-        // 1. If an active floating window drag is in progress, it owns pointer capture
+        // 1. If an active floating window drag or active tab drag is in progress, it owns pointer capture
         // and takes absolute precedence over background content and tree dispatch
-        if dock_state.has_active_floating_drag() {
+        if dock_state.has_active_floating_drag()
+            || dock_state.active_drag.is_some()
+            || dock_state.pending_tab_drag.is_some()
+        {
             let mut outcome = self.handle_shell_event(window, event, dock_state, false);
             outcome.consumed = true;
             outcome.layout_changed = true;
@@ -492,7 +503,7 @@ where
             return outcome;
         }
 
-        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back)
+        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back, tab selection)
         // take priority over background content on left mouse down
         if let UiEvent::MouseDown {
             button: MouseButton::Left,
@@ -501,6 +512,9 @@ where
         {
             let floating_res = self.handle_floating_event(window, event, dock_state);
             if floating_res.consumed {
+                if let Some(pending) = floating_res.pending_tab_drag {
+                    dock_state.pending_tab_drag = Some(pending);
+                }
                 let mut outcome = self.make_outcome(true, floating_res.cursor);
                 outcome.layout_changed = floating_res.layout_changed;
                 if floating_res.layout_changed {

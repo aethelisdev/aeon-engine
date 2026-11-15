@@ -274,3 +274,96 @@ fn test_workbench_floating_window_hover_cursors() {
 
     assert_eq!(outcome_title.cursor, Some(WidgetCursor::Pointer));
 }
+
+#[test]
+fn test_workbench_floating_tab_drag_promotion_to_active_drag() {
+    let (mut wb, mut dock_state) = create_floating_test_workbench();
+    let mut win = MockWindow {
+        logical_size: Size::new(1920.0, 1080.0),
+        ..Default::default()
+    };
+
+    // Click on tab pill "Properties" at x=240, y=115 inside [200, 100, 400, 32]
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(240.0, 115.0),
+    };
+
+    let outcome_down = wb.handle_event_with_content(&mut win, &down_ev, &mut dock_state, |_| {
+        (false, None, vec![])
+    });
+
+    assert!(outcome_down.consumed);
+    assert!(
+        dock_state.pending_tab_drag.is_some(),
+        "pending_tab_drag must be preserved in dock_state!"
+    );
+
+    // Move past threshold (dx=10px, dy=0)
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(250.0, 115.0),
+    };
+
+    let outcome_move = wb.handle_event_with_content(&mut win, &move_ev, &mut dock_state, |_| {
+        (false, None, vec![])
+    });
+
+    assert!(outcome_move.consumed);
+    assert!(
+        dock_state.active_drag.is_some(),
+        "active_drag must be active after threshold!"
+    );
+}
+
+#[test]
+fn test_workbench_docked_tab_drag_promotion_to_active_drag() {
+    let mut tree = DockTree::new();
+    let root = tree.create_leaf(vec![TestTab::Viewport, TestTab::Properties]);
+    tree.set_root(root);
+    let mut dock_state = DockState::new(tree);
+
+    let mut descriptor = WorkbenchDescriptor::new("Test Workbench", dock_state.clone());
+    descriptor.menubar = Some(crate::descriptors::menu::MenuBarDescriptor::new());
+    descriptor.statusbar = Some(crate::descriptors::status::StatusBarDescriptor::new());
+
+    let mut wb = Workbench::<TestTab, (), ()>::new(descriptor)
+        .with_menubar_height(30.0)
+        .with_statusbar_height(24.0);
+
+    let mut win = MockWindow {
+        logical_size: Size::new(1920.0, 1080.0),
+        ..Default::default()
+    };
+
+    // Tab 0 (Viewport) is at x=0..120, y=30..56
+    // Tab 1 (Properties) is at x=120..240, y=30..56
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(150.0, 42.0),
+    };
+
+    let outcome_down = wb.handle_event_with_content(&mut win, &down_ev, &mut dock_state, |_| {
+        (false, None, vec![])
+    });
+
+    assert!(outcome_down.consumed, "Docked tab click must be consumed");
+    assert!(
+        dock_state.pending_tab_drag.is_some(),
+        "pending_tab_drag must be set for docked tab!"
+    );
+
+    // Move past threshold (dx=10px, dy=10px)
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(160.0, 52.0),
+    };
+
+    let outcome_move = wb.handle_event_with_content(&mut win, &move_ev, &mut dock_state, |_| {
+        (false, None, vec![])
+    });
+
+    assert!(outcome_move.consumed);
+    assert!(
+        dock_state.active_drag.is_some(),
+        "active_drag must be active for docked tab!"
+    );
+}
