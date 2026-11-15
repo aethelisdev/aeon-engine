@@ -12,6 +12,7 @@ pub mod layer;
 pub mod manager;
 pub mod model;
 
+pub use crate::events::floating::{FloatingInteractionResponse, handle_floating_window_event};
 pub use bounds::{FloatingWindowClampBounds, clamp_floating_windows};
 pub use cursor::{
     DEFAULT_RESIZE_MARGIN, FloatingResizeEdge, FloatingWindowCursor, detect_resize_edge,

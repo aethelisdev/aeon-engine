@@ -19,6 +19,8 @@ mod tests;
 #[cfg(test)]
 mod tests_escape;
 #[cfg(test)]
+mod tests_floating;
+#[cfg(test)]
 mod tests_outside_click;
 
 pub use outcome::WorkbenchOutcome;

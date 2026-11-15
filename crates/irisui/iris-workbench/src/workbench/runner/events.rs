@@ -11,12 +11,14 @@ use super::coordinator::Workbench;
 use crate::lifecycle::EventInvalidationRoute;
 use crate::workbench::outcome::WorkbenchOutcome;
 use iris_core::dispatch::DispatchResult;
-use iris_core::event::UiEvent;
+use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::Rect;
 use iris_core::tree::UiTree;
 use iris_dock::UiNotifier;
 use iris_dock::area::runner::{DockArea, DockInteractionConfig};
-use iris_dock::floating::FloatingWindowClampBounds;
+use iris_dock::floating::{
+    DEFAULT_RESIZE_MARGIN, FloatingInteractionResponse, FloatingWindowClampBounds,
+};
 use iris_dock::state::DockState;
 use iris_winit::frameless::WindowInterface;
 use std::fmt::Debug;
@@ -98,7 +100,15 @@ where
         }
 
         // If the inner panel/overlay content already consumed the event, skip shell and dock interaction
-        if content_consumed {
+        // UNLESS an active floating window drag owns pointer capture, or pointer is over a floating window/border
+        let has_active_floating_drag = dock_state.has_active_floating_drag();
+        let is_over_floating = match event {
+            UiEvent::MouseMove { point } | UiEvent::MouseDown { point, .. } => {
+                dock_state.is_point_over_floating_window_or_border(*point, DEFAULT_RESIZE_MARGIN)
+            }
+            _ => false,
+        };
+        if content_consumed && !has_active_floating_drag && !is_over_floating {
             let mut outcome = self.make_outcome(true, None);
             outcome.actions.extend(self.action_bus.drain());
             return outcome;
@@ -229,6 +239,33 @@ where
         outcome
     }
 
+    /// Dispatches a platform [`UiEvent`] directly to the floating window interaction manager.
+    ///
+    /// Handles titlebar dragging, 8-directional border edge resizing, window close, dock-back,
+    /// tab switching, and focus elevation across all detached floating windows.
+    ///
+    /// Automatically updates the cursor on the host window if requested by floating window hover or drag.
+    pub fn handle_floating_event<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+    ) -> FloatingInteractionResponse<TabId> {
+        let logical_size = window.logical_size();
+        let screen_w = logical_size.width;
+        let screen_h = logical_size.height;
+        let clamp_bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
+            .with_min_y(self.menubar_height)
+            .with_bottom_inset(self.statusbar_height);
+
+        let tab_viewer = self.panel_registry.tab_viewer();
+        let res = dock_state.handle_floating_event(&tab_viewer, event, clamp_bounds);
+        if let Some(cursor) = res.cursor {
+            window.set_widget_cursor(cursor);
+        }
+        res
+    }
+
     /// Dispatches an event through both content and shell layers in industry-standard sequence.
     ///
     /// Evaluates content first. If content produces actions, requests cursor change, or consumes the event,
@@ -289,6 +326,37 @@ where
 
         if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
             return outcome;
+        }
+
+        // 1. If an active floating window drag is in progress, it owns pointer capture
+        // and takes absolute precedence over background content and tree dispatch
+        if dock_state.has_active_floating_drag() {
+            let mut outcome = self.handle_shell_event(window, event, dock_state, false);
+            outcome.consumed = true;
+            outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+            return outcome;
+        }
+
+        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back)
+        // take priority over background content on left mouse down
+        if let UiEvent::MouseDown {
+            button: MouseButton::Left,
+            ..
+        } = event
+        {
+            let floating_res = self.handle_floating_event(window, event, dock_state);
+            if floating_res.consumed {
+                let mut outcome = self.make_outcome(true, floating_res.cursor);
+                outcome.layout_changed = floating_res.layout_changed;
+                if floating_res.layout_changed {
+                    outcome.shell_dirty = true;
+                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+                }
+                outcome.actions.extend(self.action_bus.drain());
+                return outcome;
+            }
         }
 
         let (tree_consumed, tree_cursor, tree_redraw, tree_route) = if let Some(t) = tree {
@@ -411,6 +479,37 @@ where
 
         if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
             return outcome;
+        }
+
+        // 1. If an active floating window drag is in progress, it owns pointer capture
+        // and takes absolute precedence over background content and tree dispatch
+        if dock_state.has_active_floating_drag() {
+            let mut outcome = self.handle_shell_event(window, event, dock_state, false);
+            outcome.consumed = true;
+            outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+            return outcome;
+        }
+
+        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back)
+        // take priority over background content on left mouse down
+        if let UiEvent::MouseDown {
+            button: MouseButton::Left,
+            ..
+        } = event
+        {
+            let floating_res = self.handle_floating_event(window, event, dock_state);
+            if floating_res.consumed {
+                let mut outcome = self.make_outcome(true, floating_res.cursor);
+                outcome.layout_changed = floating_res.layout_changed;
+                if floating_res.layout_changed {
+                    outcome.shell_dirty = true;
+                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
+                }
+                outcome.actions.extend(self.action_bus.drain());
+                return outcome;
+            }
         }
 
         let (content_consumed, content_cursor, needs_redraw, invalidation_route) =

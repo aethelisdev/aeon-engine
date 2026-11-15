@@ -7,7 +7,9 @@ use crate::context_menu::TabContextMenuState;
 use crate::drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect};
 use crate::floating::{FloatingDragState, FloatingWindow};
 use crate::layout::ComputedDockLayout;
+use crate::tab_viewer::TabViewer;
 use crate::tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
+use iris_core::event::UiEvent;
 use iris_core::{Point, Rect};
 use serde::{Deserialize, Serialize};
 
@@ -543,6 +545,50 @@ impl<T> DockState<T> {
         self.floating_windows
             .iter()
             .any(|w| w.contains_point(point))
+    }
+
+    /// Checks whether the specified coordinate point falls inside any active floating window
+    /// or within its interactive border resize margin.
+    #[inline]
+    #[must_use]
+    pub fn is_point_over_floating_window_or_border(&self, point: Point, margin: f32) -> bool {
+        self.floating_windows.iter().any(|w| {
+            let expanded = Rect::new(
+                w.rect.x - margin,
+                w.rect.y - margin,
+                w.rect.width + margin * 2.0,
+                w.rect.height + margin * 2.0,
+            );
+            expanded.contains_point(point)
+        })
+    }
+
+    /// Returns `true` if a floating window is actively being dragged or resized.
+    #[inline]
+    #[must_use]
+    pub const fn has_active_floating_drag(&self) -> bool {
+        self.active_floating_drag.is_some()
+    }
+
+    /// Evaluates an incoming interaction event specifically against managed floating windows.
+    ///
+    /// Coordinates titlebar dragging, 8-directional border resizing, close button, dock-back button,
+    /// tab selection, and Z-order focus promotion without requiring complete dock chrome construction.
+    ///
+    /// # Arguments
+    /// * `viewer` - Reference to tab viewer providing tab titles and custom metrics.
+    /// * `event` - Raw interaction event to process.
+    /// * `clamp_bounds` - Boundary constraints ensuring windows remain accessible and visible.
+    pub fn handle_floating_event<V: TabViewer<T>>(
+        &mut self,
+        viewer: &V,
+        event: &UiEvent,
+        clamp_bounds: crate::floating::FloatingWindowClampBounds,
+    ) -> crate::events::floating::FloatingInteractionResponse<T>
+    where
+        T: Clone + Copy + PartialEq,
+    {
+        crate::events::floating::handle_floating_window_event(self, viewer, event, clamp_bounds)
     }
 
     /// Synchronizes active floating window bounding rectangles into the provided target buffer.
