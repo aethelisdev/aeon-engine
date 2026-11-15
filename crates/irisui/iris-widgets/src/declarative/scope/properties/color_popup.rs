@@ -12,6 +12,7 @@ use iris_core::{AlignItems, Color, JustifyContent, Style, TextAlign, WidgetRole}
 
 use crate::color_picker::HsvColorPickerState;
 use crate::declarative::scope::core::UiScope;
+use crate::declarative::scope::scoped_popup::{DropdownCardConfig, PopupCardStyle};
 use crate::declarative::widget::color_picker::ColorPicker;
 
 /// Resolves a continuous [`HsvColorPickerState`] from an RGB [`Color`], preserving
@@ -106,6 +107,8 @@ pub struct ColorPickerPopupConfig<'a> {
     pub hex_override: Option<&'a str>,
     /// Semantic tags for anchor lookup and hit-testing.
     pub tags: ColorPickerPopupTags,
+    /// Optional customizable popup card styling resolved against the active [`iris_core::Theme`].
+    pub card_style: PopupCardStyle,
 }
 
 impl<'a> ColorPickerPopupConfig<'a> {
@@ -119,6 +122,7 @@ impl<'a> ColorPickerPopupConfig<'a> {
             initial_hsv: None,
             hex_override: None,
             tags,
+            card_style: PopupCardStyle::new(),
         }
     }
 
@@ -135,6 +139,14 @@ impl<'a> ColorPickerPopupConfig<'a> {
     #[must_use]
     pub const fn with_hex_override(mut self, hex: &'a str) -> Self {
         self.hex_override = Some(hex);
+        self
+    }
+
+    /// Applies custom background, border, corner radius, padding, or shadow styling to the popup card.
+    #[inline]
+    #[must_use]
+    pub const fn with_card_style(mut self, style: PopupCardStyle) -> Self {
+        self.card_style = style;
         self
     }
 }
@@ -264,6 +276,32 @@ impl<'a> UiScope<'a> {
         self.render_color_picker_popup_internal(&mut col, config, true)
     }
 
+    /// Renders a scoped floating 2D HSV Color Picker popup bound to `color` only when
+    /// `config.tags.anchor_tag` is active in [`iris_core::UiTree::active_popup_tags`].
+    pub fn scoped_color_picker_popup(
+        &mut self,
+        color: &mut Color,
+        config: ColorPickerPopupConfig<'_>,
+    ) -> Option<ColorPickerPopupResponse> {
+        if !self.tree.is_popup_tag_active(config.tags.anchor_tag) {
+            return None;
+        }
+        Some(self.color_picker_popup(color, config))
+    }
+
+    /// Renders a scoped floating 2D HSV Color Picker popup bound to split RGBA channels only when
+    /// `config.tags.anchor_tag` is active in [`iris_core::UiTree::active_popup_tags`].
+    pub fn scoped_color_picker_popup_rgba(
+        &mut self,
+        rgba: (&mut f32, &mut f32, &mut f32, &mut f32),
+        config: ColorPickerPopupConfig<'_>,
+    ) -> Option<ColorPickerPopupResponse> {
+        if !self.tree.is_popup_tag_active(config.tags.anchor_tag) {
+            return None;
+        }
+        Some(self.color_picker_popup_rgba(rgba, config))
+    }
+
     fn render_color_picker_popup_internal(
         &mut self,
         color: &mut Color,
@@ -272,6 +310,9 @@ impl<'a> UiScope<'a> {
     ) -> ColorPickerPopupResponse {
         if config.tags.anchor_tag != 0 {
             self.tree.set_popup_tag_active(config.tags.anchor_tag, true);
+        }
+        if config.tags.card_tag != 0 {
+            self.tree.set_popup_tag_active(config.tags.card_tag, true);
         }
 
         let anchor_rect = self
@@ -323,15 +364,14 @@ impl<'a> UiScope<'a> {
             resolve_hsv_from_color(initial_color, cached_hsv)
         };
 
+        let theme = self.theme();
         let mut close_clicked = false;
         let mut changed = false;
         let mut committed = None;
 
-        self.dropdown_menu_card_named(
+        self.dropdown_menu_card_styled(
             "ColorPickerPopupCard",
-            popup_x,
-            popup_y,
-            popup_w,
+            DropdownCardConfig::new(popup_x, popup_y, popup_w).with_card_style(config.card_style),
             |dropdown_card| {
                 dropdown_card.container_tagged(
                     "ColorPickerContent",
@@ -350,7 +390,7 @@ impl<'a> UiScope<'a> {
                                 "ColorPickerHeaderLabel",
                                 config.title,
                                 11.5,
-                                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                                theme.text_primary,
                                 TextAlign::Left,
                                 Style::new().height(18.0),
                             );
@@ -359,9 +399,9 @@ impl<'a> UiScope<'a> {
                             let close_style = Style::new()
                                 .width(close_size)
                                 .height(close_size)
-                                .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
-                                .hover_background(Color::rgba(0.35, 0.12, 0.12, 0.95))
-                                .border_radius(3.0)
+                                .background(theme.button_idle_bg)
+                                .hover_background(theme.danger)
+                                .border_radius(theme.corner_radius_sm)
                                 .flex_row()
                                 .align_items(AlignItems::Center)
                                 .justify_content(JustifyContent::Center);
@@ -376,7 +416,7 @@ impl<'a> UiScope<'a> {
                                         "CloseGlyph",
                                         "✖",
                                         9.0,
-                                        (Color::rgba(0.70, 0.73, 0.80, 0.90), Color::WHITE),
+                                        (theme.text_secondary, theme.text_primary),
                                         TextAlign::Center,
                                         Style::new().height(close_size),
                                     );
@@ -432,8 +472,8 @@ impl<'a> UiScope<'a> {
                                 .width(42.0)
                                 .height(20.0)
                                 .background(current_col)
-                                .border(1.0, Color::rgba(0.40, 0.44, 0.55, 0.90))
-                                .border_radius(4.0);
+                                .border(1.0, theme.card_border)
+                                .border_radius(theme.corner_radius_md);
 
                             bottom.empty_box(swatch_style);
 
@@ -453,7 +493,7 @@ impl<'a> UiScope<'a> {
                                 "LiveHexText",
                                 &hex_text,
                                 11.0,
-                                Color::rgba(0.85, 0.88, 0.95, 1.0),
+                                theme.text_secondary,
                                 TextAlign::Left,
                                 Style::new().flex_grow(1.0).height(20.0),
                             );
@@ -462,6 +502,15 @@ impl<'a> UiScope<'a> {
                 );
             },
         );
+
+        if close_clicked {
+            if config.tags.anchor_tag != 0 {
+                self.tree.close_popup(config.tags.anchor_tag);
+            }
+            if config.tags.card_tag != 0 {
+                self.tree.close_popup(config.tags.card_tag);
+            }
+        }
 
         ColorPickerPopupResponse {
             rect: Rect::new(popup_x, popup_y, popup_w, popup_h),

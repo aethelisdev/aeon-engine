@@ -317,11 +317,50 @@ impl<'a> UiScope<'a> {
     /// Registers or unregisters a 64-bit semantic `tag` as an active open popup menu or dropdown.
     ///
     /// # Arguments
-    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget.
+    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget (`0` is ignored when opening).
     /// * `active` - `true` to mark the popup as open; `false` to close it.
     #[inline]
     pub fn set_popup_tag_active(&mut self, tag: u64, active: bool) {
         self.tree.set_popup_tag_active(tag, active);
+    }
+
+    /// Marks the scoped popup identified by semantic `tag` as open in the backing [`iris_core::UiTree`].
+    #[inline]
+    pub fn open_popup(&mut self, tag: u64) {
+        self.tree.open_popup(tag);
+    }
+
+    /// Closes the scoped popup identified by semantic `tag`.
+    #[inline]
+    pub fn close_popup(&mut self, tag: u64) {
+        self.tree.close_popup(tag);
+    }
+
+    /// Toggles the open state of the scoped popup identified by semantic `tag`, returning the new state.
+    #[inline]
+    pub fn toggle_popup(&mut self, tag: u64) -> bool {
+        self.tree.toggle_popup(tag)
+    }
+
+    /// Toggles a mutually exclusive scoped popup identified by `tag`, clearing other active dropdown/submenu states.
+    #[inline]
+    pub fn toggle_exclusive_popup(&mut self, tag: u64) -> bool {
+        self.tree.toggle_exclusive_popup(tag)
+    }
+
+    /// Declaratively executes `add_contents` only if the popup identified by `tag` is currently active.
+    ///
+    /// Eliminates intermediate boolean fields and conditional boilerplate in consumer UI panels.
+    #[inline]
+    pub fn when_popup_active<R, F>(&mut self, tag: u64, add_contents: F) -> Option<R>
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        if self.tree.is_popup_tag_active(tag) {
+            Some(add_contents(self))
+        } else {
+            None
+        }
     }
 
     /// Clears all registered active popup tags on the backing [`iris_core::UiTree`].

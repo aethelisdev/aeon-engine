@@ -32,6 +32,7 @@ pub mod primary_button;
 pub mod progress;
 pub mod properties;
 pub mod root;
+pub mod scoped_popup;
 pub mod scroll_area;
 pub mod selection_card;
 pub mod spacing;
@@ -86,3 +87,4 @@ pub use properties::{
     resolve_hsv_from_color, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
     resolve_property_vec3_tag,
 };
+pub use scoped_popup::{AnchoredPopupConfig, DropdownCardConfig, PopupCardStyle};

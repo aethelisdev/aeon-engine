@@ -125,12 +125,13 @@ impl UiTree {
         self.active_combobox_tag = None;
     }
 
-    /// Closes all active popups, context menus, combobox dropdowns, and menu bar dropdowns.
+    /// Closes all active popups, context menus, combobox dropdowns, submenus, tooltips, and popup-layer widgets.
     ///
-    /// Returns `true` if any open popup or menu state was dismissed.
+    /// Returns `true` if any open popup, tooltip, or menu state was dismissed.
     #[inline]
     pub fn close_all_popups(&mut self) -> bool {
-        let had_popup = self.has_open_popup();
+        let had_popup =
+            self.has_open_popup() || self.has_open_tooltip() || self.has_active_popup_nodes();
         self.active_menu_bar_tag = None;
         self.active_combobox_tag = None;
         self.active_popup_tags.clear();
@@ -138,9 +139,16 @@ impl UiTree {
         self.active_submenus.clear();
         self.event_state.close_tooltip();
 
+        let root_id = self.root;
         for node in self.nodes.values_mut() {
-            if node.layer == UiLayer::Popup && node.role != WidgetRole::Default {
-                node.visible = false;
+            if node.layer == UiLayer::Popup {
+                let is_anonymous_root_portal = node.role == WidgetRole::Default
+                    && node.tag == 0
+                    && node.name.is_none()
+                    && node.parent == root_id;
+                if !is_anonymous_root_portal {
+                    node.visible = false;
+                }
             }
         }
 
@@ -158,7 +166,8 @@ impl UiTree {
         self.event_state.frame_popups_dismissed
     }
 
-    /// Returns whether any popup, context menu, combobox dropdown, or menu bar dropdown is currently open.
+    /// Returns whether any popup, context menu, combobox dropdown, menu bar dropdown,
+    /// active semantic popup tag, or visible popup-layer card is currently open.
     #[inline]
     #[must_use]
     pub fn has_open_popup(&self) -> bool {
@@ -173,20 +182,72 @@ impl UiTree {
     #[inline]
     #[must_use]
     pub fn is_popup_tag_active(&self, tag: u64) -> bool {
-        self.active_popup_tags.contains(&tag)
+        tag != 0 && self.active_popup_tags.contains(&tag)
     }
 
     /// Registers or unregisters a 64-bit semantic `tag` as an active open popup menu or dropdown.
     ///
     /// # Arguments
-    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget.
+    /// * `tag` - 64-bit semantic tag of the popup or dropdown widget (`0` is ignored when opening).
     /// * `active` - `true` to mark the popup as open; `false` to remove it.
     #[inline]
     pub fn set_popup_tag_active(&mut self, tag: u64, active: bool) {
         if active {
-            self.active_popup_tags.insert(tag);
+            if tag != 0 {
+                self.active_popup_tags.insert(tag);
+            }
         } else {
             self.active_popup_tags.remove(&tag);
+        }
+    }
+
+    /// Marks the semantic `tag` as an open scoped popup in [`UiTree::active_popup_tags`].
+    #[inline]
+    pub fn open_popup(&mut self, tag: u64) {
+        self.set_popup_tag_active(tag, true);
+    }
+
+    /// Closes the scoped popup identified by `tag`, removing it from [`UiTree::active_popup_tags`].
+    #[inline]
+    pub fn close_popup(&mut self, tag: u64) {
+        self.set_popup_tag_active(tag, false);
+    }
+
+    /// Toggles the open state of the scoped popup identified by `tag` and returns the resulting active state.
+    #[inline]
+    pub fn toggle_popup(&mut self, tag: u64) -> bool {
+        if tag == 0 {
+            return false;
+        }
+        if self.is_popup_tag_active(tag) {
+            self.active_popup_tags.remove(&tag);
+            false
+        } else {
+            self.active_popup_tags.insert(tag);
+            true
+        }
+    }
+
+    /// Toggles a mutually exclusive scoped popup identified by `tag` and returns its new state.
+    ///
+    /// If `tag` is already active, closes all open popups and returns `false`. Otherwise clears
+    /// other active dropdown/submenu/context states and opens `tag`, returning `true`.
+    #[inline]
+    pub fn toggle_exclusive_popup(&mut self, tag: u64) -> bool {
+        if tag == 0 {
+            return false;
+        }
+        if self.is_popup_tag_active(tag) {
+            self.close_all_popups();
+            false
+        } else {
+            self.active_menu_bar_tag = None;
+            self.active_combobox_tag = None;
+            self.active_popup_tags.clear();
+            self.event_state.active_context_menu = None;
+            self.active_submenus.clear();
+            self.active_popup_tags.insert(tag);
+            true
         }
     }
 
@@ -196,14 +257,17 @@ impl UiTree {
         self.active_popup_tags.clear();
     }
 
-    /// Returns `true` if any visible interactive widget currently exists on the [`UiLayer::Popup`] layer.
+    /// Returns `true` if any visible widget or non-empty portal child currently exists on [`UiLayer::Popup`].
     #[inline]
     #[must_use]
     pub fn has_active_popup_nodes(&self) -> bool {
         self.nodes.values().any(|n| {
             n.visible
                 && n.layer == UiLayer::Popup
-                && (n.role != WidgetRole::Default || !n.children.is_empty())
+                && (n.role != WidgetRole::Default
+                    || n.children
+                        .iter()
+                        .any(|cid| self.nodes.get(*cid).is_some_and(|c| c.visible)))
         })
     }
 
@@ -284,7 +348,7 @@ impl UiTree {
     /// # Returns
     /// `true` if an outside click was detected and popups were dismissed; `false` otherwise.
     pub fn outside_click_detector(&mut self, point: Point) -> bool {
-        if !self.has_open_popup() {
+        if !self.has_open_popup() && !self.has_active_popup_nodes() {
             return false;
         }
 

@@ -87,6 +87,7 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        let theme = self.theme();
         let resp = self.popup_portal(|portal| {
             portal.container(
                 Style::new()
@@ -95,9 +96,9 @@ impl<'a> UiScope<'a> {
                     .top(point.y)
                     .width(width)
                     .flex_col()
-                    .background(Color::rgba(0.09, 0.10, 0.13, 0.98))
-                    .border(1.0, Color::rgba(0.22, 0.25, 0.32, 1.0))
-                    .border_radius(6.0)
+                    .background(theme.modal_bg)
+                    .border(1.0, theme.modal_border)
+                    .border_radius(theme.corner_radius_md)
                     .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.65))
                     .padding_insets(Insets::all(4.0)),
                 f,

@@ -106,6 +106,7 @@ impl<'a> UiScope<'a> {
             x = (x - width).max(6.0);
         }
 
+        let theme = self.theme();
         let container_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(container_id) {
             node.set_name("ContextMenuPopup");
@@ -120,9 +121,9 @@ impl<'a> UiScope<'a> {
                     .flex_col()
                     .width(width)
                     .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                    .background(Color::rgba(0.04, 0.045, 0.06, 0.98))
-                    .border(1.0, Color::rgba(0.22, 0.25, 0.34, 0.90))
-                    .border_radius(5.0)
+                    .background(theme.modal_bg)
+                    .border(1.0, theme.modal_border)
+                    .border_radius(theme.corner_radius_md)
                     .box_shadow(0.0, 6.0, 20.0, Color::rgba(0.0, 0.0, 0.0, 0.75)),
             );
             node.computed_rect.x = x;
@@ -200,10 +201,11 @@ impl<'a> UiScope<'a> {
             self.tree.event_state.close_context_menu();
         }
 
+        let theme = self.theme();
         let text_color = if hovered {
-            Color::WHITE
+            theme.text_primary
         } else {
-            Color::rgba(0.85, 0.88, 0.94, 1.0)
+            theme.text_secondary
         };
 
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -214,9 +216,9 @@ impl<'a> UiScope<'a> {
                 .height(CONTEXT_MENU_ITEM_HEIGHT)
                 .padding_insets(Insets::new(2.0, 8.0, 2.0, 8.0))
                 .background(Color::TRANSPARENT)
-                .border_radius(3.0);
+                .border_radius(theme.corner_radius_sm);
             if hovered {
-                style = style.background(Color::rgba(0.0, 0.55, 0.85, 0.25));
+                style = style.background(theme.button_hover_bg);
             }
             node.set_style(style);
         }
@@ -264,7 +266,7 @@ impl<'a> UiScope<'a> {
                 n.font_size = 10.5;
                 n.line_height = 13.0;
                 n.text_align = TextAlign::Right;
-                n.text_color = Color::rgba(0.55, 0.58, 0.68, 1.0);
+                n.text_color = theme.text_muted;
                 n.set_style(Style::new().width(48.0).height(13.0).flex_shrink(0.0));
             }
             let _ = self.tree.add_child(node_id, sc_id);
@@ -291,15 +293,12 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
+        let divider_color = self.theme().divider;
         let line_id = self.tree.create_node();
         if let Some(line) = self.tree.get_mut(line_id) {
             line.set_layer(UiLayer::Popup);
             line.interactive = false;
-            line.set_style(
-                Style::new()
-                    .height(1.0)
-                    .background(Color::rgba(0.20, 0.22, 0.28, 0.70)),
-            );
+            line.set_style(Style::new().height(1.0).background(divider_color));
         }
         let _ = self.tree.add_child(node_id, line_id);
         node_id

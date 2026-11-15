@@ -31,11 +31,12 @@ pub mod tree_view;
 pub use clipboard::SystemClipboard;
 pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
 pub use declarative::scope::{
-    ActionBarButton, AssetSlotConfig, AssetSlotResponse, ColorPickerPopupConfig,
-    ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout, DualActionBarResponse,
-    LabeledStatusDescriptor, LogRowDescriptor, ModalDescriptor, MultilineEditorProps,
-    NumberLabelDescriptor, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
-    PropertyPaletteResponse, TabBarResponse, UiScope, WrappedLabelDescriptor,
+    ActionBarButton, AnchoredPopupConfig, AssetSlotConfig, AssetSlotResponse,
+    ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout,
+    DropdownCardConfig, DualActionBarResponse, LabeledStatusDescriptor, LogRowDescriptor,
+    ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle,
+    PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
+    TabBarResponse, UiScope, WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -62,13 +63,13 @@ pub use scroll_area::ScrollArea;
 pub mod prelude {
     // 1. Declarative Core & Scope
     pub use crate::declarative::scope::{
-        ActionBarButton, ActionCardButton, ActionCardConfig, AssetSlotConfig, AssetSlotResponse,
-        CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse,
-        ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
-        ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DualActionBarResponse,
-        LabeledInputButton, LabeledInputConfig, LabeledStatusDescriptor, LogRowBadge,
-        LogRowDescriptor, MultilineEditorProps, NavItemConfig, NumberLabelDescriptor,
-        PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
+        ActionBarButton, ActionCardButton, ActionCardConfig, AnchoredPopupConfig, AssetSlotConfig,
+        AssetSlotResponse, CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions,
+        CardResponse, ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
+        ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DropdownCardConfig,
+        DualActionBarResponse, LabeledInputButton, LabeledInputConfig, LabeledStatusDescriptor,
+        LogRowBadge, LogRowDescriptor, MultilineEditorProps, NavItemConfig, NumberLabelDescriptor,
+        PopupCardStyle, PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
         PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
         PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
         WrappedLabelDescriptor,

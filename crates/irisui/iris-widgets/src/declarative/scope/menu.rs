@@ -332,68 +332,11 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.set_role(WidgetRole::DropdownPopup);
-            node.set_layer(UiLayer::Popup);
-            node.interactive = true;
-            node.tag = crate::declarative::types::hash_label(name);
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(x)
-                    .top(y)
-                    .flex_col()
-                    .width(width)
-                    .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                    .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-                    .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.90))
-                    .border_radius(6.0)
-                    .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75)),
-            );
-            node.computed_rect.x = x;
-            node.computed_rect.y = y;
-            node.computed_rect.width = width;
-        }
-        let root_anchor = self.tree.root().unwrap_or(self.parent);
-        let _ = self.tree.add_child(root_anchor, node_id);
-
-        let child_seed = crate::declarative::types::combine_seeds(
-            self.seed,
-            crate::declarative::types::hash_label(name),
-        );
-        let mut child_scope = self.child_scope_seeded(node_id, child_seed);
-        let inner = f(&mut child_scope);
-        let height = crate::declarative::layout::measure_height(self.tree, node_id);
-        let window_h = self
-            .tree
-            .root()
-            .and_then(|r| self.tree.get(r))
-            .map(|n| n.computed_rect.height)
-            .filter(|&h| h > 10.0)
-            .unwrap_or(1080.0);
-        let max_y = window_h - 28.0;
-        let clamped_y = if y + height > max_y {
-            (max_y - height).max(6.0)
-        } else {
-            y
-        };
-        let bounds = Rect::new(x, clamped_y, width, height);
-        crate::declarative::layout_subtree(self.tree, node_id, bounds);
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.computed_rect = bounds;
-            node.style.inset_top = Some(clamped_y);
-            node.style.height = Some(height);
-        }
-        let name_tag = crate::declarative::types::hash_label(name);
-        self.tree.set_tag_rect(name_tag, bounds);
-        self.tree.set_popup_tag_active(name_tag, true);
-        if let Some(cursor) = self.tree.cursor_position() {
-            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
-        }
-        let response = self.response(node_id);
-        InnerResponse::new(response, inner)
+        self.dropdown_menu_card_styled(
+            name,
+            super::scoped_popup::DropdownCardConfig::new(x, y, width),
+            f,
+        )
     }
 
     /// Emits a selectable menu item row inside a floating dropdown menu.
@@ -977,20 +920,28 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let (window_w, window_h) = if let Some(root_id) = self.tree.root() {
-            let r = self
-                .tree
-                .get(root_id)
-                .map(|n| n.computed_rect)
-                .unwrap_or(Rect::ZERO);
-            if r.width > 0.0 && r.height > 0.0 {
-                (r.width, r.height)
-            } else {
-                (1920.0, 1080.0)
-            }
-        } else {
-            (1920.0, 1080.0)
-        };
+        let mut cfg = super::scoped_popup::AnchoredPopupConfig::new(0, anchor_rect, width)
+            .with_placement(placement);
+        cfg.expected_height = expected_height;
+        self.popup_anchored_internal(name, anchor_rect, &cfg, f)
+    }
+
+    /// Internal shared builder resolving smart viewport clamping and theme-driven card styling.
+    pub(super) fn popup_anchored_internal<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_rect: Rect,
+        config: &super::scoped_popup::AnchoredPopupConfig,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let width = config.width;
+        let placement = config.placement;
+        let expected_height = config.expected_height;
+        let card_style = &config.card_style;
+        let (window_w, window_h) = super::scoped_popup::resolve_viewport_extent(self);
 
         // Horizontal placement: align left with anchor, clamp to right screen boundary
         let mut x = anchor_rect.x;
@@ -1022,37 +973,10 @@ impl<'a> UiScope<'a> {
             y = (max_y - initial_h).max(6.0);
         }
 
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.set_role(WidgetRole::DropdownPopup);
-            node.set_layer(UiLayer::Popup);
-            node.interactive = true;
-            node.tag = crate::declarative::types::hash_label(name);
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(x)
-                    .top(y)
-                    .flex_col()
-                    .width(width)
-                    .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                    .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-                    .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.90))
-                    .border_radius(6.0)
-                    .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75)),
-            );
-            node.computed_rect.x = x;
-            node.computed_rect.y = y;
-            node.computed_rect.width = width;
-        }
-        let root_anchor = self.tree.root().unwrap_or(self.parent);
-        let _ = self.tree.add_child(root_anchor, node_id);
+        let node_id =
+            super::scoped_popup::create_popup_card_node(self, name, x, y, width, card_style);
 
-        let child_seed = crate::declarative::types::combine_seeds(
-            self.seed,
-            crate::declarative::types::hash_label(name),
-        );
+        let child_seed = crate::declarative::types::combine_seeds(self.seed, name_tag);
         let mut child_scope = self.child_scope_seeded(node_id, child_seed);
         let inner = f(&mut child_scope);
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
@@ -1166,35 +1090,34 @@ impl<'a> UiScope<'a> {
             .filter(|r| r.width > 0.0 && r.height > 0.0)
             .unwrap_or(fallback_rect);
 
-        let mut res = self.popup_anchored_with_placement_and_height(
-            name,
-            anchor_rect,
-            config.width,
-            config.placement,
-            config.expected_height,
-            f,
-        );
+        let mut cfg =
+            super::scoped_popup::AnchoredPopupConfig::new(anchor_tag, anchor_rect, config.width)
+                .with_placement(config.placement)
+                .with_card_style(config.card_style);
+        cfg.expected_height = config.expected_height;
 
-        if let Some(sub_node) = self
+        let mut res = self.popup_anchored_internal(name, anchor_rect, &cfg, f);
+
+        res.response.rect = self
             .tree
             .iter()
-            .find(|(_, n)| {
+            .filter(|(_, n)| {
                 n.layer == UiLayer::Popup
                     && n.role == WidgetRole::DropdownPopup
+                    && n.id != res.response.id
                     && (n.name.as_deref().is_some_and(|nm| nm.ends_with("Submenu"))
-                        || (n.tag != 0 && config.active_submenu_tag == Some(n.tag)))
+                        || (n.tag != 0
+                            && (config.active_submenu_tag == Some(n.tag)
+                                || self.tree.active_submenus.values().any(|&v| v == n.tag))))
             })
-            .map(|(_, n)| n.computed_rect)
-        {
-            res.response.rect = res.response.rect.union(sub_node);
-        }
+            .fold(res.response.rect, |acc, (_, n)| acc.union(n.computed_rect));
 
         res
     }
 }
 
 /// Configuration descriptor for elevated cascading popup cards.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CascadingPopupConfig {
     /// Preferred root popup width in physical pixels.
     pub width: f32,
@@ -1206,6 +1129,8 @@ pub struct CascadingPopupConfig {
     pub active_nested_submenu: Option<(u64, u64)>,
     /// Optional expected height of the popup menu card in physical pixels.
     pub expected_height: Option<f32>,
+    /// Customizable card styling overrides resolved against the active [`iris_core::Theme`].
+    pub card_style: super::scoped_popup::PopupCardStyle,
 }
 
 impl CascadingPopupConfig {
@@ -1219,6 +1144,7 @@ impl CascadingPopupConfig {
             active_submenu_tag: None,
             active_nested_submenu: None,
             expected_height: None,
+            card_style: super::scoped_popup::PopupCardStyle::new(),
         }
     }
 
@@ -1243,6 +1169,14 @@ impl CascadingPopupConfig {
     #[must_use]
     pub const fn with_expected_height(mut self, height: f32) -> Self {
         self.expected_height = Some(height);
+        self
+    }
+
+    /// Applies custom background, border, corner radius, padding, or shadow styling to the popup card.
+    #[inline]
+    #[must_use]
+    pub const fn with_card_style(mut self, style: super::scoped_popup::PopupCardStyle) -> Self {
+        self.card_style = style;
         self
     }
 

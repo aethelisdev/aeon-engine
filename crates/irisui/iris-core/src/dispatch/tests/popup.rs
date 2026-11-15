@@ -339,3 +339,105 @@ fn test_dismiss_popups_on_outside_click_with_active_popup_tags() {
     assert!(!tree.is_popup_tag_active(5005));
     assert!(!tree.has_open_popup());
 }
+
+#[test]
+fn test_close_all_popups_clears_every_popup_channel_and_portal_children() {
+    use crate::dispatch::{PopupMenuState, TooltipState};
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // 1. Attach anonymous root popup portal + child card
+    let portal = tree.attach_layer_portal(root, UiLayer::Popup).unwrap();
+    let portal_card = tree.create_layer_node(UiLayer::Popup);
+    tree.add_child(portal, portal_card).unwrap();
+    if let Some(n) = tree.get_mut(portal_card) {
+        n.computed_rect = Rect::new(50.0, 50.0, 120.0, 80.0);
+    }
+
+    // 2. Attach direct DropdownPopup node
+    let dropdown_node = tree.create_node();
+    tree.add_child(root, dropdown_node).unwrap();
+    if let Some(n) = tree.get_mut(dropdown_node) {
+        n.layer = UiLayer::Popup;
+        n.role = WidgetRole::DropdownPopup;
+        n.computed_rect = Rect::new(200.0, 50.0, 140.0, 90.0);
+    }
+
+    // 3. Populate every popup state channel
+    tree.set_active_menu(Some(11));
+    tree.set_active_combobox(Some(22));
+    tree.open_popup(33);
+    tree.open_popup(44);
+    tree.set_active_submenu(33, 55);
+    tree.event_state.active_context_menu = Some(PopupMenuState {
+        owner_id: root,
+        owner_tag: 66,
+        anchor_pos: Point::new(10.0, 10.0),
+        container_id: Some(dropdown_node),
+    });
+    tree.event_state.active_tooltip = Some(TooltipState {
+        target_id: root,
+        target_tag: 77,
+        anchor_pos: Point::new(10.0, 20.0),
+        hover_start: std::time::Instant::now(),
+        delay: std::time::Duration::ZERO,
+        is_open: true,
+    });
+
+    assert!(tree.has_open_popup());
+    assert!(tree.has_open_tooltip());
+    assert!(tree.has_active_popup_nodes());
+
+    // 4. close_all_popups clears every popup channel atomically
+    assert!(tree.close_all_popups());
+    assert!(tree.popups_dismissed());
+    assert!(!tree.has_open_popup());
+    assert!(!tree.has_open_tooltip());
+    assert!(!tree.has_active_popup_nodes());
+    assert_eq!(tree.active_menu_bar_tag, None);
+    assert_eq!(tree.active_combobox_tag, None);
+    assert!(tree.active_popup_tags.is_empty());
+    assert!(tree.active_submenus.is_empty());
+    assert!(tree.event_state.active_context_menu.is_none());
+    assert!(!tree.get(dropdown_node).unwrap().visible);
+    assert!(!tree.get(portal_card).unwrap().visible);
+    assert!(
+        tree.get(portal).unwrap().visible,
+        "Anonymous root portal anchor stays reusable while its children are hidden"
+    );
+
+    // 5. Idempotent second call returns false
+    assert!(!tree.close_all_popups());
+}
+
+#[test]
+fn test_popup_tag_lifecycle_and_exclusive_switching() {
+    let mut tree = UiTree::new();
+    let _root = tree.create_root().unwrap();
+
+    // Zero tag is safely ignored
+    tree.open_popup(0);
+    assert!(!tree.toggle_popup(0));
+    assert!(!tree.toggle_exclusive_popup(0));
+    assert!(!tree.is_popup_tag_active(0));
+    assert!(!tree.has_open_popup());
+
+    // Toggle open / close
+    assert!(tree.toggle_popup(1001));
+    assert!(tree.is_popup_tag_active(1001));
+    assert!(!tree.toggle_popup(1001));
+    assert!(!tree.is_popup_tag_active(1001));
+
+    // Exclusive switching closes previous popup tag and submenus
+    tree.open_popup(1001);
+    tree.set_active_submenu(1001, 2001);
+    assert!(tree.toggle_exclusive_popup(1002));
+    assert!(!tree.is_popup_tag_active(1001));
+    assert!(tree.active_submenus.is_empty());
+    assert!(tree.is_popup_tag_active(1002));
+
+    // Exclusive re-toggle closes active popup
+    assert!(!tree.toggle_exclusive_popup(1002));
+    assert!(!tree.has_open_popup());
+}
