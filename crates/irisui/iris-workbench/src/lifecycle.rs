@@ -8,11 +8,17 @@
 
 pub mod branch;
 pub mod inputs;
+pub mod routing;
 pub mod state_machine;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_routing;
 
 pub use branch::LifecycleBranch;
 pub use inputs::LifecycleInputs;
+pub use routing::{
+    EventInvalidationRoute, route_event_invalidation, route_event_invalidation_with_fallback,
+};
 pub use state_machine::WorkbenchLifecycle;

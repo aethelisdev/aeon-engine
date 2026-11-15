@@ -15,8 +15,9 @@ use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::dialogs::host::DialogHost;
 use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
 use crate::layout_sync::dual_layout::{DualLayoutEliminator, SubtreeEngines};
-use crate::lifecycle::WorkbenchLifecycle;
+use crate::lifecycle::{EventInvalidationRoute, WorkbenchLifecycle};
 use iris_core::WidgetId;
+use iris_core::dispatch::DispatchResult;
 use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Rect, Size};
 use iris_core::tree::UiTree;
@@ -682,6 +683,52 @@ where
             outcome.cursor = content_cursor;
         }
         outcome
+    }
+
+    /// Routes an interaction event dispatch result to its owning dock panel leaf container,
+    /// or marks the overall shell as dirty if the interaction occurred outside any leaf.
+    ///
+    /// Automatically updates [`Workbench::lifecycle`] by marking the resolved tab dirty
+    /// via [`WorkbenchLifecycle::mark_tab_dirty`], or marking the shell dirty via
+    /// [`WorkbenchLifecycle::mark_shell_dirty`].
+    pub fn route_event_invalidation(
+        &mut self,
+        tree: &UiTree,
+        event: &UiEvent,
+        dispatch: &DispatchResult,
+    ) -> EventInvalidationRoute<TabId> {
+        let route = crate::lifecycle::route_event_invalidation(
+            tree,
+            self.dock_frame.as_ref(),
+            event,
+            dispatch,
+        );
+        match &route {
+            EventInvalidationRoute::Panel(tab) => {
+                self.lifecycle.mark_tab_dirty(*tab);
+            }
+            EventInvalidationRoute::Shell => {
+                self.lifecycle.mark_shell_dirty();
+            }
+            EventInvalidationRoute::None => {}
+        }
+        route
+    }
+
+    /// Same as [`Self::route_event_invalidation`], but also synchronizes an external [`UiNotifier`].
+    pub fn route_event_invalidation_with_notifier(
+        &mut self,
+        tree: &UiTree,
+        event: &UiEvent,
+        dispatch: &DispatchResult,
+        notifier: &mut UiNotifier<TabId>,
+    ) -> EventInvalidationRoute<TabId>
+    where
+        TabId: Send + Sync,
+    {
+        let route = self.route_event_invalidation(tree, event, dispatch);
+        route.apply_to_notifier(notifier);
+        route
     }
 
     /// Returns a mutable reference to the underlying docking state.

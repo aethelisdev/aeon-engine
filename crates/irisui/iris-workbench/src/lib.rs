@@ -56,5 +56,8 @@ pub use layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines, synchronize_dock_frame,
     synchronize_dock_leaves,
 };
-pub use lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
+pub use lifecycle::{
+    EventInvalidationRoute, LifecycleBranch, LifecycleInputs, WorkbenchLifecycle,
+    route_event_invalidation, route_event_invalidation_with_fallback,
+};
 pub use workbench::{PointerState, Workbench, WorkbenchOutcome};

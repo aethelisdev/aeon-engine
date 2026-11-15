@@ -83,12 +83,6 @@ impl IrisEditorOverlay {
             || is_file_drag;
 
         if should_wake {
-            if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
-                && dispatch.scroll_delta.1 > 0.0
-            {
-                self.console.auto_scroll = false;
-            }
-
             // Route dirty notification to the specific dock panel owning the targeted widget
             let mut routed_to_panel = false;
             if let Some(target_id) = dispatch.target
