@@ -74,32 +74,6 @@ impl IrisEditorOverlay {
 
         let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
 
-        // Autonomous event handling for the Preferences floating tool panel (titlebar drag & thumb drag)
-        if self.preferences.floating.rect.is_some() {
-            let (screen_w, screen_h) = if self.chrome.last_dimensions.0 > 10.0 {
-                self.chrome.last_dimensions
-            } else {
-                (1920.0, 1080.0)
-            };
-            let pref_outcome = self.preferences.floating.handle_event(
-                &mut self.tree,
-                event,
-                &dispatch,
-                screen_w,
-                screen_h,
-            );
-            if pref_outcome.needs_layout_rebuild {
-                self.chrome.needs_layout_rebuild = true;
-                self.notifier.tag_all();
-            }
-            if let Some(irisui::widgets::FloatingPanelAction::Move(pos)) = pref_outcome.action {
-                self.preferences.floating.pos = Some(pos);
-            }
-            if pref_outcome.consumed {
-                result.consumed = true;
-            }
-        }
-
         // Evaluate modal actions and button triggers in unified tree (STRICTLY on clicks, never on hover)
         if let Some(clicked_tag) = clicked_tag
             && clicked_tag != 0

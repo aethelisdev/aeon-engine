@@ -46,7 +46,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 ctx.ui.layout_state.activate_or_open(panel)
             }
             crate::ui::EngineUiAction::TogglePanel(panel) => {
-                ctx.ui.layout_state.activate_or_open(panel)
+                ctx.ui.layout_state.toggle_panel(panel);
             }
             crate::ui::EngineUiAction::ResetLayout => {
                 ctx.ui.layout_state.reset_to_default();

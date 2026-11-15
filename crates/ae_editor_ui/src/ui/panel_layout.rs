@@ -233,9 +233,10 @@ impl PanelLayoutState {
         self.dock_state = create_default_dock_state();
     }
 
-    /// Checks if a panel currently exists anywhere in the docking tree.
+    /// Checks if a panel currently exists anywhere in the docking tree or in an active floating window.
     pub fn is_panel_visible(&self, panel: PanelId) -> bool {
         self.dock_state.tree.find_tab(&panel).is_some()
+            || self.dock_state.is_tab_in_floating_window(&panel)
     }
 
     /// Closes a tab at the specified leaf and index, collapsing any emptied leaf containers.
@@ -244,11 +245,65 @@ impl PanelLayoutState {
         self.dock_state.tree.collapse_empty_leaves();
     }
 
+    /// Closes a panel whether it is currently docked in the workspace tree or hosted in a detached floating window.
+    ///
+    /// Returns `true` if the panel was found and closed, or `false` if it was not open.
+    pub fn close_panel(&mut self, panel: PanelId) -> bool {
+        if let Some(win_id) = self
+            .dock_state
+            .floating_windows
+            .iter()
+            .find(|w| w.tree.find_tab(&panel).is_some())
+            .map(|w| w.id)
+        {
+            let _ = self.dock_state.close_floating_window(win_id);
+            return true;
+        }
+
+        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
+            let _ = self.dock_state.tree.remove_tab(leaf, idx);
+            self.dock_state.tree.collapse_empty_leaves();
+            return true;
+        }
+
+        false
+    }
+
+    /// Toggles a panel's visibility, closing it if currently visible (docked or floating),
+    /// or activating/opening it if hidden.
+    ///
+    /// If the panel is [`PanelId::Preferences`], opens it as a detached floating window.
+    pub fn toggle_panel(&mut self, panel: PanelId) {
+        if self.close_panel(panel) {
+            return;
+        }
+        self.activate_or_open(panel);
+    }
+
     /// Focuses an existing panel tab in the tree or opens it relative to its canonical partner/anchor.
+    ///
+    /// If the panel is already open in a detached floating window, brings that floating window to the front.
+    /// If the panel is [`PanelId::Preferences`], opens it as a detached floating window centered on screen.
     pub fn activate_or_open(&mut self, panel: PanelId) {
         if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
             let _ = self.dock_state.tree.set_active_tab(leaf, idx);
             self.dock_state.tree.set_focused_leaf(Some(leaf));
+            return;
+        }
+
+        if let Some(win_id) = self
+            .dock_state
+            .floating_windows
+            .iter()
+            .find(|w| w.tree.find_tab(&panel).is_some())
+            .map(|w| w.id)
+        {
+            self.dock_state.bring_floating_to_front(win_id);
+            return;
+        }
+
+        if panel == PanelId::Preferences {
+            self.open_preferences_floating(1920.0, 1080.0);
             return;
         }
 
@@ -431,10 +486,133 @@ pub mod tests {
                 .dock_state
                 .is_tab_in_floating_window(&PanelId::Preferences)
         );
+        assert!(layout.is_panel_visible(PanelId::Preferences));
 
         // 2. Re-invoking should not duplicate the floating window
         layout.open_preferences_floating(1920.0, 1080.0);
         assert_eq!(layout.dock_state.floating_windows.len(), 1);
+    }
+
+    #[test]
+    fn test_activate_or_open_preferences_floating() {
+        let mut layout = PanelLayoutState::new_default();
+        assert!(!layout.is_panel_visible(PanelId::Preferences));
+
+        // 1. Opening Preferences via activate_or_open creates floating window
+        layout.activate_or_open(PanelId::Preferences);
+        assert!(layout.is_panel_visible(PanelId::Preferences));
+        assert!(
+            layout
+                .dock_state
+                .is_tab_in_floating_window(&PanelId::Preferences)
+        );
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
+
+        // 2. Calling activate_or_open again preserves single floating window
+        layout.activate_or_open(PanelId::Preferences);
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
+    }
+
+    #[test]
+    fn test_toggle_preferences_panel() {
+        let mut layout = PanelLayoutState::new_default();
+        assert!(!layout.is_panel_visible(PanelId::Preferences));
+
+        // 1. Toggle opens Preferences floating window
+        layout.toggle_panel(PanelId::Preferences);
+        assert!(layout.is_panel_visible(PanelId::Preferences));
+        assert!(
+            layout
+                .dock_state
+                .is_tab_in_floating_window(&PanelId::Preferences)
+        );
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
+
+        // 2. Toggle closes the floating Preferences window
+        layout.toggle_panel(PanelId::Preferences);
+        assert!(!layout.is_panel_visible(PanelId::Preferences));
+        assert!(
+            !layout
+                .dock_state
+                .is_tab_in_floating_window(&PanelId::Preferences)
+        );
+        assert_eq!(layout.dock_state.floating_windows.len(), 0);
+    }
+
+    #[test]
+    fn test_preferences_floating_window_events_and_redock() {
+        use irisui::dock::floating::FloatingWindowClampBounds;
+        use irisui::dock::{TabViewer, handle_floating_window_event};
+        use irisui::prelude::{MouseButton, Point, UiEvent, UiScope};
+
+        struct DummyViewer;
+        impl TabViewer<PanelId> for DummyViewer {
+            fn title(&self, tab: &PanelId) -> String {
+                format!("{:?}", tab)
+            }
+            fn ui(&mut self, _scope: &mut UiScope<'_>, _tab: &PanelId) {}
+        }
+
+        let mut layout = PanelLayoutState::new_default();
+        layout.open_preferences_floating(1920.0, 1080.0);
+        assert_eq!(layout.dock_state.floating_windows.len(), 1);
+
+        let initial_rect = layout.dock_state.floating_windows[0].rect;
+        let bounds = FloatingWindowClampBounds::new(1920.0, 1080.0)
+            .with_min_y(30.0)
+            .with_bottom_inset(24.0);
+        let viewer = DummyViewer;
+
+        // 1. Drag titlebar: MouseDown on titlebar, MouseMove by (50, 30), MouseUp
+        let down_ev = UiEvent::MouseDown {
+            point: Point::new(initial_rect.x + 300.0, initial_rect.y + 12.0),
+            button: MouseButton::Left,
+        };
+        let res_down =
+            handle_floating_window_event(&mut layout.dock_state, &viewer, &down_ev, bounds);
+        assert!(res_down.consumed);
+        assert!(layout.dock_state.has_active_floating_drag());
+
+        let move_ev = UiEvent::MouseMove {
+            point: Point::new(initial_rect.x + 350.0, initial_rect.y + 42.0),
+        };
+        let res_move =
+            handle_floating_window_event(&mut layout.dock_state, &viewer, &move_ev, bounds);
+        assert!(res_move.consumed);
+        assert_eq!(
+            layout.dock_state.floating_windows[0].rect.x,
+            initial_rect.x + 50.0
+        );
+        assert_eq!(
+            layout.dock_state.floating_windows[0].rect.y,
+            initial_rect.y + 30.0
+        );
+
+        let up_ev = UiEvent::MouseUp {
+            point: Point::new(initial_rect.x + 350.0, initial_rect.y + 42.0),
+            button: MouseButton::Left,
+        };
+        let res_up = handle_floating_window_event(&mut layout.dock_state, &viewer, &up_ev, bounds);
+        assert!(res_up.consumed);
+        assert!(!layout.dock_state.has_active_floating_drag());
+
+        // 2. Dock back to tree via smart_dock_back_panel
+        let win_id = layout.dock_state.floating_windows[0].id;
+        layout.smart_dock_back_panel(win_id);
+        assert_eq!(layout.dock_state.floating_windows.len(), 0);
+        assert!(layout.is_panel_visible(PanelId::Preferences));
+        assert!(
+            !layout
+                .dock_state
+                .is_tab_in_floating_window(&PanelId::Preferences)
+        );
+        assert!(
+            layout
+                .dock_state
+                .tree
+                .find_tab(&PanelId::Preferences)
+                .is_some()
+        );
     }
 
     #[test]
