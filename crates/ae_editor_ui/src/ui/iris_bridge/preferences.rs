@@ -23,7 +23,7 @@ pub use builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
     build_preferences_dialog, calculate_preferences_drag_pos,
 };
-pub use components::{pref_combobox, pref_heading, pref_section_card, pref_toggle_row};
+pub use components::{pref_combobox, pref_heading, pref_section_card};
 pub use types::{
     PHYSICS_HZ_PRESETS, PREF_SECTIONS, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW,
     PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_SECTION_BASE, PREF_TAG_TAB_BASE,

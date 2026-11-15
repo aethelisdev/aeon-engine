@@ -32,6 +32,16 @@ pub struct EditorLogger {
     pub log_count: AtomicU64,
 }
 
+impl EditorLogger {
+    /// Clears all stored in-memory log entries and resets the update counter.
+    pub fn clear(&self) {
+        if let Ok(mut lock) = self.logs.lock() {
+            lock.clear();
+        }
+        self.log_count.store(0, Ordering::Relaxed);
+    }
+}
+
 /// Global static logger instance registered with the `log` crate.
 ///
 /// Initialized once via `init()`. Safe for multi-threaded access due to

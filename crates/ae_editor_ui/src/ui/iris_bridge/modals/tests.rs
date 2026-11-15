@@ -205,7 +205,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),

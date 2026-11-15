@@ -7,7 +7,9 @@
 //! (Physics, Audio, 3D Render Viewport pass) with live status indicators and zero background CPU/GPU overhead.
 
 use super::super::components::pref_heading;
-use super::super::types::{PreferencesParams, PreferencesToggleId, encode_toggle_tag};
+use super::super::types::{
+    PreferencesAction, PreferencesParams, PreferencesToggleId, encode_toggle_tag,
+};
 use ae_core::modules::EngineModule;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
@@ -53,7 +55,11 @@ const MODULES: [ModuleCardData; 4] = [
 ];
 
 /// Builds the System Modules preferences tab content declaratively using [`UiScope`].
-pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+pub fn build_modules_tab(
+    scope: &mut UiScope<'_>,
+    params: &PreferencesParams<'_>,
+    actions: &mut Vec<PreferencesAction>,
+) {
     pref_heading(
         scope,
         "🧩  System Modules",
@@ -135,44 +141,12 @@ pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>
                         );
 
                         // Checkbox Trigger Box
-                        let (cb_bg, cb_hover_bg) = if is_enabled {
-                            (
-                                Color::rgba(0.0, 0.70, 0.85, 1.0),
-                                Color::rgba(0.0, 0.70, 0.85, 1.0),
-                            )
-                        } else {
-                            (
-                                Color::rgba(0.11, 0.12, 0.16, 1.0),
-                                Color::rgba(0.18, 0.20, 0.28, 1.0),
-                            )
-                        };
-
-                        row.container_tagged(
-                            "ModuleCb",
-                            Style::new()
-                                .width(16.0)
-                                .height(16.0)
-                                .background(cb_bg)
-                                .hover_background(cb_hover_bg)
-                                .border(1.0, Color::rgba(0.25, 0.30, 0.42, 1.0))
-                                .border_radius(3.0)
-                                .align_items(AlignItems::Center)
-                                .justify_content(JustifyContent::Center),
-                            WidgetRole::Checkbox,
-                            toggle_tag,
-                            |cb| {
-                                if is_enabled {
-                                    cb.label_styled_passive(
-                                        "ModuleCheckMark",
-                                        "✓",
-                                        11.0,
-                                        Color::rgba(0.05, 0.06, 0.08, 1.0),
-                                        TextAlign::Center,
-                                        Style::new(),
-                                    );
-                                }
-                            },
-                        );
+                        row.checkbox_val_tagged("", toggle_tag, is_enabled)
+                            .on_click(|| {
+                                actions.push(PreferencesAction::Toggle(
+                                    PreferencesToggleId::Module(card_data.module),
+                                ));
+                            });
                     },
                 );
 

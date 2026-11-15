@@ -706,4 +706,30 @@ impl<'a> UiScope<'a> {
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
+
+    /// Renders a centered empty placeholder notice within a scrollable or container viewport.
+    ///
+    /// Ideal for empty lists, search results with zero matches, or unselected states.
+    ///
+    /// # Arguments
+    /// * `name` - Container node name for debugging and tree inspection.
+    /// * `message` - Display notice text.
+    pub fn empty_notice(&mut self, name: &'static str, message: &str) {
+        self.container_named(
+            name,
+            Style::new()
+                .padding_insets(Insets::new(24.0, 16.0, 24.0, 16.0))
+                .background(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+            |scope| {
+                scope.label_styled_passive(
+                    "EmptyNoticeLabel",
+                    message,
+                    12.0,
+                    Color::rgba(0.50, 0.53, 0.60, 1.0),
+                    TextAlign::Center,
+                    Style::new(),
+                );
+            },
+        );
+    }
 }

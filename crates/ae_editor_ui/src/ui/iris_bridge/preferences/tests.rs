@@ -121,7 +121,7 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -248,7 +248,7 @@ fn test_preferences_combobox_mounting() {
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -291,7 +291,7 @@ fn test_preferences_scroll_translates_children_upward() {
         graphics_settings: &mut gs_0,
         snapping_settings: &mut snapping_settings_0,
         editor_config: &mut editor_config_0,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -310,7 +310,7 @@ fn test_preferences_scroll_translates_children_upward() {
         graphics_settings: &mut gs_100,
         snapping_settings: &mut snapping_settings_100,
         editor_config: &mut editor_config_100,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -375,7 +375,7 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -488,7 +488,7 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &events,
         current_theme: Default::default(),
@@ -578,7 +578,7 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &events,
         current_theme: Default::default(),
@@ -634,7 +634,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -677,7 +677,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &events,
         current_theme: Default::default(),
@@ -715,7 +715,7 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -779,7 +779,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             graphics_settings: &mut gs,
             snapping_settings: &mut snapping_settings,
             editor_config: &mut editor_config,
-            enable_live_updates: false,
+            enable_live_updates: &mut false,
             enabled_modules: &enabled_modules,
             events: &[],
             current_theme: Default::default(),
@@ -802,7 +802,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             graphics_settings: &mut gs,
             snapping_settings: &mut snapping_settings,
             editor_config: &mut editor_config,
-            enable_live_updates: false,
+            enable_live_updates: &mut false,
             enabled_modules: &enabled_modules,
             events: &[],
             current_theme: Default::default(),
@@ -846,7 +846,7 @@ fn test_sync_scroll_in_place_translates_children() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -934,7 +934,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             graphics_settings: &mut gs,
             snapping_settings: &mut snapping_settings,
             editor_config: &mut editor_config,
-            enable_live_updates: false,
+            enable_live_updates: &mut false,
             enabled_modules: &enabled_modules,
             events: &[],
             current_theme: Default::default(),
@@ -975,7 +975,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             graphics_settings: &mut gs,
             snapping_settings: &mut snapping_settings,
             editor_config: &mut editor_config,
-            enable_live_updates: false,
+            enable_live_updates: &mut false,
             enabled_modules: &enabled_modules,
             events: &[],
             current_theme: Default::default(),
@@ -1032,7 +1032,7 @@ fn test_preferences_declarative_actions_dispatch() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &events_close,
         current_theme: Default::default(),
@@ -1067,7 +1067,7 @@ fn test_preferences_declarative_actions_dispatch() {
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &events_tab,
         current_theme: Default::default(),
@@ -1134,7 +1134,7 @@ fn test_preferences_view_in_place_mutation_modifies_settings() {
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
-        enable_live_updates: false,
+        enable_live_updates: &mut false,
         enabled_modules: &enabled_modules,
         events: &[],
         current_theme: Default::default(),
@@ -1147,5 +1147,124 @@ fn test_preferences_view_in_place_mutation_modifies_settings() {
     assert!(
         tree.iter().count() > 10,
         "Preferences view must mount UI nodes"
+    );
+}
+
+#[test]
+fn test_preferences_runtime_toggle_live_updates_click_in_place_and_action() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let mut enable_live_updates = false;
+
+    let toggle_tag = encode_toggle_tag(PreferencesToggleId::LiveUpdatesEnabled);
+    let events = [(
+        toggle_tag,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+
+    let mut tab = 2; // Editor tab
+    let mut params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut tab,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(600.0, 300.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: &mut enable_live_updates,
+        enabled_modules: &enabled_modules,
+        events: &events,
+        current_theme: Default::default(),
+    };
+
+    let mut actions = Vec::new();
+    {
+        let mut scope = UiScope::with_tagged_interactions(&mut tree, root, &events, None);
+        super::builder::build_preferences_view(&mut scope, &mut params, &mut actions, 600.0, 500.0);
+    }
+
+    assert!(
+        enable_live_updates,
+        "Clicking runtime live updates toggle MUST mutate enable_live_updates in-place to true"
+    );
+    assert!(
+        actions.iter().any(|a| matches!(
+            a,
+            PreferencesAction::Toggle(PreferencesToggleId::LiveUpdatesEnabled)
+        )),
+        "Clicking runtime live updates toggle MUST dispatch PreferencesAction::Toggle(LiveUpdatesEnabled)"
+    );
+}
+
+#[test]
+fn test_preferences_modules_tab_toggle_module_action() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let collapsed = HashSet::new();
+    let mut enabled_modules = HashSet::new();
+    enabled_modules.insert(ae_core::modules::EngineModule::Physics);
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let mut enable_live_updates = false;
+
+    let toggle_tag = encode_toggle_tag(PreferencesToggleId::Module(
+        ae_core::modules::EngineModule::Physics,
+    ));
+    let events = [(
+        toggle_tag,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+
+    let mut tab = 9; // System Modules tab
+    let mut params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut tab,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(600.0, 300.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: &mut enable_live_updates,
+        enabled_modules: &enabled_modules,
+        events: &events,
+        current_theme: Default::default(),
+    };
+
+    let mut actions = Vec::new();
+    {
+        let mut scope = UiScope::with_tagged_interactions(&mut tree, root, &events, None);
+        super::builder::build_preferences_view(&mut scope, &mut params, &mut actions, 600.0, 500.0);
+    }
+
+    assert!(
+        actions.iter().any(|a| matches!(
+            a,
+            PreferencesAction::Toggle(PreferencesToggleId::Module(
+                ae_core::modules::EngineModule::Physics
+            ))
+        )),
+        "Clicking physics module checkbox MUST dispatch PreferencesAction::Toggle(Module(Physics))"
     );
 }

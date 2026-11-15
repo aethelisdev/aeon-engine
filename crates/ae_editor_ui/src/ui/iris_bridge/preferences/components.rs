@@ -6,7 +6,7 @@
 //! Reusable, type-safe, hardware-accelerated declarative building blocks for
 //! the Preferences dialog tabs using [`UiScope`].
 
-use super::types::{PreferencesToggleId, encode_section_tag, encode_toggle_tag};
+use super::types::encode_section_tag;
 use irisui::prelude::*;
 use irisui::widgets::declarative::ComboBoxResponse;
 use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
@@ -132,80 +132,6 @@ where
     );
 
     header_resp
-}
-
-/// Emits an interactive checkbox toggle row.
-///
-/// Returns the [`WidgetResponse`] of the checkbox container.
-pub fn pref_toggle_row(
-    scope: &mut UiScope<'_>,
-    toggle_id: PreferencesToggleId,
-    label: &'static str,
-    is_checked: bool,
-) -> WidgetResponse {
-    let tag = encode_toggle_tag(toggle_id);
-
-    scope.container_tagged_resp(
-        "PrefToggleRow",
-        Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .height(26.0)
-            .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
-            .border_radius(4.0)
-            .background(Color::TRANSPARENT)
-            .hover_background(Color::rgba(0.18, 0.20, 0.28, 0.40)),
-        WidgetRole::Checkbox,
-        tag,
-        |row| {
-            let box_bg = if is_checked {
-                Color::rgba(0.0, 0.70, 0.85, 1.0)
-            } else {
-                row.theme().button_idle_bg
-            };
-            let box_border = if is_checked {
-                Color::rgba(0.0, 0.85, 1.0, 1.0)
-            } else {
-                row.theme().button_border
-            };
-
-            row.container_named(
-                "PrefCheckboxIndicator",
-                Style::new()
-                    .width(16.0)
-                    .height(16.0)
-                    .background(box_bg)
-                    .border(1.0, box_border)
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .margin_insets(Insets::new(0.0, 8.0, 0.0, 0.0)),
-                |ind| {
-                    if is_checked {
-                        ind.label_styled_passive(
-                            "PrefCheckMark",
-                            "✓",
-                            11.0,
-                            Color::rgba(0.05, 0.06, 0.08, 1.0),
-                            TextAlign::Center,
-                            Style::new(),
-                        );
-                    }
-                },
-            );
-
-            // Label text
-            row.label_styled_hover_passive(
-                "PrefToggleLabel",
-                label,
-                11.5,
-                (Color::rgba(0.80, 0.83, 0.90, 1.0), Color::WHITE),
-                TextAlign::Left,
-                Style::new().flex_grow(1.0),
-            );
-        },
-    )
 }
 
 /// Emits an autonomous declarative combobox row inside the Preferences dialog using [`irisui::prelude::ComboBox`].

@@ -11,11 +11,15 @@ use super::physics::build_physics_card;
 use super::runtime::build_runtime_card;
 use super::snapping::build_snapping_card;
 use crate::ui::iris_bridge::preferences::components::pref_heading;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use crate::ui::iris_bridge::preferences::types::{PreferencesAction, PreferencesParams};
 use irisui::prelude::*;
 
 /// Builds the Editor preferences tab content declaratively using [`UiScope`].
-pub fn build_editor_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_editor_tab(
+    scope: &mut UiScope<'_>,
+    params: &mut PreferencesParams<'_>,
+    actions: &mut Vec<PreferencesAction>,
+) {
     pref_heading(
         scope,
         "Editor Settings",
@@ -25,6 +29,5 @@ pub fn build_editor_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<
     build_snapping_card(scope, params);
     build_history_card(scope, params);
     build_physics_card(scope, params);
-    let live_updates = params.enable_live_updates;
-    build_runtime_card(scope, params, live_updates);
+    build_runtime_card(scope, params, actions);
 }

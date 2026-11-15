@@ -155,7 +155,10 @@ impl Widget for Checkbox {
             }
         }
 
-        let mut resp = WidgetResponse::new(node_id, clicked, hovered, pressed);
+        let mut resp = WidgetResponse::new(node_id, clicked, hovered, clicked);
+        if pressed {
+            resp = resp.with_pressed(true);
+        }
         if let Some(node) = scope.tree.get(node_id) {
             resp.rect = node.computed_rect;
         }

@@ -414,6 +414,41 @@ impl<'a> UiScope<'a> {
     ) -> bool {
         focus_manager.auto_sync_focus_state(self.tree)
     }
+
+    /// Automatically synchronizes a [`crate::input::TextInputState`] with live text editing buffer events
+    /// and handles optional clear button clicks.
+    ///
+    /// If text editing is active on `input_tag`, updates `state.text` and `state.cursor_byte_idx`.
+    /// If `clear_tag` is clicked, clears `state`, clears keyboard focus, clears active text edit,
+    /// and returns `true`.
+    ///
+    /// # Arguments
+    /// * `input_tag` - 64-bit semantic tag of the target text input field.
+    /// * `clear_tag` - Optional 64-bit semantic tag of the input's clear/reset button.
+    /// * `state` - Mutable reference to the persistent text input state.
+    pub fn auto_sync_text_input(
+        &mut self,
+        input_tag: u64,
+        clear_tag: Option<u64>,
+        state: &mut crate::input::TextInputState,
+    ) -> bool {
+        if let Some(buf) = self.text_edit_buffer(input_tag) {
+            state.set_text(buf);
+            if let Some(cur) = self.text_edit_cursor(input_tag) {
+                state.cursor_byte_idx = cur;
+            }
+            return true;
+        }
+        if let Some(c_tag) = clear_tag
+            && self.is_tag_clicked(c_tag)
+        {
+            state.clear();
+            self.clear_focus();
+            self.clear_text_edit();
+            return true;
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -515,5 +550,34 @@ mod tests {
         assert!(cleared_core);
         assert!(!focus_state.has_focus());
         assert!(!focus_manager.has_focus());
+    }
+
+    #[test]
+    fn test_ui_scope_auto_sync_text_input() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut input_state = crate::input::TextInputState::new("initial");
+
+        // 1. Inactive text edit does nothing
+        assert!(!scope.auto_sync_text_input(100, Some(101), &mut input_state));
+        assert_eq!(input_state.text(), "initial");
+
+        // 2. Active text edit syncs text and cursor
+        scope
+            .tree
+            .event_state
+            .start_text_edit(None, 100, "updated query", 13, None);
+        assert!(scope.auto_sync_text_input(100, Some(101), &mut input_state));
+        assert_eq!(input_state.text(), "updated query");
+        assert_eq!(input_state.cursor_byte_idx, 13);
+
+        // 3. Clear button click clears state, focus, and text edit
+        scope.clear_text_edit();
+        scope.tree.event_state.frame_clicked_tag = Some(101);
+        assert!(scope.auto_sync_text_input(100, Some(101), &mut input_state));
+        assert_eq!(input_state.text(), "");
+        assert_eq!(input_state.cursor_byte_idx, 0);
     }
 }

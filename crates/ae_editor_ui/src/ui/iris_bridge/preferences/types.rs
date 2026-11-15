@@ -216,8 +216,8 @@ pub struct PreferencesParams<'a> {
     pub snapping_settings: &'a mut SnapSettings,
     /// Mutable reference to editor configuration for declarative two-way data binding.
     pub editor_config: &'a mut EditorConfig,
-    /// Whether live hot-reload editor updates are active.
-    pub enable_live_updates: bool,
+    /// Mutable reference to live hot-reload editor updates active state.
+    pub enable_live_updates: &'a mut bool,
     /// Set of currently enabled engine core modules.
     pub enabled_modules: &'a HashSet<EngineModule>,
     /// Frame interaction events mapped by 64-bit semantic tags for declarative two-way data binding.

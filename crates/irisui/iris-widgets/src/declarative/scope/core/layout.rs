@@ -54,6 +54,28 @@ impl<'a> UiScope<'a> {
             .unwrap_or(Rect::ZERO)
     }
 
+    /// Evaluates whether the parent container is collapsed or too small to render meaningful content.
+    ///
+    /// Evaluates if the parent's resolved layout bounds have width or height less than or equal to `min_dimension`.
+    ///
+    /// # Arguments
+    /// * `min_dimension` - Minimum physical threshold in pixels for both width and height.
+    #[inline]
+    #[must_use]
+    pub fn is_parent_collapsed(&self, min_dimension: f32) -> bool {
+        let rect = self.parent_rect();
+        rect.width <= min_dimension || rect.height <= min_dimension
+    }
+
+    /// Evaluates whether the parent container is collapsed below the canonical 20.0px viewport threshold.
+    ///
+    /// Standard early-return check for dock panels and floating overlays before assembling children.
+    #[inline]
+    #[must_use]
+    pub fn is_collapsed(&self) -> bool {
+        self.is_parent_collapsed(20.0)
+    }
+
     /// Measures the horizontal layout advance width of a string in physical pixels at the given font size.
     ///
     /// Dynamically evaluates font glyph advances via the underlying typography engine.
@@ -212,5 +234,36 @@ impl<'a> UiScope<'a> {
     /// * `preview` - Configured [`FloatingDragPreview`] descriptor.
     pub fn floating_drag_preview(&mut self, preview: FloatingDragPreview) -> WidgetResponse {
         self.add(preview)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iris_core::tree::UiTree;
+
+    #[test]
+    fn test_ui_scope_is_collapsed() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        // 1. Initial zero rect is collapsed
+        let scope = UiScope::new(&mut tree, root);
+        assert!(scope.is_collapsed());
+        assert!(scope.is_parent_collapsed(20.0));
+
+        // 2. Set dimensions > 20px -> not collapsed
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 100.0);
+        }
+        let scope = UiScope::new(&mut tree, root);
+        assert!(!scope.is_collapsed());
+
+        // 3. One dimension <= 20px -> collapsed
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 10.0, 100.0);
+        }
+        let scope = UiScope::new(&mut tree, root);
+        assert!(scope.is_collapsed());
     }
 }

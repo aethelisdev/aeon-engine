@@ -36,12 +36,13 @@ fn test_console_click_target_routing() {
 
     let entries = vec![];
     let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &entries,
         filter: ConsoleFilterLevel::All,
         search_query: "test",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -53,7 +54,7 @@ fn test_console_click_target_routing() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -89,12 +90,13 @@ fn test_console_virtualized_empty_and_matching() {
         },
     ];
 
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
         entries: &entries,
         filter: ConsoleFilterLevel::Error,
         search_query: "",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -103,11 +105,57 @@ fn test_console_virtualized_empty_and_matching() {
     };
 
     let mut scope = UiScope::new(&mut tree, root);
-    build_console_rows(&mut scope, &params);
+    build_console_rows(&mut scope, &mut params);
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
 
     // Only 1 log matches Error filter
     assert_eq!(max_scroll, 0.0);
+    let row_count = tree
+        .iter()
+        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
+        .count();
+    assert_eq!(
+        row_count, 1,
+        "Exactly 1 matching error log row must be rendered in tree"
+    );
+
+    // 2. When All logs match, all rows must be rendered
+    let mut tree_all = UiTree::new();
+    let root_all = tree_all.create_root().unwrap();
+    params.filter = ConsoleFilterLevel::All;
+    let mut scope_all = UiScope::new(&mut tree_all, root_all);
+    build_console_rows(&mut scope_all, &mut params);
+    let all_row_count = tree_all
+        .iter()
+        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
+        .count();
+    assert_eq!(
+        all_row_count, 2,
+        "All matching log rows must be rendered in tree"
+    );
+    let row_count = tree
+        .iter()
+        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
+        .count();
+    assert_eq!(
+        row_count, 1,
+        "Exactly 1 matching error log row must be rendered in tree"
+    );
+
+    // 2. When All logs match, all rows must be rendered
+    let mut tree_all = UiTree::new();
+    let root_all = tree_all.create_root().unwrap();
+    params.filter = ConsoleFilterLevel::All;
+    let mut scope_all = UiScope::new(&mut tree_all, root_all);
+    build_console_rows(&mut scope_all, &mut params);
+    let all_row_count = tree_all
+        .iter()
+        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
+        .count();
+    assert_eq!(
+        all_row_count, 2,
+        "All matching log rows must be rendered in tree"
+    );
 }
 
 #[test]
@@ -117,12 +165,13 @@ fn test_console_panel_clipping_and_clear_action() {
 
     let entries = vec![];
     let panel_rect = Rect::new(0.0, 0.0, 500.0, 300.0);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &entries,
         filter: ConsoleFilterLevel::All,
         search_query: "",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -134,7 +183,7 @@ fn test_console_panel_clipping_and_clear_action() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, parent_id),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -172,12 +221,13 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         });
     }
 
-    let params = ConsolePanelParams {
+    let mut auto_scroll = false;
+    let mut params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
         entries: &entries,
         filter: ConsoleFilterLevel::All,
         search_query: "",
-        auto_scroll: false,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -189,7 +239,7 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -226,12 +276,13 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
 
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
         entries: &[],
         filter: ConsoleFilterLevel::All,
         search_query: "",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -243,7 +294,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -289,12 +340,13 @@ fn test_console_toolbar_action_unification() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 1000.0, 400.0);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &[],
         filter: ConsoleFilterLevel::All,
         search_query: "existing_query",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -306,7 +358,7 @@ fn test_console_toolbar_action_unification() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -379,12 +431,13 @@ fn test_console_search_focused_caret_positioning() {
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 300.0);
     let mut focus_state = FocusState::new();
     focus_state.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &[],
         filter: ConsoleFilterLevel::All,
         search_query: "error_trace",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: true,
         focus_state: &focus_state,
@@ -396,7 +449,7 @@ fn test_console_search_focused_caret_positioning() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -434,12 +487,13 @@ fn test_console_declarative_action_generation() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &[],
         filter: ConsoleFilterLevel::All,
         search_query: "",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         focus_state: &FocusState::new(),
@@ -451,7 +505,7 @@ fn test_console_declarative_action_generation() {
     let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -460,9 +514,22 @@ fn test_console_declarative_action_generation() {
     tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_CLEAR);
 
     let mut clicked_actions = Vec::new();
+    let mut auto_scroll_clicked = true;
+    let mut params_clicked = ConsolePanelParams {
+        panel_rect,
+        entries: &[],
+        filter: ConsoleFilterLevel::All,
+        search_query: "",
+        auto_scroll: &mut auto_scroll_clicked,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
+    };
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params_clicked,
         &mut scratchpad,
         &mut clicked_actions,
     );
@@ -476,12 +543,13 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let params = ConsolePanelParams {
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
         panel_rect,
         entries: &[],
         filter: ConsoleFilterLevel::All,
         search_query: "",
-        auto_scroll: true,
+        auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(20.0, 20.0),
         blink_caret: true,
         focus_state: &FocusState::new(),
@@ -493,7 +561,7 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
     let mut scratchpad = MultilineTextState::new("let a = 10;\nlet b = 20;\na + b");
     build_console_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &mut params,
         &mut scratchpad,
         &mut actions,
     );
@@ -536,5 +604,60 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
     assert_eq!(
         evaluate_console_toolbar_click(&tree, clear_center),
         Some(ConsoleAction::ClearScratchpad)
+    );
+}
+
+#[test]
+fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root creation failed");
+    let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
+
+    let entries = vec![
+        ConsoleEntry {
+            level: log::Level::Info,
+            target: "ae_engine".to_string(),
+            msg: "Frame 1".to_string(),
+            timestamp: "00:00:01".to_string(),
+        },
+        ConsoleEntry {
+            level: log::Level::Info,
+            target: "ae_engine".to_string(),
+            msg: "Frame 2".to_string(),
+            timestamp: "00:00:02".to_string(),
+        },
+    ];
+
+    // Simulate upward mouse wheel scroll on the console viewport
+    tree.event_state.frame_scrolled_tag = Some(CONSOLE_TAG_VIEWPORT);
+    tree.event_state.frame_scroll_delta = Some((0.0, 15.0));
+
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
+        panel_rect,
+        entries: &entries,
+        filter: ConsoleFilterLevel::All,
+        search_query: "",
+        auto_scroll: &mut auto_scroll,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
+    };
+
+    let mut actions = Vec::new();
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &mut params,
+        &mut scratchpad,
+        &mut actions,
+    );
+
+    // Assert that the declarative hook automatically flipped auto_scroll to false!
+    assert!(
+        !auto_scroll,
+        "Auto-scroll must be automatically disabled when scrolled up via the declarative hook"
     );
 }

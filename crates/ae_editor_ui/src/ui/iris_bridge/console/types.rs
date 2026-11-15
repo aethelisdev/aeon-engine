@@ -6,7 +6,7 @@
 //! Type definitions, filtering modes, parameters, semantic tags, and hit-testing
 //! resolvers for the hardware-accelerated Developer Console panel.
 
-use crate::ui::types::ConsoleEntry;
+pub use crate::ui::types::ConsoleEntry;
 use irisui::prelude::{MultilineTextState, Point, Rect, UiTree, WidgetRole};
 use irisui::widgets::controls::{FocusState, FocusTarget};
 
@@ -188,6 +188,50 @@ pub enum ConsoleLogLevel {
     Trace,
 }
 
+impl ConsoleLogLevel {
+    /// Returns the badge display label for the severity level.
+    #[must_use]
+    pub const fn badge_text(&self) -> &'static str {
+        match self {
+            Self::Error => "ERR",
+            Self::Warn => "WRN",
+            Self::Info => "INF",
+            Self::Debug => "DBG",
+            Self::Trace => "TRC",
+        }
+    }
+
+    /// Returns the badge foreground text color.
+    #[must_use]
+    pub const fn badge_color(&self) -> irisui::prelude::Color {
+        match self {
+            Self::Error => irisui::prelude::Color::rgba(0.98, 0.45, 0.45, 1.0),
+            Self::Warn => irisui::prelude::Color::rgba(0.98, 0.78, 0.20, 1.0),
+            Self::Info => irisui::prelude::Color::rgba(0.25, 0.78, 0.98, 1.0),
+            Self::Debug => irisui::prelude::Color::rgba(0.70, 0.75, 0.85, 1.0),
+            Self::Trace => irisui::prelude::Color::rgba(0.50, 0.55, 0.65, 1.0),
+        }
+    }
+
+    /// Returns the badge background fill color.
+    #[must_use]
+    pub const fn badge_bg(&self) -> irisui::prelude::Color {
+        match self {
+            Self::Error => irisui::prelude::Color::rgba(0.38, 0.08, 0.08, 0.90),
+            Self::Warn => irisui::prelude::Color::rgba(0.35, 0.20, 0.02, 0.90),
+            Self::Info => irisui::prelude::Color::rgba(0.05, 0.20, 0.32, 0.90),
+            Self::Debug => irisui::prelude::Color::rgba(0.12, 0.15, 0.22, 0.90),
+            Self::Trace => irisui::prelude::Color::rgba(0.08, 0.10, 0.15, 0.90),
+        }
+    }
+
+    /// Assembles a standardized [`irisui::prelude::LogRowBadge`] descriptor for this severity level.
+    #[must_use]
+    pub const fn badge(&self) -> irisui::prelude::LogRowBadge<'static> {
+        irisui::prelude::LogRowBadge::new(self.badge_text(), self.badge_color(), self.badge_bg())
+    }
+}
+
 /// Aggregated log entry counts per severity level for display in toolbar badges.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConsoleLogCounts {
@@ -278,7 +322,6 @@ pub fn evaluate_console_toolbar_cursor(
 }
 
 /// Parameters passed to the Developer Console layout builder.
-#[derive(Clone, Copy)]
 pub struct ConsolePanelParams<'a> {
     /// Bounding rectangle allocated for the docked console panel.
     pub panel_rect: Rect,
@@ -289,7 +332,7 @@ pub struct ConsolePanelParams<'a> {
     /// Substring search query for filtering log targets and messages.
     pub search_query: &'a str,
     /// Whether the console automatically scrolls down when new logs arrive.
-    pub auto_scroll: bool,
+    pub auto_scroll: &'a mut bool,
     /// Current cursor position for hover detection.
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.

@@ -26,7 +26,7 @@ pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;
 /// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`, `multiline_editor`).
 pub fn build_console_panel(
     scope: &mut UiScope<'_>,
-    params: &ConsolePanelParams<'_>,
+    params: &mut ConsolePanelParams<'_>,
     scratchpad: &mut MultilineTextState,
     actions: &mut Vec<ConsoleAction>,
 ) {
@@ -186,13 +186,13 @@ pub fn build_console_panel(
 
                         if tb
                             .add(
-                                Button::new(if params.auto_scroll {
+                                Button::new(if *params.auto_scroll {
                                     "✓ Auto-Scroll"
                                 } else {
                                     "⏸ Auto-Scroll"
                                 })
                                 .small()
-                                .active(params.auto_scroll)
+                                .active(*params.auto_scroll)
                                 .tag(CONSOLE_TAG_AUTOSCROLL),
                             )
                             .clicked()

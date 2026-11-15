@@ -336,14 +336,14 @@ pub fn build_preferences_view(
                     match *params.active_tab {
                         0 => build_general_tab(scroll_col, params, actions),
                         1 => build_graphics_tab(scroll_col, params),
-                        2 => build_editor_tab(scroll_col, params),
+                        2 => build_editor_tab(scroll_col, params, actions),
                         3 => build_navigation_tab(scroll_col, params),
                         4 => build_keymap_tab(scroll_col, params),
                         5 => build_system_tab(scroll_col, params),
                         6 => build_addons_tab(scroll_col, params),
                         7 => build_input_tab(scroll_col, params),
                         8 => build_experimental_tab(scroll_col, params),
-                        9 => build_modules_tab(scroll_col, params),
+                        9 => build_modules_tab(scroll_col, params, actions),
                         _ => {}
                     }
                     scroll_col.empty_box_passive_named(
@@ -395,6 +395,7 @@ impl IrisEditorOverlay {
         let mut gs = params.preferences.graphics_settings.clone();
         let mut snap = *params.preferences.snapping_settings;
         let mut cfg = params.preferences.editor_config.clone();
+        let mut live_updates = params.context.enable_live_updates;
 
         let mut pref_params = PreferencesParams {
             screen_width: panel_rect.width,
@@ -409,7 +410,7 @@ impl IrisEditorOverlay {
             graphics_settings: &mut gs,
             snapping_settings: &mut snap,
             editor_config: &mut cfg,
-            enable_live_updates: params.context.enable_live_updates,
+            enable_live_updates: &mut live_updates,
             enabled_modules: params.preferences.enabled_modules,
             events: &self.preferences.pending_interaction_events,
             current_theme,
@@ -453,6 +454,14 @@ impl IrisEditorOverlay {
             self.pending_actions
                 .push(crate::ui::types::EngineUiAction::UpdateEditorConfig(
                     cfg.clone(),
+                ));
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
+        }
+        if live_updates != params.context.enable_live_updates {
+            self.pending_actions
+                .push(crate::ui::types::EngineUiAction::SetLiveEditorUpdates(
+                    live_updates,
                 ));
             self.notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);

@@ -6,30 +6,34 @@
 //! Renders engine hot-reload and live editor runtime execution settings
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::{pref_section_card, pref_toggle_row};
-use crate::ui::iris_bridge::preferences::types::{PreferencesParams, PreferencesToggleId};
+use crate::ui::iris_bridge::preferences::components::pref_section_card;
+use crate::ui::iris_bridge::preferences::types::{
+    PreferencesAction, PreferencesParams, PreferencesToggleId, encode_toggle_tag,
+};
 use irisui::prelude::*;
 
 /// Builds the Runtime settings card declaratively using [`UiScope`].
 pub fn build_runtime_card(
     scope: &mut UiScope<'_>,
-    params: &PreferencesParams<'_>,
-    enable_live_updates: bool,
+    params: &mut PreferencesParams<'_>,
+    actions: &mut Vec<PreferencesAction>,
 ) {
-    let is_collapsed = params.collapsed_sections.contains("editor_runtime");
-
     pref_section_card(
         scope,
         "editor_runtime",
         "⚙  Runtime Settings",
-        is_collapsed,
+        params.collapsed_sections.contains("editor_runtime"),
         |body| {
-            pref_toggle_row(
-                body,
-                PreferencesToggleId::LiveUpdatesEnabled,
+            body.checkbox_tagged(
                 "Enable Live Editor Updates (Hot Reload)",
-                enable_live_updates,
-            );
+                encode_toggle_tag(PreferencesToggleId::LiveUpdatesEnabled),
+                params.enable_live_updates,
+            )
+            .on_click(|| {
+                actions.push(PreferencesAction::Toggle(
+                    PreferencesToggleId::LiveUpdatesEnabled,
+                ));
+            });
         },
     );
 }

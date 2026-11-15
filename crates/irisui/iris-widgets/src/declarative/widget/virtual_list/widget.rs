@@ -95,6 +95,7 @@ pub struct VirtualListBuilder<'s, 't> {
     width: Option<f32>,
     margin: Option<Insets>,
     gap: Option<f32>,
+    empty_message: Option<&'static str>,
 }
 
 /// Type alias aligning with idiomatic widget naming conventions.
@@ -124,6 +125,7 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
             width: None,
             margin: None,
             gap: None,
+            empty_message: None,
         }
     }
 
@@ -206,6 +208,17 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
         self
     }
 
+    /// Sets an empty placeholder message displayed inside the viewport when `item_count == 0`.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - Static text label displayed in the center of the empty viewport.
+    #[inline]
+    pub fn empty_notice(mut self, message: &'static str) -> Self {
+        self.empty_message = Some(message);
+        self
+    }
+
     /// Automatically manages continuous auto-scrolling to the bottom of the virtual list.
     ///
     /// When `*auto_scroll` is `true`, sets the scroll offset to `f32::MAX` to pin the list
@@ -285,16 +298,15 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
 
         let total_content_height = (self.item_count as f64 * self.item_height as f64) as f32;
         let max_scroll = (total_content_height - viewport_height).max(0.0);
+        let safe_scroll = current_scroll.clamp(0.0, max_scroll);
 
         let slice = compute_virtual_slice(VirtualSliceParams {
             item_count: self.item_count,
             item_height: self.item_height,
             viewport_height,
-            scroll_y: current_scroll,
+            scroll_y: safe_scroll,
             overscan: self.overscan,
         });
-
-        let safe_scroll = current_scroll.clamp(0.0, max_scroll);
 
         if self.tag != 0 {
             self.scope.tree.set_scroll_offset(self.tag, safe_scroll);
@@ -340,31 +352,37 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
             let mut child = self.scope.child_scope(vp_id);
             child.set_scroll_offset_y(safe_scroll);
 
-            // 1. Top Spacer: emitted only when first_index > 0
-            if slice.top_spacer > 0.0 {
-                child.empty_box_passive_named(
-                    "VirtualListTopSpacer",
-                    Style::new()
-                        .height(slice.top_spacer)
-                        .min_height(slice.top_spacer)
-                        .flex_shrink(0.0),
-                );
-            }
+            if self.item_count == 0 {
+                if let Some(msg) = self.empty_message {
+                    child.empty_notice("VirtualListEmptyNotice", msg);
+                }
+            } else {
+                // 1. Top Spacer: emitted only when first_index > 0
+                if slice.top_spacer > 0.0 {
+                    child.empty_box_passive_named(
+                        "VirtualListTopSpacer",
+                        Style::new()
+                            .height(slice.top_spacer)
+                            .min_height(slice.top_spacer)
+                            .flex_shrink(0.0),
+                    );
+                }
 
-            // 2. Visible Rows: strictly limited to the computed slice window
-            for idx in slice.range() {
-                item_renderer(&mut child, idx);
-            }
+                // 2. Visible Rows: strictly limited to the computed slice window
+                for idx in slice.range() {
+                    item_renderer(&mut child, idx);
+                }
 
-            // 3. Bottom Spacer: emitted only when last_index < item_count
-            if slice.bottom_spacer > 0.0 {
-                child.empty_box_passive_named(
-                    "VirtualListBottomSpacer",
-                    Style::new()
-                        .height(slice.bottom_spacer)
-                        .min_height(slice.bottom_spacer)
-                        .flex_shrink(0.0),
-                );
+                // 3. Bottom Spacer: emitted only when last_index < item_count
+                if slice.bottom_spacer > 0.0 {
+                    child.empty_box_passive_named(
+                        "VirtualListBottomSpacer",
+                        Style::new()
+                            .height(slice.bottom_spacer)
+                            .min_height(slice.bottom_spacer)
+                            .flex_shrink(0.0),
+                    );
+                }
             }
         }
 
@@ -657,7 +675,46 @@ mod tests {
 
         assert!(auto_scroll);
         assert_eq!(resp.last_index(), 100);
+        assert_eq!(resp.first_index(), 88); // 1800px / 20px = 90 - 2 overscan = 88
+        assert_eq!(resp.visible_count(), 12); // 88..100 = 12 items rendered
         assert_eq!(tree.scroll_offset(tag), 1800.0); // (100 * 20 - 200 = 1800)
+    }
+
+    /// Verifies that auto-scroll properly clamps and renders all items when total content fits within viewport.
+    /// Verifies that auto-scroll properly clamps and renders all items when total content fits within viewport.
+    #[test]
+    fn test_virtual_list_auto_scroll_renders_all_items_when_content_fits_viewport() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let mut auto_scroll = true;
+        let tag = 0x6666;
+        let mut rendered_count = 0;
+
+        let resp = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .virtual_list(4, 26.0) // 4 items, 26px each = 104px total
+                .visible_height(300.0) // 300px viewport fits all 104px
+                .tag(tag)
+                .auto_scroll(&mut auto_scroll)
+                .render_item(|s, idx| {
+                    rendered_count += 1;
+                    s.label(format!("Item {idx}"));
+                })
+        };
+
+        assert!(auto_scroll);
+        assert_eq!(rendered_count, 4, "All 4 items must be rendered");
+        assert_eq!(resp.first_index(), 0);
+        assert_eq!(resp.last_index(), 4);
+        assert_eq!(resp.visible_count(), 4);
+        assert_eq!(
+            tree.scroll_offset(tag),
+            0.0,
+            "Clamped scroll offset must be 0.0"
+        );
     }
 
     /// Verifies that `auto_scroll(&mut bool)` detects upward scrolling on the list's tag and sets `auto_scroll = false`.
@@ -707,5 +764,42 @@ mod tests {
         // Scroll should remain at manual 500.0 rather than being pinned to MAX
         assert_eq!(tree.scroll_offset(tag), 500.0);
         assert!(resp.last_index() < 100);
+    }
+
+    /// Verifies that `empty_notice(&'static str)` emits an empty notice when `item_count == 0`.
+    #[test]
+    fn test_virtual_list_empty_notice_renders_when_item_count_zero() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let mut items_rendered = 0;
+        let resp = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .virtual_list(0, 20.0)
+                .visible_height(200.0)
+                .name("EmptyVirtualList")
+                .empty_notice("No entries found.")
+                .render_item(|_, _| {
+                    items_rendered += 1;
+                })
+        };
+
+        assert_eq!(items_rendered, 0);
+        assert_eq!(resp.visible_count(), 0);
+        assert_eq!(resp.total_height(), 0.0);
+
+        // Verify child node structure: root -> viewport -> EmptyNotice container -> label
+        let vp_node = tree.get(resp.container_id).expect("viewport node");
+        assert_eq!(vp_node.children.len(), 1);
+        let notice_node = tree
+            .get(vp_node.children[0])
+            .expect("notice container node");
+        assert_eq!(notice_node.children.len(), 1);
+        let label_node = tree
+            .get(notice_node.children[0])
+            .expect("notice label node");
+        assert_eq!(label_node.text.as_deref(), Some("No entries found."));
     }
 }

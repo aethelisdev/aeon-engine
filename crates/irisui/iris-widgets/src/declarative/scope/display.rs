@@ -13,9 +13,11 @@ pub mod canvas;
 pub mod icons;
 pub mod key_value;
 pub mod labels;
+pub mod log_row;
 
 pub use key_value::{
     NumberLabelDescriptor, format_file_size_stack, format_number_stack,
     format_prefix_number_suffix_stack,
 };
 pub use labels::{LabeledStatusDescriptor, WrappedLabelDescriptor};
+pub use log_row::{LogRowBadge, LogRowDescriptor};
