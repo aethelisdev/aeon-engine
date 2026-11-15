@@ -10,6 +10,7 @@
 use iris_core::event::{FocusManager, KeyCode, MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::id::WidgetId;
+use iris_core::tree::UiTree;
 
 /// Represents an interactive target capable of receiving keyboard input focus.
 ///
@@ -305,6 +306,35 @@ impl FocusState<FocusTarget> {
     #[inline]
     pub fn set_focus_tag(&mut self, tag: u64) -> bool {
         self.set_focus(FocusTarget::Tag(tag))
+    }
+
+    /// Automatically synchronizes keyboard focus with the active text editing state of the UI tree.
+    ///
+    /// If no active text editing session is present and this state holds focus, clears focus
+    /// and returns `true`. If an active text edit session is present, aligns the focused tag.
+    pub fn auto_sync_focus_state(&mut self, tree: &UiTree) -> bool {
+        if tree.event_state.active_text_edit.is_none() && self.has_focus() {
+            self.clear_focus()
+        } else if let Some(ref edit) = tree.event_state.active_text_edit {
+            self.set_focus_tag(edit.tag);
+            false
+        } else {
+            false
+        }
+    }
+
+    /// Automatically synchronizes both this [`FocusState`] and the core [`FocusManager`]
+    /// with the active text editing state of the UI tree.
+    ///
+    /// Returns `true` if active focus was cleared on either state during synchronization.
+    pub fn auto_sync_with_focus_manager(
+        &mut self,
+        focus_manager: &mut FocusManager,
+        tree: &UiTree,
+    ) -> bool {
+        let cleared_state = self.auto_sync_focus_state(tree);
+        let cleared_core = focus_manager.auto_sync_focus_state(tree);
+        cleared_state || cleared_core
     }
 }
 
@@ -695,5 +725,72 @@ mod tests {
         // Clearing focus
         assert!(state.clear_focus());
         assert!(!state.is_tag_focused(456));
+    }
+
+    #[test]
+    fn test_focus_state_auto_sync_focus_state() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let input_id = tree.create_node();
+        if let Some(node) = tree.get_mut(input_id) {
+            node.tag = 777;
+            node.role = iris_core::node::WidgetRole::TextInput;
+            node.interactive = true;
+            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 24.0);
+        }
+        let _ = tree.add_child(root, input_id);
+
+        let mut state: FocusState<FocusTarget> = FocusState::new();
+        assert!(!state.has_focus());
+
+        // 1. Begin active text edit in tree
+        tree.event_state
+            .start_text_edit(Some(input_id), 777, "query", 5, None);
+
+        // 2. Auto-sync aligns focus state
+        let cleared = state.auto_sync_focus_state(&tree);
+        assert!(!cleared);
+        assert!(state.has_focus());
+        assert!(state.is_tag_focused(777));
+
+        // 3. Clear text edit session in tree
+        tree.event_state.clear_text_edit();
+
+        // 4. Auto-sync drops focus and returns true
+        let cleared = state.auto_sync_focus_state(&tree);
+        assert!(cleared);
+        assert!(!state.has_focus());
+        assert!(!state.is_tag_focused(777));
+    }
+
+    #[test]
+    fn test_focus_state_auto_sync_with_focus_manager() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let input_id = tree.create_node();
+        if let Some(node) = tree.get_mut(input_id) {
+            node.tag = 888;
+            node.role = iris_core::node::WidgetRole::TextInput;
+            node.interactive = true;
+        }
+        let _ = tree.add_child(root, input_id);
+
+        let mut state: FocusState<FocusTarget> = FocusState::new();
+        let mut manager = FocusManager::new();
+
+        tree.event_state
+            .start_text_edit(Some(input_id), 888, "search", 6, None);
+
+        let cleared = state.auto_sync_with_focus_manager(&mut manager, &tree);
+        assert!(!cleared);
+        assert!(state.is_tag_focused(888));
+        assert_eq!(manager.focused_tag(), Some(888));
+
+        tree.event_state.clear_text_edit();
+
+        let cleared = state.auto_sync_with_focus_manager(&mut manager, &tree);
+        assert!(cleared);
+        assert!(!state.has_focus());
+        assert!(!manager.has_focus());
     }
 }

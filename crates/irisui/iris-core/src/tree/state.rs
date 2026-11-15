@@ -4,7 +4,7 @@
 //! Persistent interaction, layout, and event state management for the UI tree.
 
 use crate::dispatch::{DispatchResult, dispatch_ui_event};
-use crate::event::UiEvent;
+use crate::event::{FocusManager, UiEvent};
 use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetRole};
@@ -582,5 +582,53 @@ impl UiTree {
             return node.role == WidgetRole::TextInput;
         }
         false
+    }
+
+    /// Checks if the specified 64-bit semantic tag currently holds keyboard focus or an active text edit session.
+    ///
+    /// Evaluates active inline text/numeric buffers, explicit focused tags, and tagged node IDs.
+    #[must_use]
+    #[inline]
+    pub fn is_tag_focused(&self, tag: u64) -> bool {
+        if tag == 0 {
+            return false;
+        }
+        if self
+            .event_state
+            .active_text_edit
+            .as_ref()
+            .is_some_and(|s| s.tag == tag)
+        {
+            return true;
+        }
+        if self.event_state.focused_tag == Some(tag) {
+            return true;
+        }
+        self.event_state
+            .focused
+            .and_then(|id| self.get(id))
+            .is_some_and(|n| n.tag == tag)
+    }
+
+    /// Automatically synchronizes keyboard focus with the active text editing state,
+    /// dropping focus from the provided [`FocusManager`] when text editing concludes.
+    ///
+    /// Returns `true` if active focus was cleared during synchronization.
+    #[inline]
+    pub fn auto_sync_focus_state(&self, focus: &mut FocusManager) -> bool {
+        focus.auto_sync_focus_state(self)
+    }
+
+    /// Dispatches an incoming [`UiEvent`] windowing input through the UI graph and
+    /// automatically synchronizes the provided [`FocusManager`] with the resulting text edit state.
+    #[inline]
+    pub fn dispatch_event_with_focus(
+        &mut self,
+        event: &UiEvent,
+        focus: &mut FocusManager,
+    ) -> DispatchResult {
+        let result = self.dispatch_event(event);
+        focus.auto_sync_focus_state(self);
+        result
     }
 }

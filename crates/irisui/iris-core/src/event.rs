@@ -390,6 +390,25 @@ impl FocusManager {
 
         self.focused = Some(interactive_nodes[next_idx]);
     }
+
+    /// Automatically synchronizes keyboard focus with the active text editing state of the UI tree.
+    ///
+    /// If no active text editing session is present and this manager holds focus, clears focus
+    /// and returns `true`. If an active text edit session is present, aligns the focused tag and node ID.
+    pub fn auto_sync_focus_state(&mut self, tree: &UiTree) -> bool {
+        if tree.event_state.active_text_edit.is_none() && self.has_focus() {
+            self.clear_focus();
+            true
+        } else if let Some(ref edit) = tree.event_state.active_text_edit {
+            self.focused_tag = Some(edit.tag);
+            if self.focused.is_none() {
+                self.focused = tree.find_node_by_tag(edit.tag);
+            }
+            false
+        } else {
+            false
+        }
+    }
 }
 
 /// Dispatches raw `UiEvent` inputs into target widgets and returns high-level responses.

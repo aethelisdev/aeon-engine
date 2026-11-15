@@ -319,6 +319,53 @@ impl<'a> UiScope<'a> {
     pub fn popups_dismissed(&self) -> bool {
         self.tree.popups_dismissed()
     }
+
+    /// Returns whether the widget tagged with `tag` currently holds keyboard focus or an active text edit session.
+    ///
+    /// Delegates directly to [`iris_core::UiTree::is_tag_focused`].
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target widget.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_focused(&self, tag: u64) -> bool {
+        self.tree.is_tag_focused(tag)
+    }
+
+    /// Returns whether an active inline text or numeric editing buffer currently holds keyboard input focus.
+    #[inline]
+    #[must_use]
+    pub fn has_text_input_focus(&self) -> bool {
+        self.tree.event_state.has_text_input_focus()
+    }
+
+    /// Clears any active keyboard input focus, pressed state, and text editing sessions across the tree.
+    #[inline]
+    pub fn clear_focus(&mut self) {
+        self.tree.event_state.clear_focus();
+    }
+
+    /// Automatically synchronizes the provided [`crate::controls::focus::FocusState`] with the active text edit state in the tree.
+    ///
+    /// Drops focus if text editing has concluded. Returns `true` if active focus was cleared.
+    #[inline]
+    pub fn auto_sync_focus_state(
+        &mut self,
+        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
+    ) -> bool {
+        focus_state.auto_sync_focus_state(self.tree)
+    }
+
+    /// Automatically synchronizes the provided core [`iris_core::event::FocusManager`] with the active text edit state in the tree.
+    ///
+    /// Drops focus if text editing has concluded. Returns `true` if active focus was cleared.
+    #[inline]
+    pub fn auto_sync_core_focus(
+        &mut self,
+        focus_manager: &mut iris_core::event::FocusManager,
+    ) -> bool {
+        focus_manager.auto_sync_focus_state(self.tree)
+    }
 }
 
 #[cfg(test)]
@@ -379,5 +426,46 @@ mod tests {
         assert!(scope.close_all_popups());
         assert!(!scope.has_open_popup());
         assert!(!scope.close_all_popups());
+    }
+
+    #[test]
+    fn test_ui_scope_focus_queries_and_auto_sync() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
+        assert!(!scope.is_tag_focused(55));
+        assert!(!scope.has_text_input_focus());
+
+        // 1. Start text edit
+        scope
+            .tree
+            .event_state
+            .start_text_edit(None, 55, "abc", 3, None);
+        assert!(scope.is_tag_focused(55));
+        assert!(scope.has_text_input_focus());
+
+        // 2. Auto-sync focus state and core focus
+        let mut focus_state = crate::controls::focus::FocusState::new();
+        let mut focus_manager = iris_core::event::FocusManager::new();
+
+        let cleared_state = scope.auto_sync_focus_state(&mut focus_state);
+        let cleared_core = scope.auto_sync_core_focus(&mut focus_manager);
+        assert!(!cleared_state);
+        assert!(!cleared_core);
+        assert!(focus_state.is_tag_focused(55));
+        assert_eq!(focus_manager.focused_tag(), Some(55));
+
+        // 3. Clear text edit session
+        scope.clear_text_edit();
+        assert!(!scope.has_text_input_focus());
+
+        // 4. Auto-sync drops focus automatically
+        let cleared_state = scope.auto_sync_focus_state(&mut focus_state);
+        let cleared_core = scope.auto_sync_core_focus(&mut focus_manager);
+        assert!(cleared_state);
+        assert!(cleared_core);
+        assert!(!focus_state.has_focus());
+        assert!(!focus_manager.has_focus());
     }
 }

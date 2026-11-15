@@ -270,4 +270,59 @@ mod tests {
         assert_eq!(node2.texture_uv, Some([0.5, 0.0, 0.75, 1.0]));
         assert_eq!(node2.texture_tint, Some(Color::WHITE));
     }
+
+    #[test]
+    fn test_focus_manager_auto_sync_focus_state() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let input_id = tree.create_node();
+        if let Some(node) = tree.get_mut(input_id) {
+            node.tag = 42;
+            node.role = crate::node::WidgetRole::TextInput;
+            node.interactive = true;
+            node.computed_rect = Rect::new(10.0, 10.0, 200.0, 30.0);
+        }
+        let _ = tree.add_child(root, input_id);
+
+        let mut focus = FocusManager::new();
+        assert!(!focus.has_focus());
+        assert!(!tree.is_tag_focused(42));
+
+        // 1. Begin active text edit session
+        tree.event_state
+            .start_text_edit(Some(input_id), 42, "hello", 5, None);
+        assert!(tree.is_tag_focused(42));
+        assert!(tree.event_state.has_text_input_focus());
+
+        // 2. Auto-sync aligns focus to the active text edit session
+        let cleared = focus.auto_sync_focus_state(&tree);
+        assert!(!cleared);
+        assert!(focus.has_focus());
+        assert_eq!(focus.focused_tag(), Some(42));
+        assert_eq!(focus.focused, Some(input_id));
+
+        // 3. Clear text edit session in tree
+        tree.event_state.clear_text_edit();
+        assert!(!tree.event_state.has_text_input_focus());
+
+        // 4. Auto-sync automatically drops focus and returns true
+        let cleared = tree.auto_sync_focus_state(&mut focus);
+        assert!(cleared);
+        assert!(!focus.has_focus());
+        assert_eq!(focus.focused_tag(), None);
+        assert_eq!(focus.focused, None);
+
+        // 5. dispatch_event_with_focus keeps focus synced during dispatch
+        tree.event_state
+            .start_text_edit(Some(input_id), 42, "world", 5, None);
+        focus.set_focus_tag(42);
+
+        // Escape clears popups/text edit in dispatch if configured or outside click occurs
+        tree.event_state.clear_text_edit();
+        let mouse_move = UiEvent::MouseMove {
+            point: Point::new(300.0, 300.0),
+        };
+        tree.dispatch_event_with_focus(&mouse_move, &mut focus);
+        assert!(!focus.has_focus());
+    }
 }
