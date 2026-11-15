@@ -12,7 +12,6 @@ use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 use irisui::text::TextSystem;
 use irisui::widgets::controls::FocusState;
-use irisui::widgets::modal::ModalDialogAction;
 
 impl IrisEditorOverlay {
     /// Height of the top menubar panel in physical pixels.
@@ -70,55 +69,7 @@ impl IrisEditorOverlay {
     /// layers transparently through the single-tree architecture.
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
         let dispatch = self.tree.dispatch_event(event);
-        let clicked_tag = self.tree.event_state.frame_clicked_tag;
-
-        let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
-
-        // Evaluate modal actions and button triggers in unified tree (STRICTLY on clicks, never on hover)
-        if let Some(clicked_tag) = clicked_tag
-            && clicked_tag != 0
-        {
-            match clicked_tag {
-                ModalDialogAction::TAG_CLOSE => {
-                    result.consumed = true;
-                    if self.assets.dialog_host.is_active() {
-                        self.assets.dialog_host.close();
-                    }
-                    self.assets.preview_modal = None;
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
-                ModalDialogAction::TAG_CANCEL => {
-                    result.consumed = true;
-                    if self.assets.dialog_host.is_active() {
-                        self.assets.dialog_host.close();
-                    }
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
-                ModalDialogAction::TAG_SCRIM => {
-                    if self.assets.preview_modal.is_some() {
-                        result.consumed = true;
-                        self.assets.preview_modal = None;
-                        self.notifier.tag_all();
-                        self.chrome.needs_layout_rebuild = true;
-                    }
-                }
-                ModalDialogAction::TAG_CONFIRM => {
-                    result.consumed = true;
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
-                ModalDialogAction::TAG_DANGER => {
-                    result.consumed = true;
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
-                _ => {}
-            }
-        }
-
-        result
+        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed())
     }
 
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
