@@ -143,6 +143,12 @@ pub fn build_assets_panel(
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(scope, params);
+    if params.active_preview_modal.is_some()
+        && (scope.is_tag_clicked(irisui::widgets::modal::MODAL_TAG_CLOSE)
+            || scope.is_tag_clicked(irisui::widgets::modal::MODAL_TAG_SCRIM))
+    {
+        actions.push(AssetsPanelAction::CloseInspectModal);
+    }
 
     metrics
 }

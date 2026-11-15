@@ -251,6 +251,10 @@ impl IrisEditorOverlay {
                     let _ = crate::assets::file_ops::create_subfolder(parent, name);
                     self.notifier.tag_all();
                 }
+                AssetsPanelAction::CloseInspectModal => {
+                    self.assets.preview_modal = None;
+                    self.notifier.tag_all();
+                }
                 other => {
                     self.assets.actions.push(other);
                     self.notifier.tag_all();

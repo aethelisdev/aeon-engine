@@ -1159,3 +1159,76 @@ fn test_assets_dialog_host_rendered_from_dock_leaf_attaches_to_root_and_click_in
         "Click on backdrop scrim MUST dismiss modal"
     );
 }
+
+#[test]
+fn test_assets_preview_modal_emits_close_inspect_modal_on_close_or_scrim() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let item = AssetItem {
+        name: "preview.png".to_string(),
+        path: PathBuf::from("assets/textures/preview.png"),
+        relative_path: "textures/preview.png".to_string(),
+        category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
+        file_size_bytes: 2048,
+        metadata_badge: "2 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: false,
+    };
+
+    let preview_state = AssetPreviewModalState {
+        item,
+        orbit_yaw: 0.0,
+        orbit_pitch: 0.0,
+        zoom_distance: 1.0,
+        show_wireframe: false,
+    };
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        cursor_pos: Point::new(500.0, 300.0),
+        blink_caret: true,
+        active_context_menu: None,
+        active_preview_modal: Some(&preview_state),
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    for tag in [
+        irisui::widgets::modal::MODAL_TAG_CLOSE,
+        irisui::widgets::modal::MODAL_TAG_SCRIM,
+    ] {
+        let mut actions = Vec::new();
+        tree.event_state.frame_clicked_tag = Some(tag);
+        let _metrics = build_assets_panel(
+            &mut UiScope::new(&mut tree, root_id),
+            &params,
+            &mut TreeState::default(),
+            &mut actions,
+        );
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, super::types::AssetsPanelAction::CloseInspectModal)),
+            "Expected CloseInspectModal for tag {tag:#x}"
+        );
+    }
+}
