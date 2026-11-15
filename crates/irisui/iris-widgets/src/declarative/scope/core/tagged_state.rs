@@ -179,6 +179,54 @@ impl<'a> UiScope<'a> {
         self.tree.set_max_scroll(tag, max_scroll);
     }
 
+    /// Evaluates whether the scroll container tagged with `tag` was scrolled during the current frame.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target scroll container.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled(&self, tag: u64) -> bool {
+        self.tree.is_tag_scrolled(tag)
+    }
+
+    /// Returns the mouse wheel or scroll displacement delta `(delta_x, delta_y)` for the container tagged with `tag`.
+    ///
+    /// Returns `None` if the container was not scrolled during the current dispatch cycle.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target scroll container.
+    #[inline]
+    #[must_use]
+    pub fn tag_scroll_delta(&self, tag: u64) -> Option<(f32, f32)> {
+        self.tree.tag_scroll_delta(tag)
+    }
+
+    /// Evaluates whether an upward scroll gesture (`delta_y > 0.0`) occurred on the container tagged with `tag`.
+    ///
+    /// In typical mouse wheel scrolling, an upward wheel roll produces positive `delta_y`,
+    /// moving viewport content towards the top (earlier entries) and decreasing scroll offset.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target scroll container.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled_up(&self, tag: u64) -> bool {
+        self.tree.is_tag_scrolled_up(tag)
+    }
+
+    /// Evaluates whether a downward scroll gesture (`delta_y < 0.0`) occurred on the container tagged with `tag`.
+    ///
+    /// In typical mouse wheel scrolling, a downward wheel roll produces negative `delta_y`,
+    /// moving viewport content towards the bottom (later entries) and increasing scroll offset.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag of the target scroll container.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled_down(&self, tag: u64) -> bool {
+        self.tree.is_tag_scrolled_down(tag)
+    }
+
     /// Returns whether the pointer capture is currently held by the widget tagged with `tag`.
     ///
     /// # Arguments

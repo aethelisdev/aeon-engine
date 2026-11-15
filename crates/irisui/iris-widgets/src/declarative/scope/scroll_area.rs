@@ -130,6 +130,36 @@ impl<'a> UiScope<'a> {
         self.scroll_area_with_offset(name, tag, None, scrollbar_tags, f)
     }
 
+    /// Emits an autonomous declarative scroll container with continuous auto-scrolling management.
+    ///
+    /// When `*auto_scroll` is `true`, pins the scroll offset to the bottom of the container.
+    /// If an upward mouse scroll gesture is detected on this container during the current frame,
+    /// `*auto_scroll` is automatically set to `false` to respect the user's manual inspection.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier for the container node.
+    /// * `tag` - 64-bit semantic tag of the container node.
+    /// * `auto_scroll` - Mutable reference to the boolean auto-scroll state.
+    /// * `scrollbar_tags` - Optional `(track_tag, thumb_tag)` for interactive scrollbar indicators.
+    /// * `f` - Closure executing within the scroll viewport scope.
+    pub fn scroll_area_auto_scroll<R, F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        auto_scroll: &mut bool,
+        scrollbar_tags: Option<(u64, u64)>,
+        f: F,
+    ) -> ScrollAreaResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if tag != 0 && self.is_tag_scrolled_up(tag) {
+            *auto_scroll = false;
+        }
+        let explicit_offset = if *auto_scroll { Some(f32::MAX) } else { None };
+        self.scroll_area_with_offset(name, tag, explicit_offset, scrollbar_tags, f)
+    }
+
     /// Emits an autonomous declarative scroll container with an optional explicit vertical scroll offset override.
     pub fn scroll_area_with_offset<R, F>(
         &mut self,

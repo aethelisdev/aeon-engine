@@ -72,10 +72,6 @@ impl IrisEditorOverlay {
         let dispatch = self.tree.dispatch_event(event);
         let clicked_tag = self.tree.event_state.frame_clicked_tag;
 
-        if self.tree.event_state.active_text_edit.is_none() && self.focus_state.has_focus() {
-            self.clear_focus();
-        }
-
         let is_file_drag = matches!(
             event,
             UiEvent::FileHovered { .. } | UiEvent::FileDropped { .. } | UiEvent::FileCancelled

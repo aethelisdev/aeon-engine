@@ -631,4 +631,46 @@ impl UiTree {
         focus.auto_sync_focus_state(self);
         result
     }
+
+    /// Evaluates whether the scroll container associated with the specified semantic tag was scrolled in the current frame.
+    ///
+    /// Checks [`crate::dispatch::EventState::frame_scrolled_tag`] matching `tag`.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled(&self, tag: u64) -> bool {
+        tag != 0 && self.event_state.frame_scrolled_tag == Some(tag)
+    }
+
+    /// Returns the mouse wheel or scrollbar displacement delta `(delta_x, delta_y)` for the specified container tag, if scrolled.
+    ///
+    /// Returns `None` if the container was not scrolled during the current dispatch cycle.
+    #[inline]
+    #[must_use]
+    pub fn tag_scroll_delta(&self, tag: u64) -> Option<(f32, f32)> {
+        if self.is_tag_scrolled(tag) {
+            self.event_state.frame_scroll_delta
+        } else {
+            None
+        }
+    }
+
+    /// Evaluates whether an upward scroll gesture (`delta_y > 0.0`) occurred on the specified tag during the current frame.
+    ///
+    /// In typical mouse wheel scrolling, an upward wheel roll produces positive `delta_y`,
+    /// moving viewport content towards the top (earlier entries) and decreasing scroll offset.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled_up(&self, tag: u64) -> bool {
+        self.tag_scroll_delta(tag).is_some_and(|(_, dy)| dy > 0.0)
+    }
+
+    /// Evaluates whether a downward scroll gesture (`delta_y < 0.0`) occurred on the specified tag during the current frame.
+    ///
+    /// In typical mouse wheel scrolling, a downward wheel roll produces negative `delta_y`,
+    /// moving viewport content towards the bottom (later entries) and increasing scroll offset.
+    #[inline]
+    #[must_use]
+    pub fn is_tag_scrolled_down(&self, tag: u64) -> bool {
+        self.tag_scroll_delta(tag).is_some_and(|(_, dy)| dy < 0.0)
+    }
 }

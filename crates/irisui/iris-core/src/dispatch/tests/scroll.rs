@@ -266,3 +266,62 @@ fn test_scroll_over_nested_card_elements_bubbles_to_viewport() {
     let vp = tree.get(viewport).unwrap();
     assert_eq!(vp.style.scroll_offset_y, 40.0);
 }
+
+/// Verifies that mouse wheel scroll events update `EventState` and that
+/// `UiTree::is_tag_scrolled_up`, `is_tag_scrolled_down`, and `tag_scroll_delta` correctly report direction.
+#[test]
+fn test_tree_tagged_scroll_delta_and_direction_queries() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let viewport = tree.create_node();
+    tree.add_child(root, viewport).unwrap();
+    {
+        let vp = tree.get_mut(viewport).unwrap();
+        vp.visible = true;
+        vp.interactive = true;
+        vp.role = WidgetRole::ScrollAreaViewport;
+        vp.style.clip_children = true;
+        vp.style.scroll_offset_y = 50.0;
+        vp.content_size = Size::new(200.0, 1000.0);
+        vp.computed_rect = Rect::new(0.0, 0.0, 200.0, 200.0);
+        vp.tag = 0x7001;
+    }
+
+    // 1. Initial state: no scroll
+    assert!(!tree.is_tag_scrolled(0x7001));
+    assert!(!tree.is_tag_scrolled_up(0x7001));
+    assert!(!tree.is_tag_scrolled_down(0x7001));
+    assert_eq!(tree.tag_scroll_delta(0x7001), None);
+
+    // 2. Scroll Up (delta_y > 0.0)
+    let res_up = tree.dispatch_event(&UiEvent::MouseScroll {
+        delta_x: 0.0,
+        delta_y: 20.0,
+        point: Point::new(50.0, 50.0),
+    });
+    assert!(res_up.is_consumed());
+    assert!(tree.is_tag_scrolled(0x7001));
+    assert!(tree.is_tag_scrolled_up(0x7001));
+    assert!(!tree.is_tag_scrolled_down(0x7001));
+    assert_eq!(tree.tag_scroll_delta(0x7001), Some((0.0, 20.0)));
+
+    // 3. Clear frame clicks resets scroll signals
+    tree.clear_frame_clicks();
+    assert!(!tree.is_tag_scrolled(0x7001));
+    assert!(!tree.is_tag_scrolled_up(0x7001));
+    assert!(!tree.is_tag_scrolled_down(0x7001));
+    assert_eq!(tree.tag_scroll_delta(0x7001), None);
+
+    // 4. Scroll Down (delta_y < 0.0)
+    let res_down = tree.dispatch_event(&UiEvent::MouseScroll {
+        delta_x: 0.0,
+        delta_y: -15.0,
+        point: Point::new(50.0, 50.0),
+    });
+    assert!(res_down.is_consumed());
+    assert!(tree.is_tag_scrolled(0x7001));
+    assert!(!tree.is_tag_scrolled_up(0x7001));
+    assert!(tree.is_tag_scrolled_down(0x7001));
+    assert_eq!(tree.tag_scroll_delta(0x7001), Some((0.0, -15.0)));
+}

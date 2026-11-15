@@ -206,6 +206,59 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
         self
     }
 
+    /// Automatically manages continuous auto-scrolling to the bottom of the virtual list.
+    ///
+    /// When `*auto_scroll` is `true`, sets the scroll offset to `f32::MAX` to pin the list
+    /// to the latest appended items.
+    /// If an upward mouse scroll gesture is detected on this container during the current frame,
+    /// `*auto_scroll` is automatically set to `false` to preserve the user's manual scroll position.
+    ///
+    /// # Arguments
+    ///
+    /// * `auto_scroll` - Mutable reference to the boolean auto-scroll state.
+    #[inline]
+    pub fn auto_scroll(mut self, auto_scroll: &mut bool) -> Self {
+        if self.tag != 0 && self.scope.is_tag_scrolled_up(self.tag) {
+            *auto_scroll = false;
+        }
+        if *auto_scroll {
+            self.scroll_y = Some(f32::MAX);
+        }
+        self
+    }
+
+    /// Invokes the provided closure if an upward mouse wheel scroll was performed on this virtual list.
+    ///
+    /// # Arguments
+    ///
+    /// * `callback` - Closure executed when an upward scroll occurs on this list.
+    #[inline]
+    pub fn on_scroll_up<F>(self, mut callback: F) -> Self
+    where
+        F: FnMut(),
+    {
+        if self.tag != 0 && self.scope.is_tag_scrolled_up(self.tag) {
+            callback();
+        }
+        self
+    }
+
+    /// Invokes the provided closure if a downward mouse wheel scroll was performed on this virtual list.
+    ///
+    /// # Arguments
+    ///
+    /// * `callback` - Closure executed when a downward scroll occurs on this list.
+    #[inline]
+    pub fn on_scroll_down<F>(self, mut callback: F) -> Self
+    where
+        F: FnMut(),
+    {
+        if self.tag != 0 && self.scope.is_tag_scrolled_down(self.tag) {
+            callback();
+        }
+        self
+    }
+
     /// Evaluates the visible slice and invokes the `item_renderer` closure for every visible item index.
     ///
     /// Inserts top and bottom spacer nodes to simulate the full scroll height while restricting
@@ -578,5 +631,81 @@ mod tests {
         assert_eq!(node.tag, tag);
         assert_eq!(node.role, WidgetRole::ScrollAreaViewport);
         assert_eq!(node.style.background_color, Color::rgba(0.1, 0.1, 0.1, 1.0));
+    }
+
+    /// Verifies that `auto_scroll(&mut bool)` pins scroll position to `f32::MAX` when true.
+    #[test]
+    fn test_virtual_list_auto_scroll_pins_to_bottom() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let mut auto_scroll = true;
+        let tag = 0x5555;
+
+        let resp = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .virtual_list(100, 20.0)
+                .visible_height(200.0)
+                .tag(tag)
+                .auto_scroll(&mut auto_scroll)
+                .render_item(|s, idx| {
+                    s.label(format!("{idx}"));
+                })
+        };
+
+        assert!(auto_scroll);
+        assert_eq!(resp.last_index(), 100);
+        assert_eq!(tree.scroll_offset(tag), 1800.0); // (100 * 20 - 200 = 1800)
+    }
+
+    /// Verifies that `auto_scroll(&mut bool)` detects upward scrolling on the list's tag and sets `auto_scroll = false`.
+    #[test]
+    fn test_virtual_list_auto_scroll_disabled_on_scroll_up() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let tag = 0x5555;
+        // Simulate an upward scroll event on the tag during this frame
+        tree.event_state.frame_scrolled_tag = Some(tag);
+        tree.event_state.frame_scroll_delta = Some((0.0, 15.0)); // delta_y > 0 is scroll up
+
+        let mut auto_scroll = true;
+        let mut scrolled_up_called = false;
+        let mut scrolled_down_called = false;
+
+        let resp = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .virtual_list(100, 20.0)
+                .visible_height(200.0)
+                .tag(tag)
+                .scroll_y(500.0)
+                .on_scroll_up(|| {
+                    scrolled_up_called = true;
+                })
+                .on_scroll_down(|| {
+                    scrolled_down_called = true;
+                })
+                .auto_scroll(&mut auto_scroll)
+                .render_item(|s, idx| {
+                    s.label(format!("{idx}"));
+                })
+        };
+
+        assert!(
+            !auto_scroll,
+            "auto_scroll must be disabled automatically when an upward scroll occurs"
+        );
+        assert!(scrolled_up_called, "on_scroll_up callback must be invoked");
+        assert!(
+            !scrolled_down_called,
+            "on_scroll_down must not be invoked on scroll up"
+        );
+        // Scroll should remain at manual 500.0 rather than being pinned to MAX
+        assert_eq!(tree.scroll_offset(tag), 500.0);
+        assert!(resp.last_index() < 100);
     }
 }

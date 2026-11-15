@@ -48,11 +48,14 @@ pub(crate) fn update_scrollbar_drag(
     let new_scroll = (initial_scroll + delta_scroll).clamp(0.0, max_scroll_y);
 
     let vp_tag = tree.get(vp_id).map_or(0, |n| n.tag);
+    let old_scroll = tree.get(vp_id).map_or(0.0, |n| n.style.scroll_offset_y);
     if let Some(vp) = tree.get_mut(vp_id) {
         vp.style.scroll_offset_y = new_scroll;
     }
     if vp_tag != 0 {
         tree.set_scroll_offset(vp_tag, new_scroll);
+        tree.event_state.frame_scrolled_tag = Some(vp_tag);
+        tree.event_state.frame_scroll_delta = Some((0.0, old_scroll - new_scroll));
     }
 
     let ratio = (new_scroll / max_scroll_y).clamp(0.0, 1.0);
@@ -97,11 +100,14 @@ pub(crate) fn perform_track_jump_scroll(
     let new_scroll = ratio * max_scroll_y;
 
     let vp_tag = tree.get(vp_id).map_or(0, |n| n.tag);
+    let old_scroll = tree.get(vp_id).map_or(0.0, |n| n.style.scroll_offset_y);
     if let Some(vp) = tree.get_mut(vp_id) {
         vp.style.scroll_offset_y = new_scroll;
     }
     if vp_tag != 0 {
         tree.set_scroll_offset(vp_tag, new_scroll);
+        tree.event_state.frame_scrolled_tag = Some(vp_tag);
+        tree.event_state.frame_scroll_delta = Some((0.0, old_scroll - new_scroll));
     }
 
     let new_thumb_y = track_rect.y + ratio * travel;

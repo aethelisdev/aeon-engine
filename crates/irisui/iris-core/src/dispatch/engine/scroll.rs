@@ -73,7 +73,9 @@ pub(crate) fn handle_mouse_scroll(
                     };
                     if tag != 0 {
                         tree.set_scroll_offset(tag, new_scroll);
+                        tree.event_state.frame_scrolled_tag = Some(tag);
                     }
+                    tree.event_state.frame_scroll_delta = Some((delta_x, delta_y));
 
                     // Autonomous synchronization of attached scrollbar thumb geometry
                     sync_scrollbar_thumb_geometry(tree, curr_id);

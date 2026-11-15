@@ -159,6 +159,13 @@ pub struct EventState {
     /// parse, clamp, and commit the pending expression during the layout/render frame.
     /// Cleared automatically at the end of the frame via [`Self::clear_frame_clicks`].
     pub last_completed_text_edit: Option<(u64, String)>,
+    /// Persistent 64-bit semantic tag of the scroll container scrolled during the current dispatch cycle, if any.
+    pub frame_scrolled_tag: Option<u64>,
+    /// Mouse wheel or trackpad scroll delta `(delta_x, delta_y)` accumulated during the current dispatch cycle.
+    ///
+    /// A positive vertical delta (`delta_y > 0.0`) indicates upward scrolling (towards earlier content/top),
+    /// while a negative delta (`delta_y < 0.0`) indicates downward scrolling (towards later content/bottom).
+    pub frame_scroll_delta: Option<(f32, f32)>,
     /// Drag selection anchor byte index during an active mouse drag-select gesture within a text input.
     pub text_drag_anchor: Option<usize>,
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
@@ -226,6 +233,8 @@ impl EventState {
             active_context_menu: None,
             active_text_edit: None,
             last_completed_text_edit: None,
+            frame_scrolled_tag: None,
+            frame_scroll_delta: None,
             text_drag_anchor: None,
             is_pointer_drag_active: false,
             active_tooltip: None,
@@ -355,6 +364,8 @@ impl EventState {
         self.frame_shift_held = false;
         self.frame_popups_dismissed = false;
         self.last_completed_text_edit = None;
+        self.frame_scrolled_tag = None;
+        self.frame_scroll_delta = None;
     }
 
     /// Invalidates all generational [`WidgetId`] references across the event state when
