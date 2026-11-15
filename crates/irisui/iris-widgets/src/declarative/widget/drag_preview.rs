@@ -147,11 +147,13 @@ impl Widget for FloatingDragPreview {
     type Response = WidgetResponse;
 
     fn ui(self, scope: &mut UiScope<'_>) -> Self::Response {
+        let cursor = if self.cursor != Point::ZERO {
+            self.cursor
+        } else {
+            scope.cursor_pos().unwrap_or(Point::ZERO)
+        };
         let effective_offset = self.offset.unwrap_or(self.style.offset);
-        let screen_pos = Point::new(
-            self.cursor.x + effective_offset.x,
-            self.cursor.y + effective_offset.y,
-        );
+        let screen_pos = Point::new(cursor.x + effective_offset.x, cursor.y + effective_offset.y);
 
         let parent_origin = scope.parent_screen_origin();
         let local_pos = Point::new(

@@ -414,9 +414,13 @@ impl IrisEditorOverlay {
     #[inline]
     #[must_use]
     pub fn cursor_pos(&self) -> Point {
-        self.tree
-            .cursor_position()
-            .unwrap_or(self.chrome.cursor_pos)
+        self.tree.cursor_position().unwrap_or(
+            if self.chrome.last_cursor_pos.x >= 0.0 && self.chrome.last_cursor_pos.y >= 0.0 {
+                self.chrome.last_cursor_pos
+            } else {
+                self.chrome.cursor_pos
+            },
+        )
     }
 
     /// Returns the active pointer capture panel, if any.

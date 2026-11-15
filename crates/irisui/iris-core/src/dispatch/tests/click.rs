@@ -433,3 +433,39 @@ fn test_click_on_child_container_bubbles_target_to_ancestor_button() {
     );
     assert_eq!(tree.event_state.frame_clicked_tag, Some(0x9999));
 }
+
+/// Verifies that [`UiTree::cursor_position`] and [`EventState::last_pointer_pos`] are retained
+/// on [`UiEvent::MouseUp`] rather than dropped, guaranteeing that drop target handlers and
+/// post-release layout passes maintain valid screen coordinates.
+#[test]
+fn test_pointer_pos_retained_on_pointer_up() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+
+    let node = tree.get_mut(btn).unwrap();
+    node.visible = true;
+    node.interactive = true;
+    node.computed_rect = Rect::new(100.0, 100.0, 80.0, 30.0);
+
+    let click_pos = Point::new(140.0, 115.0);
+
+    // MouseDown records pointer pos
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_pos,
+    });
+    assert_eq!(tree.cursor_position(), Some(click_pos));
+
+    // MouseUp must retain the physical pointer position
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: click_pos,
+    });
+    assert_eq!(
+        tree.cursor_position(),
+        Some(click_pos),
+        "MouseUp must retain physical pointer position on UiTree::cursor_position"
+    );
+}

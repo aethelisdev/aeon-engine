@@ -390,7 +390,7 @@ impl IrisEditorOverlay {
         let content_w = (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0);
         let content_h = panel_rect.height;
 
-        let cursor_pos = self.cursor_pos();
+        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
         let current_theme = self.chrome.theme_preset;
         let mut gs = params.preferences.graphics_settings.clone();
         let mut snap = *params.preferences.snapping_settings;

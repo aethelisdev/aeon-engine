@@ -134,3 +134,38 @@ fn test_floating_drag_preview_nested_parent_origin_compensation() {
     assert_eq!(card_after.computed_rect.x, expected_screen_pos.x);
     assert_eq!(card_after.computed_rect.y, expected_screen_pos.y);
 }
+
+/// Verifies that [`FloatingDragPreview`] autonomously queries [`UiScope::cursor_pos`]
+/// when no explicit cursor coordinate is supplied or when `Point::ZERO` is provided.
+#[test]
+fn test_floating_drag_preview_autonomous_scope_cursor_fallback() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must be created");
+
+    let live_cursor = Point::new(640.0, 420.0);
+    tree.set_cursor_position(live_cursor);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        // Notice: with_cursor is intentionally NOT called
+        let preview = FloatingDragPreview::new("Autonomous_Model.glb")
+            .with_badge("Mesh", Color::from_u8(0, 220, 255, 255));
+
+        scope.floating_drag_preview(preview);
+    }
+
+    let root_node = tree.get(root).expect("Root node exists");
+    assert_eq!(root_node.children.len(), 1);
+
+    let card_id = root_node.children[0];
+    let card = tree.get(card_id).expect("Preview card exists");
+
+    let expected_pos = Point::new(
+        live_cursor.x + DEFAULT_DRAG_PREVIEW_OFFSET.x,
+        live_cursor.y + DEFAULT_DRAG_PREVIEW_OFFSET.y,
+    );
+    assert_eq!(card.style.inset_left, Some(expected_pos.x));
+    assert_eq!(card.style.inset_top, Some(expected_pos.y));
+    assert_eq!(card.computed_rect.x, expected_pos.x);
+    assert_eq!(card.computed_rect.y, expected_pos.y);
+}

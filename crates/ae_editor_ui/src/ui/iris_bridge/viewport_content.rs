@@ -36,7 +36,7 @@ impl IrisEditorOverlay {
             self.viewport_hud.dropdown = None;
         }
 
-        let cursor_pos = self.cursor_pos();
+        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
         let active_dropdown = self.viewport_hud.dropdown;
         let hud = &mut self.viewport_hud;
 

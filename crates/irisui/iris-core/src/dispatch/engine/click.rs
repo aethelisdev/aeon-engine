@@ -353,7 +353,7 @@ pub(crate) fn handle_mouse_up(
         tree.event_state.pressed_tag = None;
         tree.event_state.pressed_button = None;
         tree.event_state.press_origin = None;
-        tree.event_state.last_pointer_pos = None;
+        tree.event_state.last_pointer_pos = Some(point);
         tree.event_state.initial_scroll_y = 0.0;
         tree.event_state.frame_drag_delta = None;
         tree.event_state.is_pointer_drag_active = false;
@@ -422,7 +422,7 @@ pub(crate) fn handle_mouse_up(
     tree.event_state.pressed_tag = None;
     tree.event_state.pressed_button = None;
     tree.event_state.press_origin = None;
-    tree.event_state.last_pointer_pos = None;
+    tree.event_state.last_pointer_pos = Some(point);
     tree.event_state.initial_scroll_y = 0.0;
 
     if let Some(target_id) = hit_id {

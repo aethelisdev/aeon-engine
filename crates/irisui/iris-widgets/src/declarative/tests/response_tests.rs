@@ -327,8 +327,9 @@ fn test_declarative_numeric_drag_changed_response() {
         "Pointer capture must be released on MouseUp"
     );
     assert_eq!(
-        tree.event_state.last_pointer_pos, None,
-        "Last pointer position must be reset on MouseUp"
+        tree.event_state.last_pointer_pos,
+        Some(moved_pt),
+        "Last pointer position must retain physical release point on MouseUp"
     );
 
     // Frame after release: no longer dragging or changing

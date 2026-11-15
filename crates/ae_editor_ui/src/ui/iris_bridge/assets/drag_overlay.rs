@@ -24,9 +24,11 @@ pub fn build_asset_drag_overlays_scope(
     camera: &Camera,
     is_2d_mode: bool,
 ) {
+    let cursor = scope.cursor_pos().unwrap_or(cursor_pos);
+
     // 1. 3D / 2D Viewport Landing Indicator
     if let Some((center_x, center_y)) =
-        compute_landing_center(cursor_pos, viewport_rect, camera, is_2d_mode)
+        compute_landing_center(cursor, viewport_rect, camera, is_2d_mode)
     {
         scope.landing_indicator(
             Point::new(center_x, center_y),
@@ -39,7 +41,7 @@ pub fn build_asset_drag_overlays_scope(
     // 2. Floating Cursor Drag Tooltip Capsule
     scope.floating_drag_preview(
         irisui::widgets::declarative::widget::FloatingDragPreview::new(&payload.name)
-            .with_cursor(cursor_pos)
+            .with_cursor(cursor)
             .with_badge(payload.category.badge(), payload.category.badge_color()),
     );
 }

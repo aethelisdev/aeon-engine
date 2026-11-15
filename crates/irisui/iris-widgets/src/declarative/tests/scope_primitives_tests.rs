@@ -509,7 +509,7 @@ fn test_declarative_scope_cursor_position_introspection_and_update() {
         assert_eq!(scope.cursor_pos(), Some(move_pos));
     }
 
-    // 4. MouseUp event resets last_pointer_pos to None per dispatch specification
+    // 4. MouseUp event retains physical pointer release position
     let release_pos = Point::new(600.0, 400.0);
     tree.dispatch_event(&iris_core::UiEvent::MouseUp {
         button: MouseButton::Left,
@@ -517,6 +517,6 @@ fn test_declarative_scope_cursor_position_introspection_and_update() {
     });
     {
         let scope = UiScope::new(&mut tree, root);
-        assert_eq!(scope.cursor_pos(), None);
+        assert_eq!(scope.cursor_pos(), Some(release_pos));
     }
 }

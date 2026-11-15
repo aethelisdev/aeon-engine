@@ -46,7 +46,7 @@ impl IrisEditorOverlay {
             scope.clear_text_edit();
         }
 
-        let cursor_pos = self.cursor_pos();
+        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
         let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let ctrl_held = self.chrome.ctrl_held;
         let shift_held = self.chrome.shift_held;

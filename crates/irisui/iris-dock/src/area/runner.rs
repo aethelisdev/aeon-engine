@@ -155,6 +155,10 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
             style: &self.style,
         };
 
+        if self.cursor_pos.x >= 0.0 && self.cursor_pos.y >= 0.0 {
+            scope.tree_mut().set_cursor_position(self.cursor_pos);
+        }
+
         let parent_id = scope.parent();
         let mut frame = build_dock_chrome(scope.tree_mut(), parent_id, &params);
 
