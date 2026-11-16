@@ -495,12 +495,19 @@ impl<'a> UiScope<'a> {
 
         let row_id = self.property_row(label, |slot| {
             let drag_id = slot.tree.create_node();
+            let is_dragging = slot.tree.event_state.is_pointer_drag_active
+                && (slot.tree.event_state.pointer_capture == Some(drag_id)
+                    || (tag != 0 && slot.tree.event_state.pointer_capture_tag == Some(tag)));
             if let Some(node) = slot.tree.get_mut(drag_id) {
                 node.set_name("PropertyDragFloat");
                 node.interactive = true;
                 node.role = WidgetRole::NumericInput;
                 node.tag = tag;
-                node.cursor = Some(WidgetCursor::EwResize);
+                node.cursor = Some(if is_dragging {
+                    WidgetCursor::EwResize
+                } else {
+                    WidgetCursor::Default
+                });
                 node.set_text(format!("{:.2}", *value));
                 node.font_size = 11.0;
                 node.line_height = 14.0;

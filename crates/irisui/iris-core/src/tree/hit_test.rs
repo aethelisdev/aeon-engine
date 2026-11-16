@@ -457,6 +457,32 @@ impl UiTree {
     ///
     /// Respects layer priority (e.g. modal dialogs and dropdown popups occlude underlying splitters and tabs).
     pub fn cursor_at(&self, point: Point) -> WidgetCursor {
+        if self.event_state.is_pointer_drag_active {
+            let captured_id = self
+                .event_state
+                .pointer_capture
+                .filter(|&id| self.nodes.contains_key(id))
+                .or_else(|| {
+                    self.event_state
+                        .pointer_capture_tag
+                        .and_then(|tag| self.find_node_by_tag(tag))
+                });
+            if let Some(cid) = captured_id
+                && let Some(node) = self.nodes.get(cid)
+                && node.role == WidgetRole::NumericInput
+            {
+                let is_editing = self
+                    .event_state
+                    .active_text_edit
+                    .as_ref()
+                    .is_some_and(|s| s.tag != 0 && (node.tag == 0 || s.tag == node.tag));
+                if is_editing {
+                    return WidgetCursor::Text;
+                }
+                return WidgetCursor::EwResize;
+            }
+        }
+
         let Some(hit_id) = self.hit_test_layered(point) else {
             return WidgetCursor::Default;
         };

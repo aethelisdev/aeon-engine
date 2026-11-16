@@ -96,6 +96,9 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
     /// Previously evaluated hovered 64-bit semantic interaction tag for transition detection.
     pub last_hovered_tag: Option<u64>,
 
+    /// Previously evaluated hovered widget identifier for detecting untagged hover transitions.
+    pub last_hit_widget: Option<iris_core::WidgetId>,
+
     /// Currently hovered non-excluded dock panel tab resolved under the cursor, if not occluded by overlays.
     pub hovered_panel: Option<TabId>,
 
@@ -140,6 +143,7 @@ where
             dock_frame: None,
             hovered_tag: None,
             last_hovered_tag: None,
+            last_hit_widget: None,
             hovered_panel: None,
             last_hovered_panel: None,
             lifecycle: WorkbenchLifecycle::new(),

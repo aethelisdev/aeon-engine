@@ -1,0 +1,565 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! Retained-mode docking chrome tree synthesis (`build_dock_chrome`).
+
+use super::frame::{
+    DockChevronTarget, DockChromeFrame, DockChromeParams, DockCloseTarget, DockSplitterTarget,
+    DockTabTarget, hit_splitter,
+};
+use super::tags::{encode_dock_tab_chevron_tag, encode_dock_tab_close_tag, encode_dock_tab_tag};
+use crate::layout::compute_dock_layout;
+use crate::tab_viewer::TabViewer;
+use crate::tree::SplitDirection;
+use iris_core::color::Color;
+use iris_core::geometry::{CornerRadii, Rect};
+use iris_core::id::WidgetId;
+use iris_core::node::{WidgetCursor, WidgetRole};
+use iris_core::style::{Style, TextAlign};
+use iris_core::tree::UiTree;
+use slotmap::Key;
+
+/// Builds complete retained Iris UI widgets for docked pane backgrounds, tab strips, and splitters.
+pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
+    tree: &mut UiTree,
+    parent: WidgetId,
+    params: &DockChromeParams<'_, T, V>,
+) -> DockChromeFrame<T> {
+    let style = params.style;
+    let computed = compute_dock_layout(
+        params.dock_tree,
+        params.workspace_rect,
+        style.splitter_thickness,
+        style.tab_bar_height,
+    );
+    let mut frame = DockChromeFrame::default();
+
+    // 1. Render all leaf panel backgrounds and tab strips
+    for leaf in &computed.leaves {
+        if leaf.tabs.is_empty() {
+            if params.is_dragging_tab {
+                add_rect_node(
+                    tree,
+                    parent,
+                    leaf.rect,
+                    "IrisDockPanelEmpty",
+                    Style::new()
+                        .background(style.empty_panel_bg)
+                        .border(1.0, style.empty_panel_border)
+                        .clip_children(true),
+                );
+            }
+            continue;
+        }
+
+        // Base panel background quad
+        add_rect_node(
+            tree,
+            parent,
+            leaf.rect,
+            "IrisDockPanel",
+            Style::new().background(style.panel_bg).clip_children(true),
+        );
+
+        // Tab strip header quad (isolated invalidation boundary for instant retained tab hover repaints)
+        let strip_id = add_rect_node(
+            tree,
+            parent,
+            leaf.tab_bar_rect,
+            "IrisDockTabStrip",
+            Style::new()
+                .background(style.tab_bar_bg)
+                .clip_children(true),
+        );
+        if let Some(strip_node) = tree.get_mut(strip_id) {
+            strip_node.is_boundary = true;
+        }
+
+        // Continuous baseline divider running full width of the tab bar
+        add_rect_node(
+            tree,
+            strip_id,
+            Rect::new(
+                leaf.tab_bar_rect.x,
+                leaf.tab_bar_rect.bottom() - 1.0,
+                leaf.tab_bar_rect.width,
+                1.0,
+            ),
+            "IrisDockTabStripBaseline",
+            Style::new().background(style.tab_bar_baseline_color),
+        );
+
+        // Pre-measure all tabs in the current leaf to determine layout tier
+        let tab_count = leaf.tabs.len();
+        let bar_width = leaf.tab_bar_rect.width;
+
+        let measurements: Vec<(f32, Option<[f32; 4]>, String, bool)> = leaf
+            .tabs
+            .iter()
+            .map(|tab| {
+                let atlas_icon = params.viewer.atlas_icon(tab);
+                let title = if atlas_icon.is_some() {
+                    params.viewer.raw_title(tab)
+                } else {
+                    params.viewer.title(tab)
+                };
+                let char_count = title.chars().count();
+                let is_closeable = params.viewer.closeable(tab);
+                let close_w = if is_closeable { 18.0f32 } else { 0.0f32 };
+                let icon_w = if atlas_icon.is_some() {
+                    18.0f32
+                } else {
+                    0.0f32
+                };
+                let natural_w: f32 =
+                    (16.0f32 + icon_w + (char_count as f32) * 6.8f32 + close_w + 14.0f32)
+                        .clamp(52.0f32, 170.0f32);
+                (natural_w, atlas_icon, title, is_closeable)
+            })
+            .collect();
+
+        let total_natural_w: f32 = measurements.iter().map(|m| m.0).sum();
+
+        // Determine hybrid layout tier: Natural vs Proportional Shrink vs Overflow Chevron
+        let (has_chevron, visible_start, visible_end, tab_widths) = if total_natural_w <= bar_width
+        {
+            (
+                false,
+                0,
+                tab_count,
+                measurements.iter().map(|m| m.0).collect(),
+            )
+        } else if (tab_count as f32 * style.min_shrunk_tab_width) <= bar_width {
+            let shrink_ratio = (bar_width / total_natural_w.max(1.0)).clamp(0.0, 1.0);
+            (
+                false,
+                0,
+                tab_count,
+                measurements
+                    .iter()
+                    .map(|m| (m.0 * shrink_ratio).max(style.min_shrunk_tab_width))
+                    .collect(),
+            )
+        } else {
+            let available_for_tabs = (bar_width - style.chevron_width).max(0.0);
+            let max_visible = ((available_for_tabs / style.min_shrunk_tab_width).floor() as usize)
+                .clamp(1, tab_count);
+            let active_idx = leaf.active_tab.min(tab_count.saturating_sub(1));
+            let (start, end) = if active_idx < max_visible {
+                (0, max_visible)
+            } else {
+                let end = (active_idx + 1).min(tab_count);
+                (end.saturating_sub(max_visible), end)
+            };
+            let count = (end - start).max(1);
+            (
+                true,
+                start,
+                end,
+                vec![(available_for_tabs / count as f32).max(style.min_shrunk_tab_width); count],
+            )
+        };
+
+        // Tabs start flush at the left boundary of the tab bar
+        let mut current_tab_x = leaf.tab_bar_rect.x;
+        let max_tab_strip_right = if has_chevron {
+            leaf.tab_bar_rect.right() - style.chevron_width
+        } else {
+            leaf.tab_bar_rect.right()
+        };
+
+        for (offset, index) in (visible_start..visible_end).enumerate() {
+            let tab = &leaf.tabs[index];
+            let &(desired_natural_w, atlas_icon, ref title, is_closeable) = &measurements[index];
+            let active = index == leaf.active_tab;
+
+            let desired_w = tab_widths.get(offset).copied().unwrap_or(desired_natural_w);
+            let tab_w = desired_w.min((max_tab_strip_right - current_tab_x).max(0.0));
+            if tab_w <= 1.0 {
+                continue;
+            }
+
+            let tab_rect = Rect::new(
+                current_tab_x,
+                leaf.tab_bar_rect.y,
+                tab_w,
+                leaf.tab_bar_rect.height,
+            );
+            let is_tab_hovered =
+                !params.is_cursor_occluded && tab_rect.contains_point(params.cursor_pos);
+
+            let (bg_color, tab_hover_bg) = resolve_tab_colors(
+                active,
+                is_tab_hovered,
+                style.tab_idle_bg,
+                style.tab_hovered_bg,
+                style.tab_active_bg,
+            );
+            let tab_tag = encode_dock_tab_tag(leaf.node_id.data().as_ffi(), index);
+
+            // Tab studio background with rounded top corners, flat on bottom baseline
+            let tab_id = add_rect_node(
+                tree,
+                strip_id,
+                tab_rect,
+                "IrisDockTab",
+                Style::new()
+                    .background(bg_color)
+                    .hover_background(tab_hover_bg)
+                    .corner_radii(style.tab_corner_radii)
+                    .clip_children(true),
+            );
+            if let Some(node) = tree.get_mut(tab_id) {
+                node.set_tag(tab_tag);
+                node.interactive = true;
+                node.role = WidgetRole::DockTab;
+                node.cursor = Some(WidgetCursor::Pointer);
+            }
+
+            // Active accent line anchored flush to the bottom baseline and spanning full tab width
+            if active {
+                add_rect_node(
+                    tree,
+                    tab_id,
+                    Rect::new(
+                        tab_rect.x,
+                        tab_rect.bottom() - style.tab_active_line_height,
+                        tab_rect.width,
+                        style.tab_active_line_height,
+                    ),
+                    "IrisDockTabActiveLine",
+                    Style::new().background(style.tab_active_line_color),
+                );
+            }
+
+            // Optional GPU atlas icon quad
+            if let Some(uv) = atlas_icon
+                && tab_w >= 36.0
+            {
+                let (tint, hover_tint) = resolve_tab_colors(
+                    active,
+                    is_tab_hovered,
+                    style.icon_idle_tint,
+                    style.icon_hovered_tint,
+                    style.icon_active_tint,
+                );
+                add_icon_node(
+                    tree,
+                    tab_id,
+                    Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0),
+                    "IrisDockTabAtlasIcon",
+                    uv,
+                    tint,
+                    Some(hover_tint),
+                );
+            }
+
+            // Tab text label (clamped within remaining tab width)
+            let text_offset_x = if atlas_icon.is_some() { 26.0 } else { 6.0 };
+            let render_close = is_closeable && (active || is_tab_hovered || tab_w >= 84.0);
+            let close_reserved = if render_close { 22.0 } else { 4.0 };
+            let text_width = (tab_rect.width - text_offset_x - close_reserved).max(0.0);
+            if text_width >= 8.0 {
+                let text_rect = Rect::new(
+                    tab_rect.x + text_offset_x,
+                    tab_rect.y + 4.0,
+                    text_width,
+                    18.0,
+                );
+                let (text_col, hover_text_col) = resolve_tab_colors(
+                    active,
+                    is_tab_hovered,
+                    style.text_idle_color,
+                    style.text_hovered_color,
+                    style.text_active_color,
+                );
+                add_text_node(
+                    tree,
+                    tab_id,
+                    text_rect,
+                    title,
+                    text_col,
+                    Some(hover_text_col),
+                    TextAlign::Left,
+                );
+            }
+
+            // Tab close button (if closeable and tab width is sufficient)
+            if render_close {
+                let close_rect = Rect::new(
+                    tab_rect.right() - 19.0,
+                    tab_rect.y + 3.0,
+                    15.0,
+                    tab_rect.height - 6.0,
+                );
+                let close_tag = encode_dock_tab_close_tag(leaf.node_id.data().as_ffi(), index);
+                let close_id = add_text_node(
+                    tree,
+                    tab_id,
+                    close_rect,
+                    "✖",
+                    style.close_btn_idle_color,
+                    Some(style.close_btn_hover_color),
+                    TextAlign::Center,
+                );
+                if let Some(node) = tree.get_mut(close_id) {
+                    node.set_name("IrisDockTabCloseBtn");
+                    node.set_tag(close_tag);
+                    node.role = WidgetRole::Button;
+                    node.cursor = Some(WidgetCursor::Pointer);
+                    node.interactive = true;
+                    node.set_style(
+                        Style::new()
+                            .corner_radii(CornerRadii::all(3.0))
+                            .hover_background(style.close_btn_hover_bg)
+                            .clip_children(true),
+                    );
+                }
+                frame.close_targets.push(DockCloseTarget {
+                    leaf: leaf.node_id,
+                    tab_index: index,
+                    rect: close_rect,
+                });
+            }
+
+            frame.tab_targets.push(DockTabTarget {
+                leaf: leaf.node_id,
+                tab_index: index,
+                tab: *tab,
+                rect: tab_rect,
+                leaf_rect: leaf.rect,
+            });
+
+            current_tab_x += tab_w;
+        }
+
+        // Render tab overflow chevron button if tabs exceeded available tab bar width
+        if has_chevron {
+            let chevron_rect = Rect::new(
+                leaf.tab_bar_rect.right() - style.chevron_width,
+                leaf.tab_bar_rect.y,
+                style.chevron_width,
+                leaf.tab_bar_rect.height,
+            );
+            let is_chevron_hovered =
+                !params.is_cursor_occluded && chevron_rect.contains_point(params.cursor_pos);
+            let chevron_bg = if is_chevron_hovered {
+                style.chevron_hovered_bg
+            } else {
+                style.chevron_idle_bg
+            };
+            let chevron_tag = encode_dock_tab_chevron_tag(leaf.node_id.data().as_ffi());
+            let c_id = add_rect_node(
+                tree,
+                strip_id,
+                chevron_rect,
+                "IrisDockTabChevron",
+                Style::new()
+                    .background(chevron_bg)
+                    .hover_background(style.chevron_hovered_bg),
+            );
+            if let Some(node) = tree.get_mut(c_id) {
+                node.set_tag(chevron_tag);
+                node.interactive = true;
+                node.role = WidgetRole::Button;
+                node.cursor = Some(WidgetCursor::Pointer);
+            }
+            let chevron_text_col = if is_chevron_hovered {
+                style.chevron_hovered_icon_col
+            } else {
+                style.chevron_idle_icon_col
+            };
+
+            if let Some(uv) = style.chevron_icon_uv {
+                let icon_size = 12.0;
+                let icon_rect = Rect::new(
+                    chevron_rect.x + (chevron_rect.width - icon_size) * 0.5,
+                    chevron_rect.y + (chevron_rect.height - icon_size) * 0.5,
+                    icon_size,
+                    icon_size,
+                );
+                add_icon_node(
+                    tree,
+                    c_id,
+                    icon_rect,
+                    "IrisDockTabChevronIcon",
+                    uv,
+                    chevron_text_col,
+                    Some(style.chevron_hovered_icon_col),
+                );
+            } else {
+                add_text_node(
+                    tree,
+                    c_id,
+                    chevron_rect,
+                    "▾",
+                    chevron_text_col,
+                    Some(style.chevron_hovered_icon_col),
+                    TextAlign::Center,
+                );
+            }
+
+            frame.chevron_targets.push(DockChevronTarget {
+                leaf: leaf.node_id,
+                rect: chevron_rect,
+            });
+        }
+
+        if let Some(panel) = leaf.tabs.get(leaf.active_tab) {
+            frame.panel_rects.push((*panel, leaf.content_rect));
+        }
+    }
+
+    // 2. Render all splitter dividers
+    for splitter in computed.splitters {
+        let is_splitter_active = params.active_splitter_node == Some(splitter.node_id);
+        let is_hovered = !params.is_cursor_occluded
+            && hit_splitter(
+                splitter.rect,
+                splitter.direction,
+                params.cursor_pos,
+                DockSplitterTarget::HIT_MARGIN,
+            )
+            && !params.is_dragging_splitter;
+        let splitter_col = if is_splitter_active || is_hovered {
+            style.splitter_active_color
+        } else {
+            style.splitter_idle_color
+        };
+
+        let visual_rect = if splitter.direction == SplitDirection::Horizontal {
+            Rect::new(
+                splitter.rect.x,
+                splitter.rect.y + style.tab_bar_height,
+                splitter.rect.width,
+                (splitter.rect.height - style.tab_bar_height).max(0.0),
+            )
+        } else {
+            splitter.rect
+        };
+
+        let s_id = add_rect_node(
+            tree,
+            parent,
+            visual_rect,
+            "IrisDockSplitter",
+            Style::new().background(splitter_col),
+        );
+        if let Some(node) = tree.get_mut(s_id) {
+            match splitter.direction {
+                SplitDirection::Horizontal => {
+                    node.role = WidgetRole::DockSplitterHorizontal;
+                    node.cursor = Some(WidgetCursor::ColResize);
+                }
+                SplitDirection::Vertical => {
+                    node.role = WidgetRole::DockSplitterVertical;
+                    node.cursor = Some(WidgetCursor::RowResize);
+                }
+            }
+        }
+        let total_dim = if splitter.direction == SplitDirection::Horizontal {
+            params.workspace_rect.width
+        } else {
+            params.workspace_rect.height
+        }
+        .max(1.0);
+        frame.splitter_targets.push(DockSplitterTarget {
+            node: splitter.node_id,
+            direction: splitter.direction,
+            rect: splitter.rect,
+            total_dimension: total_dim,
+        });
+    }
+
+    frame
+}
+
+/// Adds an absolutely positioned dock rectangle to the retained Iris tree.
+fn add_rect_node(
+    tree: &mut UiTree,
+    parent: WidgetId,
+    rect: Rect,
+    name: &str,
+    style: Style,
+) -> WidgetId {
+    let id = tree.create_node();
+    if let Some(node) = tree.get_mut(id) {
+        node.set_name(name);
+        node.set_role(WidgetRole::Default);
+        node.computed_rect = rect;
+        node.set_style(style);
+        node.interactive = false;
+    }
+    let _ = tree.add_child(parent, id);
+    id
+}
+
+/// Adds a dock tab text label to the retained Iris tree.
+fn add_text_node(
+    tree: &mut UiTree,
+    parent: WidgetId,
+    rect: Rect,
+    text: &str,
+    color: Color,
+    hover_color: Option<Color>,
+    alignment: TextAlign,
+) -> WidgetId {
+    let id = tree.create_node();
+    if let Some(node) = tree.get_mut(id) {
+        node.set_name("IrisDockTabLabel");
+        node.set_role(WidgetRole::Default);
+        node.computed_rect = rect;
+        node.set_text(text);
+        node.set_text_properties(12.0, 16.0, color, alignment);
+        if let Some(hc) = hover_color {
+            node.set_hover_text_color(hc);
+        }
+        node.set_style(Style::new().clip_children(true));
+        node.interactive = false;
+    }
+    let _ = tree.add_child(parent, id);
+    id
+}
+
+/// Resolves `(initial_color, hover_color)` uniformly for dock tab backgrounds, icons, and labels.
+#[inline]
+const fn resolve_tab_colors(
+    active: bool,
+    hovered: bool,
+    idle: Color,
+    hover: Color,
+    active_col: Color,
+) -> (Color, Color) {
+    if active {
+        (active_col, active_col)
+    } else if hovered {
+        (hover, hover)
+    } else {
+        (idle, hover)
+    }
+}
+
+/// Adds a textured GPU atlas icon node to the retained Iris tree.
+fn add_icon_node(
+    tree: &mut UiTree,
+    parent: WidgetId,
+    rect: Rect,
+    name: &str,
+    uv: [f32; 4],
+    tint: Color,
+    hover_tint: Option<Color>,
+) {
+    let id = tree.create_node();
+    if let Some(node) = tree.get_mut(id) {
+        node.set_name(name);
+        node.set_role(WidgetRole::Default);
+        node.set_texture_uv(uv);
+        node.computed_rect = rect;
+        node.set_texture_tint(tint);
+        if let Some(ht) = hover_tint {
+            node.set_hover_texture_tint(ht);
+        }
+        node.interactive = false;
+    }
+    let _ = tree.add_child(parent, id);
+}

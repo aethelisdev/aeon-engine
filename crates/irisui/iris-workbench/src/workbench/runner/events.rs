@@ -73,10 +73,30 @@ where
         tree: &mut UiTree,
         event: &UiEvent,
     ) -> TreeAndContentResult<TabId, Action> {
-        if let Some(pos) = self.last_cursor_pos {
+        // Preserve previous tree pointer position across MouseMove so motion handlers compute accurate drag deltas.
+        if !matches!(event, UiEvent::MouseMove { .. })
+            && let Some(pos) = self.last_cursor_pos
+        {
             tree.set_cursor_position(pos);
         }
         let dispatch = tree.dispatch_event(event);
+        let is_dock_chrome_hit = iris_dock::is_dock_chrome_tag(dispatch.target_tag)
+            || dispatch
+                .target
+                .and_then(|id| tree.get(id))
+                .is_some_and(|n| {
+                    matches!(
+                        n.role,
+                        iris_core::node::WidgetRole::DockTab
+                            | iris_core::node::WidgetRole::DockSplitterHorizontal
+                            | iris_core::node::WidgetRole::DockSplitterVertical
+                    )
+                });
+        if is_dock_chrome_hit && matches!(event, UiEvent::MouseDown { .. }) {
+            tree.event_state.clear_pressed();
+            tree.event_state.pointer_capture = None;
+            tree.event_state.pointer_capture_tag = None;
+        }
         let modal_click_consumed = tree
             .event_state
             .frame_clicked_tag
@@ -94,8 +114,15 @@ where
             self.route_event_invalidation(tree, event, &dispatch)
         };
         let hover = self.resolve_hover_targets(tree, self.last_cursor_pos);
+        let consumed_by_content = if is_dock_chrome_hit
+            && matches!(event, UiEvent::MouseDown { .. } | UiEvent::MouseUp { .. })
+        {
+            modal_click_consumed
+        } else {
+            dispatch.consumed || modal_click_consumed
+        };
         TreeAndContentResult {
-            consumed: dispatch.consumed || modal_click_consumed,
+            consumed: consumed_by_content,
             cursor: dispatch.cursor,
             needs_redraw: dispatch.needs_redraw || modal_click_consumed,
             wants_keyboard_input: tree.is_text_input_focused(),
@@ -184,10 +211,6 @@ where
         dock_state: &mut DockState<TabId>,
         content: TreeAndContentResult<TabId, Action>,
     ) -> WorkbenchOutcome<Action, TabId> {
-        if let Some(cursor) = content.cursor {
-            window.set_widget_cursor(cursor);
-        }
-
         let mut outcome = self.handle_shell_event_inner(
             window,
             event,
@@ -221,6 +244,22 @@ where
         outcome.hover_target_changed = content.hover_target_changed;
         if outcome.cursor.is_none() {
             outcome.cursor = content.cursor;
+        }
+
+        // Synchronize final window cursor on pointer events, resetting to Default when moving off custom-cursor regions
+        if matches!(
+            event,
+            UiEvent::MouseMove { .. }
+                | UiEvent::MouseDown { .. }
+                | UiEvent::MouseUp { .. }
+                | UiEvent::MouseScroll { .. }
+        ) && !self.frameless_host.is_hovering_border()
+        {
+            window.set_widget_cursor(
+                outcome
+                    .cursor
+                    .unwrap_or(iris_core::node::WidgetCursor::Default),
+            );
         }
 
         if let Some(route) = content.route {

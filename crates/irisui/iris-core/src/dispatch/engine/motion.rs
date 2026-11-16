@@ -156,7 +156,9 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
             } else {
                 Point::ZERO
             };
-            tree.event_state.frame_drag_delta = Some(delta);
+            let prev_delta = tree.event_state.frame_drag_delta.unwrap_or(Point::ZERO);
+            tree.event_state.frame_drag_delta =
+                Some(Point::new(prev_delta.x + delta.x, prev_delta.y + delta.y));
             tree.event_state.last_pointer_pos = Some(point);
             flags = flags.union(ResponseFlags::DRAGGED);
         } else {
@@ -182,8 +184,17 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
 
     // 2. Perform layered hit-testing against active tree
     tree.event_state.last_pointer_pos = Some(point);
+    let prev_hovered = tree.event_state.hovered;
     let hit_id = tree.hit_test_layered(point);
     tree.event_state.hovered = hit_id;
+    if hit_id != prev_hovered {
+        if let Some(old_id) = prev_hovered {
+            tree.mark_dirty(old_id, crate::dirty::DirtyFlags::PAINT);
+        }
+        if let Some(new_id) = hit_id {
+            tree.mark_dirty(new_id, crate::dirty::DirtyFlags::PAINT);
+        }
+    }
 
     let now = Instant::now();
     let mut next_timeout = None;

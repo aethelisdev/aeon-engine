@@ -1057,7 +1057,11 @@ impl<'a> UiScope<'a> {
                     node.set_style(pill_style);
                     node.role = WidgetRole::NumericInput;
                     node.interactive = true;
-                    node.cursor = Some(WidgetCursor::EwResize);
+                    node.cursor = Some(if is_dragging {
+                        WidgetCursor::EwResize
+                    } else {
+                        WidgetCursor::Default
+                    });
                 }
 
                 let formatted_val =
@@ -1144,13 +1148,22 @@ impl<'a> UiScope<'a> {
                 let text_val = format!("{} {:.2}", prefix, rgb[idx]);
 
                 let axis_box_id = slot.tree.create_node();
+                let is_dragging = slot.tree.event_state.is_pointer_drag_active
+                    && (slot.tree.event_state.pointer_capture == Some(axis_box_id)
+                        || (axis_tag != 0
+                            && slot.tree.event_state.pointer_capture_tag == Some(axis_tag)));
+
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
                     node.set_name(box_name);
                     node.set_style(box_style);
                     node.role = WidgetRole::NumericInput;
                     node.tag = axis_tag;
                     node.interactive = true;
-                    node.cursor = Some(WidgetCursor::EwResize);
+                    node.cursor = Some(if is_dragging {
+                        WidgetCursor::EwResize
+                    } else {
+                        WidgetCursor::Default
+                    });
                 }
                 let _ = slot.tree.add_child(slot.parent, axis_box_id);
 

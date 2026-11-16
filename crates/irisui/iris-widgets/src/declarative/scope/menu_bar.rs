@@ -379,6 +379,7 @@ impl<'a, 'b> MenuBarBuilder<'a, 'b> {
             .padding_insets(self.padding)
             .background(toolbar_bg)
             .show(|bar| {
+                bar.tree.set_boundary(bar.parent, true);
                 let left_container = bar.tree.create_node();
                 if let Some(left) = bar.tree.get_mut(left_container) {
                     left.set_name("MenuBarLeft");
@@ -621,5 +622,52 @@ mod tests {
                 text_gap
             );
         }
+    }
+
+    #[test]
+    fn test_menu_bar_hover_marks_boundary_paint_dirty_immediately() {
+        use iris_layout::LayoutEngine;
+        use iris_text::TextSystem;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.menu_bar(1280.0, 36.0).show::<(), _>(|bar| {
+                bar.menu("File", |_| {});
+                bar.menu("Edit", |_| {});
+            });
+        }
+
+        let mut text_sys = TextSystem::new();
+        text_sys.measure_subtree_text(&mut tree, root);
+        let mut layout_engine = LayoutEngine::new();
+        let _ = layout_engine.compute_layout(&mut tree, iris_core::Size::new(1280.0, 720.0));
+
+        let menubar_id = tree
+            .iter()
+            .find(|(_, n)| n.is_boundary)
+            .map(|(id, _)| id)
+            .expect("MenuBar root container must register an invalidation boundary");
+        let file_center = tree
+            .iter()
+            .find(|(_, n)| n.role == WidgetRole::MenuBarItem && n.text.as_deref() == Some("File"))
+            .map(|(_, n)| {
+                Point::new(
+                    n.computed_rect.x + n.computed_rect.width * 0.5,
+                    n.computed_rect.y + n.computed_rect.height * 0.5,
+                )
+            })
+            .expect("File MenuBarItem must exist");
+
+        tree.clear_dirty_boundaries();
+        assert!(!tree.has_dirty_boundaries());
+
+        let _ = tree.dispatch_event(&iris_core::UiEvent::MouseMove { point: file_center });
+        assert!(
+            tree.has_dirty_boundaries(),
+            "Hovering closed MenuBarItem must immediately mark the MenuBar boundary dirty"
+        );
+        assert!(tree.dirty_boundaries().contains(&menubar_id));
     }
 }

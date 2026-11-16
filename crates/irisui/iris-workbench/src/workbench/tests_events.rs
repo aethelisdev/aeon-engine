@@ -307,3 +307,195 @@ fn test_handle_event_with_tree_preserves_shell_invalidation_when_dock_tab_change
         "Dock tab switch must retain Shell invalidation rather than being overwritten by tree None/Panel route"
     );
 }
+
+#[test]
+fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
+    let mut wb = create_test_workbench();
+    let mut dock_state = wb.descriptor.dock_state.clone();
+    let mut win = MockWindow {
+        logical_size: Size::new(1280.0, 720.0),
+        ..Default::default()
+    };
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let leaf = tree.create_node();
+    let num = tree.create_node();
+    let btn = tree.create_node();
+    const NUM_TAG: u64 = 0x9001;
+    const BTN_TAG: u64 = 0x9002;
+    if let Some(n) = tree.get_mut(leaf) {
+        n.is_boundary = true;
+        n.computed_rect = Rect::new(0.0, 40.0, 1280.0, 650.0);
+    }
+    if let Some(n) = tree.get_mut(num) {
+        n.tag = NUM_TAG;
+        n.interactive = true;
+        n.role = WidgetRole::NumericInput;
+        n.cursor = Some(WidgetCursor::Default);
+        n.computed_rect = Rect::new(100.0, 100.0, 60.0, 22.0);
+    }
+    if let Some(n) = tree.get_mut(btn) {
+        n.tag = BTN_TAG;
+        n.interactive = true;
+        n.role = WidgetRole::Button;
+        n.cursor = Some(WidgetCursor::Pointer);
+        n.computed_rect = Rect::new(220.0, 100.0, 80.0, 24.0);
+    }
+    let _ = tree.add_child(root, leaf);
+    let _ = tree.add_child(leaf, num);
+    let _ = tree.add_child(leaf, btn);
+
+    let mut frame = DockChromeFrame::default();
+    frame.leaf_containers.push((TestTab::Inspector, leaf));
+    wb.dock_frame = Some(frame);
+
+    // 1. Hover button -> OS cursor becomes Pointer; move to neutral space -> OS cursor resets to Default
+    let _ = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(240.0, 110.0),
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert_eq!(win.cursor, Some(CursorIcon::Pointer));
+
+    let _ = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(500.0, 300.0),
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert_eq!(
+        win.cursor,
+        Some(CursorIcon::Default),
+        "Moving off a custom-cursor widget onto neutral background must reset OS cursor to Default"
+    );
+
+    // 2. Press and drag NumericInput across a frame tree.clear() -> delta MUST NOT be zeroed
+    let _ = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: Point::new(120.0, 110.0),
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    tree.clear();
+    let leaf2 = tree.create_node();
+    let num2 = tree.create_node();
+    if let Some(n) = tree.get_mut(leaf2) {
+        n.is_boundary = true;
+        n.computed_rect = Rect::new(0.0, 40.0, 1280.0, 650.0);
+    }
+    if let Some(n) = tree.get_mut(num2) {
+        n.tag = NUM_TAG;
+        n.interactive = true;
+        n.role = WidgetRole::NumericInput;
+        n.cursor = Some(WidgetCursor::Default);
+        n.computed_rect = Rect::new(100.0, 100.0, 60.0, 22.0);
+    }
+    let root2 = tree.create_root().expect("root2");
+    let _ = tree.add_child(root2, leaf2);
+    let _ = tree.add_child(leaf2, num2);
+
+    let move_out = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(145.0, 110.0),
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert_eq!(move_out.cursor, Some(WidgetCursor::EwResize));
+    assert_eq!(win.cursor, Some(CursorIcon::EwResize));
+    assert_eq!(
+        tree.event_state.frame_drag_delta,
+        Some(Point::new(25.0, 0.0)),
+        "Workbench MouseMove dispatch must preserve previous last_pointer_pos so NumericInput scrub delta is non-zero"
+    );
+
+    // 3. Releasing drag outside pill resets OS cursor back to Default
+    let _ = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: Point::new(500.0, 300.0),
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert_eq!(win.cursor, Some(CursorIcon::Default));
+}
+
+#[test]
+fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
+    let mut wb = create_test_workbench();
+    let mut dock_state = wb.descriptor.dock_state.clone();
+    let mut win = MockWindow {
+        logical_size: Size::new(1280.0, 720.0),
+        ..Default::default()
+    };
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let workspace = wb.compute_workspace_rect(1280.0, 720.0);
+    let viewer = wb.panel_registry.tab_viewer();
+    let dock_style = wb.dock_style;
+    let params = iris_dock::DockChromeParams {
+        dock_tree: &dock_state.tree,
+        workspace_rect: workspace,
+        cursor_pos: Point::new(0.0, 0.0),
+        is_cursor_occluded: false,
+        is_dragging_splitter: false,
+        active_splitter_node: None,
+        is_dragging_tab: false,
+        viewer: &viewer,
+        style: &dock_style,
+    };
+    let frame = iris_dock::build_dock_chrome(&mut tree, root, &params);
+    assert_eq!(frame.tab_targets.len(), 2);
+    let second_tab = frame.tab_targets[1];
+    let tab_pt = Point::new(
+        second_tab.rect.x + 12.0,
+        second_tab.rect.y + second_tab.rect.height * 0.5,
+    );
+
+    // Hovering inactive tab hits DockTab in UiTree, updates cursor & marks strip dirty
+    let hover_out = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove { point: tab_pt },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert!(iris_dock::is_dock_tab_tag(
+        hover_out.hovered_tag().unwrap_or(0)
+    ));
+    assert_eq!(win.cursor, Some(CursorIcon::Pointer));
+
+    // Clicking inactive tab passes through to DockArea and switches active_tab to 1
+    let click_out = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: tab_pt,
+        },
+        &mut dock_state,
+        Some(&mut tree),
+    );
+    assert!(click_out.consumed);
+    assert!(click_out.shell_dirty);
+    let active_tab = match dock_state.tree.get(second_tab.leaf) {
+        Some(iris_dock::DockNode::Leaf { active_tab, .. }) => Some(*active_tab),
+        _ => None,
+    };
+    assert_eq!(
+        active_tab,
+        Some(1),
+        "Clicking interactive IrisDockTab must pass through to DockArea tab switcher"
+    );
+}

@@ -4,7 +4,11 @@
 //! Unit test suite for `DockChrome` retained quad/tab generation, splitter hit targets, and hit testing.
 
 use super::*;
-use crate::tree::DockTree;
+use crate::tab_viewer::TabViewer;
+use crate::tree::{DockNodeId, DockTree, SplitDirection};
+use iris_core::geometry::{CornerRadii, Point, Rect};
+use iris_core::node::{WidgetCursor, WidgetRole};
+use iris_core::tree::UiTree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MockTab {
@@ -213,4 +217,75 @@ fn test_dock_tab_close_button_has_tag_and_hover_style() {
     assert_eq!(node.hover_text_color, Some(style.close_btn_hover_color));
     assert_eq!(node.style.hover_background, Some(style.close_btn_hover_bg));
     assert_eq!(node.style.corner_radii, CornerRadii::all(3.0));
+}
+
+#[test]
+fn test_dock_tab_strip_boundary_hover_styles_and_tag_detection() {
+    use iris_core::UiEvent;
+    use slotmap::Key;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    tree.set_root(root).unwrap();
+    let mut dock_tree = DockTree::new();
+    let root_leaf = dock_tree.create_leaf(vec![MockTab::Viewport, MockTab::Hierarchy]);
+    dock_tree.set_root(root_leaf);
+
+    let workspace = Rect::new(0.0, 0.0, 800.0, 600.0);
+    let style = DockChromeStyle::default();
+    let params = DockChromeParams {
+        dock_tree: &dock_tree,
+        workspace_rect: workspace,
+        cursor_pos: Point::new(0.0, 400.0),
+        is_cursor_occluded: false,
+        is_dragging_splitter: false,
+        active_splitter_node: None,
+        is_dragging_tab: false,
+        viewer: &MockViewer,
+        style: &style,
+    };
+    let frame = build_dock_chrome(&mut tree, root, &params);
+    assert_eq!(frame.tab_targets.len(), 2);
+
+    let strip_id = tree
+        .iter()
+        .find(|(_, n)| n.name.as_deref() == Some("IrisDockTabStrip"))
+        .map(|(id, _)| id)
+        .expect("IrisDockTabStrip must exist");
+    assert!(
+        tree.is_boundary(strip_id),
+        "IrisDockTabStrip must be an invalidation boundary for immediate tab hover repaints"
+    );
+
+    // Hit-test the inactive second tab header away from its close button
+    let inactive_tab = &frame.tab_targets[1];
+    let tab_pt = Point::new(
+        inactive_tab.rect.x + 12.0,
+        inactive_tab.rect.y + inactive_tab.rect.height * 0.5,
+    );
+    let hit = tree
+        .hit_test_target(tab_pt)
+        .expect("DockTab must be interactive and hit-testable");
+    assert_eq!(hit.role, WidgetRole::DockTab);
+    assert!(is_dock_tab_tag(hit.tag));
+    assert!(is_dock_chrome_tag(hit.tag));
+    assert_eq!(hit.tag, encode_dock_tab_tag(root_leaf.data().as_ffi(), 1));
+    let tab_node = tree.get(hit.id).expect("Tab node must exist");
+    assert_eq!(tab_node.style.hover_background, Some(style.tab_hovered_bg));
+
+    let label_node = tab_node
+        .children
+        .iter()
+        .filter_map(|&cid| tree.get(cid))
+        .find(|n| n.name.as_deref() == Some("IrisDockTabLabel"))
+        .expect("IrisDockTabLabel must exist");
+    assert_eq!(label_node.hover_text_color, Some(style.text_hovered_color));
+
+    tree.clear_dirty_boundaries();
+    let move_res = tree.dispatch_event(&UiEvent::MouseMove { point: tab_pt });
+    assert_eq!(move_res.cursor, Some(WidgetCursor::Pointer));
+    assert!(
+        tree.dirty_boundaries().contains(&strip_id),
+        "Hovering a dock tab must mark IrisDockTabStrip boundary dirty immediately"
+    );
 }

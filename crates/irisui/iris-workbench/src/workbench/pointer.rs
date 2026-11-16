@@ -222,11 +222,13 @@ where
         &mut self,
         mut resolution: HoverTargetResolution<TabId>,
     ) -> HoverTargetResolution<TabId> {
-        resolution.hover_target_changed = resolution.hovered_tag != self.last_hovered_tag;
+        resolution.hover_target_changed = resolution.hovered_tag != self.last_hovered_tag
+            || (resolution.hovered_tag.is_none() && resolution.hit_widget != self.last_hit_widget);
         resolution.hovered_panel_changed = resolution.hovered_panel != self.last_hovered_panel;
         self.hovered_tag = resolution.hovered_tag;
         self.hovered_panel = resolution.hovered_panel;
         self.last_hovered_tag = resolution.hovered_tag;
+        self.last_hit_widget = resolution.hit_widget;
         self.last_hovered_panel = resolution.hovered_panel;
         resolution
     }

@@ -139,6 +139,7 @@ impl InputArbiter {
             Some(&mut engine.ui.iris_overlay.tree),
         );
 
+        apply_hover_outcome(&outcome, &mut engine.ui.iris_overlay.chrome);
         if !outcome.actions.is_empty() {
             engine.ui.pending_actions.extend(outcome.actions);
         }
@@ -302,5 +303,20 @@ impl AeEngine {
         let mut arbiter = std::mem::take(&mut self.input_arbiter);
         arbiter.dispatch(self, event);
         self.input_arbiter = arbiter;
+    }
+}
+
+/// Applies resolved hover target telemetry from [`irisui::workbench::WorkbenchOutcome`]
+/// onto the editor UI chrome state, requesting text and quad updates when hover changes.
+#[inline]
+pub(crate) fn apply_hover_outcome<Action>(
+    outcome: &irisui::workbench::WorkbenchOutcome<Action, ae_editor_ui::ui::PanelId>,
+    chrome: &mut ae_editor_ui::ui::iris_bridge::IrisChromeState,
+) {
+    chrome.hovered_tag = outcome.hovered_tag;
+    chrome.hovered_panel = outcome.hovered_panel;
+    if outcome.is_hover_target_changed() {
+        chrome.needs_text_prepare = true;
+        chrome.needs_full_quad_upload = true;
     }
 }

@@ -37,8 +37,9 @@ pub use area::{
 };
 pub use chrome::{
     DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
-    DockTabTarget, TAG_DOCK_TAB_CLOSE_BASE, build_dock_chrome, encode_dock_tab_close_tag,
-    is_dock_tab_close_tag,
+    DockTabTarget, TAG_DOCK_TAB_BASE, TAG_DOCK_TAB_CHEVRON_BASE, TAG_DOCK_TAB_CLOSE_BASE,
+    build_dock_chrome, encode_dock_tab_chevron_tag, encode_dock_tab_close_tag, encode_dock_tab_tag,
+    is_dock_chrome_tag, is_dock_tab_chevron_tag, is_dock_tab_close_tag, is_dock_tab_tag,
 };
 pub use context_menu::{TabContextMenuAction, TabContextMenuState};
 pub use drag_drop::{

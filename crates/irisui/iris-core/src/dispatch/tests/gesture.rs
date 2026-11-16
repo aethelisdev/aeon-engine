@@ -234,3 +234,79 @@ fn test_double_click_preserved_across_tree_rebuild_via_tag_and_bounds() {
     assert_eq!(tree.event_state.frame_double_clicked_tag, Some(0xABCD));
     assert_eq!(up2.target, Some(card2));
 }
+
+#[test]
+fn test_mouse_move_marks_paint_dirty_boundaries_only_on_hover_change() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let panel = tree.create_node();
+    let btn = tree.create_node();
+    tree.add_child(root, panel).unwrap();
+    tree.add_child(panel, btn).unwrap();
+    tree.set_boundary(panel, true);
+
+    if let Some(p) = tree.get_mut(panel) {
+        p.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+    }
+    if let Some(b) = tree.get_mut(btn) {
+        b.interactive = true;
+        b.tag = 0xBEEF;
+        b.computed_rect = Rect::new(20.0, 20.0, 100.0, 30.0);
+    }
+
+    tree.clear_dirty_boundaries();
+    assert!(!tree.has_dirty_boundaries());
+
+    // Enter button -> boundary marked paint-dirty
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(50.0, 35.0),
+    });
+    assert!(tree.has_dirty_boundaries());
+    assert!(tree.dirty_boundaries().contains(&panel));
+
+    // Steady hover inside same button -> stays clean
+    tree.clear_dirty_boundaries();
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(55.0, 35.0),
+    });
+    assert!(!tree.has_dirty_boundaries());
+
+    // Leave button -> previous hovered boundary marked paint-dirty
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(250.0, 250.0),
+    });
+    assert!(tree.has_dirty_boundaries());
+    assert!(tree.dirty_boundaries().contains(&panel));
+}
+
+#[test]
+fn test_mouse_move_accumulates_frame_drag_delta_across_subframe_moves() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let num = tree.create_node();
+    tree.add_child(root, num).unwrap();
+
+    if let Some(n) = tree.get_mut(num) {
+        n.interactive = true;
+        n.role = WidgetRole::NumericInput;
+        n.tag = 0x1234;
+        n.computed_rect = Rect::new(20.0, 20.0, 80.0, 22.0);
+    }
+
+    let _ = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(30.0, 30.0),
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(40.0, 30.0),
+    });
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(55.0, 30.0),
+    });
+
+    assert_eq!(
+        tree.event_state.frame_drag_delta,
+        Some(Point::new(25.0, 0.0)),
+        "Sub-frame pointer displacements must accumulate cleanly until clear_frame_clicks"
+    );
+}

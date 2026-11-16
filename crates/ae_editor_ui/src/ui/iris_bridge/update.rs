@@ -8,7 +8,6 @@ use super::preferences;
 use super::status_bar;
 use super::theme::*;
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
-use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 use irisui::text::TextSystem;
 use irisui::widgets::controls::FocusState;
@@ -80,49 +79,6 @@ impl IrisEditorOverlay {
 
         let has_drag_payload = params.panel_data.asset_browser.drag_payload.is_some();
         let cursor = self.cursor_pos();
-        let cursor_moved = (self.chrome.last_cursor_pos.x - cursor.x).abs() > 0.001
-            || (self.chrome.last_cursor_pos.y - cursor.y).abs() > 0.001;
-
-        // Unified Tree Hit-Testing:
-        // 1. First inspect elevated overlay layers (popups, dropdowns, modals) in the Shell tree
-        let mut hovered_target = None;
-        let mut hovered_panel = None;
-
-        if let Some(hit_id) = self.tree.hit_test_layered(cursor) {
-            let hit_layer = self.tree.effective_layer(hit_id);
-            if hit_layer >= UiLayer::Modal
-                && let Some(target) = self.tree.hit_test_target(cursor)
-                && target.tag != 0
-            {
-                hovered_target = Some(target.tag);
-            }
-        }
-
-        // 2. Active dock panel under cursor
-        if !self.is_point_over_overlay(cursor)
-            && let Some(dock_frame) = &self.chrome.dock_frame
-        {
-            for (pid, bounds) in &dock_frame.panel_rects {
-                if *pid != PanelId::Viewport && bounds.contains_point(cursor) {
-                    hovered_panel = Some(*pid);
-                    break;
-                }
-            }
-        }
-
-        // 3. Unified tree hit-testing (MenuBar, StatusBar, Viewport HUD, Dock panels)
-        if hovered_target.is_none() {
-            hovered_target = self
-                .tree
-                .hit_test_target(cursor)
-                .and_then(|h| if h.tag != 0 { Some(h.tag) } else { None });
-        }
-
-        let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
-        self.chrome.hovered_tag = hovered_target;
-
-        // Hover transitions update reactive paint shaders in Branch 3 without rebuilding panel DOM
-        self.chrome.hovered_panel = hovered_panel;
 
         // 1. Genuine global shell events (only these trigger global tag_all)
         if self.chrome.last_dimensions != params.context.dimensions
@@ -523,14 +479,11 @@ impl IrisEditorOverlay {
                 }
             }
 
-            if blink_changed || hover_target_changed || focus_target_changed {
+            if blink_changed || focus_target_changed {
                 self.chrome.needs_text_prepare = true;
             }
 
-            let non_boundary_change = has_volatile_canvas
-                || hover_target_changed
-                || focus_target_changed
-                || blink_changed;
+            let non_boundary_change = has_volatile_canvas || focus_target_changed || blink_changed;
 
             let should_repopulate = non_boundary_change || self.tree.has_dirty_boundaries();
 

@@ -75,3 +75,50 @@ fn test_compute_logical_screen_size_handles_scaling_and_edge_cases() {
         None
     );
 }
+
+#[test]
+fn test_apply_hover_outcome_propagates_targets_and_redraw_flags() {
+    use ae_editor_ui::ui::PanelId;
+    use ae_editor_ui::ui::iris_bridge::IrisChromeState;
+    use irisui::workbench::WorkbenchOutcome;
+
+    let mut chrome = IrisChromeState {
+        needs_text_prepare: false,
+        needs_full_quad_upload: false,
+        ..IrisChromeState::default()
+    };
+
+    // 1. Entering a tagged widget inside a panel sets targets and marks text/quad flags
+    let mut enter = WorkbenchOutcome::<(), PanelId>::empty();
+    enter.hovered_tag = Some(0x1234);
+    enter.hovered_panel = Some(PanelId::Inspector);
+    enter.hover_target_changed = true;
+    super::arbiter::apply_hover_outcome(&enter, &mut chrome);
+    assert_eq!(chrome.hovered_tag, Some(0x1234));
+    assert_eq!(chrome.hovered_panel, Some(PanelId::Inspector));
+    assert!(chrome.needs_text_prepare);
+    assert!(chrome.needs_full_quad_upload);
+
+    // 2. Unchanged hover target preserves flags without triggering redraws
+    chrome.needs_text_prepare = false;
+    chrome.needs_full_quad_upload = false;
+    let mut steady = WorkbenchOutcome::<(), PanelId>::empty();
+    steady.hovered_tag = Some(0x1234);
+    steady.hovered_panel = Some(PanelId::Inspector);
+    steady.hover_target_changed = false;
+    super::arbiter::apply_hover_outcome(&steady, &mut chrome);
+    assert_eq!(chrome.hovered_tag, Some(0x1234));
+    assert!(!chrome.needs_text_prepare);
+    assert!(!chrome.needs_full_quad_upload);
+
+    // 3. Leaving tag clears hovered_tag and requests refresh
+    let mut leave = WorkbenchOutcome::<(), PanelId>::empty();
+    leave.hovered_tag = None;
+    leave.hovered_panel = Some(PanelId::Console);
+    leave.hover_target_changed = true;
+    super::arbiter::apply_hover_outcome(&leave, &mut chrome);
+    assert_eq!(chrome.hovered_tag, None);
+    assert_eq!(chrome.hovered_panel, Some(PanelId::Console));
+    assert!(chrome.needs_text_prepare);
+    assert!(chrome.needs_full_quad_upload);
+}

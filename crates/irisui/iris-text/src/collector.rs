@@ -289,7 +289,11 @@ fn collect_node_text<'a>(
     };
 
     let node_matches_hover = (ctx.hovered_id.is_some() && ctx.hovered_id == Some(current))
-        || (node.tag != 0 && ctx.hovered_tag == Some(node.tag));
+        || (node.tag != 0 && ctx.hovered_tag == Some(node.tag))
+        || (node.role == WidgetRole::DockTab
+            && ctx
+                .hovered_id
+                .is_some_and(|hid| tree.is_descendant_of(hid, current)));
     let is_hovered = node_matches_hover || (ctx.inherited_hovered && node.tag == 0);
 
     let node_matches_focus = (ctx.focused_id.is_some() && ctx.focused_id == Some(current))
