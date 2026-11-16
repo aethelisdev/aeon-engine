@@ -232,8 +232,6 @@ pub struct IrisChromeState {
     pub last_hovered_panel: Option<PanelId>,
     /// Last focused 64-bit semantic tag used for reactive focus state invalidation.
     pub last_focused_tag: Option<u64>,
-    /// Last recorded caret blink state to detect in-place caret redraw cycles.
-    pub last_blink_caret: bool,
     /// Active pointer capture source locking mouse move and release events to a specific panel during drag operations.
     pub pointer_capture: Option<PanelId>,
     /// Last recorded presence of an active top menubar dropdown.
@@ -290,7 +288,6 @@ impl Default for IrisChromeState {
             hovered_panel: None,
             last_hovered_panel: None,
             last_focused_tag: None,
-            last_blink_caret: false,
             pointer_capture: None,
             last_menu_active: false,
             last_hierarchy_popups: false,

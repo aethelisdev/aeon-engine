@@ -100,11 +100,8 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let current_focused_tag = self.tree.event_state.focused_tag;
         let focus_target_changed = current_focused_tag != self.chrome.last_focused_tag;
-        let has_text_focus = self.is_any_text_input_focused();
-        let blink_changed = has_text_focus && (blink_caret != self.chrome.last_blink_caret);
 
         let floating_changed = floating_count != self.chrome.last_floating_count
             || params
@@ -479,11 +476,11 @@ impl IrisEditorOverlay {
                 }
             }
 
-            if blink_changed || focus_target_changed {
+            if focus_target_changed {
                 self.chrome.needs_text_prepare = true;
             }
 
-            let non_boundary_change = has_volatile_canvas || focus_target_changed || blink_changed;
+            let non_boundary_change = has_volatile_canvas || focus_target_changed;
 
             let should_repopulate = non_boundary_change || self.tree.has_dirty_boundaries();
 
@@ -508,7 +505,6 @@ impl IrisEditorOverlay {
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.last_hovered_panel = self.chrome.hovered_panel;
         self.chrome.last_focused_tag = current_focused_tag;
-        self.chrome.last_blink_caret = blink_caret;
         self.chrome.last_menu_active = menu_active;
         self.chrome.last_hierarchy_popups = hierarchy_popups;
         self.chrome.last_preferences_active = preferences_active;
