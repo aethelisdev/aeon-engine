@@ -16,6 +16,7 @@ use crate::layout_sync::dual_layout::DualLayoutEliminator;
 use crate::lifecycle::WorkbenchLifecycle;
 use crate::workbench::pointer::PointerState;
 use iris_core::geometry::{Point, Rect, Size};
+use iris_core::theme::Theme;
 use iris_dock::chrome::DockChromeFrame;
 use iris_dock::state::DockState;
 use iris_dock::style::DockChromeStyle;
@@ -56,6 +57,10 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
     pub statusbar_height: f32,
     /// Dock chrome visual style configuration.
     pub dock_style: DockChromeStyle,
+    /// Active visual theme tokens propagated to retained UI trees during shell and panel builds.
+    pub theme: Theme,
+    /// Monotonic revision counter incremented whenever [`Self::set_theme`] or [`Self::set_dock_style`] changes styling.
+    pub theme_revision: u64,
     /// UI zoom scaling factor (e.g. 1.0 = 100%).
     pub zoom_factor: f32,
     /// Bounding rectangle of the interactive non-UI viewport canvas (e.g. 3D scene), if any.
@@ -109,6 +114,8 @@ where
             menubar_height: 30.0,
             statusbar_height: 24.0,
             dock_style: DockChromeStyle::default(),
+            theme: Theme::default(),
+            theme_revision: 0,
             zoom_factor: 1.0,
             interactive_viewport: None,
             last_cursor_pos: None,
@@ -207,11 +214,98 @@ where
         self
     }
 
-    /// Sets the dock chrome visual style configuration.
+    /// Sets the dock chrome visual style configuration via fluent builder pattern.
     #[must_use]
     pub fn with_dock_style(mut self, style: DockChromeStyle) -> Self {
         self.dock_style = style;
         self
+    }
+
+    /// Updates the dock chrome visual style, bumping `theme_revision` and marking the shell
+    /// dirty if the style changed.
+    #[inline]
+    pub fn set_dock_style(&mut self, style: DockChromeStyle) {
+        if self.dock_style != style {
+            self.dock_style = style;
+            self.theme_revision = self.theme_revision.wrapping_add(1);
+            self.lifecycle.mark_shell_dirty();
+        }
+    }
+
+    /// Returns an immutable reference to the active dock chrome visual style configuration.
+    #[inline]
+    #[must_use]
+    pub const fn dock_style(&self) -> &DockChromeStyle {
+        &self.dock_style
+    }
+
+    /// Configures the initial visual [`Theme`] tokens via fluent builder pattern.
+    #[must_use]
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
+
+    /// Updates the active visual [`Theme`] tokens for the workbench.
+    ///
+    /// Comparing against the current theme guarantees zero-cost idempotence when invoked per-frame
+    /// with unchanged tokens. When tokens differ, `theme_revision` increments and the lifecycle
+    /// state machine flags a full shell rebuild so chrome and panels re-style cleanly.
+    #[inline]
+    pub fn set_theme(&mut self, theme: Theme) {
+        if self.theme != theme {
+            self.theme = theme;
+            self.theme_revision = self.theme_revision.wrapping_add(1);
+            self.lifecycle.mark_shell_dirty();
+        }
+    }
+
+    /// Returns an immutable reference to the active visual [`Theme`] tokens.
+    #[inline]
+    #[must_use]
+    pub const fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
+    /// Returns the monotonic styling revision counter incremented on theme or dock style changes.
+    #[inline]
+    #[must_use]
+    pub const fn theme_revision(&self) -> u64 {
+        self.theme_revision
+    }
+
+    /// Configures the initial logical screen size via fluent builder pattern.
+    ///
+    /// Non-finite values are ignored; negative finite extents are clamped to `0.0`.
+    #[must_use]
+    pub fn with_screen_size(mut self, size: impl Into<Size>) -> Self {
+        self.set_screen_size(size);
+        self
+    }
+
+    /// Updates the logical screen dimensions tracked by the workbench.
+    ///
+    /// Accepts [`Size`], `(f32, f32)`, or `[f32; 2]`. Ignores non-finite (`NaN` / infinite) values
+    /// and clamps negative extents to `0.0`. When the resolved size differs from the previous
+    /// value, the shell lifecycle is marked dirty so subsequent passes reconstruct layout cleanly.
+    #[inline]
+    pub fn set_screen_size(&mut self, size: impl Into<Size>) {
+        let size = size.into();
+        if !size.width.is_finite() || !size.height.is_finite() {
+            return;
+        }
+        let sanitized = Size::new(size.width.max(0.0), size.height.max(0.0));
+        if self.last_window_size != Some(sanitized) {
+            self.last_window_size = Some(sanitized);
+            self.lifecycle.mark_shell_dirty();
+        }
+    }
+
+    /// Returns the most recently configured or observed logical screen size, if available.
+    #[inline]
+    #[must_use]
+    pub const fn screen_size(&self) -> Option<Size> {
+        self.last_window_size
     }
 
     /// Sets the bounding rectangle of the interactive non-UI viewport canvas (in logical points).

@@ -50,6 +50,14 @@ where
         cursor: Option<Point>,
         is_cursor_occluded: bool,
     ) -> Result<DockChromeFrame<TabId>, LayoutError> {
+        if screen_size.width.is_finite() && screen_size.height.is_finite() {
+            self.last_window_size = Some(Size::new(
+                screen_size.width.max(0.0),
+                screen_size.height.max(0.0),
+            ));
+        }
+        engines.tree.set_theme(self.theme);
+
         let root = engines.tree.create_root().map_err(|e| {
             LayoutError::Taffy(format!("Root widget creation failed for shell: {e:?}"))
         })?;
@@ -260,6 +268,7 @@ where
                 notifier.clear_all();
             }
             LifecycleBranch::GranularPanels(_) => {
+                engines.tree.set_theme(self.theme);
                 let _ = self.rebuild_dirty_panels_autonomous(engines, notifier, context)?;
             }
             LifecycleBranch::InPlaceRefresh | LifecycleBranch::Dormant => {

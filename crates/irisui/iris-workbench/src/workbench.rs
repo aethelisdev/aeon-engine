@@ -24,6 +24,8 @@ mod tests_events;
 mod tests_floating;
 #[cfg(test)]
 mod tests_outside_click;
+#[cfg(test)]
+mod tests_theme_screen;
 
 pub use outcome::WorkbenchOutcome;
 pub use pointer::PointerState;

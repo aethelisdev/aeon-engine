@@ -95,6 +95,20 @@ impl Size {
     }
 }
 
+impl From<(f32, f32)> for Size {
+    #[inline]
+    fn from((width, height): (f32, f32)) -> Self {
+        Self::new(width, height)
+    }
+}
+
+impl From<[f32; 2]> for Size {
+    #[inline]
+    fn from([width, height]: [f32; 2]) -> Self {
+        Self::new(width, height)
+    }
+}
+
 /// A 2D axis-aligned rectangle defined by position and dimensions.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Default, Pod, Zeroable)]
