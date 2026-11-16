@@ -341,48 +341,6 @@ impl EngineUi {
     pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
         self.wants_pointer_at(pos)
     }
-
-    /// Dispatches declarative UI interaction events to panel contents and the autonomous
-    /// [`irisui::workbench::Workbench`] orchestrator.
-    pub fn handle_event<W: iris_winit::frameless::WindowInterface>(
-        &mut self,
-        mut window: W,
-        event: &irisui::prelude::UiEvent,
-        _world: Option<&hecs::World>,
-    ) -> bool {
-        let overlay = &mut self.iris_overlay;
-        let outcome = self.workbench.handle_event_with_content(
-            &mut window,
-            event,
-            &mut self.layout_state.dock_state,
-            |ev| {
-                let res = overlay.handle_event(ev);
-                let actions = res.ui_action.into_iter().collect();
-                let cursor = if res.consumed {
-                    Some(overlay.active_cursor())
-                } else {
-                    None
-                };
-                (res.consumed, cursor, actions)
-            },
-        );
-
-        if !outcome.actions.is_empty() {
-            self.pending_actions.extend(outcome.actions);
-        }
-        if let Some(zoom) = outcome.zoom_changed {
-            self.ui_zoom_factor = zoom;
-        }
-        if outcome.toggle_preferences {
-            self.toggle_preferences();
-        }
-        if outcome.layout_changed {
-            self.iris_overlay.chrome.needs_layout_rebuild = true;
-            self.iris_overlay.notifier.tag_all();
-        }
-
-        outcome.consumed
-    }
 }
 
 /// Returns whether a status message has expired based on the standard 2.5s duration.

@@ -121,20 +121,39 @@ impl InputArbiter {
             return false;
         };
 
-        let window = &engine.render_state.window;
-
-        if engine.mode == EngineMode::Play && engine.is_cursor_grabbed {
-            match event {
-                WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,
-                _ => engine
-                    .ui
-                    .handle_event(window, &ui_event, Some(&engine.ecs.world)),
-            }
-        } else {
-            engine
-                .ui
-                .handle_event(window, &ui_event, Some(&engine.ecs.world))
+        if engine.mode == EngineMode::Play
+            && engine.is_cursor_grabbed
+            && matches!(
+                event,
+                WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. }
+            )
+        {
+            return false;
         }
+
+        let mut window = &engine.render_state.window;
+        let outcome = engine.ui.workbench.handle_event_full(
+            &mut window,
+            &ui_event,
+            &mut engine.ui.layout_state.dock_state,
+            Some(&mut engine.ui.iris_overlay.tree),
+        );
+
+        if !outcome.actions.is_empty() {
+            engine.ui.pending_actions.extend(outcome.actions);
+        }
+        if let Some(zoom) = outcome.zoom_changed {
+            engine.ui.ui_zoom_factor = zoom;
+        }
+        if outcome.toggle_preferences {
+            engine.ui.toggle_preferences();
+        }
+        if outcome.layout_changed {
+            engine.ui.iris_overlay.chrome.needs_layout_rebuild = true;
+            engine.ui.iris_overlay.notifier.tag_all();
+        }
+
+        outcome.consumed
     }
 
     /// Routes keyboard input, handling global editor mode hotkeys and gameplay forwarding.
