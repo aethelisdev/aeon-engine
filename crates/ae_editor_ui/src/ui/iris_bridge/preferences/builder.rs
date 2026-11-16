@@ -371,7 +371,7 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
+        let blink_caret = scope.is_caret_visible(&self.text_system);
         let mut caret_buf = String::new();
         let active_number_input =
             if let Some((t, ref s, is_all_selected)) = self.preferences.active_number_input {

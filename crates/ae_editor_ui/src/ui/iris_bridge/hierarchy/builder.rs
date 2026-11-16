@@ -49,7 +49,6 @@ impl IrisEditorOverlay {
         }
 
         let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
-        let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let ctrl_held = self.chrome.ctrl_held;
         let shift_held = self.chrome.shift_held;
         let focus_state = &self.focus_state;
@@ -66,7 +65,7 @@ impl IrisEditorOverlay {
             active_sub_submenu: self.hierarchy.active_sub_submenu,
             active_context_menu: self.hierarchy.active_context_menu,
             cursor_pos,
-            blink_caret,
+            blink_caret: scope.is_caret_visible(&self.text_system),
             focus_state,
             cursor_byte_idx,
             ctrl_held,

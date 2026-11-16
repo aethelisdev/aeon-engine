@@ -396,6 +396,10 @@ impl AeEngine {
                     win_size.width,
                     win_size.height,
                 );
+                let blink_update = ui
+                    .workbench
+                    .sync_caret_blink(&mut ui.iris_overlay.text_system, &mut ui.iris_overlay.tree);
+                ui.iris_overlay.apply_caret_blink_update(blink_update);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,

@@ -128,7 +128,6 @@ impl IrisEditorOverlay {
         self.assets.selected_asset = params.panel_data.asset_browser.selected_asset.clone();
 
         let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
-        let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let focus_state = &self.focus_state;
 
         let assets_params = AssetsPanelParams {
@@ -146,7 +145,7 @@ impl IrisEditorOverlay {
             sidebar_width: params.panel_data.asset_browser.sidebar_width,
             sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
             cursor_pos,
-            blink_caret,
+            blink_caret: scope.is_caret_visible(&self.text_system),
             active_context_menu: self.assets.context_menu.as_ref(),
             active_preview_modal: self.assets.preview_modal.as_ref(),
             subfolders: &params.panel_data.asset_browser.subfolders,

@@ -652,30 +652,48 @@ fn test_workbench_sync_caret_blink_updates_visibility() {
     // 1. No focus -> caret not active/visible
     let u0 = wb.sync_caret_blink_with_delta(
         &mut text_system,
-        &tree,
+        &mut tree,
         std::time::Duration::from_millis(16),
     );
     assert!(!u0.has_text_focus);
     assert!(!wb.is_caret_visible());
 
-    // 2. Focus -> caret visible
+    // 2. Focus -> caret visible and focused node marked PAINT dirty
     tree.event_state.focused = Some(input_id);
     tree.event_state.focused_tag = Some(888);
+    if let Some(node) = tree.get_mut(input_id) {
+        node.clear_dirty(irisui_core::DirtyFlags::ALL);
+    }
     let u1 = wb.sync_caret_blink_with_delta(
         &mut text_system,
-        &tree,
+        &mut tree,
         std::time::Duration::from_millis(16),
     );
     assert!(u1.has_text_focus);
     assert!(wb.is_caret_visible());
     assert_eq!(wb.caret_blink_state(), u1);
+    assert!(
+        tree.get(input_id)
+            .expect("node")
+            .dirty
+            .contains(irisui_core::DirtyFlags::PAINT)
+    );
 
-    // 3. Advance past interval -> caret toggles hidden
+    // 3. Advance past interval -> caret toggles hidden and marks PAINT dirty again
+    if let Some(node) = tree.get_mut(input_id) {
+        node.clear_dirty(irisui_core::DirtyFlags::ALL);
+    }
     let u2 = wb.sync_caret_blink_with_delta(
         &mut text_system,
-        &tree,
+        &mut tree,
         std::time::Duration::from_millis(130),
     );
     assert!(u2.blink_changed);
     assert!(!wb.is_caret_visible());
+    assert!(
+        tree.get(input_id)
+            .expect("node")
+            .dirty
+            .contains(irisui_core::DirtyFlags::PAINT)
+    );
 }

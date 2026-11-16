@@ -8,6 +8,14 @@ use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSection};
 
 impl IrisEditorOverlay {
+    /// Applies a [`irisui::text::CaretBlinkUpdate`] to editor chrome, flagging text preparation
+    /// when the caret visibility phase flips.
+    pub fn apply_caret_blink_update(&mut self, update: irisui::text::CaretBlinkUpdate) {
+        if update.needs_redraw() {
+            self.chrome.needs_text_prepare = true;
+        }
+    }
+
     /// Recursively converts computed node bounds and styles into layered `DrawCommandList` instances,
     /// ensuring strict back-to-front layer ordering: Background -> Content -> Floating -> Modal -> Popup -> Tooltip.
     ///
@@ -47,7 +55,7 @@ impl IrisEditorOverlay {
             .with_hovered_id(self.tree.event_state.hovered)
             .with_focused_tag(self.tree.event_state.focused_tag)
             .with_focused_id(self.tree.event_state.focused)
-            .with_blink_caret(self.chrome.last_blink_caret)
+            .with_blink_caret(self.text_system.is_caret_visible())
             .with_custom_drawer(&mut custom_drawer);
 
         compile_tree_draw_commands_into(&self.tree, current, &mut options, &mut self.command_list);
@@ -140,7 +148,7 @@ impl IrisEditorOverlay {
                     .focused_tag
                     .or(self.tree.event_state.focused_tag),
                 focused_id: self.tree.event_state.focused,
-                blink_caret: self.chrome.last_blink_caret,
+                blink_caret: self.text_system.is_caret_visible(),
                 extra_occluders,
                 ..Default::default()
             };

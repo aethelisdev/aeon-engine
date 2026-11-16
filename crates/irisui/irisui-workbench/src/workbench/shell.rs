@@ -276,38 +276,51 @@ where
             }
         }
 
-        let blink_update = self.sync_caret_blink(engines.text_system, engines.tree);
-        if blink_update.needs_redraw() {
-            self.dual_layout.mark_needs_text_prepare();
-        }
+        let _ = self.sync_caret_blink(engines.text_system, engines.tree);
 
         Ok(branch)
     }
 
     /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`
-    /// using the monotonic system clock and caches the latest [`irisui_text::CaretBlinkUpdate`].
+    /// using the monotonic system clock, marks focused nodes dirty on visibility flips, and caches
+    /// the latest [`irisui_text::CaretBlinkUpdate`].
     #[inline]
     pub fn sync_caret_blink(
         &mut self,
         text_system: &mut irisui_text::TextSystem,
-        tree: &irisui_core::UiTree,
+        tree: &mut irisui_core::UiTree,
     ) -> irisui_text::CaretBlinkUpdate {
         let update = text_system.sync_caret_blink(tree);
-        self.last_caret_blink = update;
-        update
+        self.finish_caret_blink_sync(tree, update)
     }
 
     /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`
-    /// using an explicit elapsed frame `delta` and caches the latest [`irisui_text::CaretBlinkUpdate`].
+    /// using an explicit elapsed frame `delta`, marks focused nodes dirty on visibility flips, and
+    /// caches the latest [`irisui_text::CaretBlinkUpdate`].
     #[inline]
     pub fn sync_caret_blink_with_delta(
         &mut self,
         text_system: &mut irisui_text::TextSystem,
-        tree: &irisui_core::UiTree,
+        tree: &mut irisui_core::UiTree,
         delta: std::time::Duration,
     ) -> irisui_text::CaretBlinkUpdate {
         let update = text_system.sync_caret_blink_with_delta(tree, delta);
+        self.finish_caret_blink_sync(tree, update)
+    }
+
+    #[inline]
+    fn finish_caret_blink_sync(
+        &mut self,
+        tree: &mut irisui_core::UiTree,
+        update: irisui_text::CaretBlinkUpdate,
+    ) -> irisui_text::CaretBlinkUpdate {
         self.last_caret_blink = update;
+        if update.needs_redraw() {
+            self.dual_layout.mark_needs_text_prepare();
+            if let Some(focused_id) = tree.event_state.focused {
+                tree.mark_dirty(focused_id, irisui_core::DirtyFlags::PAINT);
+            }
+        }
         update
     }
 
