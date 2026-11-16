@@ -63,15 +63,6 @@ impl IrisEditorOverlay {
         }
     }
 
-    /// Intercepts and processes UI interaction events via autonomous Iris UI tree dispatch.
-    ///
-    /// Interacts directly with the primary retained [`UiTree`], handling elevated modal and popup
-    /// layers transparently through the single-tree architecture.
-    pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
-        let dispatch = self.tree.dispatch_event(event);
-        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed())
-    }
-
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
     pub fn update_overlays(&mut self, mut params: OverlayUpdateParams<'_>) {
         let (screen_width, screen_height) = params.context.dimensions;
