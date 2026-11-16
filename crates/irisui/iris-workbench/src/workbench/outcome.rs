@@ -58,6 +58,15 @@ pub struct WorkbenchOutcome<Action, TabId = ()> {
     /// Whether an outside-click gesture was detected and dismissed open popups or context menus.
     pub popups_dismissed: bool,
 
+    /// Most recently resolved 64-bit semantic interaction tag under the cursor.
+    pub hovered_tag: Option<u64>,
+
+    /// Most recently resolved non-excluded dock panel tab under the cursor when unoccluded.
+    pub hovered_panel: Option<TabId>,
+
+    /// Whether the resolved hovered semantic tag transitioned during this dispatch pass.
+    pub hover_target_changed: bool,
+
     /// Optional targeted dock panel leaf container invalidated by an interaction event.
     pub invalidated_panel: Option<TabId>,
 
@@ -83,6 +92,9 @@ impl<Action, TabId> Default for WorkbenchOutcome<Action, TabId> {
             wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
+            hovered_tag: None,
+            hovered_panel: None,
+            hover_target_changed: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -114,6 +126,9 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
+            hovered_tag: None,
+            hovered_panel: None,
+            hover_target_changed: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -267,6 +282,27 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
         }
     }
 
+    /// Returns the most recently resolved hovered 64-bit semantic interaction tag, if any.
+    #[inline]
+    #[must_use]
+    pub const fn hovered_tag(&self) -> Option<u64> {
+        self.hovered_tag
+    }
+
+    /// Returns the most recently resolved hovered non-excluded dock panel tab, if any.
+    #[inline]
+    #[must_use]
+    pub const fn hovered_panel(&self) -> Option<&TabId> {
+        self.hovered_panel.as_ref()
+    }
+
+    /// Returns whether the resolved hovered semantic interaction tag changed during this event pass.
+    #[inline]
+    #[must_use]
+    pub const fn is_hover_target_changed(&self) -> bool {
+        self.hover_target_changed
+    }
+
     /// Discards panel invalidation telemetry, converting this outcome into an action-only outcome.
     #[inline]
     #[must_use]
@@ -283,6 +319,9 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             wants_keyboard_input: self.wants_keyboard_input,
             escape_handled: self.escape_handled,
             popups_dismissed: self.popups_dismissed,
+            hovered_tag: self.hovered_tag,
+            hovered_panel: None,
+            hover_target_changed: self.hover_target_changed,
             invalidated_panel: None,
             shell_dirty: self.shell_dirty,
             invalidation_route: match self.invalidation_route {

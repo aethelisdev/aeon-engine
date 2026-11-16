@@ -29,8 +29,23 @@ struct TreeAndContentResult<TabId, Action> {
     cursor: Option<iris_core::node::WidgetCursor>,
     needs_redraw: bool,
     wants_keyboard_input: bool,
+    hover_target_changed: bool,
     route: Option<EventInvalidationRoute<TabId>>,
     extra_actions: Vec<Action>,
+}
+
+impl<TabId, Action> Default for TreeAndContentResult<TabId, Action> {
+    fn default() -> Self {
+        Self {
+            consumed: false,
+            cursor: None,
+            needs_redraw: false,
+            wants_keyboard_input: false,
+            hover_target_changed: false,
+            route: None,
+            extra_actions: Vec::new(),
+        }
+    }
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -52,18 +67,12 @@ where
     }
 
     /// Dispatches a platform [`UiEvent`] into the [`UiTree`], processes autonomous [`DialogHost`]
-    /// modal tag clicks into `action_bus`, and computes the invalidation route.
+    /// modal tag clicks into `action_bus`, resolves hover targets, and computes the invalidation route.
     fn dispatch_tree_with_modals(
         &mut self,
         tree: &mut UiTree,
         event: &UiEvent,
-    ) -> (
-        bool,
-        Option<iris_core::node::WidgetCursor>,
-        bool,
-        bool,
-        EventInvalidationRoute<TabId>,
-    ) {
+    ) -> TreeAndContentResult<TabId, Action> {
         if let Some(pos) = self.last_cursor_pos {
             tree.set_cursor_position(pos);
         }
@@ -84,13 +93,16 @@ where
         } else {
             self.route_event_invalidation(tree, event, &dispatch)
         };
-        (
-            dispatch.consumed || modal_click_consumed,
-            dispatch.cursor,
-            dispatch.needs_redraw || modal_click_consumed,
-            tree.is_text_input_focused(),
-            route,
-        )
+        let hover = self.resolve_hover_targets(tree, self.last_cursor_pos);
+        TreeAndContentResult {
+            consumed: dispatch.consumed || modal_click_consumed,
+            cursor: dispatch.cursor,
+            needs_redraw: dispatch.needs_redraw || modal_click_consumed,
+            wants_keyboard_input: tree.is_text_input_focused(),
+            hover_target_changed: hover.hover_target_changed,
+            route: Some(route),
+            extra_actions: Vec::new(),
+        }
     }
 
     /// Creates a base [`WorkbenchOutcome`] configured with consumption status, cursor shape,
@@ -114,6 +126,9 @@ where
             wants_keyboard_input: self.wants_keyboard_input(),
             escape_handled: false,
             popups_dismissed: false,
+            hovered_tag: self.hovered_tag,
+            hovered_panel: self.hovered_panel,
+            hover_target_changed: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -203,6 +218,7 @@ where
         if content.needs_redraw {
             outcome.layout_changed = true;
         }
+        outcome.hover_target_changed = content.hover_target_changed;
         if outcome.cursor.is_none() {
             outcome.cursor = content.cursor;
         }
@@ -499,17 +515,17 @@ where
             return outcome;
         }
 
-        let (tree_consumed, tree_cursor, tree_redraw, tree_wants_keyboard, tree_route) =
-            if let Some(t) = tree {
-                let (consumed, cursor, redraw, wants_kb, route) =
-                    self.dispatch_tree_with_modals(t, event);
-                (consumed, cursor, redraw, wants_kb, Some(route))
-            } else {
-                (false, None, false, false, None)
-            };
+        let mut result = if let Some(t) = tree {
+            self.dispatch_tree_with_modals(t, event)
+        } else {
+            TreeAndContentResult::default()
+        };
 
         let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
-        let needs_redraw = tree_redraw
+        result.consumed = result.consumed || content_consumed;
+        result.cursor = content_cursor.or(result.cursor);
+        result.extra_actions = content_actions;
+        result.needs_redraw = result.needs_redraw
             || matches!(
                 event,
                 UiEvent::MouseDown { .. }
@@ -521,19 +537,7 @@ where
                     | UiEvent::Ime(_)
                     | UiEvent::FileDropped { .. }
             );
-        self.finalize_shell_outcome(
-            window,
-            event,
-            dock_state,
-            TreeAndContentResult {
-                consumed: content_consumed || tree_consumed,
-                cursor: content_cursor.or(tree_cursor),
-                needs_redraw,
-                wants_keyboard_input: tree_wants_keyboard,
-                route: tree_route,
-                extra_actions: content_actions,
-            },
-        )
+        self.finalize_shell_outcome(window, event, dock_state, result)
     }
 
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
@@ -594,33 +598,13 @@ where
             return outcome;
         }
 
-        let (
-            content_consumed,
-            content_cursor,
-            needs_redraw,
-            tree_wants_keyboard,
-            invalidation_route,
-        ) = if let Some(t) = tree {
-            let (consumed, cursor, redraw, wants_kb, route) =
-                self.dispatch_tree_with_modals(t, event);
-            (consumed, cursor, redraw, wants_kb, Some(route))
+        let result = if let Some(t) = tree {
+            self.dispatch_tree_with_modals(t, event)
         } else {
-            (false, None, false, false, None)
+            TreeAndContentResult::default()
         };
 
-        self.finalize_shell_outcome(
-            window,
-            event,
-            dock_state,
-            TreeAndContentResult {
-                consumed: content_consumed,
-                cursor: content_cursor,
-                needs_redraw,
-                wants_keyboard_input: tree_wants_keyboard,
-                route: invalidation_route,
-                extra_actions: Vec::new(),
-            },
-        )
+        self.finalize_shell_outcome(window, event, dock_state, result)
     }
 
     /// Routes an interaction event dispatch result to its owning dock panel leaf container,

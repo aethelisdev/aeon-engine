@@ -7,12 +7,94 @@
 //! elevated floating windows, active modal dialogs, or transparent 3D viewports.
 
 use super::runner::Workbench;
+use iris_core::WidgetId;
 use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
+use iris_core::node::UiLayer;
 use iris_core::tree::UiTree;
+use iris_dock::chrome::DockChromeFrame;
 use iris_dock::state::DockState;
 use std::fmt::Debug;
 use std::hash::Hash;
+
+/// Result of multi-layered pointer hover resolution across a retained [`UiTree`]
+/// and active docking frame.
+///
+/// Captures the highest-priority widget hit, resolved 64-bit semantic tag, overlay
+/// occlusion flag, underlying dock panel (excluding any designated non-UI viewport),
+/// and frame-to-frame transition indicators with zero heap allocations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HoverTargetResolution<TabId> {
+    /// Identifier of the topmost hit widget node, if any.
+    pub hit_widget: Option<WidgetId>,
+    /// Semantic 64-bit interaction tag resolved from the hit widget or nearest tagged ancestor.
+    pub hovered_tag: Option<u64>,
+    /// Hovered non-excluded dock panel tab when not occluded by elevated overlays.
+    pub hovered_panel: Option<TabId>,
+    /// Whether the pointer lands on an elevated overlay layer (`UiLayer::Floating` or higher).
+    pub is_over_overlay: bool,
+    /// Whether `hovered_tag` differs from the previously recorded hover tag.
+    pub hover_target_changed: bool,
+    /// Whether `hovered_panel` differs from the previously recorded hovered panel.
+    pub hovered_panel_changed: bool,
+}
+
+impl<TabId> Default for HoverTargetResolution<TabId> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            hit_widget: None,
+            hovered_tag: None,
+            hovered_panel: None,
+            is_over_overlay: false,
+            hover_target_changed: false,
+            hovered_panel_changed: false,
+        }
+    }
+}
+
+/// Evaluates layered hit-testing across the UI widget tree and docking chrome frame
+/// at `point` with zero heap allocations.
+///
+/// Resolution priority:
+/// 1. Layered tree hit-test ([`UiTree::hit_test_tag_layered`]) extracting effective stacking
+///    [`UiLayer`] and inherited semantic interaction tag.
+/// 2. Overlay occlusion check (`layer >= UiLayer::Floating`).
+/// 3. Underlying dock panel lookup from `dock_frame.panel_rects` when unoccluded, skipping
+///    `non_ui_tab` (e.g. an interactive 3D viewport canvas).
+#[must_use]
+pub fn resolve_hover_targets<TabId: Copy + PartialEq>(
+    tree: &UiTree,
+    dock_frame: Option<&DockChromeFrame<TabId>>,
+    non_ui_tab: Option<TabId>,
+    point: Point,
+) -> HoverTargetResolution<TabId> {
+    let (hit_widget, hit_layer, hovered_tag) = match tree.hit_test_tag_layered(point) {
+        Some((id, layer, tag)) => (Some(id), Some(layer), (tag != 0).then_some(tag)),
+        None => (None, None, None),
+    };
+    let is_over_overlay = hit_layer.is_some_and(|layer| layer >= UiLayer::Floating);
+    let hovered_panel = if is_over_overlay {
+        None
+    } else {
+        dock_frame.and_then(|frame| {
+            frame
+                .panel_rects
+                .iter()
+                .find(|(pid, bounds)| non_ui_tab != Some(*pid) && bounds.contains_point(point))
+                .map(|(pid, _)| *pid)
+        })
+    };
+
+    HoverTargetResolution {
+        hit_widget,
+        hovered_tag,
+        hovered_panel,
+        is_over_overlay,
+        hover_target_changed: false,
+        hovered_panel_changed: false,
+    }
+}
 
 /// Tracks the state of the system pointer device across interaction events,
 /// recording cursor coordinates and mouse button down states.
@@ -136,6 +218,49 @@ where
     pub fn pointer_state_mut(&mut self) -> &mut PointerState {
         &mut self.pointer_state
     }
+    fn commit_hover_resolution(
+        &mut self,
+        mut resolution: HoverTargetResolution<TabId>,
+    ) -> HoverTargetResolution<TabId> {
+        resolution.hover_target_changed = resolution.hovered_tag != self.last_hovered_tag;
+        resolution.hovered_panel_changed = resolution.hovered_panel != self.last_hovered_panel;
+        self.hovered_tag = resolution.hovered_tag;
+        self.hovered_panel = resolution.hovered_panel;
+        self.last_hovered_tag = resolution.hovered_tag;
+        self.last_hovered_panel = resolution.hovered_panel;
+        resolution
+    }
+
+    /// Resolves and records hovered UI tags and dock panel targets at `point`
+    /// using the workbench's retained docking frame.
+    ///
+    /// Falls back to [`Self::cursor_pos`] when `point` is `None`. When no coordinate
+    /// is available, clears active hover targets and reports any transition from previous state.
+    pub fn resolve_hover_targets(
+        &mut self,
+        tree: &UiTree,
+        point: Option<Point>,
+    ) -> HoverTargetResolution<TabId> {
+        self.resolve_hover_targets_with_frame(tree, None, point)
+    }
+
+    /// Resolves and records hovered UI tags and dock panel targets using an explicit
+    /// docking chrome frame (falling back to [`Self::active_dock_frame`] when `None`).
+    pub fn resolve_hover_targets_with_frame(
+        &mut self,
+        tree: &UiTree,
+        dock_frame: Option<&DockChromeFrame<TabId>>,
+        point: Option<Point>,
+    ) -> HoverTargetResolution<TabId> {
+        let resolved_point = point.or(self.last_cursor_pos);
+        let effective_frame = dock_frame.or(self.dock_frame.as_ref());
+        let resolution = match resolved_point {
+            Some(pt) => resolve_hover_targets(tree, effective_frame, self.non_ui_tab, pt),
+            None => HoverTargetResolution::default(),
+        };
+        self.commit_hover_resolution(resolution)
+    }
+
     /// Evaluates whether the UI currently captures the pointer or if the pointer is positioned over
     /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
     ///

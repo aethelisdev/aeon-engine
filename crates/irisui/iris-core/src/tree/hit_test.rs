@@ -396,6 +396,23 @@ impl UiTree {
         })
     }
 
+    /// Performs layered hit-testing at `point` and resolves the hit widget identifier,
+    /// effective stacking [`UiLayer`], and inherited 64-bit semantic tag with zero heap allocations.
+    ///
+    /// If the hit node defines `tag == 0`, falls back to [`Self::resolve_ancestor_tag`].
+    #[must_use]
+    pub fn hit_test_tag_layered(&self, point: Point) -> Option<(WidgetId, UiLayer, u64)> {
+        let hit_id = self.hit_test_layered(point)?;
+        let node = self.nodes.get(hit_id)?;
+        let layer = self.effective_layer(hit_id);
+        let effective_tag = if node.tag != 0 {
+            node.tag
+        } else {
+            self.resolve_ancestor_tag(hit_id)
+        };
+        Some((hit_id, layer, effective_tag))
+    }
+
     /// Returns true if the specified screen coordinate intersects an interactive widget,
     /// a tagged component, an active popup/context menu, or an active modal overlay.
     ///

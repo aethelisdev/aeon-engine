@@ -23,10 +23,12 @@ mod tests_events;
 #[cfg(test)]
 mod tests_floating;
 #[cfg(test)]
+mod tests_hover;
+#[cfg(test)]
 mod tests_outside_click;
 #[cfg(test)]
 mod tests_theme_screen;
 
 pub use outcome::WorkbenchOutcome;
-pub use pointer::PointerState;
+pub use pointer::{HoverTargetResolution, PointerState, resolve_hover_targets};
 pub use runner::Workbench;

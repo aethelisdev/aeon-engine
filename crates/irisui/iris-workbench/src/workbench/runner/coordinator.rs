@@ -90,6 +90,18 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
     /// Active docking interaction frame from the most recent shell assembly pass.
     pub dock_frame: Option<DockChromeFrame<TabId>>,
 
+    /// Currently hovered 64-bit semantic interaction tag resolved by layered hit-testing.
+    pub hovered_tag: Option<u64>,
+
+    /// Previously evaluated hovered 64-bit semantic interaction tag for transition detection.
+    pub last_hovered_tag: Option<u64>,
+
+    /// Currently hovered non-excluded dock panel tab resolved under the cursor, if not occluded by overlays.
+    pub hovered_panel: Option<TabId>,
+
+    /// Previously evaluated hovered dock panel tab for transition detection.
+    pub last_hovered_panel: Option<TabId>,
+
     /// Autonomous 3-branch lifecycle state machine tracking shell vs panel invalidation.
     pub lifecycle: WorkbenchLifecycle<TabId>,
 }
@@ -126,6 +138,10 @@ where
             zoom_action: None,
             preferences_action: None,
             dock_frame: None,
+            hovered_tag: None,
+            last_hovered_tag: None,
+            hovered_panel: None,
+            last_hovered_panel: None,
             lifecycle: WorkbenchLifecycle::new(),
         }
     }
@@ -341,6 +357,20 @@ where
     #[must_use]
     pub fn window_size(&self) -> Option<Size> {
         self.last_window_size
+    }
+
+    /// Returns the most recently resolved hovered 64-bit semantic interaction tag, if any.
+    #[inline]
+    #[must_use]
+    pub const fn hovered_tag(&self) -> Option<u64> {
+        self.hovered_tag
+    }
+
+    /// Returns the most recently resolved hovered dock panel tab identifier, if any.
+    #[inline]
+    #[must_use]
+    pub const fn hovered_panel(&self) -> Option<TabId> {
+        self.hovered_panel
     }
 
     /// Evaluates whether the workbench currently requires active text keyboard focus
