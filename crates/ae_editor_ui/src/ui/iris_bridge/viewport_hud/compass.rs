@@ -108,43 +108,47 @@ pub fn draw_compass_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera, re
 ///
 /// Anchored via [`Style::position_absolute`], [`Style::right`], and [`Style::top`].
 /// Emits an [`ImmediateCanvas`] node tagged with [`TAG_COMPASS_CANVAS`] with zero persistent child tree nodes.
-pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    let compass_rect = Rect::new(
-        params.viewport_rect.right() - COMPASS_SIZE - COMPASS_MARGIN,
-        params.viewport_rect.y + COMPASS_MARGIN,
+#[inline]
+fn compass_bounds_rect(viewport_rect: Rect) -> Rect {
+    Rect::new(
+        viewport_rect.right() - COMPASS_SIZE - COMPASS_MARGIN,
+        viewport_rect.y + COMPASS_MARGIN,
         COMPASS_SIZE,
         COMPASS_SIZE,
-    );
+    )
+}
 
+pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     scope.volatile_overlay(
         "SceneNavCompass",
         TAG_COMPASS_CANVAS,
-        compass_rect,
+        compass_bounds_rect(params.viewport_rect),
         |canvas| {
-            draw_compass_canvas(canvas, params.camera, compass_rect);
+            draw_compass_canvas(
+                canvas,
+                params.camera,
+                compass_bounds_rect(params.viewport_rect),
+            );
         },
     );
 }
 
-/// Updates the 3D scene compass volatile canvas primitives in-place in the UI tree.
+/// Updates the 3D scene compass volatile canvas primitives in-place via [`UiScope::update_live_canvas`].
 ///
 /// Resolves the compass bounding rectangle and repaints the glass disc, lines, rotating knobs,
 /// and labels without modifying retained tree topology or triggering Taffy layout passes.
 ///
 /// # Arguments
-/// * `tree` - Mutable reference to the UI hierarchy.
+/// * `scope` - Mutable declarative UI scope.
 /// * `camera` - Active camera instance with current pitch and yaw angles.
 /// * `viewport_rect` - Screen bounding box of the active viewport.
-pub fn update_compass_canvas(tree: &mut UiTree, camera: &Camera, viewport_rect: Rect) -> bool {
-    let compass_rect = Rect::new(
-        viewport_rect.right() - COMPASS_SIZE - COMPASS_MARGIN,
-        viewport_rect.y + COMPASS_MARGIN,
-        COMPASS_SIZE,
-        COMPASS_SIZE,
-    );
-
-    irisui::widgets::canvas::update_canvas_by_tag(tree, TAG_COMPASS_CANVAS, |canvas| {
-        draw_compass_canvas(canvas, camera, compass_rect);
+pub fn update_compass_canvas(
+    scope: &mut UiScope<'_>,
+    camera: &Camera,
+    viewport_rect: Rect,
+) -> bool {
+    scope.update_live_canvas(TAG_COMPASS_CANVAS, |canvas| {
+        draw_compass_canvas(canvas, camera, compass_bounds_rect(viewport_rect));
     })
 }
 
@@ -288,7 +292,8 @@ mod tests {
         );
 
         // Test in-place volatile update pass without structural modifications
-        let updated = update_compass_canvas(&mut tree, &camera, params.viewport_rect);
+        let mut scope = UiScope::new(&mut tree, root);
+        let updated = update_compass_canvas(&mut scope, &camera, params.viewport_rect);
         assert!(
             updated,
             "update_compass_canvas must succeed for valid compass tag"

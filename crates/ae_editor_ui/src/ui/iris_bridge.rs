@@ -25,7 +25,6 @@ pub mod theme;
 pub mod timeline;
 pub mod types;
 pub mod ui_designer;
-pub mod update;
 pub mod viewport_content;
 pub mod viewport_hud;
 pub mod viewport_texture;

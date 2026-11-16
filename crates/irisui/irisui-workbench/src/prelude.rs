@@ -23,9 +23,10 @@ pub use crate::dialogs::{
 };
 pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{
-    AspectRatio, ClosureOverlayHook, CustomOverlayHook, DragDropController, DragDropPayload,
-    DragDropPreviewStyle, ExternalTextureView, OverlayAnchor, OverlayHook, OverlayHost, OverlayId,
-    TypedDragDropPayload, WorkbenchUiScopeExt,
+    AspectRatio, ClosureOverlayHook, ClosureVolatileHook, CustomOverlayHook, DragDropController,
+    DragDropPayload, DragDropPreviewStyle, ExternalTextureView, OverlayAnchor, OverlayHook,
+    OverlayHost, OverlayId, TypedDragDropPayload, VolatileCanvasHook, VolatileHookRegistry,
+    VolatileRefreshResult, WorkbenchUiScopeExt,
 };
 pub use crate::layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines, synchronize_dock_frame,
@@ -35,4 +36,7 @@ pub use crate::lifecycle::{
     EventInvalidationRoute, LifecycleBranch, LifecycleInputs, WorkbenchLifecycle,
     route_event_invalidation, route_event_invalidation_with_fallback,
 };
-pub use crate::workbench::{PointerState, Workbench, WorkbenchOutcome};
+pub use crate::workbench::{
+    PointerState, Workbench, WorkbenchExternalContext, WorkbenchFrameOutcome,
+    WorkbenchFrameUpdateParams, WorkbenchOutcome,
+};

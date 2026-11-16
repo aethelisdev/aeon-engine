@@ -235,8 +235,8 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
 
                     let container_style = Style::new()
                         .position_absolute()
-                        .left(content_rect.x)
-                        .top(content_rect.y)
+                        .left(content_rect.x - win.rect.x)
+                        .top(content_rect.y - win.rect.y)
                         .width(content_rect.width)
                         .height(content_rect.height)
                         .flex_col()

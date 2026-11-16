@@ -62,37 +62,38 @@ pub fn draw_camera_hud_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera,
 ///
 /// Emits an [`ImmediateCanvas`] node tagged with [`TAG_CAMERA_HUD`] positioned via absolute insets
 /// with zero persistent child tree nodes.
-pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    let hud_rect = Rect::new(
-        params.viewport_rect.right() - CAMERA_HUD_WIDTH - CAMERA_HUD_MARGIN,
-        params.viewport_rect.bottom() - CAMERA_HUD_HEIGHT - CAMERA_HUD_MARGIN,
+#[inline]
+fn camera_hud_rect(viewport_rect: Rect) -> Rect {
+    Rect::new(
+        viewport_rect.right() - CAMERA_HUD_WIDTH - CAMERA_HUD_MARGIN,
+        viewport_rect.bottom() - CAMERA_HUD_HEIGHT - CAMERA_HUD_MARGIN,
         CAMERA_HUD_WIDTH,
         CAMERA_HUD_HEIGHT,
-    );
-
-    scope.volatile_overlay("CameraHudCanvas", TAG_CAMERA_HUD, hud_rect, |canvas| {
-        draw_camera_hud_canvas(canvas, params.camera, hud_rect);
-    });
+    )
 }
 
-/// Updates the camera telemetry HUD volatile primitives in-place in the UI tree.
+pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
+    scope.volatile_overlay(
+        "CameraHudCanvas",
+        TAG_CAMERA_HUD,
+        camera_hud_rect(params.viewport_rect),
+        |canvas| {
+            draw_camera_hud_canvas(canvas, params.camera, camera_hud_rect(params.viewport_rect));
+        },
+    );
+}
+
+/// Updates the camera telemetry HUD volatile primitives in-place via [`UiScope::update_live_canvas`].
 ///
 /// Resolves the HUD pill boundary from viewport bounds and updates the canvas primitives
 /// without modifying retained tree topology or triggering Taffy layout passes.
 ///
 /// # Arguments
-/// * `tree` - Mutable reference to the UI hierarchy.
+/// * `scope` - Mutable declarative UI scope.
 /// * `camera` - Current camera instance.
 /// * `viewport_rect` - Screen bounding box of the active viewport.
-pub fn update_camera_hud(tree: &mut UiTree, camera: &Camera, viewport_rect: Rect) -> bool {
-    let hud_rect = Rect::new(
-        viewport_rect.right() - CAMERA_HUD_WIDTH - CAMERA_HUD_MARGIN,
-        viewport_rect.bottom() - CAMERA_HUD_HEIGHT - CAMERA_HUD_MARGIN,
-        CAMERA_HUD_WIDTH,
-        CAMERA_HUD_HEIGHT,
-    );
-
-    irisui::widgets::canvas::update_canvas_by_tag(tree, TAG_CAMERA_HUD, |canvas| {
-        draw_camera_hud_canvas(canvas, camera, hud_rect);
+pub fn update_camera_hud(scope: &mut UiScope<'_>, camera: &Camera, viewport_rect: Rect) -> bool {
+    scope.update_live_canvas(TAG_CAMERA_HUD, |canvas| {
+        draw_camera_hud_canvas(canvas, camera, camera_hud_rect(viewport_rect));
     })
 }

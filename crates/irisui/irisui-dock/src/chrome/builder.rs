@@ -293,6 +293,15 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
                     tab_rect.height - 6.0,
                 );
                 let close_tag = encode_dock_tab_close_tag(leaf.node_id.data().as_ffi(), index);
+                let close_style = apply_absolute_rect(
+                    tree,
+                    tab_id,
+                    close_rect,
+                    Style::new()
+                        .corner_radii(CornerRadii::all(3.0))
+                        .hover_background(style.close_btn_hover_bg)
+                        .clip_children(true),
+                );
                 let close_id = add_text_node(
                     tree,
                     tab_id,
@@ -308,12 +317,7 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
                     node.role = WidgetRole::Button;
                     node.cursor = Some(WidgetCursor::Pointer);
                     node.interactive = true;
-                    node.set_style(
-                        Style::new()
-                            .corner_radii(CornerRadii::all(3.0))
-                            .hover_background(style.close_btn_hover_bg)
-                            .clip_children(true),
-                    );
+                    node.set_style(close_style);
                 }
                 frame.close_targets.push(DockCloseTarget {
                     leaf: leaf.node_id,
@@ -474,6 +478,20 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
     frame
 }
 
+/// Translates a screen-space `rect` into parent-relative absolute positioning on `style`.
+#[inline]
+fn apply_absolute_rect(tree: &UiTree, parent: WidgetId, rect: Rect, style: Style) -> Style {
+    let (px, py) = tree
+        .get(parent)
+        .map_or((0.0, 0.0), |p| (p.computed_rect.x, p.computed_rect.y));
+    style
+        .position_absolute()
+        .left(rect.x - px)
+        .top(rect.y - py)
+        .width(rect.width)
+        .height(rect.height)
+}
+
 /// Adds an absolutely positioned dock rectangle to the retained Iris tree.
 fn add_rect_node(
     tree: &mut UiTree,
@@ -482,12 +500,13 @@ fn add_rect_node(
     name: &str,
     style: Style,
 ) -> WidgetId {
+    let resolved_style = apply_absolute_rect(tree, parent, rect, style);
     let id = tree.create_node();
     if let Some(node) = tree.get_mut(id) {
         node.set_name(name);
         node.set_role(WidgetRole::Default);
         node.computed_rect = rect;
-        node.set_style(style);
+        node.set_style(resolved_style);
         node.interactive = false;
     }
     let _ = tree.add_child(parent, id);
@@ -504,6 +523,7 @@ fn add_text_node(
     hover_color: Option<Color>,
     alignment: TextAlign,
 ) -> WidgetId {
+    let resolved_style = apply_absolute_rect(tree, parent, rect, Style::new().clip_children(true));
     let id = tree.create_node();
     if let Some(node) = tree.get_mut(id) {
         node.set_name("IrisDockTabLabel");
@@ -514,7 +534,7 @@ fn add_text_node(
         if let Some(hc) = hover_color {
             node.set_hover_text_color(hc);
         }
-        node.set_style(Style::new().clip_children(true));
+        node.set_style(resolved_style);
         node.interactive = false;
     }
     let _ = tree.add_child(parent, id);
@@ -549,12 +569,14 @@ fn add_icon_node(
     tint: Color,
     hover_tint: Option<Color>,
 ) {
+    let resolved_style = apply_absolute_rect(tree, parent, rect, Style::new());
     let id = tree.create_node();
     if let Some(node) = tree.get_mut(id) {
         node.set_name(name);
         node.set_role(WidgetRole::Default);
         node.set_texture_uv(uv);
         node.computed_rect = rect;
+        node.set_style(resolved_style);
         node.set_texture_tint(tint);
         if let Some(ht) = hover_tint {
             node.set_hover_texture_tint(ht);

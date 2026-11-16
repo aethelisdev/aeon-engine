@@ -71,7 +71,7 @@ pub use containers::{
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::{
-    LabeledStatusDescriptor, LogRowBadge, LogRowDescriptor, NumberLabelDescriptor,
+    LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor, NumberLabelDescriptor,
     WrappedLabelDescriptor,
 };
 pub use input::ComboRowLayout;

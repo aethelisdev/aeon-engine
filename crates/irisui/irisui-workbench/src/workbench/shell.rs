@@ -10,8 +10,8 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use irisui_core::WidgetId;
 use irisui_core::geometry::{Point, Rect, Size};
+use irisui_core::{UiTree, WidgetId};
 use irisui_dock::UiNotifier;
 use irisui_dock::area::runner::DockArea;
 use irisui_dock::chrome::DockChromeFrame;
@@ -56,6 +56,25 @@ where
     TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
+    /// Creates the shell root widget bound to `screen_size` so out-of-flow
+    /// `Position::Absolute` dock regions and overlays never collapse root bounds to `(0, 0)`.
+    pub(super) fn create_viewport_root(
+        tree: &mut UiTree,
+        screen_size: Size,
+    ) -> Result<WidgetId, LayoutError> {
+        let root = tree.create_root().map_err(|e| {
+            LayoutError::Taffy(format!("Root widget creation failed for shell: {e:?}"))
+        })?;
+        if screen_size.width > 0.0
+            && screen_size.height > 0.0
+            && let Some(root_node) = tree.get_mut(root)
+        {
+            root_node.style.width = Some(screen_size.width);
+            root_node.style.height = Some(screen_size.height);
+        }
+        Ok(root)
+    }
+
     /// Renders the complete application shell into the retained widget tree.
     ///
     /// Constructs:
@@ -86,9 +105,7 @@ where
         }
         engines.tree.set_theme(self.theme);
 
-        let root = engines.tree.create_root().map_err(|e| {
-            LayoutError::Taffy(format!("Root widget creation failed for shell: {e:?}"))
-        })?;
+        let root = Self::create_viewport_root(engines.tree, screen_size)?;
 
         let mut scope = UiScope::new(engines.tree, root);
 
@@ -302,7 +319,13 @@ where
                 engines.tree.set_theme(self.theme);
                 let _ = self.rebuild_dirty_panels_autonomous(engines, notifier, context)?;
             }
-            LifecycleBranch::InPlaceRefresh | LifecycleBranch::Dormant => {
+            LifecycleBranch::InPlaceRefresh => {
+                let volatile_res = self.volatile_hooks.refresh_in_place(engines.tree, context);
+                if volatile_res.needs_text_prepare {
+                    self.dual_layout.mark_needs_text_prepare();
+                }
+            }
+            LifecycleBranch::Dormant => {
                 // Zero retained tree mutations
             }
         }
@@ -500,6 +523,44 @@ where
             }
         }
         update
+    }
+
+    /// Registers a [`VolatileCanvasHook`](crate::hooks::VolatileCanvasHook) for
+    /// `LifecycleBranch::InPlaceRefresh` frames.
+    pub fn register_volatile_hook<H: crate::hooks::VolatileCanvasHook<AppState> + 'static>(
+        &mut self,
+        hook: H,
+    ) {
+        self.volatile_hooks.register(hook);
+    }
+
+    /// Registers a closure-based volatile hook under `id` for `LifecycleBranch::InPlaceRefresh`.
+    pub fn register_volatile_fn<F>(&mut self, id: crate::hooks::OverlayId, callback: F)
+    where
+        F: FnMut(&mut irisui_core::UiTree, &mut AppState) -> crate::hooks::VolatileRefreshResult
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.volatile_hooks.register_fn(id, callback);
+    }
+
+    /// Unregisters the volatile hook identified by `id`, returning `true` if one existed.
+    pub fn unregister_volatile_hook(&mut self, id: crate::hooks::OverlayId) -> bool {
+        self.volatile_hooks.unregister(id)
+    }
+
+    /// Runs all registered volatile hooks in-place and forwards text preparation needs to `dual_layout`.
+    pub fn refresh_volatile_hooks(
+        &mut self,
+        tree: &mut irisui_core::UiTree,
+        context: &mut AppState,
+    ) -> crate::hooks::VolatileRefreshResult {
+        let res = self.volatile_hooks.refresh_in_place(tree, context);
+        if res.needs_text_prepare {
+            self.dual_layout.mark_needs_text_prepare();
+        }
+        res
     }
 
     /// Returns the most recently evaluated caret blink synchronization outcome.

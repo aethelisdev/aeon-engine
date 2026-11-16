@@ -28,7 +28,7 @@ impl IrisEditorOverlay {
         }
 
         // 2. Floating window 8-way resize boundary evaluation (Higher Z-layer than docked panels)
-        if p.y > Self::MENUBAR_HEIGHT
+        if p.y > super::menubar::MENUBAR_HEIGHT
             && !is_overlay_hit
             && let Some(cur) = irisui::dock::evaluate_floating_resize_cursor(
                 &self.chrome.floating_window_rects,

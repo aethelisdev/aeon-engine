@@ -38,9 +38,9 @@ pub use declarative::scope::{
     ActionBarButton, AnchoredPopupConfig, AssetSlotConfig, AssetSlotResponse,
     ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout,
     DropdownCardConfig, DualActionBarResponse, InputBoxStyle, LabeledStatusDescriptor,
-    LogRowDescriptor, ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle,
-    PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
-    TabBarResponse, UiScope, WrappedLabelDescriptor,
+    LiveTextProps, LogRowDescriptor, ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor,
+    PopupCardStyle, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
+    PropertyPaletteResponse, TabBarResponse, UiScope, WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -76,11 +76,12 @@ pub mod prelude {
         CardResponse, ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
         ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DropdownCardConfig,
         DualActionBarResponse, InputBoxStyle, LabeledInputButton, LabeledInputConfig,
-        LabeledStatusDescriptor, LogRowBadge, LogRowDescriptor, MultilineEditorProps,
-        NavItemConfig, NumberLabelDescriptor, PopupCardStyle, PrimaryButtonConfig,
-        PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
-        PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
-        PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope, WrappedLabelDescriptor,
+        LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
+        MultilineEditorProps, NavItemConfig, NumberLabelDescriptor, PopupCardStyle,
+        PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
+        PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
+        PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
+        WrappedLabelDescriptor,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

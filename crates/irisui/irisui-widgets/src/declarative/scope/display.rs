@@ -13,6 +13,7 @@ pub mod canvas;
 pub mod icons;
 pub mod key_value;
 pub mod labels;
+pub mod live;
 pub mod log_row;
 
 pub use key_value::{
@@ -20,4 +21,5 @@ pub use key_value::{
     format_prefix_number_suffix_stack,
 };
 pub use labels::{LabeledStatusDescriptor, WrappedLabelDescriptor};
+pub use live::LiveTextProps;
 pub use log_row::{LogRowBadge, LogRowDescriptor};

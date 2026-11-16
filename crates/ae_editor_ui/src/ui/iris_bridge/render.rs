@@ -44,6 +44,45 @@ impl IrisEditorOverlay {
         }
     }
 
+    /// Applies [`irisui::workbench::WorkbenchFrameOutcome`] invalidation and draw-command
+    /// recompilation flags to the retained overlay chrome.
+    pub fn apply_workbench_frame_outcome(
+        &mut self,
+        outcome: &irisui::workbench::WorkbenchFrameOutcome<crate::ui::PanelId>,
+        frame_pacing: &ae_core::telemetry::FrameRingBuffer,
+    ) {
+        if outcome.needs_text_prepare {
+            self.chrome.needs_text_prepare = true;
+        }
+        if outcome.needs_quad_reupload {
+            self.command_list.clear();
+            if let Some(root) = self.tree.root() {
+                self.populate_draw_commands(root, None, Some(frame_pacing));
+            }
+            self.chrome.needs_full_quad_upload =
+                outcome.is_full_shell_rebuild() || outcome.volatile_refresh.needs_quad_reupload;
+        }
+    }
+
+    /// Applies [`irisui::workbench::VolatileRefreshResult`] flags from [`Workbench::refresh_live_scope`]
+    /// to the retained chrome state and repopulates draw commands when quad re-upload is required.
+    pub fn apply_live_refresh(
+        &mut self,
+        result: irisui::workbench::VolatileRefreshResult,
+        frame_pacing: &ae_core::telemetry::FrameRingBuffer,
+    ) {
+        if result.needs_text_prepare {
+            self.chrome.needs_text_prepare = true;
+        }
+        if result.needs_quad_reupload {
+            self.command_list.clear();
+            if let Some(root) = self.tree.root() {
+                self.populate_draw_commands(root, None, Some(frame_pacing));
+            }
+            self.chrome.needs_full_quad_upload = true;
+        }
+    }
+
     /// Recursively converts computed node bounds and styles into layered `DrawCommandList` instances,
     /// ensuring strict back-to-front layer ordering: Background -> Content -> Floating -> Modal -> Popup -> Tooltip.
     ///

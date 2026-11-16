@@ -140,20 +140,8 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>),
     {
-        let (window_w, window_h) = if let Some(root_id) = self.tree.root() {
-            let r = self
-                .tree
-                .get(root_id)
-                .map(|n| n.computed_rect)
-                .unwrap_or(Rect::ZERO);
-            if r.width > 0.0 && r.height > 0.0 {
-                (r.width, r.height)
-            } else {
-                (1920.0, 1080.0)
-            }
-        } else {
-            (1920.0, 1080.0)
-        };
+        let screen = self.screen_bounds();
+        let (window_w, window_h) = (screen.width, screen.height);
 
         // Offset slightly below and to the right of the cursor
         let mut x = anchor_pos.x + 10.0;

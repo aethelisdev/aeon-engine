@@ -8,6 +8,7 @@
 //! action dispatching into a unified desktop IDE framework component.
 
 pub mod escape;
+pub mod frame;
 pub mod outcome;
 pub mod outside_click;
 pub mod pointer;
@@ -23,12 +24,17 @@ mod tests_events;
 #[cfg(test)]
 mod tests_floating;
 #[cfg(test)]
+mod tests_frame;
+#[cfg(test)]
 mod tests_hover;
 #[cfg(test)]
 mod tests_outside_click;
 #[cfg(test)]
+mod tests_popups;
+#[cfg(test)]
 mod tests_theme_screen;
 
+pub use frame::{WorkbenchExternalContext, WorkbenchFrameOutcome, WorkbenchFrameUpdateParams};
 pub use outcome::WorkbenchOutcome;
 pub use pointer::{HoverTargetResolution, PointerState, resolve_hover_targets};
 pub use runner::Workbench;

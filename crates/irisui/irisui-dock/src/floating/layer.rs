@@ -16,6 +16,17 @@ use irisui_core::node::WidgetRole;
 use irisui_core::style::{Style, TextAlign};
 use irisui_core::tree::UiTree;
 
+/// Translates a screen-space rectangle into `win_rect`-relative absolute positioning.
+#[inline]
+fn with_win_relative_rect(win_rect: Rect, rect: Rect, style: Style) -> Style {
+    style
+        .position_absolute()
+        .left(rect.x - win_rect.x)
+        .top(rect.y - win_rect.y)
+        .width(rect.width)
+        .height(rect.height)
+}
+
 /// Builds the complete native Iris UI floating window widget hierarchy in the UI tree.
 ///
 /// For each floating window:
@@ -50,7 +61,12 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
             node.set_name(format!("FloatingWindow_{}", win.id));
             node.set_role(WidgetRole::FloatingWindow);
             node.computed_rect = win_rect;
-            node.style = Style::new().width(win.rect.width).height(win.rect.height);
+            node.style = Style::new()
+                .position_absolute()
+                .left(win_rect.x)
+                .top(win_rect.y)
+                .width(win.rect.width)
+                .height(win.rect.height);
         }
         let _ = tree.add_child(root_id, win_container);
 
@@ -59,16 +75,20 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         if let Some(node) = tree.get_mut(bg_id) {
             node.set_name("FloatingWindowBase");
             node.computed_rect = win_rect;
-            node.style = Style::new()
-                .background(style.background)
-                .border(style.border_width, style.border_color)
-                .border_radius(style.corner_radius)
-                .box_shadow(
-                    0.0,
-                    style.shadow_offset_y,
-                    style.shadow_blur,
-                    style.shadow_color,
-                );
+            node.style = with_win_relative_rect(
+                win_rect,
+                win_rect,
+                Style::new()
+                    .background(style.background)
+                    .border(style.border_width, style.border_color)
+                    .border_radius(style.corner_radius)
+                    .box_shadow(
+                        0.0,
+                        style.shadow_offset_y,
+                        style.shadow_blur,
+                        style.shadow_color,
+                    ),
+            );
         }
         let _ = tree.add_child(win_container, bg_id);
 
@@ -83,9 +103,13 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         if let Some(node) = tree.get_mut(bar_id) {
             node.set_name("FloatingWindowTabBar");
             node.computed_rect = bar_rect;
-            node.style = Style::new()
-                .background(style.title_bar_background)
-                .border_radius(style.corner_radius);
+            node.style = with_win_relative_rect(
+                win_rect,
+                bar_rect,
+                Style::new()
+                    .background(style.title_bar_background)
+                    .border_radius(style.corner_radius),
+            );
         }
         let _ = tree.add_child(win_container, bar_id);
 
@@ -96,6 +120,7 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         if let Some(node) = tree.get_mut(dock_btn_id) {
             node.set_name("FloatingWindowDockBtn");
             node.computed_rect = dock_btn_rect;
+            node.style = with_win_relative_rect(win_rect, dock_btn_rect, Style::new());
             node.text = Some("⤢".to_string());
             node.font_size = 12.0;
             node.text_color = if is_dock_hovered {
@@ -113,6 +138,7 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         if let Some(node) = tree.get_mut(close_btn_id) {
             node.set_name("FloatingWindowCloseBtn");
             node.computed_rect = close_btn_rect;
+            node.style = with_win_relative_rect(win_rect, close_btn_rect, Style::new());
             node.text = Some("✖".to_string());
             node.font_size = 10.0;
             node.text_color = if is_close_hovered {
@@ -125,12 +151,16 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         let _ = tree.add_child(win_container, close_btn_id);
 
         // 5. Header Baseline Divider
+        let baseline_rect = Rect::new(bar_rect.x, bar_rect.bottom() - 1.0, bar_rect.width, 1.0);
         let baseline_id = tree.create_node();
         if let Some(line) = tree.get_mut(baseline_id) {
             line.set_name("FloatingWindowHeaderBaseline");
-            line.computed_rect =
-                Rect::new(bar_rect.x, bar_rect.bottom() - 1.0, bar_rect.width, 1.0);
-            line.style = Style::new().background(style.baseline_color);
+            line.computed_rect = baseline_rect;
+            line.style = with_win_relative_rect(
+                win_rect,
+                baseline_rect,
+                Style::new().background(style.baseline_color),
+            );
         }
         let _ = tree.add_child(win_container, baseline_id);
 
@@ -165,29 +195,39 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
                         } else {
                             style.tab_idle_bg
                         };
-                        tab_node.style = Style::new()
-                            .background(bg_color)
-                            .corner_radii(CornerRadii::new(5.0, 5.0, 0.0, 0.0));
+                        tab_node.style = with_win_relative_rect(
+                            win_rect,
+                            tab_rect,
+                            Style::new()
+                                .background(bg_color)
+                                .corner_radii(CornerRadii::new(5.0, 5.0, 0.0, 0.0)),
+                        );
                     }
                     let _ = tree.add_child(win_container, tab_node_id);
 
                     if is_active {
+                        let active_rect =
+                            Rect::new(tab_rect.x, tab_rect.bottom() - 2.0, tab_rect.width, 2.0);
                         let active_line_id = tree.create_node();
                         if let Some(line) = tree.get_mut(active_line_id) {
                             line.set_name("FloatingWindowTabActiveLine");
-                            line.computed_rect =
-                                Rect::new(tab_rect.x, tab_rect.bottom() - 2.0, tab_rect.width, 2.0);
-                            line.style = Style::new().background(style.accent_color);
+                            line.computed_rect = active_rect;
+                            line.style = with_win_relative_rect(
+                                win_rect,
+                                active_rect,
+                                Style::new().background(style.accent_color),
+                            );
                         }
                         let _ = tree.add_child(win_container, active_line_id);
                     }
 
                     if let Some(uv) = atlas_icon {
+                        let icon_rect = Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
                         let icon_node = tree.create_node();
                         if let Some(node) = tree.get_mut(icon_node) {
                             node.set_name("FloatingWindowTabIcon");
-                            node.computed_rect =
-                                Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
+                            node.computed_rect = icon_rect;
+                            node.style = with_win_relative_rect(win_rect, icon_rect, Style::new());
                             node.set_texture_uv(uv);
                             let tint = if is_active {
                                 style.accent_color
@@ -206,15 +246,17 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
                     } else {
                         6.0
                     };
+                    let text_rect = Rect::new(
+                        tab_rect.x + text_offset_x,
+                        tab_rect.y + 4.0,
+                        (tab_rect.width - text_offset_x - 6.0).max(0.0),
+                        18.0,
+                    );
                     let text_id = tree.create_node();
                     if let Some(text_node) = tree.get_mut(text_id) {
                         text_node.set_name("FloatingWindowTabTitle");
-                        text_node.computed_rect = Rect::new(
-                            tab_rect.x + text_offset_x,
-                            tab_rect.y + 4.0,
-                            (tab_rect.width - text_offset_x - 6.0).max(0.0),
-                            18.0,
-                        );
+                        text_node.computed_rect = text_rect;
+                        text_node.style = with_win_relative_rect(win_rect, text_rect, Style::new());
                         text_node.text = Some(title);
                         text_node.font_size = 12.0;
                         text_node.text_color = if is_active {
@@ -280,5 +322,17 @@ mod tests {
         assert_eq!(rects[0], Rect::new(50.0, 50.0, 300.0, 200.0));
         assert_eq!(containers.len(), 1);
         assert_eq!(containers[0].0, "LogTab");
+
+        let win_node = tree
+            .get(containers[0].1)
+            .expect("floating window container");
+        assert_eq!(win_node.style.position, irisui_core::Position::Absolute);
+        assert_eq!(win_node.style.inset_left, Some(50.0));
+        assert_eq!(win_node.style.inset_top, Some(50.0));
+
+        let base_rect = tree
+            .node_rect("FloatingWindowBase")
+            .expect("FloatingWindowBase must exist");
+        assert_eq!(base_rect, Rect::new(50.0, 50.0, 300.0, 200.0));
     }
 }

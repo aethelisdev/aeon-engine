@@ -36,10 +36,17 @@ pub fn build_bottom_status_bar(
     params: &StatusBarParams<'_>,
 ) {
     let mut scope = UiScope::new(tree, parent_id);
+    build_bottom_status_bar_scope(&mut scope, params);
+}
 
+/// Builds the bottom status bar purely through a declarative [`UiScope`].
+pub fn build_bottom_status_bar_scope(scope: &mut UiScope<'_>, params: &StatusBarParams<'_>) {
     scope
         .row_with()
         .tagged(STATUS_BAR_TAG, WidgetRole::Default)
+        .position_absolute()
+        .left(0.0)
+        .top(params.screen_height - STATUS_BAR_HEIGHT)
         .width(params.screen_width)
         .height(STATUS_BAR_HEIGHT)
         .space_between()

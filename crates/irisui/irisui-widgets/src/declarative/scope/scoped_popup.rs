@@ -215,17 +215,12 @@ impl AnchoredPopupConfig {
     }
 }
 
-/// Resolves screen viewport dimensions from the active UI tree root, defaulting to `(1920.0, 1080.0)`.
+/// Resolves screen viewport dimensions from [`UiScope::screen_bounds`], defaulting to `(1920.0, 1080.0)`.
 #[inline]
 #[must_use]
 pub(super) fn resolve_viewport_extent(scope: &UiScope<'_>) -> (f32, f32) {
-    scope
-        .tree()
-        .root()
-        .and_then(|r| scope.tree().get(r))
-        .map(|n| (n.computed_rect.width, n.computed_rect.height))
-        .filter(|&(w, h)| w > 10.0 && h > 10.0)
-        .unwrap_or((1920.0, 1080.0))
+    let bounds = scope.screen_bounds();
+    (bounds.width, bounds.height)
 }
 
 /// Allocates and attaches an elevated popup card container node on [`UiLayer::Popup`].
@@ -239,19 +234,41 @@ pub(super) fn create_popup_card_node(
 ) -> WidgetId {
     let theme = scope.theme();
     let style = card_style.resolve_style(&theme, x, y, width);
+    let name_tag = crate::declarative::types::hash_label(name);
+    let root_anchor = scope.tree.root().unwrap_or(scope.parent);
+
+    // Replace any stale popup card with the same semantic tag under `root_anchor` so
+    // panel-only rebuilds (`GranularPanels`) never stack duplicate cards or shadows.
+    if let Some(stale_ids) = scope.tree.get(root_anchor).map(|root_node| {
+        root_node
+            .children
+            .iter()
+            .copied()
+            .filter(|&cid| {
+                scope
+                    .tree
+                    .get(cid)
+                    .is_some_and(|n| n.layer == UiLayer::Popup && n.tag == name_tag)
+            })
+            .collect::<Vec<_>>()
+    }) {
+        for stale_id in stale_ids {
+            scope.tree.remove_subtree(stale_id);
+        }
+    }
+
     let node_id = scope.tree.create_node();
     if let Some(node) = scope.tree.get_mut(node_id) {
         node.set_name(name);
         node.set_role(WidgetRole::DropdownPopup);
         node.set_layer(UiLayer::Popup);
         node.interactive = true;
-        node.tag = crate::declarative::types::hash_label(name);
+        node.tag = name_tag;
         node.set_style(style);
         node.computed_rect.x = x;
         node.computed_rect.y = y;
         node.computed_rect.width = width;
     }
-    let root_anchor = scope.tree.root().unwrap_or(scope.parent);
     let _ = scope.tree.add_child(root_anchor, node_id);
     node_id
 }

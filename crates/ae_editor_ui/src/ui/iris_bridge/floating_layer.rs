@@ -7,7 +7,6 @@
 //! providing zero-allocation panel membership queries, workspace boundary constraints,
 //! and content rectangle resolution.
 
-use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use irisui::dock::{FloatingWindowClampBounds, FloatingWindowStyle, MIN_VISIBLE_TITLE_BAR};
 use irisui::prelude::Rect;
@@ -20,8 +19,8 @@ use irisui::prelude::Rect;
 #[must_use]
 pub fn editor_floating_clamp_bounds(screen_w: f32, screen_h: f32) -> FloatingWindowClampBounds {
     FloatingWindowClampBounds::new(screen_w, screen_h)
-        .with_min_y(IrisEditorOverlay::MENUBAR_HEIGHT)
-        .with_bottom_inset(IrisEditorOverlay::STATUS_BAR_HEIGHT)
+        .with_min_y(super::menubar::MENUBAR_HEIGHT)
+        .with_bottom_inset(super::status_bar::STATUS_BAR_HEIGHT)
         .with_min_size(220.0, 140.0)
         .with_min_visible_margin(60.0)
         .with_title_bar_height(irisui::dock::DEFAULT_TAB_BAR_HEIGHT.max(MIN_VISIBLE_TITLE_BAR))

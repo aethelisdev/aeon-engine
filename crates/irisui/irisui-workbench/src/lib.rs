@@ -48,9 +48,10 @@ pub use dialogs::{
 };
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{
-    AspectRatio, ClosureOverlayHook, CustomOverlayHook, DragDropController, DragDropPayload,
-    DragDropPreviewStyle, ExternalTextureView, OverlayAnchor, OverlayHook, OverlayHost, OverlayId,
-    TypedDragDropPayload, WorkbenchUiScopeExt,
+    AspectRatio, ClosureOverlayHook, ClosureVolatileHook, CustomOverlayHook, DragDropController,
+    DragDropPayload, DragDropPreviewStyle, ExternalTextureView, OverlayAnchor, OverlayHook,
+    OverlayHost, OverlayId, TypedDragDropPayload, VolatileCanvasHook, VolatileHookRegistry,
+    VolatileRefreshResult, WorkbenchUiScopeExt,
 };
 pub use layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, SubtreeEngines, synchronize_dock_frame,
@@ -61,6 +62,7 @@ pub use lifecycle::{
     route_event_invalidation, route_event_invalidation_with_fallback,
 };
 pub use workbench::{
-    HoverTargetResolution, PointerState, Workbench, WorkbenchFrameSync, WorkbenchFrameSyncParams,
-    WorkbenchOutcome, resolve_hover_targets,
+    HoverTargetResolution, PointerState, Workbench, WorkbenchExternalContext,
+    WorkbenchFrameOutcome, WorkbenchFrameSync, WorkbenchFrameSyncParams,
+    WorkbenchFrameUpdateParams, WorkbenchOutcome, resolve_hover_targets,
 };

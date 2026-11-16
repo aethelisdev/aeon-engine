@@ -326,7 +326,7 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
             .width(rect.width)
             .height(rect.height);
 
-        self.immediate_canvas_styled(name, tag, style, draw_fn);
+        self.live_canvas_styled(name, tag, style, draw_fn);
     }
 
     fn volatile_overlay_hook<H>(&mut self, name: &'static str, tag: u64, rect: Rect, mut hook: H)

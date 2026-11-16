@@ -11,11 +11,14 @@ pub mod drag_drop;
 pub mod external_texture;
 pub mod overlay;
 pub mod ui_ext;
+pub mod volatile;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_overlay;
+#[cfg(test)]
+mod tests_volatile;
 
 pub use drag_drop::{
     DragDropController, DragDropPayload, DragDropPreviewStyle, TypedDragDropPayload,
@@ -26,3 +29,6 @@ pub use overlay::{
     OverlayEventFn, OverlayHook, OverlayHost, OverlayId, OverlayRenderFn,
 };
 pub use ui_ext::WorkbenchUiScopeExt;
+pub use volatile::{
+    ClosureVolatileHook, VolatileCanvasHook, VolatileHookRegistry, VolatileRefreshResult,
+};

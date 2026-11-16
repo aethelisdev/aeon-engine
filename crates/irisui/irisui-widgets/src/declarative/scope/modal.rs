@@ -148,12 +148,8 @@ impl<'a> UiScope<'a> {
             return None;
         }
 
-        // 2. Resolve screen/window bounds from root computed_rect
-        let screen_bounds = self
-            .tree
-            .root()
-            .and_then(|r| self.tree.get(r))
-            .map_or(Rect::new(0.0, 0.0, 1920.0, 1080.0), |n| n.computed_rect);
+        // 2. Resolve screen/window bounds from root viewport dimensions
+        let screen_bounds = self.screen_bounds();
 
         let scrim_col = desc
             .scrim_color

@@ -107,7 +107,7 @@ impl EngineUi {
         output_color_format: wgpu::TextureFormat,
         _window: &Window,
     ) -> Self {
-        let iris_overlay = IrisEditorOverlay::new(device, output_color_format);
+        let iris_overlay = IrisEditorOverlay::init(device, output_color_format);
         let layout_state = PanelLayoutState::new_default();
 
         let workbench_desc = irisui::workbench::WorkbenchDescriptor::new(
@@ -119,8 +119,8 @@ impl EngineUi {
 
         let mut workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()> =
             irisui::workbench::Workbench::new(workbench_desc)
-                .with_menubar_height(IrisEditorOverlay::MENUBAR_HEIGHT)
-                .with_statusbar_height(IrisEditorOverlay::STATUS_BAR_HEIGHT)
+                .with_menubar_height(crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT)
+                .with_statusbar_height(crate::ui::iris_bridge::status_bar::STATUS_BAR_HEIGHT)
                 .with_non_ui_tab(PanelId::Viewport)
                 .with_file_drop_action(|paths, pt| EngineUiAction::ImportDroppedFiles {
                     paths,

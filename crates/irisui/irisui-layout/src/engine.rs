@@ -258,6 +258,17 @@ impl LayoutEngine {
         // Write back computed coordinates to UiTree nodes recursively, preserving autonomous modal overlay geometry
         self.apply_layout_filtered(tree, root_id, 0.0, 0.0, true);
 
+        // Ensure an unsized root node whose direct children are all Position::Absolute
+        // retains the active viewport extent rather than collapsing to (0, 0).
+        if available_size.width > 0.0
+            && available_size.height > 0.0
+            && let Some(root_node) = tree.get_mut(root_id)
+            && (root_node.computed_rect.width <= 0.0 || root_node.computed_rect.height <= 0.0)
+        {
+            root_node.computed_rect =
+                Rect::new(0.0, 0.0, available_size.width, available_size.height);
+        }
+
         Ok(())
     }
 

@@ -12,6 +12,7 @@ use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::dialogs::host::DialogHost;
 use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
+use crate::hooks::volatile::VolatileHookRegistry;
 use crate::layout_sync::dual_layout::DualLayoutEliminator;
 use crate::lifecycle::WorkbenchLifecycle;
 use crate::workbench::pointer::PointerState;
@@ -116,6 +117,9 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
 
     /// Most recently synchronized external domain/history revision counter.
     pub last_domain_revision: u64,
+
+    /// Registry of volatile in-place canvas/telemetry refresh hooks executed during `InPlaceRefresh`.
+    pub volatile_hooks: VolatileHookRegistry<AppState>,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -159,6 +163,7 @@ where
             last_caret_blink: irisui_text::CaretBlinkUpdate::default(),
             last_selection_id: None,
             last_domain_revision: 0,
+            volatile_hooks: VolatileHookRegistry::new(),
         }
     }
 

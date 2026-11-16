@@ -48,6 +48,10 @@ pub struct UiTree {
     pub dirty_boundaries: std::collections::HashSet<WidgetId>,
     /// Volatile immediate-mode canvas drawing primitives registered for high-frequency widgets.
     pub volatile_canvas_commands: HashMap<WidgetId, Vec<crate::canvas::CanvasPrimitive>>,
+    /// Semantic tags of live/volatile widgets that support layout-bypassing in-place updates.
+    pub live_node_tags: std::collections::HashSet<u64>,
+    /// Accumulated `(needs_text_prepare, needs_quad_reupload)` flags from live widget updates.
+    pub pending_live_refresh: (bool, bool),
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -72,6 +76,8 @@ impl UiTree {
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
+            live_node_tags: std::collections::HashSet::new(),
+            pending_live_refresh: (false, false),
             theme: crate::theme::Theme::default(),
         }
     }
@@ -98,6 +104,8 @@ impl UiTree {
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
+            live_node_tags: std::collections::HashSet::new(),
+            pending_live_refresh: (false, false),
             theme: crate::theme::Theme::default(),
         }
     }
@@ -126,6 +134,8 @@ impl UiTree {
         self.root = None;
         self.dirty_boundaries.clear();
         self.volatile_canvas_commands.clear();
+        self.live_node_tags.clear();
+        self.pending_live_refresh = (false, false);
         self.event_state.clear_arena_ids();
     }
 
@@ -381,7 +391,9 @@ impl UiTree {
             self.dirty_boundaries.remove(&node_id);
             self.volatile_canvas_commands.remove(&node_id);
             self.event_state.untrack_widget(node_id);
-            self.nodes.remove(node_id);
+            if let Some(removed) = self.nodes.remove(node_id) {
+                self.live_node_tags.remove(&removed.tag);
+            }
         }
 
         Ok(())
@@ -413,11 +425,42 @@ impl UiTree {
             self.dirty_boundaries.remove(&node_id);
             self.volatile_canvas_commands.remove(&node_id);
             self.event_state.untrack_widget(node_id);
-            self.nodes.remove(node_id);
+            if let Some(removed) = self.nodes.remove(node_id) {
+                self.live_node_tags.remove(&removed.tag);
+            }
         }
 
         self.mark_dirty(parent_id, DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
         Ok(())
+    }
+
+    /// Detaches `node_id` from its parent and removes it along with all descendants from the arena.
+    ///
+    /// Safely purges descendant entries from [`Self::dirty_boundaries`],
+    /// [`Self::volatile_canvas_commands`], [`Self::event_state`], and [`Self::live_node_tags`].
+    pub fn remove_subtree(&mut self, node_id: WidgetId) -> bool {
+        let Some(parent_opt) = self.nodes.get(node_id).map(|n| n.parent) else {
+            return false;
+        };
+        if let Some(pid) = parent_opt
+            && let Some(parent) = self.nodes.get_mut(pid)
+        {
+            parent.children.retain(|&id| id != node_id);
+        }
+        let mut to_remove = Vec::new();
+        self.collect_subtree(node_id, &mut to_remove);
+        for id in to_remove {
+            self.dirty_boundaries.remove(&id);
+            self.volatile_canvas_commands.remove(&id);
+            self.event_state.untrack_widget(id);
+            if let Some(removed) = self.nodes.remove(id) {
+                self.live_node_tags.remove(&removed.tag);
+            }
+        }
+        if let Some(pid) = parent_opt {
+            self.mark_dirty(pid, DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
+        }
+        true
     }
 
     /// Recursively collects all widget node IDs within the subtree rooted at `id`, including `id` itself.
@@ -485,5 +528,70 @@ impl UiTree {
     #[inline]
     pub fn set_numeric_undo_enabled(&mut self, enabled: bool) {
         self.event_state.numeric_undo.set_enabled(enabled);
+    }
+
+    /// Registers `tag` as a live/volatile node supporting layout-bypassing in-place refreshes.
+    #[inline]
+    pub fn register_live_tag(&mut self, tag: u64) {
+        self.live_node_tags.insert(tag);
+    }
+
+    /// Returns `true` when at least one live/volatile node tag is currently registered in the tree.
+    #[inline]
+    #[must_use]
+    pub fn has_live_nodes(&self) -> bool {
+        !self.live_node_tags.is_empty()
+    }
+
+    /// Returns `true` when `tag` is registered as a live/volatile node in the tree.
+    #[inline]
+    #[must_use]
+    pub fn is_live_tag(&self, tag: u64) -> bool {
+        self.live_node_tags.contains(&tag)
+    }
+
+    /// Records that an in-place live update mutated text content requiring glyph shaping.
+    #[inline]
+    pub fn record_live_text_update(&mut self) {
+        self.pending_live_refresh.0 = true;
+    }
+
+    /// Records that an in-place live update mutated visual primitives requiring quad re-upload.
+    #[inline]
+    pub fn record_live_quad_update(&mut self) {
+        self.pending_live_refresh.1 = true;
+    }
+
+    /// Atomically returns and clears accumulated `(needs_text_prepare, needs_quad_reupload)` flags.
+    #[inline]
+    #[must_use]
+    pub fn take_live_refresh_flags(&mut self) -> (bool, bool) {
+        std::mem::take(&mut self.pending_live_refresh)
+    }
+
+    /// Updates the retained text of the node tagged `tag` in place without mutating layout.
+    ///
+    /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` and records live text + quad refresh flags
+    /// only when the text actually changed. Returns `true` when the text was updated.
+    pub fn update_live_text_by_tag(&mut self, tag: u64, text: &str) -> bool {
+        let Some(id) = self.node_tagged(tag).map(|n| n.id) else {
+            return false;
+        };
+        let Some(node) = self.nodes.get_mut(id) else {
+            return false;
+        };
+        if node.text.as_deref() == Some(text) {
+            return false;
+        }
+        if let Some(existing) = &mut node.text {
+            existing.clear();
+            existing.push_str(text);
+        } else {
+            node.text = Some(text.to_owned());
+        }
+        self.mark_dirty(id, DirtyFlags::PAINT | DirtyFlags::TEXT);
+        self.record_live_text_update();
+        self.record_live_quad_update();
+        true
     }
 }

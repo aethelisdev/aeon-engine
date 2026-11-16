@@ -158,6 +158,16 @@ impl StatusBarDescriptor {
         self
     }
 
+    /// Returns `true` when this status bar holds only its untouched default placeholder state.
+    #[inline]
+    #[must_use]
+    pub fn is_default_empty(&self) -> bool {
+        self.status_spans.is_empty()
+            && self.pills.is_empty()
+            && self.right_text.is_none()
+            && self.left_status == "Ready"
+    }
+
     /// Appends a telemetry pill via fluent chaining.
     #[inline]
     #[must_use]
@@ -191,10 +201,13 @@ impl StatusBarDescriptor {
                 .background(Color::hex("#1c1e24")),
         );
 
-        // 2. Status bar flex row container
+        // 2. Status bar flex row container (pinned to bottom edge)
         scope
             .row_with()
             .tagged(Self::STATUS_BAR_TAG, WidgetRole::Default)
+            .position_absolute()
+            .left(0.0)
+            .top(screen_height - self.height)
             .width(screen_width)
             .height(self.height)
             .space_between()

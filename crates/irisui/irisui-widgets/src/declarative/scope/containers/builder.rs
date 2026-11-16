@@ -73,6 +73,24 @@ impl<'a, 'b> RowBuilder<'a, 'b> {
         self
     }
 
+    /// Configures absolute positioning relative to the parent container.
+    pub fn position_absolute(mut self) -> Self {
+        self.style = self.style.position_absolute();
+        self
+    }
+
+    /// Sets the horizontal offset from the parent left edge in physical pixels.
+    pub fn left(mut self, left: f32) -> Self {
+        self.style = self.style.left(left);
+        self
+    }
+
+    /// Sets the vertical offset from the parent top edge in physical pixels.
+    pub fn top(mut self, top: f32) -> Self {
+        self.style = self.style.top(top);
+        self
+    }
+
     /// Sets the fixed container width in physical pixels.
     pub fn width(mut self, width: f32) -> Self {
         self.style = self.style.width(width);
@@ -243,6 +261,24 @@ impl<'a, 'b> ColumnBuilder<'a, 'b> {
     /// Sets the fixed container height in physical pixels.
     pub fn height(mut self, height: f32) -> Self {
         self.style = self.style.height(height);
+        self
+    }
+
+    /// Configures absolute positioning relative to the parent container.
+    pub fn position_absolute(mut self) -> Self {
+        self.style = self.style.position_absolute();
+        self
+    }
+
+    /// Sets the horizontal offset from the parent left edge in physical pixels.
+    pub fn left(mut self, left: f32) -> Self {
+        self.style = self.style.left(left);
+        self
+    }
+
+    /// Sets the vertical offset from the parent top edge in physical pixels.
+    pub fn top(mut self, top: f32) -> Self {
+        self.style = self.style.top(top);
         self
     }
 

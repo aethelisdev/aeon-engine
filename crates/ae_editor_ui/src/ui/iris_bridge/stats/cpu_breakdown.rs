@@ -215,45 +215,59 @@ fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32, tag: u64
 ///
 /// Returns `true` if any label was modified.
 pub fn update_cpu_breakdown_texts(
-    tree: &mut UiTree,
+    scope: &mut UiScope<'_>,
     cpu: &ae_core::telemetry::CpuSyncTimings,
 ) -> bool {
-    let mut changed = false;
-    let total_cpu_ms = (cpu.main_logic_ms
-        + cpu.physics_ms
-        + cpu.render_prep_ms
-        + cpu.wait_for_gpu_ms
-        + cpu.ui_editor_ms)
-        .max(0.0001);
+    update_cpu_breakdown_with_total(
+        scope,
+        cpu,
+        (cpu.main_logic_ms
+            + cpu.physics_ms
+            + cpu.render_prep_ms
+            + cpu.wait_for_gpu_ms
+            + cpu.ui_editor_ms)
+            .max(0.0001),
+    )
+}
 
-    let (status_text, _) = if total_cpu_ms < 8.33 {
-        ("Optimal (120+ FPS)", Color::rgba(0.0, 0.82, 0.63, 1.0))
+#[inline]
+fn cpu_balance_label(total_cpu_ms: f32) -> &'static str {
+    if total_cpu_ms < 8.33 {
+        "Optimal (120+ FPS)"
     } else if total_cpu_ms < 16.67 {
-        ("Good (60+ FPS)", Color::rgba(0.0, 0.75, 0.90, 1.0))
+        "Good (60+ FPS)"
     } else if total_cpu_ms < 33.33 {
-        ("Moderate Load", Color::rgba(1.0, 0.73, 0.0, 1.0))
+        "Moderate Load"
     } else {
-        ("Heavy Bottleneck", Color::rgba(0.92, 0.24, 0.24, 1.0))
-    };
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_BALANCE, status_text);
+        "Heavy Bottleneck"
+    }
+}
 
-    let ecs_text = format!("{:.2} ms", cpu.main_logic_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_ECS, &ecs_text);
-
-    let phys_text = format!("{:.2} ms", cpu.physics_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_PHYSICS, &phys_text);
-
-    let prep_text = format!("{:.2} ms", cpu.render_prep_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_RENDER, &prep_text);
-
-    let wait_text = format!("{:.2} ms", cpu.wait_for_gpu_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_WAIT, &wait_text);
-
-    let ui_text = format!("{:.2} ms", cpu.ui_editor_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_UI, &ui_text);
-
-    let total_text = format!("{:.2} ms", total_cpu_ms);
-    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_TOTAL, &total_text);
-
-    changed
+fn update_cpu_breakdown_with_total(
+    scope: &mut UiScope<'_>,
+    cpu: &ae_core::telemetry::CpuSyncTimings,
+    total_cpu_ms: f32,
+) -> bool {
+    scope.update_live_text(
+        super::types::STATS_TAG_CPU_BALANCE,
+        cpu_balance_label(total_cpu_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_ECS,
+        &format!("{:.2} ms", cpu.main_logic_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_PHYSICS,
+        &format!("{:.2} ms", cpu.physics_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_RENDER,
+        &format!("{:.2} ms", cpu.render_prep_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_WAIT,
+        &format!("{:.2} ms", cpu.wait_for_gpu_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_UI,
+        &format!("{:.2} ms", cpu.ui_editor_ms),
+    ) | scope.update_live_text(
+        super::types::STATS_TAG_CPU_TOTAL,
+        &format!("{:.2} ms", total_cpu_ms),
+    )
 }

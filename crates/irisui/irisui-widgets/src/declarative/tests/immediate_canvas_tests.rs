@@ -196,3 +196,56 @@ fn test_retained_update_canvas_by_tag_invalidation() {
     assert!(node_dirty.contains(irisui_core::DirtyFlags::PAINT));
     assert!(!node_dirty.contains(irisui_core::DirtyFlags::LAYOUT));
 }
+
+#[test]
+fn test_declarative_live_canvas_and_live_text_in_place_updates() {
+    use crate::declarative::scope::LiveTextProps;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let _ = tree.set_root(root);
+
+    let canvas_tag = 0xD001;
+    let text_tag = 0xD002;
+    {
+        let mut ui = UiScope::new(&mut tree, root);
+        assert!(!ui.has_live_nodes());
+        ui.live_canvas_tagged("LiveGraph", canvas_tag, Size::new(120.0, 40.0), |c| {
+            c.fill_rect(c.bounds(), Color::RED, 0.0);
+        });
+        ui.live_text(LiveTextProps::new(
+            "LiveFps",
+            text_tag,
+            "60 FPS",
+            12.0,
+            Color::WHITE,
+            irisui_core::Style::default(),
+        ));
+        assert!(ui.has_live_nodes());
+        assert!(ui.has_live_tag(canvas_tag));
+        assert!(ui.has_live_tag(text_tag));
+    }
+
+    let initial_count = tree.len();
+    let _ = tree.take_live_refresh_flags();
+
+    // Updating with identical text should not set needs_text_prepare
+    {
+        let mut ui = UiScope::new(&mut tree, root);
+        assert!(!ui.update_live_text(text_tag, "60 FPS"));
+        assert!(ui.update_live_canvas(canvas_tag, |c| {
+            c.fill_rect(c.bounds(), Color::BLUE, 0.0);
+        }));
+    }
+    assert_eq!(tree.len(), initial_count);
+    assert_eq!(tree.take_live_refresh_flags(), (false, true));
+
+    // Updating with changed text must set both needs_text_prepare and needs_quad_reupload
+    {
+        let mut ui = UiScope::new(&mut tree, root);
+        assert!(ui.update_live_text(text_tag, "120 FPS"));
+    }
+    assert_eq!(tree.take_live_refresh_flags(), (true, true));
+    let text_node = tree.node_tagged(text_tag).unwrap();
+    assert_eq!(text_node.text.as_deref(), Some("120 FPS"));
+}

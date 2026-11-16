@@ -122,8 +122,9 @@ fn test_build_stats_panel_declarative_structure() {
     let mut new_stats = pacing_stats;
     new_stats.average_fps = 120.0;
     new_stats.average_frametime_ms = 8.33;
+    let mut scope = UiScope::new(&mut tree, root);
     let changed =
-        crate::ui::iris_bridge::stats::graph::update_oscilloscope_texts(&mut tree, &new_stats);
+        crate::ui::iris_bridge::stats::graph::update_oscilloscope_texts(&mut scope, &new_stats);
     assert!(changed);
     let fps_node = tree.node_tagged(STATS_TAG_AVG_FPS).unwrap();
     assert_eq!(fps_node.text.as_deref(), Some("120 (8.33ms)"));

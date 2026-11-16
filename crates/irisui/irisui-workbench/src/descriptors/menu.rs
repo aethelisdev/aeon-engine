@@ -533,6 +533,13 @@ impl MenuBarDescriptor {
         self.menus.iter_mut().find(|m| m.title == title)
     }
 
+    /// Returns `true` when this descriptor defines no branding, menu sections, or right-aligned items.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.branding.is_none() && self.menus.is_empty() && self.right_items.is_empty()
+    }
+
     /// Declaratively renders the top application menu bar and baseline divider into [`UiScope`].
     ///
     /// Emits the top menu bar, dropdown items, branding icon, right-aligned controls,

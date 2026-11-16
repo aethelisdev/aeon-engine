@@ -426,4 +426,101 @@ impl IrisRenderer {
             }
         }
     }
+
+    /// Compiles draw commands when needed and uploads only dirty boundary slices (or all quads on
+    /// `force_full_upload`), then clears `params.tree.dirty_boundaries()`.
+    pub fn sync_and_prepare_tree(&mut self, params: IrisTreePrepareParams<'_>) {
+        let _ = compile_tree_for_frame(
+            params.tree,
+            params.options,
+            params.command_list,
+            params.force_full_upload,
+        );
+        let dirty_boundaries = if params.force_full_upload {
+            None
+        } else {
+            Some(params.tree.dirty_boundaries())
+        };
+        self.prepare_command_list_with_dirty_boundaries(
+            params.device,
+            params.queue,
+            params.screen_size,
+            params.command_list,
+            dirty_boundaries,
+        );
+        params.tree.clear_dirty_boundaries();
+    }
+}
+
+/// Parameters for [`IrisRenderer::sync_and_prepare_tree`].
+pub struct IrisTreePrepareParams<'a> {
+    /// Target WGPU device.
+    pub device: &'a wgpu::Device,
+    /// Target WGPU queue.
+    pub queue: &'a wgpu::Queue,
+    /// Logical screen size `[width, height]`.
+    pub screen_size: [f32; 2],
+    /// Retained UI tree whose dirty boundaries and primitives are compiled and cleared.
+    pub tree: &'a mut irisui_core::UiTree,
+    /// Persistent draw command list updated in place when recompilation is needed.
+    pub command_list: &'a mut crate::command::DrawCommandList,
+    /// Tree compiler interaction/caret options.
+    pub options: &'a mut crate::tree_compiler::TreeCompilerOptions<'a>,
+    /// When `true`, forces full command recompilation and full GPU vertex upload.
+    pub force_full_upload: bool,
+}
+
+/// Recompiles `tree` into `command_list` only when `force_recompile` is `true` or
+/// `tree.has_dirty_boundaries()` holds. Returns `true` if `command_list` was recompiled.
+pub fn compile_tree_for_frame(
+    tree: &irisui_core::UiTree,
+    options: &mut crate::tree_compiler::TreeCompilerOptions<'_>,
+    command_list: &mut crate::command::DrawCommandList,
+    force_recompile: bool,
+) -> bool {
+    if !force_recompile && !tree.has_dirty_boundaries() {
+        return false;
+    }
+    let Some(root_id) = tree.root() else {
+        command_list.clear();
+        return false;
+    };
+    command_list.clear();
+    crate::tree_compiler::compile_tree_draw_commands_into(tree, root_id, options, command_list);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compile_tree_for_frame;
+    use crate::command::DrawCommandList;
+    use crate::tree_compiler::TreeCompilerOptions;
+    use irisui_core::{Color, DirtyFlags, Rect, Style, UiTree};
+
+    #[test]
+    fn test_compile_tree_for_frame_respects_dirty_boundaries_and_force() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 200.0, 100.0);
+            node.style = Style::new().background(Color::RED);
+        }
+        tree.clear_dirty_boundaries();
+
+        let mut cmd = DrawCommandList::new();
+        let mut opts = TreeCompilerOptions::default();
+
+        // Clean tree and no force -> skipped
+        assert!(!compile_tree_for_frame(&tree, &mut opts, &mut cmd, false));
+        assert!(cmd.quads.is_empty());
+
+        // Forced recompile -> compiles
+        assert!(compile_tree_for_frame(&tree, &mut opts, &mut cmd, true));
+        assert!(!cmd.quads.is_empty());
+
+        // Dirty boundary -> recompiles even when force == false
+        tree.set_boundary(root, true);
+        tree.mark_dirty(root, DirtyFlags::PAINT);
+        assert!(compile_tree_for_frame(&tree, &mut opts, &mut cmd, false));
+    }
 }

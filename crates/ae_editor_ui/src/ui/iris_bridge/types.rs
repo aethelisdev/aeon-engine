@@ -519,6 +519,50 @@ impl IrisEditorOverlay {
     pub fn set_always_rebuild(&mut self, enabled: bool) {
         self.chrome.always_rebuild = enabled;
     }
+
+    /// Initializes a new [`IrisEditorOverlay`] with default editor theme tokens, panel notifiers,
+    /// and GPU SDF rendering state for the specified surface texture format.
+    #[must_use]
+    pub fn init(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
+        let mut tree = UiTree::new();
+        tree.set_theme(super::theme::EditorThemeTokens::default().to_iris_theme());
+
+        let mut notifier = UiNotifier::new();
+        notifier.register_domain_panel(PanelId::Inspector);
+        notifier.register_domain_panel(PanelId::Hierarchy);
+        notifier.register_domain_panel(PanelId::MaterialEditor);
+        notifier.register_domain_panel(PanelId::AnimationTimeline);
+
+        Self {
+            tree,
+            layout_engine: LayoutEngine::new(),
+            renderer: IrisRenderer::new(device, target_format),
+            text_system: TextSystem::new(),
+            text_renderer: None,
+            command_list: DrawCommandList::new(),
+            notifier,
+            is_visible: true,
+            target_format,
+            start_time: std::time::Instant::now(),
+            tools_texture: None,
+            chrome: IrisChromeState::default(),
+            menubar: MenubarOverlayState::default(),
+            modals: ModalsOverlayState::default(),
+            preferences: PreferencesDialogState::default(),
+            viewport_hud: ViewportHudState::default(),
+            stats: StatsPanelState::default(),
+            hierarchy: HierarchyPanelState::default(),
+            console: ConsolePanelState::default(),
+            assets: AssetsPanelState::default(),
+            timeline: TimelinePanelState::default(),
+            material: MaterialPanelState::default(),
+            ui_designer: UiDesignerPanelState::default(),
+            inspector: InspectorPanelState::default(),
+            focus_manager: FocusManager::new(),
+            focus_state: FocusState::new(),
+            pending_actions: Vec::new(),
+        }
+    }
 }
 
 pub use super::params::*;

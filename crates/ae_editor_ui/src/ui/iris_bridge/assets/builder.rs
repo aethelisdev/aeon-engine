@@ -9,9 +9,40 @@
 use super::panel::build_assets_panel;
 use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetsPanelAction, AssetsPanelParams,
+    AssetsPanelState,
 };
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
+
+impl AssetsPanelState {
+    /// Synchronizes search query text when unfocused and tags `PanelId::Assets` for redraw
+    /// when external asset browser state has changed since the previous frame.
+    pub(crate) fn sync_dirty_invalidation(
+        &mut self,
+        asset_browser: &crate::assets::types::AssetBrowserState,
+        is_2d_mode: bool,
+        is_search_focused: bool,
+        notifier: &mut irisui::dock::UiNotifier<crate::ui::panel_layout::PanelId>,
+    ) {
+        if !is_search_focused {
+            self.interactions
+                .search_input
+                .set_text(&asset_browser.search_query);
+        }
+        let dirty = self.current_folder != asset_browser.current_folder
+            || self.last_view_mode != asset_browser.view_mode
+            || self.last_active_category != asset_browser.active_category
+            || self.selected_asset != asset_browser.selected_asset
+            || self.last_sidebar_collapsed != asset_browser.sidebar_collapsed
+            || self.last_show_engine_content != asset_browser.show_engine_content
+            || self.last_cached_items_count != asset_browser.cached_items.len()
+            || self.last_is_2d_mode != is_2d_mode
+            || !self.actions.is_empty();
+        if dirty {
+            notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+        }
+    }
+}
 
 impl IrisEditorOverlay {
     /// Builds the Content / Asset Browser panel if active in either docked or floating mode.

@@ -373,6 +373,9 @@ impl<'a, 'b> MenuBarBuilder<'a, 'b> {
         let (selected_action, new_active_tag) = self
             .scope
             .row_with()
+            .position_absolute()
+            .left(0.0)
+            .top(0.0)
             .width(self.width)
             .height(height)
             .space_between()

@@ -6,7 +6,6 @@
 use super::iris_pass::IrisPassParams;
 use super::overlay_actions::PreferencesActionContext;
 use super::types::EditorUiRenderParams;
-use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::panel_layout::PanelId;
 use crate::ui::types::EngineUiAction;
 use crate::ui::workbench::state::EngineUi;
@@ -53,9 +52,11 @@ impl EngineUi {
 
         let workspace_rect = Rect::new(
             0.0,
-            IrisEditorOverlay::MENUBAR_HEIGHT,
+            crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
             screen_w,
-            (screen_h - IrisEditorOverlay::MENUBAR_HEIGHT - IrisEditorOverlay::STATUS_BAR_HEIGHT)
+            (screen_h
+                - crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT
+                - crate::ui::iris_bridge::status_bar::STATUS_BAR_HEIGHT)
                 .max(0.0),
         );
 
