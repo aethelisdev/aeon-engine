@@ -116,7 +116,7 @@ fn dropdown_fallback_rect(dd: ViewportHudDropdownId, params: &ViewportHudParams<
     }
 }
 
-/// Renders whichever Viewport HUD dropdown tag is currently active in [`iris_core::UiTree`].
+/// Renders whichever Viewport HUD dropdown tag is currently active in [`irisui_core::UiTree`].
 pub fn render_active_viewport_hud_dropdown_popup(
     scope: &mut UiScope<'_>,
     params: &ViewportHudParams<'_>,

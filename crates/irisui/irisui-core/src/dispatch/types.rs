@@ -1,0 +1,811 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Event Dispatch Data Models & Interaction States (`irisui-core::dispatch::types`)
+//!
+//! Defines the core data structures tracking user interaction states across frames
+//! and capturing the outcomes of dispatching UI events through the hierarchy.
+
+use std::time::Instant;
+
+use crate::dispatch::numeric_undo::NumericUndoStack;
+use crate::dispatch::undo::{TextSnapshot, TextUndoStack};
+use crate::event::{KeyCode, MouseButton};
+use crate::geometry::Point;
+use crate::id::WidgetId;
+use crate::node::WidgetCursor;
+use crate::response::WidgetResponse;
+
+/// Maximum allowable time delta in milliseconds between consecutive clicks to qualify as a double-click.
+pub const DOUBLE_CLICK_MAX_DELAY_MS: u128 = 400;
+
+/// Maximum allowable squared Euclidean distance in pixels between consecutive clicks for double-click.
+pub const DOUBLE_CLICK_MAX_DISTANCE_SQ: f32 = 25.0;
+
+/// Default duration in milliseconds an element must remain hovered before an autonomous tooltip opens.
+pub const TOOLTIP_DEFAULT_HOVER_DELAY_MS: u64 = 400;
+
+/// Persistent tracking state of active pointer hover and autonomous tooltip display.
+///
+/// Records the hovered widget node, its semantic tag, the anchor coordinate where hover began,
+/// and the timestamp of hover inception to enforce non-blocking delayed activation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TooltipState {
+    /// Widget node identifier currently underneath the pointer.
+    pub target_id: WidgetId,
+    /// Semantic 64-bit tag of the target widget node, if assigned (`0` if none).
+    pub target_tag: u64,
+    /// Absolute cursor screen position when hover started or tooltip anchored.
+    pub anchor_pos: Point,
+    /// Timestamp when pointer hover over this widget began.
+    pub hover_start: Instant,
+    /// Configured duration threshold before tooltip is presented.
+    pub delay: std::time::Duration,
+    /// Whether the tooltip has passed its hover delay and is actively visible.
+    pub is_open: bool,
+}
+
+/// Persistent state tracking the currently open popup or context menu.
+///
+/// Maintained across frames to support retained popup flyouts, contextual actions,
+/// and dismissive outside-click gesture cancellation without leaking into application state.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PopupMenuState {
+    /// Widget node identifier owning this context menu.
+    pub owner_id: WidgetId,
+    /// Semantic 64-bit tag of the owner widget, if assigned.
+    pub owner_tag: u64,
+    /// Absolute anchor screen position where the context menu was triggered.
+    pub anchor_pos: Point,
+    /// Allocated container WidgetId in the active UI tree during rendering, if known.
+    pub container_id: Option<WidgetId>,
+}
+
+/// Active autonomous inline text editing session descriptor tracking tag, buffer, cursor, and selection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveTextEditSession {
+    /// Persistent 64-bit semantic tag of the target text input.
+    pub tag: u64,
+    /// Mutable in-progress text string buffer.
+    pub buffer: String,
+    /// Caret position within `buffer` along valid UTF-8 character boundaries.
+    pub cursor_byte_idx: usize,
+    /// Optional active text selection range `(start_byte_idx, end_byte_idx)` where `start < end`.
+    pub selection: Option<(usize, usize)>,
+    /// Autonomous bounded history stack for undo and redo operations.
+    pub undo_stack: TextUndoStack,
+    /// Whether clipboard shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`) are enabled for this session.
+    pub allow_clipboard_shortcuts: bool,
+    /// Whether autonomous undo/redo shortcuts (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) are enabled for this session.
+    pub allow_undo_shortcuts: bool,
+}
+
+/// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
+///
+/// Maintained across frames to orchestrate pointer capture during drags,
+/// hover state transitions, double-click gesture detection, and keyboard focus routing.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct EventState {
+    /// Active widget node currently capturing all pointer movements and releases.
+    pub pointer_capture: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag of the widget capturing all pointer movements and releases, if assigned.
+    pub pointer_capture_tag: Option<u64>,
+    /// Deepest interactive widget node currently underneath the pointer cursor.
+    pub hovered: Option<WidgetId>,
+    /// Widget node where the mouse button was originally pressed down.
+    pub pressed: Option<WidgetId>,
+    /// Mouse button variant (Left, Right, Middle) that initiated the current press gesture.
+    pub pressed_button: Option<MouseButton>,
+    /// Persistent 64-bit semantic tag of the widget where the mouse button was originally pressed down, if assigned.
+    pub pressed_tag: Option<u64>,
+    /// Widget node currently holding active keyboard navigation or text input focus.
+    pub focused: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag currently holding keyboard focus, if assigned.
+    pub focused_tag: Option<u64>,
+    /// Screen coordinate where the primary mouse press initiated.
+    pub press_origin: Option<Point>,
+    /// Scroll offset at the inception of an active scrollbar thumb drag.
+    pub initial_scroll_y: f32,
+    /// Last confirmed click target widget ID for double-click gesture detection.
+    pub last_click_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag of the last confirmed click gesture, if assigned.
+    pub last_click_tag: Option<u64>,
+    /// Screen coordinate of the last confirmed click gesture.
+    pub last_click_pos: Option<Point>,
+    /// Monotonic timestamp of the last confirmed click gesture.
+    pub last_click_time: Option<Instant>,
+    /// Widget node confirmed as clicked during the current dispatch cycle, if any.
+    pub frame_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as clicked during the current dispatch cycle, if any.
+    pub frame_clicked_tag: Option<u64>,
+    /// Widget node confirmed as double-clicked during the current dispatch cycle, if any.
+    pub frame_double_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as double-clicked during the current dispatch cycle, if any.
+    pub frame_double_clicked_tag: Option<u64>,
+    /// Widget node confirmed as secondary (right) clicked during the current dispatch cycle, if any.
+    pub frame_secondary_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as secondary (right) clicked during the current dispatch cycle, if any.
+    pub frame_secondary_clicked_tag: Option<u64>,
+    /// Widget node whose active drag gesture was released during the current dispatch cycle, if any.
+    pub frame_drag_released_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag whose active drag gesture was released during the current dispatch cycle, if any.
+    pub frame_drag_released_tag: Option<u64>,
+    /// Absolute screen coordinate where the current frame interaction (click, secondary click, press) occurred.
+    pub frame_clicked_pos: Option<Point>,
+    /// Absolute computed layout rectangle of the widget where the current frame interaction occurred.
+    pub frame_clicked_rect: Option<crate::geometry::Rect>,
+    /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
+    pub frame_drag_delta: Option<Point>,
+    /// Previous cursor screen position recorded during dragging to calculate incremental frame deltas.
+    pub last_pointer_pos: Option<Point>,
+    /// Last keyboard key received during the current dispatch cycle.
+    pub frame_key: Option<KeyCode>,
+    /// Last committed textual input string received during the current dispatch cycle.
+    pub frame_text_input: Option<String>,
+    /// Whether [`Self::frame_key`] was pressed (`true`) or released (`false`).
+    pub frame_key_pressed: bool,
+    /// Whether the Control (or Command on macOS) modifier key was held during the current keyboard interaction.
+    pub frame_ctrl_held: bool,
+    /// Whether the Shift modifier key was held during the current keyboard interaction.
+    pub frame_shift_held: bool,
+    /// Active context menu or popup anchor state, if one is currently opened.
+    pub active_context_menu: Option<PopupMenuState>,
+    /// Active autonomous inline text or numeric input editing session tracking tag, buffer, cursor, and selection.
+    pub active_text_edit: Option<ActiveTextEditSession>,
+    /// Last blurred or completed inline text editing buffer snapshot `(tag, text)`.
+    ///
+    /// Preserved when an active text edit session is blurred due to an outside click
+    /// or programmatic focus clear so consumer widgets (e.g. numeric input fields) can
+    /// parse, clamp, and commit the pending expression during the layout/render frame.
+    /// Cleared automatically at the end of the frame via [`Self::clear_frame_clicks`].
+    pub last_completed_text_edit: Option<(u64, String)>,
+    /// Persistent 64-bit semantic tag of the scroll container scrolled during the current dispatch cycle, if any.
+    pub frame_scrolled_tag: Option<u64>,
+    /// Mouse wheel or trackpad scroll delta `(delta_x, delta_y)` accumulated during the current dispatch cycle.
+    ///
+    /// A positive vertical delta (`delta_y > 0.0`) indicates upward scrolling (towards earlier content/top),
+    /// while a negative delta (`delta_y < 0.0`) indicates downward scrolling (towards later content/bottom).
+    pub frame_scroll_delta: Option<(f32, f32)>,
+    /// Drag selection anchor byte index during an active mouse drag-select gesture within a text input.
+    pub text_drag_anchor: Option<usize>,
+    /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
+    /// and is actively recognized as an ongoing dragging gesture.
+    pub is_pointer_drag_active: bool,
+    /// Active or pending tooltip state tracking hover duration and anchor coordinates.
+    pub active_tooltip: Option<TooltipState>,
+    /// Active OS file being hovered over the window, if any: `(path, point)`.
+    pub hovered_file: Option<(std::path::PathBuf, Point)>,
+    /// OS files dropped onto a target widget during the current dispatch cycle: `(target_id, target_tag, paths, point)`.
+    pub frame_dropped_files: Option<(Option<WidgetId>, u64, Vec<std::path::PathBuf>, Point)>,
+    /// Retained continuous Euler angle representation `(tag, [rx, ry, rz])` for quaternion-bound rotation widgets,
+    /// preventing gimbal-lock pitch wrapping past +/-90 degrees across consecutive frames.
+    pub cached_euler: Option<(u64, [f32; 3])>,
+    /// Retained continuous HSV representation `(tag, [hue, saturation, value])` for active color picker widgets,
+    /// preserving chosen hue and saturation when color channels reach grayscale (`s == 0`) or black (`v == 0`).
+    pub cached_color_hsv: Option<(u64, [f32; 3])>,
+    /// Pre-edit initial [`crate::color::Color`] snapshot `(tag, start_color)` captured when an interactive
+    /// color picker drag session begins, enabling atomic `(start_color, final_color)` commits on release.
+    pub color_edit_origin: Option<(u64, crate::color::Color)>,
+    /// Autonomous bounded undo/redo stack for committed scalar and vector numeric transitions
+    /// (drag scrubbing releases, post-`Enter` or focus-loss numeric expression commits, and vector resets).
+    pub numeric_undo: NumericUndoStack,
+    /// Whether an outside-click gesture was detected and dismissed open popups or context menus
+    /// during the current event cycle.
+    pub frame_popups_dismissed: bool,
+}
+
+impl EventState {
+    /// Constructs a clean, unpopulated interaction state.
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            pointer_capture: None,
+            pointer_capture_tag: None,
+            hovered: None,
+            pressed: None,
+            pressed_button: None,
+            pressed_tag: None,
+            focused: None,
+            focused_tag: None,
+            press_origin: None,
+            initial_scroll_y: 0.0,
+            last_click_id: None,
+            last_click_tag: None,
+            last_click_pos: None,
+            last_click_time: None,
+            frame_clicked_id: None,
+            frame_clicked_tag: None,
+            frame_double_clicked_id: None,
+            frame_double_clicked_tag: None,
+            frame_secondary_clicked_id: None,
+            frame_secondary_clicked_tag: None,
+            frame_drag_released_id: None,
+            frame_drag_released_tag: None,
+            frame_clicked_pos: None,
+            frame_clicked_rect: None,
+            frame_drag_delta: None,
+            last_pointer_pos: None,
+            frame_key: None,
+            frame_text_input: None,
+            frame_key_pressed: false,
+            frame_ctrl_held: false,
+            frame_shift_held: false,
+            active_context_menu: None,
+            active_text_edit: None,
+            last_completed_text_edit: None,
+            frame_scrolled_tag: None,
+            frame_scroll_delta: None,
+            text_drag_anchor: None,
+            is_pointer_drag_active: false,
+            active_tooltip: None,
+            hovered_file: None,
+            frame_dropped_files: None,
+            cached_euler: None,
+            cached_color_hsv: None,
+            color_edit_origin: None,
+            numeric_undo: NumericUndoStack::new(),
+            frame_popups_dismissed: false,
+        }
+    }
+
+    /// Sets the retained continuous Euler angle representation `(tag, [rx, ry, rz])` for a quaternion rotation widget.
+    #[inline]
+    pub fn set_cached_euler(&mut self, tag: u64, euler: [f32; 3]) {
+        self.cached_euler = Some((tag, euler));
+    }
+
+    /// Sets the retained continuous HSV representation `(tag, [hue, saturation, value])` for a color picker widget.
+    #[inline]
+    pub fn set_cached_color_hsv(&mut self, tag: u64, hsv: [f32; 3]) {
+        self.cached_color_hsv = Some((tag, hsv));
+    }
+
+    /// Returns the retained HSV `[hue, saturation, value]` for `tag` if currently cached.
+    #[inline]
+    #[must_use]
+    pub fn cached_color_hsv_for(&self, tag: u64) -> Option<[f32; 3]> {
+        self.cached_color_hsv
+            .and_then(|(t, hsv)| (t == tag).then_some(hsv))
+    }
+
+    /// Captures `current` as the pre-edit starting color for `tag` if no edit session is active for `tag`,
+    /// returning the active starting color for the session.
+    #[inline]
+    pub fn begin_or_get_color_edit_origin(
+        &mut self,
+        tag: u64,
+        current: crate::color::Color,
+    ) -> crate::color::Color {
+        if let Some((active_tag, origin)) = self.color_edit_origin
+            && active_tag == tag
+        {
+            return origin;
+        }
+        self.color_edit_origin = Some((tag, current));
+        current
+    }
+
+    /// Takes and clears the pre-edit starting color for `tag` when a color drag gesture finishes.
+    #[inline]
+    pub fn take_color_edit_origin(&mut self, tag: u64) -> Option<crate::color::Color> {
+        if let Some((active_tag, origin)) = self.color_edit_origin
+            && active_tag == tag
+        {
+            self.color_edit_origin = None;
+            return Some(origin);
+        }
+        None
+    }
+
+    /// Clears any currently pressed widget node and pointer origin states.
+    #[inline]
+    pub fn clear_pressed(&mut self) {
+        self.pressed = None;
+        self.pressed_button = None;
+        self.pressed_tag = None;
+        self.press_origin = None;
+    }
+
+    /// Resets transient interaction states while preserving persistent focus.
+    #[inline]
+    pub fn reset_transient_pointer(&mut self) {
+        self.pointer_capture = None;
+        self.hovered = None;
+        self.pressed = None;
+        self.pressed_button = None;
+        self.pressed_tag = None;
+        self.press_origin = None;
+        self.initial_scroll_y = 0.0;
+        self.last_click_id = None;
+        self.last_click_tag = None;
+        self.last_click_pos = None;
+        self.last_click_time = None;
+        self.frame_clicked_id = None;
+        self.frame_clicked_tag = None;
+        self.frame_double_clicked_id = None;
+        self.frame_double_clicked_tag = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_secondary_clicked_tag = None;
+        self.frame_drag_released_id = None;
+        self.frame_drag_released_tag = None;
+        self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
+        self.frame_drag_delta = None;
+        self.last_pointer_pos = None;
+        self.frame_key = None;
+        self.frame_text_input = None;
+        self.frame_key_pressed = false;
+        self.frame_ctrl_held = false;
+        self.frame_shift_held = false;
+        self.is_pointer_drag_active = false;
+        self.active_tooltip = None;
+        self.hovered_file = None;
+        self.frame_dropped_files = None;
+    }
+
+    /// Clears any confirmed click state recorded for the current frame.
+    #[inline]
+    pub fn clear_frame_clicks(&mut self) {
+        self.frame_clicked_id = None;
+        self.frame_clicked_tag = None;
+        self.frame_double_clicked_id = None;
+        self.frame_double_clicked_tag = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_secondary_clicked_tag = None;
+        self.frame_drag_released_id = None;
+        self.frame_drag_released_tag = None;
+        self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
+        self.frame_drag_delta = None;
+        self.frame_key = None;
+        self.frame_text_input = None;
+        self.frame_key_pressed = false;
+        self.frame_ctrl_held = false;
+        self.frame_shift_held = false;
+        self.frame_popups_dismissed = false;
+        self.last_completed_text_edit = None;
+        self.frame_scrolled_tag = None;
+        self.frame_scroll_delta = None;
+    }
+
+    /// Invalidates all generational [`WidgetId`] references across the event state when
+    /// the underlying node arena is cleared or rebuilt, while preserving persistent 64-bit
+    /// semantic tags, screen coordinates, and gesture timing.
+    #[inline]
+    pub fn clear_arena_ids(&mut self) {
+        self.pointer_capture = None;
+        self.hovered = None;
+        self.pressed = None;
+        self.focused = None;
+        self.last_click_id = None;
+        self.frame_clicked_id = None;
+        self.frame_double_clicked_id = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_drag_released_id = None;
+    }
+
+    /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures
+    /// are currently pending consumption within the current frame.
+    #[inline]
+    #[must_use]
+    pub fn has_frame_interactions(&self) -> bool {
+        self.frame_clicked_id.is_some()
+            || self.frame_clicked_tag.is_some()
+            || self.frame_double_clicked_id.is_some()
+            || self.frame_double_clicked_tag.is_some()
+            || self.frame_secondary_clicked_id.is_some()
+            || self.frame_secondary_clicked_tag.is_some()
+            || self.frame_drag_delta.is_some()
+    }
+
+    /// Clears active keyboard and semantic tag focus.
+    #[inline]
+    pub fn clear_focus(&mut self) {
+        self.focused = None;
+        self.focused_tag = None;
+        self.pressed = None;
+        self.pressed_tag = None;
+        if let Some(session) = self.active_text_edit.take() {
+            self.last_completed_text_edit = Some((session.tag, session.buffer));
+        }
+        self.text_drag_anchor = None;
+        self.pointer_capture = None;
+        self.pointer_capture_tag = None;
+        self.frame_clicked_pos = None;
+        self.frame_clicked_rect = None;
+    }
+
+    /// Cleans any direct references to the specified widget ID if active in interaction tracking.
+    ///
+    /// Ensures that removed or replaced widgets do not leave dangling references within pointer capture,
+    /// hover detection, keyboard focus, click records, active context menus, or tooltips.
+    #[inline]
+    pub fn untrack_widget(&mut self, id: WidgetId) {
+        if self.pointer_capture == Some(id) {
+            self.pointer_capture = None;
+        }
+        if self.hovered == Some(id) {
+            self.hovered = None;
+        }
+        if self.pressed == Some(id) {
+            self.pressed = None;
+        }
+        if self.focused == Some(id) {
+            self.focused = None;
+        }
+        if self.last_click_id == Some(id) {
+            self.last_click_id = None;
+        }
+        if self.frame_clicked_id == Some(id) {
+            self.frame_clicked_id = None;
+        }
+        if self.frame_double_clicked_id == Some(id) {
+            self.frame_double_clicked_id = None;
+        }
+        if self.frame_secondary_clicked_id == Some(id) {
+            self.frame_secondary_clicked_id = None;
+        }
+        if self.frame_drag_released_id == Some(id) {
+            self.frame_drag_released_id = None;
+        }
+        if let Some(ref menu) = self.active_context_menu
+            && menu.owner_id == id
+        {
+            self.active_context_menu = None;
+        }
+        if let Some(ref tooltip) = self.active_tooltip
+            && tooltip.target_id == id
+        {
+            self.active_tooltip = None;
+        }
+    }
+
+    /// Activates an autonomous inline text editing session and synchronizes focus to the target widget and tag.
+    ///
+    /// Sets [`Self::focused`], [`Self::focused_tag`], and [`Self::active_text_edit`], while clearing any active numeric edit.
+    #[inline]
+    pub fn start_text_edit(
+        &mut self,
+        node_id: Option<WidgetId>,
+        tag: u64,
+        initial_text: &str,
+        cursor_idx: usize,
+        selection: Option<(usize, usize)>,
+    ) {
+        if let Some(id) = node_id {
+            self.focused = Some(id);
+        }
+        if tag != 0 {
+            self.focused_tag = Some(tag);
+        }
+        let safe_sel = selection.filter(|(s, e)| s < e && *e <= initial_text.len());
+        let undo_stack = match self.active_text_edit.take() {
+            Some(existing) if existing.tag == tag => existing.undo_stack,
+            _ => {
+                let mut stack = TextUndoStack::new();
+                stack.checkpoint(TextSnapshot::new(initial_text, cursor_idx, safe_sel));
+                stack
+            }
+        };
+        self.active_text_edit = Some(ActiveTextEditSession {
+            tag,
+            buffer: initial_text.to_string(),
+            cursor_byte_idx: cursor_idx,
+            selection: safe_sel,
+            undo_stack,
+            allow_clipboard_shortcuts: true,
+            allow_undo_shortcuts: true,
+        });
+    }
+
+    /// Configures optional shortcut handling (clipboard and undo/redo) for the active text edit session.
+    #[inline]
+    pub fn configure_text_edit_shortcuts(
+        &mut self,
+        tag: u64,
+        allow_clipboard: bool,
+        allow_undo: bool,
+    ) {
+        if let Some(ref mut session) = self.active_text_edit
+            && session.tag == tag
+        {
+            session.allow_clipboard_shortcuts = allow_clipboard;
+            session.allow_undo_shortcuts = allow_undo;
+        }
+    }
+
+    /// Returns the active text edit buffer for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_buffer(&self, tag: u64) -> Option<&str> {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| s.buffer.as_str())
+    }
+
+    /// Returns the active text edit cursor byte index for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_cursor(&self, tag: u64) -> Option<usize> {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| s.cursor_byte_idx)
+    }
+
+    /// Returns the active text edit selection range `(start_byte_idx, end_byte_idx)` for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_selection(&self, tag: u64) -> Option<(usize, usize)> {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .and_then(|s| s.selection)
+    }
+
+    /// Returns whether all text is currently selected in the active text edit session for the specified semantic tag.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_all_selected(&self, tag: u64) -> Option<bool> {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .map(|s| {
+                s.selection
+                    .is_some_and(|(st, en)| st == 0 && en == s.buffer.len() && !s.buffer.is_empty())
+            })
+    }
+
+    /// Reverts the active text edit session to its previous undo snapshot, if one is active.
+    ///
+    /// Mutates the buffer, caret offset, and selection in-place.
+    #[inline]
+    pub fn text_edit_undo(&mut self, tag: u64) -> bool {
+        if let Some(session) = self.active_text_edit.as_mut().filter(|s| s.tag == tag) {
+            session.undo_stack.undo_in_place(
+                &mut session.buffer,
+                &mut session.cursor_byte_idx,
+                &mut session.selection,
+            )
+        } else {
+            false
+        }
+    }
+
+    /// Re-applies the next reverted snapshot in the active text edit session, if one is active.
+    ///
+    /// Mutates the buffer, caret offset, and selection in-place.
+    #[inline]
+    pub fn text_edit_redo(&mut self, tag: u64) -> bool {
+        if let Some(session) = self.active_text_edit.as_mut().filter(|s| s.tag == tag) {
+            session.undo_stack.redo_in_place(
+                &mut session.buffer,
+                &mut session.cursor_byte_idx,
+                &mut session.selection,
+            )
+        } else {
+            false
+        }
+    }
+
+    /// Returns whether undo is available for the active text edit session.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_can_undo(&self, tag: u64) -> bool {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .is_some_and(|s| s.undo_stack.can_undo())
+    }
+
+    /// Returns whether redo is available for the active text edit session.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_can_redo(&self, tag: u64) -> bool {
+        self.active_text_edit
+            .as_ref()
+            .filter(|s| s.tag == tag)
+            .is_some_and(|s| s.undo_stack.can_redo())
+    }
+
+    /// Clears any active text editing session and releases focus if owned by the current edit tag.
+    #[inline]
+    pub fn clear_text_edit(&mut self) {
+        if let Some(ref edit) = self.active_text_edit
+            && self.focused_tag == Some(edit.tag)
+        {
+            self.focused = None;
+            self.focused_tag = None;
+        }
+        if let Some(session) = self.active_text_edit.take() {
+            self.last_completed_text_edit = Some((session.tag, session.buffer));
+        }
+        self.text_drag_anchor = None;
+    }
+
+    /// Returns `true` if any widget node, semantic tag, or text/numeric edit currently holds keyboard focus.
+    #[inline]
+    #[must_use]
+    pub fn has_focus(&self) -> bool {
+        self.focused.is_some() || self.focused_tag.is_some() || self.active_text_edit.is_some()
+    }
+
+    /// Returns `true` if an active inline text or numeric editing buffer currently holds keyboard focus.
+    ///
+    /// Distinct from generic widget focus (`has_focus`), which tracks keyboard navigation targets like buttons or tabs.
+    #[inline]
+    #[must_use]
+    pub fn has_text_input_focus(&self) -> bool {
+        self.active_text_edit.is_some()
+    }
+
+    /// Closes the active context menu popup, if one is currently opened.
+    #[inline]
+    pub fn close_context_menu(&mut self) {
+        self.active_context_menu = None;
+    }
+
+    /// Returns `true` if an autonomous context menu is currently open for the given owner identifier.
+    #[inline]
+    pub fn is_context_menu_open(&self, owner_id: WidgetId) -> bool {
+        match self.active_context_menu {
+            Some(menu) => menu.owner_id == owner_id,
+            None => false,
+        }
+    }
+
+    /// Closes any active or pending tooltip display.
+    #[inline]
+    pub fn close_tooltip(&mut self) {
+        self.active_tooltip = None;
+    }
+
+    /// Returns `true` if a tooltip is currently active and passed its hover delay.
+    #[inline]
+    #[must_use]
+    pub fn has_open_tooltip(&self) -> bool {
+        self.active_tooltip.as_ref().is_some_and(|t| t.is_open)
+    }
+
+    /// Returns `true` if a tooltip is currently open for the given widget identifier or semantic tag.
+    #[inline]
+    #[must_use]
+    pub fn is_tooltip_open_for(&self, target_id: WidgetId, target_tag: u64) -> bool {
+        if let Some(ref tooltip) = self.active_tooltip
+            && tooltip.is_open
+        {
+            return tooltip.target_id == target_id
+                || (target_tag != 0 && tooltip.target_tag == target_tag);
+        }
+        false
+    }
+}
+
+/// Comprehensive outcome of dispatching a [`crate::event::UiEvent`] through the hierarchical UI graph.
+///
+/// Returned directly by [`crate::tree::UiTree::dispatch_event`] to inform the caller whether the event
+/// was consumed by a widget, which node was targeted, what hardware cursor should display,
+/// and any attached scroll/keyboard payloads.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DispatchResult {
+    /// Whether the interaction was consumed by a target widget node in the hierarchy.
+    pub consumed: bool,
+    /// Whether this interaction mutated state or requires the containing UI tree to re-render.
+    pub needs_redraw: bool,
+    /// The target widget node ID that processed or originated the event.
+    pub target: Option<WidgetId>,
+    /// The 64-bit persistent semantic tag of the target widget node, if assigned (`0` if none).
+    pub target_tag: u64,
+    /// Desired mouse cursor shape override requested by the hovered or capturing widget.
+    pub cursor: Option<WidgetCursor>,
+    /// The immediate-mode declarative interaction response emitted for the targeted widget.
+    pub response: Option<WidgetResponse>,
+    /// Scroll offset delta `(delta_x, delta_y)` delivered by mouse wheel interactions.
+    pub scroll_delta: (f32, f32),
+    /// Virtual keyboard key associated with this interaction, if a keyboard event was processed.
+    pub key: Option<KeyCode>,
+    /// Whether the keyboard key is currently pressed down.
+    pub is_key_pressed: bool,
+    /// Printable text or committed character string delivered by typing or IME input.
+    pub text_input: Option<String>,
+    /// Optional timeout delay until the next required UI tick (e.g. for tooltip hover timer).
+    pub next_timeout: Option<std::time::Duration>,
+    /// Whether an outside-click gesture was detected and dismissed open popups during dispatch.
+    pub popups_dismissed: bool,
+}
+
+impl DispatchResult {
+    /// Constructs an unhandled pass-through result indicating the event was ignored.
+    #[inline]
+    pub const fn ignored() -> Self {
+        Self {
+            consumed: false,
+            needs_redraw: false,
+            target: None,
+            target_tag: 0,
+            cursor: None,
+            response: None,
+            scroll_delta: (0.0, 0.0),
+            key: None,
+            is_key_pressed: false,
+            text_input: None,
+            next_timeout: None,
+            popups_dismissed: false,
+        }
+    }
+
+    /// Constructs a consumed result targeted at a specific widget node.
+    #[inline]
+    pub const fn consumed_at(target: WidgetId, target_tag: u64) -> Self {
+        Self {
+            consumed: true,
+            needs_redraw: true,
+            target: Some(target),
+            target_tag,
+            cursor: None,
+            response: None,
+            scroll_delta: (0.0, 0.0),
+            key: None,
+            is_key_pressed: false,
+            text_input: None,
+            next_timeout: None,
+            popups_dismissed: false,
+        }
+    }
+
+    /// Returns `true` if the event was absorbed by a widget node.
+    #[inline]
+    pub const fn is_consumed(&self) -> bool {
+        self.consumed
+    }
+
+    /// Returns `true` if this event requires an immediate visual re-render of the target UI tree.
+    #[inline]
+    pub const fn needs_redraw(&self) -> bool {
+        self.needs_redraw
+    }
+
+    /// Attaches a hardware cursor override to this dispatch result.
+    #[inline]
+    pub const fn with_cursor(mut self, cursor: Option<WidgetCursor>) -> Self {
+        self.cursor = cursor;
+        self
+    }
+
+    /// Attaches an immediate-mode interaction response to this dispatch result.
+    #[inline]
+    pub const fn with_response(mut self, response: Option<WidgetResponse>) -> Self {
+        self.response = response;
+        self
+    }
+
+    /// Attaches a mouse scroll delta `(delta_x, delta_y)` to this dispatch result.
+    #[inline]
+    pub const fn with_scroll_delta(mut self, delta_x: f32, delta_y: f32) -> Self {
+        self.scroll_delta = (delta_x, delta_y);
+        self
+    }
+
+    /// Attaches keyboard key data to this dispatch result.
+    #[inline]
+    pub const fn with_key(mut self, key: Option<KeyCode>, is_pressed: bool) -> Self {
+        self.key = key;
+        self.is_key_pressed = is_pressed;
+        self
+    }
+
+    /// Attaches typed or committed text input to this dispatch result.
+    #[inline]
+    pub fn with_text(mut self, text: Option<String>) -> Self {
+        self.text_input = text;
+        self
+    }
+
+    /// Attaches a scheduled timer wake-up duration to this dispatch result.
+    #[inline]
+    pub const fn with_next_timeout(mut self, timeout: Option<std::time::Duration>) -> Self {
+        self.next_timeout = timeout;
+        self
+    }
+}

@@ -1,0 +1,14 @@
+[package]
+name = "irisui-dock"
+description = "Binary Split-Tree Docking and multi-pane management engine for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+irisui-core.workspace = true
+irisui-widgets.workspace = true
+slotmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

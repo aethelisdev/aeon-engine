@@ -1,0 +1,15 @@
+[package]
+name = "irisui-winit"
+description = "Winit platform windowing adapter and event bridge for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+glam = { workspace = true }
+irisui-core = { workspace = true }
+irisui-widgets = { workspace = true }
+winit = { workspace = true }

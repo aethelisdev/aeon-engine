@@ -5,7 +5,7 @@
 //!
 //! Declaratively renders hardware-accelerated GPU SDF modal cards for file system operations
 //! including permanent delete confirmations, new folder creation, and file renaming
-//! by delegating to [`iris_workbench`] modal descriptors and [`WorkbenchUiScopeExt`].
+//! by delegating to [`irisui_workbench`] modal descriptors and [`WorkbenchUiScopeExt`].
 
 use irisui::prelude::*;
 use irisui::workbench::WorkbenchUiScopeExt;

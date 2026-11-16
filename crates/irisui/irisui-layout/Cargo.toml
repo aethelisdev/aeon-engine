@@ -1,0 +1,12 @@
+[package]
+name = "irisui-layout"
+description = "Taffy-based layout engine adapter and caching subsystem for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+irisui-core = { workspace = true }
+taffy = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

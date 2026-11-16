@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! Draw command stream for interleaved Z-ordered UI compositing and hardware scissor clipping.
+
+use crate::external_texture_pipeline::ExternalTextureQuadInstance;
+use crate::quad::QuadInstance;
+use crate::texture_pipeline::TextureQuadInstance;
+use irisui_core::node::ExternalTextureId;
+
+/// Individual render command in an interleaved, Z-ordered UI draw list.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DrawCommand {
+    /// Draw a range of instanced SDF quads.
+    DrawSdfQuads {
+        /// Start index in the instanced quad buffer.
+        start: u32,
+        /// Number of quads to draw in this batch.
+        count: u32,
+    },
+    /// Draw a textured quad (e.g. 3D engine viewport, image, or thumbnail).
+    DrawTexture {
+        /// Index of the texture instance in the texture quad buffer.
+        instance_index: u32,
+    },
+    /// Draw an externally owned 2D texture (e.g. 3D engine viewport render target).
+    DrawExternalTexture {
+        /// External texture identifier in the external texture table.
+        id: ExternalTextureId,
+        /// Index of the external texture instance in the external instance buffer.
+        instance_index: u32,
+    },
+    /// Set hardware scissor clipping rectangle.
+    SetScissor {
+        /// X offset in physical pixels.
+        x: u32,
+        /// Y offset in physical pixels.
+        y: u32,
+        /// Width in physical pixels.
+        width: u32,
+        /// Height in physical pixels.
+        height: u32,
+    },
+    /// Reset hardware scissor rectangle to full screen dimensions.
+    ResetScissor,
+}
+
+/// Describes an allocated slice of instanced quads belonging to an invalidation boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BoundarySlice {
+    /// Start index in the instanced quad buffer.
+    pub start: u32,
+    /// Number of instanced quads in this slice.
+    pub count: u32,
+}
+
+/// Ordered list of draw commands and instanced batches for pixel-accurate Z-order compositing.
+#[derive(Debug, Default)]
+pub struct DrawCommandList {
+    /// Sequential draw and scissor commands in exact front-to-back/back-to-front Z-order.
+    pub commands: Vec<DrawCommand>,
+    /// Flattened SDF quad instances.
+    pub quads: Vec<QuadInstance>,
+    /// Flattened texture quad instances.
+    pub texture_quads: Vec<TextureQuadInstance>,
+    /// Flattened external texture quad instances.
+    pub external_texture_quads: Vec<ExternalTextureQuadInstance>,
+    /// Slices of instanced quads mapped to invalidation boundaries for partial GPU uploads.
+    pub boundary_slices: Vec<(irisui_core::WidgetId, BoundarySlice)>,
+}
+
+impl DrawCommandList {
+    /// Creates a new, empty draw command list.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Clears all commands and instance buffers for reuse without reallocating heap capacity.
+    pub fn clear(&mut self) {
+        self.commands.clear();
+        self.quads.clear();
+        self.texture_quads.clear();
+        self.external_texture_quads.clear();
+        self.boundary_slices.clear();
+    }
+
+    /// Appends an SDF quad to the active batch or begins a new batch.
+    #[inline]
+    pub fn push_quad(&mut self, quad: QuadInstance) {
+        self.push_quad_with_boundary(quad, None);
+    }
+
+    /// Appends an SDF quad to the active batch, attributing ownership to a boundary.
+    ///
+    /// If the previous slice belongs to the same boundary and is contiguous, it is extended
+    /// without additional heap allocation.
+    pub fn push_quad_with_boundary(
+        &mut self,
+        quad: QuadInstance,
+        boundary: Option<irisui_core::WidgetId>,
+    ) {
+        let current_len = self.quads.len() as u32;
+        self.quads.push(quad);
+
+        if let Some(DrawCommand::DrawSdfQuads { count, .. }) = self.commands.last_mut() {
+            *count += 1;
+        } else {
+            self.commands.push(DrawCommand::DrawSdfQuads {
+                start: current_len,
+                count: 1,
+            });
+        }
+
+        if let Some(b_id) = boundary {
+            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
+                && *last_id == b_id
+                && last_slice.start + last_slice.count == current_len
+            {
+                last_slice.count += 1;
+            } else {
+                self.boundary_slices.push((
+                    b_id,
+                    BoundarySlice {
+                        start: current_len,
+                        count: 1,
+                    },
+                ));
+            }
+        }
+    }
+
+    /// Appends a textured quad drawing command.
+    pub fn push_texture_quad(&mut self, tex_quad: TextureQuadInstance) {
+        let instance_index = self.texture_quads.len() as u32;
+        self.texture_quads.push(tex_quad);
+        self.commands
+            .push(DrawCommand::DrawTexture { instance_index });
+    }
+
+    /// Appends an external texture quad drawing command.
+    pub fn push_external_texture_quad(
+        &mut self,
+        id: ExternalTextureId,
+        quad: ExternalTextureQuadInstance,
+    ) {
+        let instance_index = self.external_texture_quads.len() as u32;
+        self.external_texture_quads.push(quad);
+        self.commands
+            .push(DrawCommand::DrawExternalTexture { id, instance_index });
+    }
+
+    /// Sets the active hardware scissor rectangle for subsequent draw calls.
+    pub fn push_scissor(&mut self, x: u32, y: u32, width: u32, height: u32) {
+        self.commands.push(DrawCommand::SetScissor {
+            x,
+            y,
+            width,
+            height,
+        });
+    }
+
+    /// Resets the hardware scissor rectangle to full screen dimensions.
+    #[inline]
+    pub fn push_reset_scissor(&mut self) {
+        self.commands.push(DrawCommand::ResetScissor);
+    }
+
+    /// Returns `true` if this command list contains no draw commands or instances.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
+            && self.quads.is_empty()
+            && self.texture_quads.is_empty()
+            && self.external_texture_quads.is_empty()
+    }
+
+    /// Merges another `DrawCommandList` onto the end of this list, rebasing batch indices.
+    ///
+    /// Preserves exact Z-ordering while shifting batch start indices and texture instance pointers
+    /// to maintain consistency with the appended buffers.
+    pub fn append(&mut self, mut other: DrawCommandList) {
+        let quad_offset = self.quads.len() as u32;
+        let tex_offset = self.texture_quads.len() as u32;
+        let ext_offset = self.external_texture_quads.len() as u32;
+
+        self.quads.append(&mut other.quads);
+        self.texture_quads.append(&mut other.texture_quads);
+        self.external_texture_quads
+            .append(&mut other.external_texture_quads);
+
+        for (id, slice) in other.boundary_slices {
+            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
+                && *last_id == id
+                && last_slice.start + last_slice.count == slice.start + quad_offset
+            {
+                last_slice.count += slice.count;
+            } else {
+                self.boundary_slices.push((
+                    id,
+                    BoundarySlice {
+                        start: slice.start + quad_offset,
+                        count: slice.count,
+                    },
+                ));
+            }
+        }
+
+        for mut cmd in other.commands {
+            match &mut cmd {
+                DrawCommand::DrawSdfQuads { start, .. } => *start += quad_offset,
+                DrawCommand::DrawTexture { instance_index } => *instance_index += tex_offset,
+                DrawCommand::DrawExternalTexture { instance_index, .. } => {
+                    *instance_index += ext_offset
+                }
+                DrawCommand::SetScissor { .. } | DrawCommand::ResetScissor => {}
+            }
+            self.commands.push(cmd);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_command_list_append_rebases_indices() {
+        let mut list_a = DrawCommandList::new();
+        list_a.push_quad(QuadInstance::default());
+        list_a.push_quad(QuadInstance::default());
+        assert_eq!(list_a.quads.len(), 2);
+        assert_eq!(
+            list_a.commands,
+            vec![DrawCommand::DrawSdfQuads { start: 0, count: 2 }]
+        );
+
+        let mut list_b = DrawCommandList::new();
+        list_b.push_quad(QuadInstance::default());
+        assert_eq!(list_b.quads.len(), 1);
+        assert_eq!(
+            list_b.commands,
+            vec![DrawCommand::DrawSdfQuads { start: 0, count: 1 }]
+        );
+
+        list_a.append(list_b);
+        assert_eq!(list_a.quads.len(), 3);
+        assert_eq!(list_a.commands.len(), 2);
+        assert_eq!(
+            list_a.commands[0],
+            DrawCommand::DrawSdfQuads { start: 0, count: 2 }
+        );
+        assert_eq!(
+            list_a.commands[1],
+            DrawCommand::DrawSdfQuads { start: 2, count: 1 }
+        );
+    }
+}

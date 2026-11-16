@@ -1,0 +1,17 @@
+[package]
+name = "irisui-core"
+description = "Core safe arena graph, geometry, and styling data structures for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+slotmap = { workspace = true }
+bitflags = { workspace = true }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
+

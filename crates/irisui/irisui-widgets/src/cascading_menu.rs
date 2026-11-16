@@ -1,0 +1,923 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Cascading Multi-Level Dropdown Menu Widget
+//!
+//! Provides a standardized, hardware-accelerated cascading and nested popup menu builder
+//! for Iris UI applications and tools.
+//!
+//! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
+
+use irisui_core::color::Color;
+use irisui_core::geometry::{Insets, Point, Rect};
+use irisui_core::id::WidgetId;
+use irisui_core::node::{UiLayer, WidgetRole};
+use irisui_core::style::{AlignItems, Style, TextAlign};
+use irisui_core::tree::UiTree;
+
+/// Visual icon representation for a menu item.
+///
+/// Can either be a Unicode text/emoji glyph or a normalized texture atlas sub-rectangle `[u_min, v_min, u_max, v_max]`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CascadingMenuIcon {
+    /// Unicode text or emoji glyph (e.g. `"➕"`, `"📁"`).
+    Text(&'static str),
+    /// GPU texture atlas UV quad `[u_min, v_min, u_max, v_max]`.
+    Texture([f32; 4]),
+}
+
+/// A single item within a cascading menu tree.
+///
+/// Can represent an actionable leaf item, a branching submenu parent, or a visual separator.
+#[derive(Debug, Clone)]
+pub struct CascadingMenuItem {
+    /// Human-readable label displayed on the menu row.
+    pub label: String,
+    /// Optional visual icon displayed to the left of the label.
+    pub icon: Option<CascadingMenuIcon>,
+    /// Optional keyboard shortcut text displayed right-aligned (e.g. `"Ctrl+N"`).
+    pub shortcut: Option<String>,
+    /// Unique identifier / action payload tag assigned to this item (`node.tag`).
+    pub tag: u64,
+    /// Optional nested submenu items branching off this row.
+    pub submenu: Option<Vec<CascadingMenuItem>>,
+    /// Whether this item is interactive and selectable.
+    pub is_enabled: bool,
+    /// Whether this item renders as a horizontal separator line rather than an interactive row.
+    pub is_separator: bool,
+}
+
+impl CascadingMenuItem {
+    /// Constructs an actionable leaf menu item.
+    #[inline]
+    pub fn item(label: impl Into<String>, tag: u64) -> Self {
+        Self {
+            label: label.into(),
+            icon: None,
+            shortcut: None,
+            tag,
+            submenu: None,
+            is_enabled: true,
+            is_separator: false,
+        }
+    }
+
+    /// Constructs an actionable leaf menu item with an icon.
+    #[inline]
+    pub fn item_with_icon(label: impl Into<String>, icon: CascadingMenuIcon, tag: u64) -> Self {
+        Self {
+            label: label.into(),
+            icon: Some(icon),
+            shortcut: None,
+            tag,
+            submenu: None,
+            is_enabled: true,
+            is_separator: false,
+        }
+    }
+
+    /// Constructs a branching submenu category item with an icon and child items.
+    #[inline]
+    pub fn branch(
+        label: impl Into<String>,
+        icon: Option<CascadingMenuIcon>,
+        tag: u64,
+        submenu: Vec<CascadingMenuItem>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            icon,
+            shortcut: None,
+            tag,
+            submenu: Some(submenu),
+            is_enabled: true,
+            is_separator: false,
+        }
+    }
+
+    /// Constructs a visual horizontal separator line.
+    #[inline]
+    pub fn separator() -> Self {
+        Self {
+            label: String::new(),
+            icon: None,
+            shortcut: None,
+            tag: 0,
+            submenu: None,
+            is_enabled: false,
+            is_separator: true,
+        }
+    }
+
+    /// Attaches a right-aligned keyboard shortcut string to this item.
+    #[inline]
+    pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
+        self.shortcut = Some(shortcut.into());
+        self
+    }
+
+    /// Sets the interactive enabled state of this item.
+    #[inline]
+    pub fn enabled(mut self, is_enabled: bool) -> Self {
+        self.is_enabled = is_enabled;
+        self
+    }
+
+    /// Returns the text or emoji glyph if this item's icon is a text representation, or an empty string otherwise.
+    #[inline]
+    #[must_use]
+    pub fn text_icon(&self) -> &str {
+        match self.icon {
+            Some(CascadingMenuIcon::Text(t)) => t,
+            _ => "",
+        }
+    }
+
+    /// Returns `true` if this item branches into a nested child submenu.
+    #[inline]
+    pub fn has_submenu(&self) -> bool {
+        self.submenu.as_ref().is_some_and(|sub| !sub.is_empty())
+    }
+}
+
+/// Visual styling configuration for cascading popup menus.
+#[derive(Debug, Clone)]
+pub struct CascadingMenuStyle {
+    /// Background color of the popup menu container.
+    pub background: Color,
+    /// Border thickness in pixels.
+    pub border_width: f32,
+    /// Border stroke color.
+    pub border_color: Color,
+    /// Corner radius in pixels.
+    pub border_radius: f32,
+    /// Drop shadow offset Y in pixels.
+    pub shadow_y: f32,
+    /// Drop shadow blur radius in pixels.
+    pub shadow_blur: f32,
+    /// Drop shadow color.
+    pub shadow_color: Color,
+    /// Background color of an idle, unhovered item.
+    pub item_idle_bg: Color,
+    /// Background color of a hovered item under the pointer.
+    pub item_hover_bg: Color,
+    /// Background color of an item whose submenu branch is currently active.
+    pub item_branch_active_bg: Color,
+    /// Text color of an idle, enabled item.
+    pub text_idle_color: Color,
+    /// Text color of a hovered item.
+    pub text_hover_color: Color,
+    /// Text color of a disabled item.
+    pub text_disabled_color: Color,
+    /// Text color for keyboard shortcuts.
+    pub shortcut_color: Color,
+    /// Line color for horizontal separators.
+    pub separator_color: Color,
+    /// Color for submenu chevron indicator (`▸`).
+    pub arrow_color: Color,
+    /// Font size in pixels for item labels.
+    pub font_size: f32,
+    /// Height of each individual item row in pixels.
+    pub row_height: f32,
+    /// Height of a horizontal separator line in pixels.
+    pub separator_height: f32,
+    /// Horizontal padding in pixels between container edge and row contents.
+    pub item_padding_x: f32,
+    /// Default width in pixels for popup cards.
+    pub menu_width: f32,
+}
+
+impl Default for CascadingMenuStyle {
+    fn default() -> Self {
+        Self {
+            background: Color::rgba(0.086, 0.090, 0.106, 0.98),
+            border_width: 1.0,
+            border_color: Color::rgba(0.173, 0.180, 0.208, 0.90),
+            border_radius: 5.0,
+            shadow_y: 6.0,
+            shadow_blur: 18.0,
+            shadow_color: Color::rgba(0.0, 0.0, 0.0, 0.70),
+            item_idle_bg: Color::TRANSPARENT,
+            item_hover_bg: Color::rgba(0.18, 0.20, 0.26, 0.98),
+            item_branch_active_bg: Color::rgba(0.157, 0.165, 0.188, 0.98),
+            text_idle_color: Color::rgba(0.886, 0.894, 0.918, 1.0),
+            text_hover_color: Color::WHITE,
+            text_disabled_color: Color::rgba(0.45, 0.47, 0.52, 1.0),
+            shortcut_color: Color::rgba(0.55, 0.58, 0.65, 1.0),
+            separator_color: Color::rgba(0.18, 0.19, 0.22, 1.0),
+            arrow_color: Color::rgba(0.60, 0.63, 0.70, 1.0),
+            font_size: 11.5,
+            row_height: 22.0,
+            separator_height: 6.0,
+            item_padding_x: 6.0,
+            menu_width: 185.0,
+        }
+    }
+}
+
+/// Output layout and node frame resulting from building a cascading menu into a [`UiTree`].
+#[derive(Debug, Clone)]
+pub struct CascadingMenuFrame {
+    /// Generational node identifier for the root popup container.
+    pub root_popup_id: WidgetId,
+    /// Absolute bounding rectangle of the root popup card.
+    pub root_rect: Rect,
+    /// Bounding rectangles of all currently rendered popup cards (root + active submenus).
+    pub rendered_popup_rects: Vec<Rect>,
+    /// Pairs of `(tag, widget_id)` for every rendered interactive item row.
+    pub item_ids: Vec<(u64, WidgetId)>,
+}
+
+/// Internal rendering context grouping recursive parameters to ensure clean function signatures.
+struct CascadingRenderContext<'a, 'b> {
+    tree: &'a mut UiTree,
+    root_parent_id: WidgetId,
+    rendered_rects: &'b mut Vec<Rect>,
+    item_nodes: &'b mut Vec<(u64, WidgetId)>,
+    effective_viewport: Option<Rect>,
+}
+
+/// Fluent builder for constructing multi-level cascading popup menus in [`UiTree`].
+///
+/// Supports unlimited cascading depth (Level 1 -> Level 2 -> Level 3...), automatic screen boundary
+/// flipping / clamping, and zero-allocation $O(1)$ hit-test event routing via [`WidgetRole::DropdownItem`].
+#[derive(Debug, Clone)]
+pub struct CascadingMenuBuilder<'a> {
+    anchor_rect: Rect,
+    items: &'a [CascadingMenuItem],
+    active_path: &'a [u64],
+    cursor_pos: Point,
+    viewport_bounds: Option<Rect>,
+    style: CascadingMenuStyle,
+    menu_name: &'static str,
+    open_upward: bool,
+    custom_width: Option<f32>,
+}
+
+impl<'a> CascadingMenuBuilder<'a> {
+    /// Creates a new cascading menu builder anchored to a trigger rectangle.
+    #[inline]
+    pub fn new(anchor_rect: Rect, items: &'a [CascadingMenuItem], active_path: &'a [u64]) -> Self {
+        Self {
+            anchor_rect,
+            items,
+            active_path,
+            cursor_pos: Point::new(-1.0, -1.0),
+            viewport_bounds: None,
+            style: CascadingMenuStyle::default(),
+            menu_name: "CascadingMenuPopup",
+            open_upward: false,
+            custom_width: None,
+        }
+    }
+
+    /// Sets the pointer cursor position for computing hover states.
+    #[inline]
+    pub fn cursor_pos(mut self, cursor_pos: Point) -> Self {
+        self.cursor_pos = cursor_pos;
+        self
+    }
+
+    /// Sets the screen viewport bounds used for boundary clamping and directional flipping.
+    #[inline]
+    pub fn viewport_bounds(mut self, viewport_bounds: Rect) -> Self {
+        self.viewport_bounds = Some(viewport_bounds);
+        self
+    }
+
+    /// Overrides the visual styling theme.
+    #[inline]
+    pub fn style(mut self, style: CascadingMenuStyle) -> Self {
+        self.style = style;
+        self
+    }
+
+    /// Sets an explicit width for the popup cards.
+    #[inline]
+    pub fn width(mut self, width: f32) -> Self {
+        self.custom_width = Some(width);
+        self
+    }
+
+    /// Configures the root menu to expand upwards rather than downwards.
+    #[inline]
+    pub fn open_upward(mut self, open_upward: bool) -> Self {
+        self.open_upward = open_upward;
+        self
+    }
+
+    /// Sets a debug name for the root popup node.
+    #[inline]
+    pub fn name(mut self, name: &'static str) -> Self {
+        self.menu_name = name;
+        self
+    }
+
+    /// Builds the cascading menu hierarchy into the specified [`UiTree`].
+    pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> Option<CascadingMenuFrame> {
+        if self.items.is_empty() {
+            return None;
+        }
+
+        let menu_w = self.custom_width.unwrap_or(self.style.menu_width);
+        let root_h = self.calculate_menu_height(self.items);
+
+        // Compute Root Menu Position
+        let mut root_x = self.anchor_rect.x;
+        let mut root_y = if self.open_upward {
+            self.anchor_rect.y - root_h - 2.0
+        } else {
+            self.anchor_rect.bottom() + 2.0
+        };
+
+        let effective_vp = self.viewport_bounds.or_else(|| {
+            tree.root()
+                .and_then(|r| tree.get(r))
+                .map(|n| n.computed_rect)
+                .filter(|r| r.width > 0.0 && r.height > 0.0)
+        });
+
+        // Clamp root position inside viewport if provided
+        if let Some(vp) = effective_vp {
+            if root_x + menu_w > vp.right() {
+                root_x = (vp.right() - menu_w - 4.0).max(vp.x + 4.0);
+            }
+            if root_x < vp.x {
+                root_x = vp.x + 4.0;
+            }
+            if root_y + root_h > vp.bottom() {
+                root_y = (vp.bottom() - root_h - 4.0).max(vp.y + 4.0);
+            }
+            if root_y < vp.y {
+                root_y = vp.y + 4.0;
+            }
+        }
+
+        let root_rect = Rect::new(root_x, root_y, menu_w, root_h);
+        let mut rendered_popup_rects = Vec::new();
+        let mut item_nodes = Vec::new();
+
+        let root_popup_id = self.render_menu_card(tree, parent_id, self.menu_name, root_rect);
+        rendered_popup_rects.push(root_rect);
+
+        // Render recursive levels according to active_path
+        let mut ctx = CascadingRenderContext {
+            tree,
+            root_parent_id: parent_id,
+            rendered_rects: &mut rendered_popup_rects,
+            item_nodes: &mut item_nodes,
+            effective_viewport: effective_vp,
+        };
+
+        self.render_items_recursive(&mut ctx, root_popup_id, self.items, root_rect, 0);
+
+        Some(CascadingMenuFrame {
+            root_popup_id,
+            root_rect,
+            rendered_popup_rects,
+            item_ids: item_nodes,
+        })
+    }
+
+    fn calculate_menu_height(&self, items: &[CascadingMenuItem]) -> f32 {
+        let mut total_h = 8.0; // Top and bottom padding
+        for item in items {
+            if item.is_separator {
+                total_h += self.style.separator_height;
+            } else {
+                total_h += self.style.row_height;
+            }
+        }
+        total_h
+    }
+
+    fn render_menu_card(
+        &self,
+        tree: &mut UiTree,
+        parent_id: WidgetId,
+        name: &str,
+        rect: Rect,
+    ) -> WidgetId {
+        let card_id = tree.create_node();
+        if let Some(node) = tree.get_mut(card_id) {
+            node.set_name(name);
+            node.set_role(WidgetRole::DropdownPopup);
+            node.layer = UiLayer::Popup;
+            node.computed_rect = rect;
+            node.style = Style::new()
+                .position_absolute()
+                .left(rect.x)
+                .top(rect.y)
+                .width(rect.width)
+                .height(rect.height)
+                .flex_col()
+                .padding_insets(Insets::new(4.0, 0.0, 4.0, 0.0))
+                .background(self.style.background)
+                .border(self.style.border_width, self.style.border_color)
+                .border_radius(self.style.border_radius)
+                .box_shadow(
+                    0.0,
+                    self.style.shadow_y,
+                    self.style.shadow_blur,
+                    self.style.shadow_color,
+                );
+        }
+        let _ = tree.add_child(parent_id, card_id);
+        card_id
+    }
+
+    fn render_items_recursive(
+        &self,
+        ctx: &mut CascadingRenderContext<'_, '_>,
+        card_id: WidgetId,
+        items: &[CascadingMenuItem],
+        card_rect: Rect,
+        level_index: usize,
+    ) {
+        let menu_w = card_rect.width;
+        let mut cur_y = card_rect.y + 4.0;
+        let target_active_tag = self.active_path.get(level_index).copied();
+
+        let effective_cursor = if self.cursor_pos.x >= 0.0 && self.cursor_pos.y >= 0.0 {
+            self.cursor_pos
+        } else {
+            ctx.tree.cursor_position().unwrap_or(self.cursor_pos)
+        };
+
+        // If pointer is inside this card, pre-evaluate which branch or leaf is hovered
+        if card_rect.contains_point(effective_cursor) {
+            let mut hovered_branch = None;
+            let mut has_hovered_item = false;
+            let mut check_y = card_rect.y + 4.0;
+            for it in items {
+                if it.is_separator {
+                    check_y += self.style.separator_height;
+                    continue;
+                }
+                let it_rect = Rect::new(
+                    card_rect.x + self.style.item_padding_x,
+                    check_y,
+                    menu_w - (self.style.item_padding_x * 2.0),
+                    self.style.row_height,
+                );
+                if it.is_enabled && it_rect.contains_point(effective_cursor) {
+                    has_hovered_item = true;
+                    if it.has_submenu() {
+                        hovered_branch = Some(it.tag);
+                    }
+                    break;
+                }
+                check_y += self.style.row_height;
+            }
+
+            if let Some(branch_tag) = hovered_branch {
+                ctx.tree.set_active_submenu(level_index as u64, branch_tag);
+            } else if has_hovered_item {
+                ctx.tree.close_submenu(level_index as u64);
+            }
+        }
+
+        for item in items {
+            if item.is_separator {
+                let sep_rect = Rect::new(card_rect.x + 6.0, cur_y + 2.0, menu_w - 12.0, 1.0);
+                let sep_id = ctx.tree.create_node();
+                if let Some(node) = ctx.tree.get_mut(sep_id) {
+                    node.set_name("MenuSeparator");
+                    node.layer = UiLayer::Popup;
+                    node.computed_rect = sep_rect;
+                    node.style = Style::new()
+                        .width(menu_w - 12.0)
+                        .height(1.0)
+                        .margin_insets(Insets::new(2.0, 6.0, 3.0, 6.0))
+                        .background(self.style.separator_color);
+                }
+                let _ = ctx.tree.add_child(card_id, sep_id);
+                cur_y += self.style.separator_height;
+                continue;
+            }
+
+            let item_rect = Rect::new(
+                card_rect.x + self.style.item_padding_x,
+                cur_y,
+                menu_w - (self.style.item_padding_x * 2.0),
+                self.style.row_height,
+            );
+
+            let is_hovered = item.is_enabled && item_rect.contains_point(effective_cursor);
+            let is_branch_active = target_active_tag == Some(item.tag)
+                || ctx.tree.is_submenu_open(level_index as u64, item.tag);
+
+            let bg = if !item.is_enabled {
+                self.style.item_idle_bg
+            } else if is_branch_active {
+                self.style.item_branch_active_bg
+            } else if is_hovered {
+                self.style.item_hover_bg
+            } else {
+                self.style.item_idle_bg
+            };
+
+            let text_color = if !item.is_enabled {
+                self.style.text_disabled_color
+            } else if is_hovered || is_branch_active {
+                self.style.text_hover_color
+            } else {
+                self.style.text_idle_color
+            };
+
+            let row_id = ctx.tree.create_node();
+            if let Some(node) = ctx.tree.get_mut(row_id) {
+                node.set_name(format!("MenuItem_{}", item.label));
+                node.set_role(WidgetRole::DropdownItem);
+                node.layer = UiLayer::Popup;
+                node.tag = item.tag;
+                node.computed_rect = item_rect;
+                node.style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .width(menu_w - (self.style.item_padding_x * 2.0))
+                    .height(self.style.row_height)
+                    .margin_insets(Insets::new(
+                        0.0,
+                        self.style.item_padding_x,
+                        0.0,
+                        self.style.item_padding_x,
+                    ))
+                    .background(bg)
+                    .border_radius(3.0);
+            }
+            let _ = ctx.tree.add_child(card_id, row_id);
+            ctx.item_nodes.push((item.tag, row_id));
+
+            // 1. Icon (if present)
+            let mut text_x = item_rect.x + 6.0;
+            if let Some(icon) = item.icon {
+                let ic_rect = Rect::new(
+                    text_x,
+                    cur_y + (self.style.row_height - 14.0) * 0.5,
+                    14.0,
+                    14.0,
+                );
+                let ic_id = ctx.tree.create_node();
+                if let Some(node) = ctx.tree.get_mut(ic_id) {
+                    node.set_layer(UiLayer::Popup);
+                    node.set_role(WidgetRole::DropdownIcon);
+                    node.set_tag(item.tag);
+                    node.interactive = false;
+                    node.computed_rect = ic_rect;
+                    node.style = Style::new()
+                        .width(14.0)
+                        .height(14.0)
+                        .margin_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
+                    match icon {
+                        CascadingMenuIcon::Text(glyph) => {
+                            node.set_name("MenuIconText");
+                            node.set_text(glyph);
+                            node.font_size = 11.0;
+                            node.line_height = self.style.row_height;
+                            node.text_align = TextAlign::Center;
+                            node.text_color = text_color;
+                        }
+                        CascadingMenuIcon::Texture(uv) => {
+                            node.set_name("MenuIconTexture");
+                            node.texture_uv = Some(uv);
+                            node.texture_tint = Some(Color::WHITE);
+                        }
+                    }
+                }
+                let _ = ctx.tree.add_child(row_id, ic_id);
+                text_x += 20.0;
+            }
+
+            // 2. Text Label
+            let label_w = item_rect.right()
+                - text_x
+                - if item.has_submenu() || item.shortcut.is_some() {
+                    36.0
+                } else {
+                    4.0
+                };
+            let lbl_rect = Rect::new(text_x, cur_y, label_w.max(10.0), self.style.row_height);
+            let lbl_id = ctx.tree.create_node();
+            if let Some(node) = ctx.tree.get_mut(lbl_id) {
+                node.set_name("MenuItemLabel");
+                node.set_layer(UiLayer::Popup);
+                node.set_role(WidgetRole::DropdownLabel);
+                node.set_tag(item.tag);
+                node.interactive = false;
+                node.computed_rect = lbl_rect;
+                node.style = Style::new().flex_grow(1.0).height(self.style.row_height);
+                node.set_text(&item.label);
+                node.font_size = self.style.font_size;
+                node.line_height = self.style.row_height;
+                node.text_color = text_color;
+            }
+            let _ = ctx.tree.add_child(row_id, lbl_id);
+
+            // 3. Right side: Shortcut or Submenu Chevron
+            if item.has_submenu() {
+                let arrow_rect =
+                    Rect::new(item_rect.right() - 16.0, cur_y, 12.0, self.style.row_height);
+                let arrow_id = ctx.tree.create_node();
+                if let Some(node) = ctx.tree.get_mut(arrow_id) {
+                    node.set_name("MenuSubmenuChevron");
+                    node.set_layer(UiLayer::Popup);
+                    node.set_role(WidgetRole::DropdownShortcut);
+                    node.set_tag(item.tag);
+                    node.interactive = false;
+                    node.computed_rect = arrow_rect;
+                    node.style = Style::new()
+                        .width(12.0)
+                        .height(self.style.row_height)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 4.0));
+                    node.set_text("▸");
+                    node.font_size = 10.0;
+                    node.line_height = self.style.row_height;
+                    node.text_align = TextAlign::Right;
+                    node.text_color = if is_hovered || is_branch_active {
+                        self.style.text_hover_color
+                    } else {
+                        self.style.arrow_color
+                    };
+                }
+                let _ = ctx.tree.add_child(row_id, arrow_id);
+            } else if let Some(shortcut) = &item.shortcut {
+                let sc_rect =
+                    Rect::new(item_rect.right() - 55.0, cur_y, 50.0, self.style.row_height);
+                let sc_id = ctx.tree.create_node();
+                if let Some(node) = ctx.tree.get_mut(sc_id) {
+                    node.set_name("MenuItemShortcut");
+                    node.set_layer(UiLayer::Popup);
+                    node.set_role(WidgetRole::DropdownShortcut);
+                    node.set_tag(item.tag);
+                    node.interactive = false;
+                    node.computed_rect = sc_rect;
+                    node.style = Style::new()
+                        .width(50.0)
+                        .height(self.style.row_height)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 5.0));
+                    node.set_text(shortcut);
+                    node.font_size = 10.0;
+                    node.line_height = self.style.row_height;
+                    node.text_align = TextAlign::Right;
+                    node.text_color = self.style.shortcut_color;
+                }
+                let _ = ctx.tree.add_child(row_id, sc_id);
+            }
+
+            // 4. If this item has an active submenu branch, render the nested card
+            if is_branch_active && let Some(sub_items) = &item.submenu {
+                let sub_w = self.custom_width.unwrap_or(self.style.menu_width);
+                let sub_h = self.calculate_menu_height(sub_items);
+
+                // Placement: Open to the right by default, or flip to the left if overflowing viewport
+                let mut sub_x = card_rect.right() + 2.0;
+                let mut sub_y = item_rect.y - 4.0;
+
+                if let Some(vp) = ctx.effective_viewport {
+                    let right_candidate = card_rect.right() + 2.0;
+                    let left_candidate = card_rect.x - sub_w - 2.0;
+                    let right_fits = right_candidate + sub_w <= vp.right();
+                    let left_fits = left_candidate >= vp.x;
+
+                    if right_fits {
+                        sub_x = right_candidate;
+                    } else if left_fits {
+                        // Overflowing on the right, but fits cleanly on the left
+                        sub_x = left_candidate;
+                    } else {
+                        // Neither side fits completely without clipping; choose the side with more available space and clamp
+                        let right_space = vp.right() - card_rect.right();
+                        let left_space = card_rect.x - vp.x;
+                        if left_space > right_space {
+                            sub_x = left_candidate.max(vp.x + 4.0);
+                        } else {
+                            sub_x = right_candidate
+                                .min(vp.right() - sub_w - 4.0)
+                                .max(vp.x + 4.0);
+                        }
+                    }
+
+                    if sub_y + sub_h > vp.bottom() {
+                        sub_y = (vp.bottom() - sub_h - 4.0).max(vp.y + 4.0);
+                    }
+                    if sub_y < vp.y {
+                        sub_y = vp.y + 4.0;
+                    }
+                }
+
+                let sub_rect = Rect::new(sub_x, sub_y, sub_w, sub_h);
+                let sub_card_id = self.render_menu_card(
+                    ctx.tree,
+                    ctx.root_parent_id,
+                    &format!("{}_Submenu", item.label),
+                    sub_rect,
+                );
+                ctx.rendered_rects.push(sub_rect);
+
+                self.render_items_recursive(ctx, sub_card_id, sub_items, sub_rect, level_index + 1);
+            }
+
+            cur_y += self.style.row_height;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cascading_menu_build_and_multilevel_rendering() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        }
+
+        let items = vec![
+            CascadingMenuItem::branch(
+                "3D Objects",
+                None,
+                100,
+                vec![
+                    CascadingMenuItem::item("Cube", 101),
+                    CascadingMenuItem::item("Sphere", 102),
+                    CascadingMenuItem::branch(
+                        "Advanced",
+                        None,
+                        103,
+                        vec![
+                            CascadingMenuItem::item("Torus", 104),
+                            CascadingMenuItem::item("Capsule", 105),
+                        ],
+                    ),
+                ],
+            ),
+            CascadingMenuItem::separator(),
+            CascadingMenuItem::item("Delete", 200),
+        ];
+
+        // 1. Level 1 only (no branch active)
+        let frame_lvl1 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 80.0, 24.0), &items, &[])
+            .build(&mut tree, root)
+            .expect("Level 1 menu must build");
+
+        assert_eq!(frame_lvl1.rendered_popup_rects.len(), 1);
+        assert_eq!(frame_lvl1.root_rect.x, 100.0);
+
+        // 2. Level 2 active (3D Objects open)
+        let frame_lvl2 =
+            CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 80.0, 24.0), &items, &[100])
+                .build(&mut tree, root)
+                .expect("Level 2 menu must build");
+
+        assert_eq!(frame_lvl2.rendered_popup_rects.len(), 2);
+
+        // 3. Level 3 active (3D Objects -> Advanced open)
+        let frame_lvl3 =
+            CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 80.0, 24.0), &items, &[100, 103])
+                .build(&mut tree, root)
+                .expect("Level 3 menu must build");
+
+        assert_eq!(frame_lvl3.rendered_popup_rects.len(), 3);
+
+        // Verify hit-testing on Torus (tag 104)
+        let lvl3_rect = frame_lvl3.rendered_popup_rects[2];
+        let click_point = Point::new(lvl3_rect.x + 10.0, lvl3_rect.y + 10.0);
+        let hit = tree.hit_test_target(click_point);
+        assert!(hit.is_some());
+        let hit_info = hit.unwrap();
+        assert_eq!(hit_info.layer, UiLayer::Popup);
+        assert_eq!(hit_info.role, WidgetRole::DropdownItem);
+        assert_eq!(hit_info.tag, 104);
+    }
+
+    #[test]
+    fn test_cascading_menu_viewport_boundary_flip() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let items = vec![CascadingMenuItem::branch(
+            "Nested",
+            None,
+            10,
+            vec![CascadingMenuItem::item("Leaf", 11)],
+        )];
+
+        let viewport = Rect::new(0.0, 0.0, 300.0, 600.0);
+
+        // Place anchor near right edge of viewport (250.0)
+        let frame = CascadingMenuBuilder::new(Rect::new(200.0, 100.0, 80.0, 24.0), &items, &[10])
+            .width(100.0)
+            .viewport_bounds(viewport)
+            .build(&mut tree, root)
+            .expect("Menu should build");
+
+        // Submenu should flip to the left because 200 + 100 + 100 > 300
+        assert_eq!(frame.rendered_popup_rects.len(), 2);
+        let root_rect = frame.rendered_popup_rects[0];
+        let sub_rect = frame.rendered_popup_rects[1];
+        assert!(
+            sub_rect.x < root_rect.x,
+            "Submenu must flip to the left when overflowing right viewport bound"
+        );
+        assert!(
+            sub_rect.x >= viewport.x,
+            "Submenu must never be clamped past the left viewport bound"
+        );
+    }
+
+    #[test]
+    fn test_cascading_menu_opens_right_when_fits() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let items = vec![CascadingMenuItem::branch(
+            "Nested",
+            None,
+            10,
+            vec![CascadingMenuItem::item("Leaf", 11)],
+        )];
+
+        let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+        // Place anchor on left side (e.g. Hierarchy + button at x: 240)
+        let frame = CascadingMenuBuilder::new(Rect::new(240.0, 50.0, 24.0, 24.0), &items, &[10])
+            .width(190.0)
+            .viewport_bounds(viewport)
+            .build(&mut tree, root)
+            .expect("Menu should build");
+
+        assert_eq!(frame.rendered_popup_rects.len(), 2);
+        let root_rect = frame.rendered_popup_rects[0];
+        let sub_rect = frame.rendered_popup_rects[1];
+
+        // Since 1920 has plenty of room, submenu MUST open to the right of root_rect
+        assert!(
+            sub_rect.x > root_rect.x,
+            "Submenu must open to the right when space is available on the right: root_x={}, sub_x={}",
+            root_rect.x,
+            sub_rect.x
+        );
+    }
+
+    #[test]
+    fn test_cascading_menu_autonomous_hover_activation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        }
+
+        let items = vec![
+            CascadingMenuItem::branch(
+                "Mesh",
+                None,
+                100,
+                vec![CascadingMenuItem::item("Static Mesh", 101)],
+            ),
+            CascadingMenuItem::item("Light", 200),
+        ];
+
+        // 1. Initial build with cursor far away: active_submenus is empty, only root is rendered
+        let frame1 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(Point::new(-10.0, -10.0))
+            .build(&mut tree, root)
+            .expect("Menu builds");
+        assert_eq!(frame1.rendered_popup_rects.len(), 1);
+        assert!(!tree.is_submenu_open(0, 100));
+
+        // 2. Build with cursor hovering over the first branch item row
+        let root_rect = frame1.root_rect;
+        let hover_point = Point::new(root_rect.x + 20.0, root_rect.y + 12.0);
+        let frame2 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(hover_point)
+            .build(&mut tree, root)
+            .expect("Menu builds");
+
+        assert!(
+            tree.is_submenu_open(0, 100),
+            "Hovering over branch item must autonomously activate submenu"
+        );
+        assert_eq!(
+            frame2.rendered_popup_rects.len(),
+            2,
+            "Submenu must be rendered autonomously on hover"
+        );
+
+        // 3. Hovering over non-branch leaf closes previous submenu
+        let hover_leaf = Point::new(root_rect.x + 20.0, root_rect.y + 34.0);
+        let frame3 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(hover_leaf)
+            .build(&mut tree, root)
+            .expect("Menu builds");
+
+        assert!(!tree.is_submenu_open(0, 100));
+        assert_eq!(frame3.rendered_popup_rects.len(), 1);
+    }
+}

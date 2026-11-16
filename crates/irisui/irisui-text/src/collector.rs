@@ -1,0 +1,864 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! Retained UI tree text collection pipeline with automatic layer-aware occlusion culling.
+//!
+//! Extracts renderable `TextSection` instances from an `irisui_core::UiTree`, computing
+//! hierarchical scissor clipping and culling lower-layer typography (such as background docked panels)
+//! hidden beneath opaque higher-layer containers (such as modal windows and popup dropdown menus).
+
+use crate::section::TextSection;
+use irisui_core::{
+    CanvasPrimitive, Color, Rect, TextAlign, TextWrap, UiLayer, UiTree, WidgetId, WidgetRole,
+};
+use std::borrow::Cow;
+
+#[derive(Debug, Clone, Copy)]
+struct Occluder {
+    rect: Rect,
+    layer: UiLayer,
+    order: usize,
+    subtree_max_order: usize,
+}
+
+/// Options for configuring text section extraction and layer-based occlusion culling.
+#[derive(Debug, Clone, Default)]
+pub struct TextCollectionOptions {
+    /// Optional additional screen-space opaque occlusion rectangles to cull background text against.
+    pub extra_occluders: Vec<Rect>,
+    /// Optional hovered semantic tag for highlighting text foreground colors.
+    pub hovered_tag: Option<u64>,
+    /// Optional hovered widget identifier for highlighting text foreground colors.
+    pub hovered_id: Option<WidgetId>,
+    /// Optional focused semantic tag for highlighting text foreground colors and controlling caret visibility.
+    pub focused_tag: Option<u64>,
+    /// Optional focused widget identifier for highlighting text foreground colors and controlling caret visibility.
+    pub focused_id: Option<WidgetId>,
+    /// Whether text input caret cursors are in the active visible blink phase.
+    pub blink_caret: bool,
+    /// Optional inclusive layer elevation range `(min, max)` to collect.
+    pub layer_range: Option<(UiLayer, UiLayer)>,
+}
+
+impl TextCollectionOptions {
+    /// Creates a new default configuration for text collection.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets an inclusive layer elevation range `(min, max)` to filter collected typography.
+    #[must_use]
+    #[inline]
+    pub fn with_layer_range(mut self, min: UiLayer, max: UiLayer) -> Self {
+        self.layer_range = Some((min, max));
+        self
+    }
+
+    /// Sets the hovered semantic tag for dynamic hover text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_hovered_tag(mut self, tag: Option<u64>) -> Self {
+        self.hovered_tag = tag;
+        self
+    }
+
+    /// Sets the hovered widget identifier for dynamic hover text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_hovered_id(mut self, id: Option<WidgetId>) -> Self {
+        self.hovered_id = id;
+        self
+    }
+
+    /// Sets the focused semantic tag for dynamic focus text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_focused_tag(mut self, tag: Option<u64>) -> Self {
+        self.focused_tag = tag;
+        self
+    }
+
+    /// Sets the focused widget identifier for dynamic focus text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_focused_id(mut self, id: Option<WidgetId>) -> Self {
+        self.focused_id = id;
+        self
+    }
+
+    /// Sets whether text carets are currently visible during the blink cycle.
+    #[must_use]
+    #[inline]
+    pub fn with_blink_caret(mut self, blink: bool) -> Self {
+        self.blink_caret = blink;
+        self
+    }
+}
+
+/// Helper context passed during recursive tree traversal.
+struct CollectionContext<'a> {
+    clip_rect: Option<Rect>,
+    inherited_layer: UiLayer,
+    inherited_hovered: bool,
+    inherited_focused: bool,
+    hovered_tag: Option<u64>,
+    hovered_id: Option<WidgetId>,
+    focused_tag: Option<u64>,
+    focused_id: Option<WidgetId>,
+    blink_caret: bool,
+    occluders: &'a [Occluder],
+    extra_occluders: &'a [Rect],
+}
+
+/// Collects shaped text sections from the UI tree with automatic layer-based occlusion culling.
+///
+/// Text elements on lower layers (e.g. `UiLayer::Content`) positioned behind opaque
+/// higher-layer containers (e.g. `UiLayer::Popup`, `UiLayer::Modal`) are automatically
+/// scissored or culled to prevent visual bleeding.
+pub fn collect_text_sections<'a>(tree: &'a UiTree) -> Vec<TextSection<'a>> {
+    collect_text_sections_with_options(tree, &TextCollectionOptions::default())
+}
+
+/// Collects shaped text sections from the UI tree using explicit configuration options.
+pub fn collect_text_sections_with_options<'a>(
+    tree: &'a UiTree,
+    options: &TextCollectionOptions,
+) -> Vec<TextSection<'a>> {
+    let Some(root) = tree.root() else {
+        return Vec::new();
+    };
+
+    // Step 1: Discover all opaque occluders with tree traversal order
+    let mut occluders = Vec::with_capacity(32);
+    let mut counter = 0usize;
+    discover_layer_occluders(
+        tree,
+        root,
+        UiLayer::Background,
+        &mut counter,
+        &mut occluders,
+    );
+
+    // Step 2: Recursively extract text sections with occlusion clipping and culling into discrete layer buckets
+    let mut layer_sections: [Vec<TextSection<'a>>; 6] = Default::default();
+    let mut text_counter = 0usize;
+    let ctx = CollectionContext {
+        clip_rect: None,
+        inherited_layer: UiLayer::Background,
+        inherited_hovered: false,
+        inherited_focused: false,
+        hovered_tag: options.hovered_tag,
+        hovered_id: options.hovered_id,
+        focused_tag: options.focused_tag,
+        focused_id: options.focused_id,
+        blink_caret: options.blink_caret,
+        occluders: &occluders,
+        extra_occluders: &options.extra_occluders,
+    };
+    collect_node_text(tree, root, &ctx, &mut text_counter, &mut layer_sections);
+
+    let total_count: usize = layer_sections.iter().map(|s| s.len()).sum();
+    let mut sections = Vec::with_capacity(total_count);
+    for (layer_idx, layer) in layer_sections.into_iter().enumerate() {
+        if let Some((min_layer, max_layer)) = options.layer_range
+            && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
+        {
+            continue;
+        }
+        sections.extend(layer);
+    }
+
+    sections
+}
+
+/// Discovers opaque rectangular containers capable of occluding text beneath their layer.
+fn discover_layer_occluders(
+    tree: &UiTree,
+    current: WidgetId,
+    inherited_layer: UiLayer,
+    counter: &mut usize,
+    occluders: &mut Vec<Occluder>,
+) {
+    let Some(node) = tree.get(current) else {
+        return;
+    };
+    if !node.visible {
+        return;
+    }
+
+    let node_order = *counter;
+    *counter += 1;
+
+    let effective_layer = if node.layer > inherited_layer {
+        node.layer
+    } else {
+        inherited_layer
+    };
+
+    let is_layer_container = matches!(
+        node.role,
+        WidgetRole::DropdownPopup
+            | WidgetRole::ModalWindow
+            | WidgetRole::FloatingWindow
+            | WidgetRole::Tooltip
+    ) || effective_layer >= UiLayer::Floating;
+
+    // An occluder MUST be a recognized top-level container AND strictly opaque (alpha >= 0.90).
+    // Semi-transparent elements like modal scrims (alpha ~ 0.55) or sub-cards must NEVER occlude background text.
+    let is_opaque = node.style.background_color.a >= 0.90;
+
+    let occluder_idx = if is_layer_container
+        && is_opaque
+        && node.computed_rect.width > 2.0
+        && node.computed_rect.height > 2.0
+    {
+        let idx = occluders.len();
+        occluders.push(Occluder {
+            rect: node.computed_rect,
+            layer: effective_layer,
+            order: node_order,
+            subtree_max_order: node_order,
+        });
+        Some(idx)
+    } else {
+        None
+    };
+
+    for &child_id in &node.children {
+        discover_layer_occluders(tree, child_id, effective_layer, counter, occluders);
+    }
+
+    if let Some(idx) = occluder_idx {
+        occluders[idx].subtree_max_order = *counter;
+    }
+}
+
+/// Recursively processes a widget node, testing text against higher-layer occluders.
+fn collect_node_text<'a>(
+    tree: &'a UiTree,
+    current: WidgetId,
+    ctx: &CollectionContext<'_>,
+    counter: &mut usize,
+    layer_sections: &mut [Vec<TextSection<'a>>; 6],
+) {
+    let Some(node) = tree.get(current) else {
+        return;
+    };
+    if !node.visible {
+        return;
+    }
+
+    let node_order = *counter;
+    *counter += 1;
+
+    let effective_layer = if node.layer > ctx.inherited_layer {
+        node.layer
+    } else {
+        ctx.inherited_layer
+    };
+
+    // A node is an elevated overlay root if its explicit layer exceeds the inherited layer,
+    // or if its semantic role designates an independent floating/overlay container
+    // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
+    let is_elevated_root = node.layer > ctx.inherited_layer
+        || matches!(
+            node.role,
+            WidgetRole::DropdownPopup
+                | WidgetRole::ModalWindow
+                | WidgetRole::FloatingWindow
+                | WidgetRole::Tooltip
+        );
+
+    // Decouple scissor clip when transitioning into an elevated overlay layer (e.g. Popup or Modal)
+    // so that child popups or modal cards are not clipped by parent panel boundaries.
+    let incoming_clip = if is_elevated_root {
+        None
+    } else {
+        ctx.clip_rect
+    };
+
+    // Calculate hierarchical scissor clipping
+    let child_clip = if node.style.clip_children {
+        match incoming_clip {
+            Some(existing) => Some(existing.intersect(node.computed_rect)),
+            None => Some(node.computed_rect),
+        }
+    } else {
+        incoming_clip
+    };
+
+    let node_matches_hover = (ctx.hovered_id.is_some() && ctx.hovered_id == Some(current))
+        || (node.tag != 0 && ctx.hovered_tag == Some(node.tag))
+        || (node.role == WidgetRole::DockTab
+            && ctx
+                .hovered_id
+                .is_some_and(|hid| tree.is_descendant_of(hid, current)));
+    let is_hovered = node_matches_hover || (ctx.inherited_hovered && node.tag == 0);
+
+    let node_matches_focus = (ctx.focused_id.is_some() && ctx.focused_id == Some(current))
+        || (node.tag != 0 && ctx.focused_tag == Some(node.tag));
+    let is_focused = node_matches_focus || (ctx.inherited_focused && node.tag == 0);
+
+    // Skip collecting text for caret indicator if un-focused or in blink-off phase
+    if node.role == WidgetRole::TextInputCaret && (!ctx.inherited_focused || !ctx.blink_caret) {
+        return;
+    }
+
+    // If node has text and valid dimensions, test occlusion and collect
+    if let Some(text) = &node.text
+        && !text.is_empty()
+        && node.computed_rect.width > 0.0
+        && node.computed_rect.height > 0.0
+    {
+        // Hierarchical scissor culling: If this text node lies entirely outside the active
+        // scissor clipping boundary (e.g. from parent panel with clip_children: true),
+        // skip collection immediately to prevent bleeding into adjacent UI panels or status bar.
+        let is_clipped_out = if let Some(clip) = child_clip {
+            node.computed_rect.bottom() <= clip.y
+                || node.computed_rect.y >= clip.bottom()
+                || node.computed_rect.right() <= clip.x
+                || node.computed_rect.x >= clip.right()
+        } else {
+            false
+        };
+
+        if !is_clipped_out {
+            let mut effective_clip = child_clip;
+
+            // Approximate visual horizontal footprint of the text
+            let text_char_count = text.chars().count() as f32;
+            let approx_text_width = text_char_count * (node.font_size * 0.62);
+            let (text_min_x, text_max_x) = match node.text_align {
+                TextAlign::Left => (
+                    node.computed_rect.x,
+                    (node.computed_rect.x + approx_text_width).min(node.computed_rect.right()),
+                ),
+                TextAlign::Right => (
+                    (node.computed_rect.right() - approx_text_width).max(node.computed_rect.x),
+                    node.computed_rect.right(),
+                ),
+                TextAlign::Center => {
+                    let cx = node.computed_rect.x + node.computed_rect.width * 0.5;
+                    (
+                        (cx - approx_text_width * 0.5).max(node.computed_rect.x),
+                        (cx + approx_text_width * 0.5).min(node.computed_rect.right()),
+                    )
+                }
+            };
+
+            let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
+            let mut is_fully_occluded = false;
+
+            // Test against occluders that are on a higher layer OR drawn after this node on the same layer
+            for occluder in ctx.occluders {
+                // A container never occludes its own subtree descendants
+                if node_order >= occluder.order && node_order <= occluder.subtree_max_order {
+                    continue;
+                }
+
+                let is_higher_z = occluder.layer > effective_layer
+                    || (occluder.layer == effective_layer && occluder.order > node_order);
+
+                if !is_higher_z {
+                    continue;
+                }
+
+                let vert_overlap = node.computed_rect.bottom() > occluder.rect.y
+                    && node.computed_rect.y < occluder.rect.bottom();
+                if !vert_overlap {
+                    continue;
+                }
+                let horiz_overlap =
+                    text_max_x > occluder.rect.x && text_min_x < occluder.rect.right();
+                if !horiz_overlap {
+                    continue;
+                }
+
+                // If the entire text bounding footprint falls within the opaque occluder, cull it completely
+                if text_min_x >= occluder.rect.x
+                    && text_max_x <= occluder.rect.right()
+                    && text_center_y >= occluder.rect.y
+                    && text_center_y <= occluder.rect.bottom()
+                {
+                    is_fully_occluded = true;
+                    break;
+                }
+
+                // If text is vertically within the occluder and partially covered horizontally, scissor-clip it
+                let text_vertically_covered = node.computed_rect.y >= occluder.rect.y
+                    && node.computed_rect.bottom() <= occluder.rect.bottom();
+                if text_vertically_covered {
+                    if text_min_x < occluder.rect.x && text_max_x > occluder.rect.x {
+                        let clip_sub = Rect::new(
+                            0.0,
+                            node.computed_rect.y,
+                            occluder.rect.x,
+                            node.computed_rect.height,
+                        );
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    } else if text_min_x < occluder.rect.right()
+                        && text_max_x > occluder.rect.right()
+                    {
+                        let clip_sub = Rect::new(
+                            occluder.rect.right(),
+                            node.computed_rect.y,
+                            100_000.0,
+                            node.computed_rect.height,
+                        );
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                }
+            }
+
+            // Also test against any extra occluders provided by host application (only for content/background layers)
+            if effective_layer <= UiLayer::Content {
+                for occluder in ctx.extra_occluders {
+                    if is_fully_occluded {
+                        break;
+                    }
+                    let vert_overlap = node.computed_rect.bottom() > occluder.y
+                        && node.computed_rect.y < occluder.bottom();
+                    if !vert_overlap {
+                        continue;
+                    }
+                    let horiz_overlap = text_max_x > occluder.x && text_min_x < occluder.right();
+                    if !horiz_overlap {
+                        continue;
+                    }
+
+                    if text_min_x >= occluder.x
+                        && text_max_x <= occluder.right()
+                        && text_center_y >= occluder.y
+                        && text_center_y <= occluder.bottom()
+                    {
+                        is_fully_occluded = true;
+                        break;
+                    }
+                }
+            }
+
+            if !is_fully_occluded {
+                let color = if is_focused {
+                    if let Some(fc) = node.focus_text_color {
+                        fc
+                    } else if is_hovered {
+                        if let Some(hc) = node.hover_text_color {
+                            hc
+                        } else if matches!(
+                            node.role,
+                            WidgetRole::Button | WidgetRole::MenuBarItem | WidgetRole::DropdownItem
+                        ) {
+                            Color::WHITE
+                        } else {
+                            node.text_color
+                        }
+                    } else {
+                        node.text_color
+                    }
+                } else if is_hovered {
+                    if let Some(hc) = node.hover_text_color {
+                        hc
+                    } else if matches!(
+                        node.role,
+                        WidgetRole::Button | WidgetRole::MenuBarItem | WidgetRole::DropdownItem
+                    ) {
+                        Color::WHITE
+                    } else {
+                        node.text_color
+                    }
+                } else {
+                    node.text_color
+                };
+
+                let section = TextSection {
+                    text: Cow::Borrowed(text.as_str()),
+                    font_size: node.font_size,
+                    line_height: node.line_height,
+                    color,
+                    align: node.text_align,
+                    wrap: node.text_wrap,
+                    bounds: node.computed_rect,
+                    clip_bounds: effective_clip,
+                    layer: effective_layer,
+                };
+                layer_sections[effective_layer.index()].push(section);
+            }
+        }
+    }
+
+    // Extract volatile immediate-mode canvas text primitives if registered on this node
+    if let Some(primitives) = tree.canvas_primitives(current) {
+        for prim in primitives {
+            if let CanvasPrimitive::Text {
+                pos,
+                text,
+                font_size,
+                color,
+            } = prim
+                && !text.is_empty()
+            {
+                let text_bounds = Rect::new(pos.x, pos.y, 10_000.0, *font_size + 4.0);
+                let is_clipped_out = if let Some(clip) = child_clip {
+                    pos.y + *font_size + 4.0 <= clip.y
+                        || pos.y >= clip.bottom()
+                        || pos.x >= clip.right()
+                } else {
+                    false
+                };
+                if !is_clipped_out {
+                    let section = TextSection {
+                        text: Cow::Borrowed(text.as_str()),
+                        font_size: *font_size,
+                        line_height: *font_size * 1.2,
+                        color: *color,
+                        align: TextAlign::Left,
+                        wrap: TextWrap::None,
+                        bounds: text_bounds,
+                        clip_bounds: child_clip,
+                        layer: effective_layer,
+                    };
+                    layer_sections[effective_layer.index()].push(section);
+                }
+            }
+        }
+    }
+
+    let child_ctx = CollectionContext {
+        clip_rect: child_clip,
+        inherited_layer: effective_layer,
+        inherited_hovered: is_hovered,
+        inherited_focused: is_focused,
+        hovered_tag: ctx.hovered_tag,
+        hovered_id: ctx.hovered_id,
+        focused_tag: ctx.focused_tag,
+        focused_id: ctx.focused_id,
+        blink_caret: ctx.blink_caret,
+        occluders: ctx.occluders,
+        extra_occluders: ctx.extra_occluders,
+    };
+
+    for &child_id in &node.children {
+        collect_node_text(tree, child_id, &child_ctx, counter, layer_sections);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::{Color, Rect, UiTree};
+
+    #[test]
+    fn test_collect_text_sections_basic() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        }
+
+        let label = tree.create_node();
+        if let Some(node) = tree.get_mut(label) {
+            node.computed_rect = Rect::new(10.0, 10.0, 100.0, 24.0);
+            node.text = Some("Hello World".to_owned());
+        }
+        tree.add_child(root, label).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Hello World");
+    }
+
+    #[test]
+    fn test_collect_text_occlusion_culling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        }
+
+        // Background label at (50, 50, 100, 30) on Content layer
+        let bg_label = tree.create_node();
+        if let Some(node) = tree.get_mut(bg_label) {
+            node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
+            node.text = Some("Occluded Text".to_owned());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, bg_label).unwrap();
+
+        // Popup covering (40, 40, 150, 100) on Popup layer
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(40.0, 40.0, 150.0, 100.0);
+            node.layer = UiLayer::Popup;
+            node.style.background_color = Color::BLACK; // Opaque
+        }
+        tree.add_child(root, popup).unwrap();
+
+        // Popup label inside the popup
+        let popup_label = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_label) {
+            node.computed_rect = Rect::new(50.0, 60.0, 100.0, 20.0);
+            node.text = Some("Popup Text".to_owned());
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(popup, popup_label).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        // The background label MUST be culled completely, only popup_label should survive!
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Popup Text");
+    }
+
+    #[test]
+    fn test_collect_text_scissor_clipping_culling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Panel with clip_children: true, bounded at (0, 0, 400, 200)
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 200.0);
+            node.style.clip_children = true;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, panel).unwrap();
+
+        // Label 1 inside panel (y = 50)
+        let label_inside = tree.create_node();
+        if let Some(node) = tree.get_mut(label_inside) {
+            node.computed_rect = Rect::new(10.0, 50.0, 100.0, 20.0);
+            node.text = Some("Inside Panel".to_owned());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(panel, label_inside).unwrap();
+
+        // Label 2 overflowing below panel (y = 250, outside panel height 200)
+        let label_overflow = tree.create_node();
+        if let Some(node) = tree.get_mut(label_overflow) {
+            node.computed_rect = Rect::new(10.0, 250.0, 100.0, 20.0);
+            node.text = Some("Bleeding Text Outside".to_owned());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(panel, label_overflow).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Inside Panel");
+    }
+
+    #[test]
+    fn test_collect_text_hover_color_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let btn_tag = 12345u64;
+
+        let btn = tree.create_node();
+        if let Some(node) = tree.get_mut(btn) {
+            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 30.0);
+            node.tag = btn_tag;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, btn).unwrap();
+
+        let label = tree.create_node();
+        if let Some(node) = tree.get_mut(label) {
+            node.computed_rect = Rect::new(10.0, 5.0, 80.0, 20.0);
+            node.text = Some("Click Me".to_owned());
+            node.text_color = Color::BLACK;
+            node.hover_text_color = Some(Color::WHITE);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(btn, label).unwrap();
+
+        // 1. Unhovered collection
+        let normal_sections = collect_text_sections(&tree);
+        assert_eq!(normal_sections.len(), 1);
+        assert_eq!(normal_sections[0].color, Color::BLACK);
+
+        // 2. Hovered collection
+        let hover_opts = TextCollectionOptions::default().with_hovered_tag(Some(btn_tag));
+        let hover_sections = collect_text_sections_with_options(&tree, &hover_opts);
+        assert_eq!(hover_sections.len(), 1);
+        assert_eq!(hover_sections[0].color, Color::WHITE);
+    }
+
+    #[test]
+    fn test_collect_text_focus_and_caret_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let input_tag = 9999u64;
+
+        let input_box = tree.create_node();
+        if let Some(node) = tree.get_mut(input_box) {
+            node.computed_rect = Rect::new(0.0, 0.0, 200.0, 30.0);
+            node.tag = input_tag;
+            node.role = WidgetRole::TextInput;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, input_box).unwrap();
+
+        let text_node = tree.create_node();
+        if let Some(node) = tree.get_mut(text_node) {
+            node.computed_rect = Rect::new(10.0, 5.0, 100.0, 20.0);
+            node.text = Some("Search query".to_owned());
+            node.text_color = Color::rgb(0.5, 0.5, 0.5);
+            node.focus_text_color = Some(Color::WHITE);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(input_box, text_node).unwrap();
+
+        let caret_node = tree.create_node();
+        if let Some(node) = tree.get_mut(caret_node) {
+            node.computed_rect = Rect::new(115.0, 5.0, 6.0, 20.0);
+            node.text = Some("|".to_owned());
+            node.text_color = Color::CYAN;
+            node.role = WidgetRole::TextInputCaret;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(input_box, caret_node).unwrap();
+
+        // 1. Unfocused collection -> text is gray, caret is NOT collected
+        let unfocused_sections = collect_text_sections(&tree);
+        assert_eq!(unfocused_sections.len(), 1);
+        assert_eq!(unfocused_sections[0].color, Color::rgb(0.5, 0.5, 0.5));
+        assert_eq!(unfocused_sections[0].text, "Search query");
+
+        // 2. Focused collection with blink on -> text is WHITE, caret IS collected
+        let focused_opts = TextCollectionOptions::default()
+            .with_focused_tag(Some(input_tag))
+            .with_blink_caret(true);
+        let focused_sections = collect_text_sections_with_options(&tree, &focused_opts);
+        assert_eq!(focused_sections.len(), 2);
+        assert_eq!(focused_sections[0].color, Color::WHITE);
+        assert_eq!(focused_sections[1].text, "|");
+
+        // 3. Focused collection with blink off -> caret is hidden
+        let blink_off_opts = TextCollectionOptions::default()
+            .with_focused_tag(Some(input_tag))
+            .with_blink_caret(false);
+        let blink_off_sections = collect_text_sections_with_options(&tree, &blink_off_opts);
+        assert_eq!(blink_off_sections.len(), 1);
+    }
+
+    #[test]
+    fn test_collect_text_layer_sorting_order() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Add nodes in reverse/scrambled layer order: Tooltip, Modal, Content, Popup, Background
+        let tooltip_node = tree.create_node();
+        if let Some(node) = tree.get_mut(tooltip_node) {
+            node.computed_rect = Rect::new(10.0, 10.0, 100.0, 20.0);
+            node.text = Some("Tooltip Text".to_owned());
+            node.layer = UiLayer::Tooltip;
+        }
+        tree.add_child(root, tooltip_node).unwrap();
+
+        let modal_node = tree.create_node();
+        if let Some(node) = tree.get_mut(modal_node) {
+            node.computed_rect = Rect::new(10.0, 40.0, 100.0, 20.0);
+            node.text = Some("Modal Text".to_owned());
+            node.layer = UiLayer::Modal;
+        }
+        tree.add_child(root, modal_node).unwrap();
+
+        let content_node = tree.create_node();
+        if let Some(node) = tree.get_mut(content_node) {
+            node.computed_rect = Rect::new(10.0, 70.0, 100.0, 20.0);
+            node.text = Some("Content Text".to_owned());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, content_node).unwrap();
+
+        let popup_node = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_node) {
+            node.computed_rect = Rect::new(10.0, 100.0, 100.0, 20.0);
+            node.text = Some("Popup Text".to_owned());
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(root, popup_node).unwrap();
+
+        let bg_node = tree.create_node();
+        if let Some(node) = tree.get_mut(bg_node) {
+            node.computed_rect = Rect::new(10.0, 130.0, 100.0, 20.0);
+            node.text = Some("Background Text".to_owned());
+            node.layer = UiLayer::Background;
+        }
+        tree.add_child(root, bg_node).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 5);
+        // Strict layer elevation ordering: Background (0) -> Content (1) -> Modal (3) -> Popup (4) -> Tooltip (5)
+        assert_eq!(sections[0].text, "Background Text");
+        assert_eq!(sections[0].layer, UiLayer::Background);
+
+        assert_eq!(sections[1].text, "Content Text");
+        assert_eq!(sections[1].layer, UiLayer::Content);
+
+        assert_eq!(sections[2].text, "Modal Text");
+        assert_eq!(sections[2].layer, UiLayer::Modal);
+
+        assert_eq!(sections[3].text, "Popup Text");
+        assert_eq!(sections[3].layer, UiLayer::Popup);
+
+        assert_eq!(sections[4].text, "Tooltip Text");
+        assert_eq!(sections[4].layer, UiLayer::Tooltip);
+    }
+
+    #[test]
+    fn test_collect_text_scissor_bypass_for_elevated_layer() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Panel bounded at (0, 0, 300, 300) with clip_children = true
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+            node.style.clip_children = true;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, panel).unwrap();
+
+        // Popup placed at (250, 250, 200, 150) - sticking out to (450, 400)
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(250.0, 250.0, 200.0, 150.0);
+            node.role = WidgetRole::DropdownPopup;
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(panel, popup).unwrap();
+
+        // Label inside popup placed at (320, 320, 100, 20) - entirely outside parent panel bounds!
+        let popup_label = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_label) {
+            node.computed_rect = Rect::new(320.0, 320.0, 100.0, 20.0);
+            node.text = Some("Flyout Label".to_owned());
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(popup, popup_label).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Flyout Label");
+        // Scissor clip must be None (decoupled from panel), NOT clipped by parent panel (0, 0, 300, 300)
+        assert_eq!(sections[0].clip_bounds, None);
+    }
+}

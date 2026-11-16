@@ -1,16 +1,16 @@
 [package]
 name = "irisui"
 description = "GPU-accelerated Retained-Mode UI framework for games and creative software"
-version.workspace = true
+version = "0.1.0-alpha.1"
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-iris-core = { workspace = true }
-iris-layout = { workspace = true }
-iris-text = { workspace = true }
-iris-wgpu = { workspace = true }
-iris-widgets = { workspace = true }
-iris-dock = { workspace = true }
-iris-winit = { workspace = true }
-iris-workbench = { workspace = true }
+irisui-core = { workspace = true }
+irisui-layout = { workspace = true }
+irisui-text = { workspace = true }
+irisui-wgpu = { workspace = true }
+irisui-widgets = { workspace = true }
+irisui-dock = { workspace = true }
+irisui-winit = { workspace = true }
+irisui-workbench = { workspace = true }

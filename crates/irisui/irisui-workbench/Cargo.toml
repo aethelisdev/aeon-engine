@@ -1,0 +1,17 @@
+[package]
+name = "irisui-workbench"
+description = "Desktop IDE and Professional Workbench Application Shell Framework for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+irisui-core = { workspace = true }
+irisui-layout = { workspace = true }
+irisui-text = { workspace = true }
+irisui-widgets = { workspace = true }
+irisui-dock = { workspace = true }
+irisui-winit = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// Modular panel identification, tree docking state (`iris_dock`),
+/// Modular panel identification, tree docking state (`irisui_dock`),
 /// and layout persistence for the Aeon Engine editor interface.
 use irisui::dock::{DockState, DockTree, FloatingWindowClampBounds};
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,7 @@ impl PanelId {
 
     /// Returns the canonical alphanumeric string identifier for this panel used in registries.
     ///
-    /// This string identifier matches [`iris_dock::DockPanel::id`] for registry lookups.
+    /// This string identifier matches [`irisui_dock::DockPanel::id`] for registry lookups.
     pub fn id_str(&self) -> &'static str {
         match self {
             Self::Viewport => "viewport",
@@ -155,7 +155,7 @@ impl PanelId {
     }
 }
 
-/// Constructs the default tree layout using `iris_dock`.
+/// Constructs the default tree layout using `irisui_dock`.
 ///
 /// **Layout Topology:**
 /// - Center: `[Viewport, UiDesigner]` (Tabbed 3D & 2D workspace)
@@ -207,7 +207,7 @@ pub fn create_default_dock_state() -> DockState<PanelId> {
     DockState::new(tree).with_min_pane_size(60.0)
 }
 
-/// Persistent layout state managing the `iris_dock` tree across the editor.
+/// Persistent layout state managing the `irisui_dock` tree across the editor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PanelLayoutState {
     /// Full tree docking state.

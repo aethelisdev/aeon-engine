@@ -19,14 +19,14 @@ members = [
     "crates/ae_2d/ae_2d",
     "crates/ae_launcher",
     "crates/ae_engine",
-    "crates/irisui/iris-core",
-    "crates/irisui/iris-dock",
-    "crates/irisui/iris-layout",
-    "crates/irisui/iris-text",
-    "crates/irisui/iris-wgpu",
-    "crates/irisui/iris-widgets",
-    "crates/irisui/iris-winit",
-    "crates/irisui/iris-workbench",
+    "crates/irisui/irisui-core",
+    "crates/irisui/irisui-dock",
+    "crates/irisui/irisui-layout",
+    "crates/irisui/irisui-text",
+    "crates/irisui/irisui-wgpu",
+    "crates/irisui/irisui-widgets",
+    "crates/irisui/irisui-winit",
+    "crates/irisui/irisui-workbench",
     "crates/irisui/irisui",
 ]
 default-members = ["crates/ae_launcher"]
@@ -81,14 +81,14 @@ ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
 ae_2d = { path = "crates/ae_2d/ae_2d" }
 
-iris-core = { path = "crates/irisui/iris-core" }
-iris-dock = { path = "crates/irisui/iris-dock" }
-iris-layout = { path = "crates/irisui/iris-layout" }
-iris-text = { path = "crates/irisui/iris-text" }
-iris-wgpu = { path = "crates/irisui/iris-wgpu" }
-iris-widgets = { path = "crates/irisui/iris-widgets" }
-iris-winit = { path = "crates/irisui/iris-winit" }
-iris-workbench = { path = "crates/irisui/iris-workbench" }
+irisui-core = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-core" }
+irisui-dock = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-dock" }
+irisui-layout = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-layout" }
+irisui-text = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-text" }
+irisui-wgpu = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-wgpu" }
+irisui-widgets = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-widgets" }
+irisui-winit = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-winit" }
+irisui-workbench = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-workbench" }
 irisui = { path = "crates/irisui/irisui" }
 
 slotmap = { version = "1.1.1", features = ["serde"] }

@@ -1,0 +1,18 @@
+[package]
+name = "irisui-widgets"
+description = "Standard widget set and game-engine editor components for Iris UI"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+arboard = { workspace = true }
+irisui-core = { workspace = true }
+irisui-layout = { workspace = true }
+irisui-text = { workspace = true }
+irisui-wgpu = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
+

@@ -156,8 +156,8 @@ dependencies = [
  "gltf",
  "hecs",
  "image",
- "iris-winit",
  "irisui",
+ "irisui-winit",
  "log",
  "rayon",
  "rfd",
@@ -497,7 +497,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
  "x11rb",
 ]
 
@@ -1246,7 +1246,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1614,7 +1614,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.21",
- "windows 0.62.2",
+ "windows 0.54.0",
 ]
 
 [[package]]
@@ -1797,8 +1797,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "iris-core"
-version = "0.1.0"
+name = "irisui"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "irisui-core",
+ "irisui-dock",
+ "irisui-layout",
+ "irisui-text",
+ "irisui-wgpu",
+ "irisui-widgets",
+ "irisui-winit",
+ "irisui-workbench",
+]
+
+[[package]]
+name = "irisui-core"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -1808,11 +1822,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "iris-dock"
-version = "0.1.0"
+name = "irisui-dock"
+version = "0.1.0-alpha.1"
 dependencies = [
- "iris-core",
- "iris-widgets",
+ "irisui-core",
+ "irisui-widgets",
  "serde",
  "serde_json",
  "slotmap",
@@ -1820,89 +1834,75 @@ dependencies = [
 ]
 
 [[package]]
-name = "iris-layout"
-version = "0.1.0"
+name = "irisui-layout"
+version = "0.1.0-alpha.1"
 dependencies = [
- "iris-core",
+ "irisui-core",
  "log",
  "taffy",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "iris-text"
-version = "0.1.0"
+name = "irisui-text"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytemuck",
  "cosmic-text",
  "glyphon",
- "iris-core",
+ "irisui-core",
  "log",
  "thiserror 2.0.21",
  "wgpu",
 ]
 
 [[package]]
-name = "iris-wgpu"
-version = "0.1.0"
+name = "irisui-wgpu"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytemuck",
  "glam 0.33.12",
- "iris-core",
+ "irisui-core",
  "log",
  "thiserror 2.0.21",
  "wgpu",
 ]
 
 [[package]]
-name = "iris-widgets"
-version = "0.1.0"
+name = "irisui-widgets"
+version = "0.1.0-alpha.1"
 dependencies = [
  "arboard",
- "iris-core",
- "iris-layout",
- "iris-text",
- "iris-wgpu",
+ "irisui-core",
+ "irisui-layout",
+ "irisui-text",
+ "irisui-wgpu",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "iris-winit"
-version = "0.1.0"
+name = "irisui-winit"
+version = "0.1.0-alpha.1"
 dependencies = [
  "glam 0.33.12",
- "iris-core",
- "iris-widgets",
+ "irisui-core",
+ "irisui-widgets",
  "winit",
 ]
 
 [[package]]
-name = "iris-workbench"
-version = "0.1.0"
+name = "irisui-workbench"
+version = "0.1.0-alpha.1"
 dependencies = [
- "iris-core",
- "iris-dock",
- "iris-layout",
- "iris-text",
- "iris-widgets",
- "iris-winit",
+ "irisui-core",
+ "irisui-dock",
+ "irisui-layout",
+ "irisui-text",
+ "irisui-widgets",
+ "irisui-winit",
  "log",
  "serde",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "irisui"
-version = "0.1.0"
-dependencies = [
- "iris-core",
- "iris-dock",
- "iris-layout",
- "iris-text",
- "iris-wgpu",
- "iris-widgets",
- "iris-winit",
- "iris-workbench",
 ]
 
 [[package]]
@@ -2322,8 +2322,8 @@ dependencies = [
 
 [[package]]
 name = "naga"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -2347,8 +2347,8 @@ dependencies = [
 
 [[package]]
 name = "naga-types"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "hashbrown 0.17.1",
  "indexmap",
@@ -3647,7 +3647,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4548,8 +4548,7 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 [[package]]
 name = "wgpu"
 version = "30.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "146fc3d654250e6207921a66c87534c621bc886c70df83dcf466c1d66813810e"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "arrayvec",
  "bitflags 2.13.2",
@@ -4577,8 +4576,8 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -4610,32 +4609,32 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core-deps-apple"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "wgpu-hal",
 ]
 
 [[package]]
 name = "wgpu-core-deps-emscripten"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "wgpu-hal",
 ]
 
 [[package]]
 name = "wgpu-core-deps-windows-linux-android"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "wgpu-hal",
 ]
 
 [[package]]
 name = "wgpu-hal"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -4689,8 +4688,8 @@ dependencies = [
 
 [[package]]
 name = "wgpu-naga-bridge"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "naga",
  "wgpu-types",
@@ -4698,8 +4697,8 @@ dependencies = [
 
 [[package]]
 name = "wgpu-types"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"
+version = "30.0.2"
+source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#2b38d994b38dd001157d31fd3321111103a8dd80"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -4727,7 +4726,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5240,8 +5239,3 @@ checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
  "zune-core",
 ]
-
-[[patch.unused]]
-name = "wgpu"
-version = "30.0.1"
-source = "git+https://github.com/aethelisdev/aeongpu.git?branch=aeon-v30#40f4a34ebaf56f9a046231f54125ad046239d3f3"

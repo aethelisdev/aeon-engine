@@ -4,13 +4,13 @@
 //! # Editor Workbench Preferences Lifecycle Orchestration
 //!
 //! Provides autonomous opening, focusing, and toggling of the Preferences panel
-//! within the `iris-dock` docking tree and detached floating window subsystem.
+//! within the `irisui-dock` docking tree and detached floating window subsystem.
 
 use super::state::EngineUi;
 use crate::ui::PanelId;
 
 impl EngineUi {
-    /// Opens or focuses the Preferences panel as a detached floating window in `iris-dock`.
+    /// Opens or focuses the Preferences panel as a detached floating window in `irisui-dock`.
     ///
     /// If the Preferences panel is currently docked as a tab in the workspace tree, focuses
     /// that docked leaf and activates the Preferences tab. If it is already hosted within
