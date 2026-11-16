@@ -390,17 +390,8 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
             response.cursor_override = Some(cursor);
         }
 
-        // Apply floating window lifecycle requests
-        if let Some(win_id) = floating_res.closed_window {
-            let _ = state.close_floating_window(win_id);
-            response.layout_changed = true;
-        }
-        if let Some(win_id) = floating_res.dock_back_window {
-            if let Some(target_leaf) = state.tree.find_first_leaf() {
-                let _ = state.dock_floating_window(win_id, target_leaf, crate::DropZone::Center);
-            } else {
-                let _ = state.close_floating_window(win_id);
-            }
+        // Apply floating window lifecycle requests (DockBack/Close mutations are committed by floating handler)
+        if floating_res.closed_window.is_some() || floating_res.dock_back_window.is_some() {
             response.layout_changed = true;
         }
         if let Some(pending) = floating_res.pending_tab_drag {
@@ -421,8 +412,21 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
         );
 
         let mut pending = state.pending_tab_drag;
-        let drag_res =
-            handle_tab_drag_event(state, event, &mut pending, workspace_rect, &computed_layout);
+        let drag_res = handle_tab_drag_event(
+            state,
+            event,
+            &mut pending,
+            workspace_rect,
+            &computed_layout,
+            |tab| {
+                let raw = viewer.raw_title(tab);
+                if raw.is_empty() {
+                    viewer.title(tab)
+                } else {
+                    raw
+                }
+            },
+        );
         state.pending_tab_drag = pending;
 
         if drag_res.consumed {

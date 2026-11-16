@@ -294,28 +294,28 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         let mut x = inner.x;
         let mut y = inner.y;
         let mut line_h = 0.0_f32;
+        let mut line_items: Vec<(WidgetId, f32, f32, f32, Insets)> = Vec::new();
         for child_id in &children {
             let margin = tree.get(*child_id).map_or(Insets::ZERO, |n| n.style.margin);
-            let child_w = tree
-                .get(*child_id)
-                .and_then(|n| n.style.width)
-                .unwrap_or(16.0);
+            let child_w = measure_wrap_child_width(tree, *child_id);
             let child_h = tree
                 .get(*child_id)
                 .and_then(|n| n.style.height)
                 .unwrap_or_else(|| measure_height(tree, *child_id));
 
-            if x + child_w + margin.left + margin.right > inner.x + inner.width && x > inner.x {
+            if x + child_w + margin.horizontal() > inner.x + inner.width && x > inner.x {
+                commit_wrapped_line(tree, &line_items, y, line_h, align);
+                line_items.clear();
                 x = inner.x;
                 y += line_h + gap;
                 line_h = 0.0;
             }
 
-            let child_rect = Rect::new(x + margin.left, y + margin.top, child_w, child_h);
-            layout_subtree(tree, *child_id, child_rect);
-            x += child_w + margin.left + margin.right + gap;
+            line_items.push((*child_id, x + margin.left, child_w, child_h, margin));
+            x += child_w + margin.horizontal() + gap;
             line_h = line_h.max(child_h + margin.top + margin.bottom);
         }
+        commit_wrapped_line(tree, &line_items, y, line_h, align);
     } else {
         // Row: calculate widths honoring explicit style.width where set, and flexing the rest
         let total_gaps = gap * (children.len().saturating_sub(1)) as f32;
@@ -522,9 +522,7 @@ pub fn measure_height_constrained(tree: &UiTree, node_id: WidgetId, max_width: O
             let mut line_h = 0.0_f32;
             for cid in &child_ids {
                 let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
-                let w = tree.get(*cid).and_then(|n| n.style.width).unwrap_or(16.0)
-                    + margin.left
-                    + margin.right;
+                let w = measure_wrap_child_width(tree, *cid) + margin.horizontal();
                 let h =
                     measure_height_constrained(tree, *cid, inner_w) + margin.top + margin.bottom;
                 if cur_x + w > w_limit && cur_x > 0.0 {
@@ -691,5 +689,46 @@ pub fn measure_width(tree: &UiTree, node_id: WidgetId) -> f32 {
             }
         }
         total
+    }
+}
+
+/// Measures a child node's horizontal footprint for wrapped row flow, falling back to measured content width.
+fn measure_wrap_child_width(tree: &UiTree, child_id: WidgetId) -> f32 {
+    let Some(node) = tree.get(child_id) else {
+        return 0.0;
+    };
+    if let Some(w) = node.style.width {
+        return w;
+    }
+    let pad_h = node.style.padding.left + node.style.padding.right;
+    if node.content_size.width > 0.0 {
+        return node.content_size.width + pad_h;
+    }
+    measure_width(tree, child_id)
+}
+
+/// Commits computed bounding boxes for a single wrapped row, honoring vertical alignment within `line_h`.
+fn commit_wrapped_line(
+    tree: &mut UiTree,
+    line_items: &[(WidgetId, f32, f32, f32, Insets)],
+    line_y: f32,
+    line_h: f32,
+    align: AlignItems,
+) {
+    for &(child_id, child_x, child_w, child_h, margin) in line_items {
+        let child_y = match align {
+            AlignItems::Center => {
+                line_y
+                    + margin.top
+                    + ((line_h - child_h - margin.top - margin.bottom) * 0.5).max(0.0)
+            }
+            AlignItems::FlexEnd => line_y + (line_h - child_h - margin.bottom).max(0.0),
+            _ => line_y + margin.top,
+        };
+        layout_subtree(
+            tree,
+            child_id,
+            Rect::new(child_x, child_y, child_w, child_h),
+        );
     }
 }

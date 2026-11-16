@@ -43,6 +43,8 @@ pub struct DockDragState<T> {
     pub cursor_pos: Point,
     /// Original bounding rectangle of the source pane when dragging initiated.
     pub source_rect: Rect,
+    /// Originating leaf and sibling split fallback captured before detachment.
+    pub origin_split_fallback: Option<(DockNodeId, DropZone)>,
     /// Active drop target leaf and zone, if hovering over a valid target.
     pub hover_target: Option<(DockNodeId, DropZone, Rect)>,
     /// Active reorder target within a tab bar `(target_leaf, insert_index)`, if hovering over a tab strip.

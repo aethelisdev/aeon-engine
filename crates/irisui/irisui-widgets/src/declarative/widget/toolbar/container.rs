@@ -8,12 +8,12 @@
 use super::scope::ToolbarScope;
 use crate::declarative::scope::containers::generic::InnerResponse;
 use crate::declarative::scope::core::UiScope;
-use irisui_core::{AlignItems, Color, CornerRadii, Insets, Style, WidgetRole};
+use irisui_core::{AlignItems, Color, CornerRadii, FlexWrap, Insets, Style, WidgetRole};
 
 /// Configurable builder for horizontal toolbar strips and floating pill toolbars.
 ///
 /// Supports absolute screen anchoring, pill glass styling, customizable heights and gaps,
-/// and nested modular [`ToolbarGroup`](super::group::ToolbarGroup) sections.
+/// optional multi-row wrapping via [`Self::wrap`], and nested modular [`ToolbarGroup`](super::group::ToolbarGroup) sections.
 #[derive(Debug, Clone)]
 pub struct Toolbar {
     name: &'static str,
@@ -27,6 +27,7 @@ pub struct Toolbar {
     corner_radius: Option<f32>,
     is_pill: bool,
     is_transparent: bool,
+    wrap: bool,
 }
 
 impl Toolbar {
@@ -45,6 +46,7 @@ impl Toolbar {
             corner_radius: None,
             is_pill: false,
             is_transparent: false,
+            wrap: false,
         }
     }
 
@@ -63,6 +65,7 @@ impl Toolbar {
             corner_radius: None,
             is_pill: false,
             is_transparent: false,
+            wrap: false,
         }
     }
 
@@ -138,6 +141,15 @@ impl Toolbar {
         self
     }
 
+    /// Enables responsive multi-row wrapping (`FlexWrap::Wrap`) so items wrap cleanly onto
+    /// subsequent lines instead of crushing horizontally inside narrow panels.
+    #[inline]
+    #[must_use]
+    pub fn wrap(mut self) -> Self {
+        self.wrap = true;
+        self
+    }
+
     /// Renders the toolbar container and provides a specialized [`ToolbarScope`] to child closures.
     pub fn show<R>(
         self,
@@ -148,9 +160,17 @@ impl Toolbar {
         let mut style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
-            .height(self.height)
             .flex_shrink(0.0)
             .gap(self.gap);
+
+        if self.wrap {
+            style = style
+                .flex_wrap(FlexWrap::Wrap)
+                .min_height(self.height)
+                .padding_insets(Insets::new(5.0, 8.0, 5.0, 8.0));
+        } else {
+            style = style.height(self.height);
+        }
 
         if let Some((x, y)) = self.position {
             style = style.position_absolute().left(x).top(y);
@@ -158,6 +178,11 @@ impl Toolbar {
 
         if let Some(w) = self.width {
             style = style.width(w);
+        } else if self.wrap {
+            let avail_w = scope.available_rect().width;
+            if avail_w > 0.0 {
+                style = style.width(avail_w);
+            }
         }
 
         if self.is_transparent {

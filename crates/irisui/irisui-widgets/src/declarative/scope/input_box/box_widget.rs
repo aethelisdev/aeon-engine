@@ -404,7 +404,7 @@ impl<'a> UiScope<'a> {
             .clip_children(true);
 
         if props.width > 0.0 {
-            box_style = box_style.width(props.width);
+            box_style = box_style.width(props.width).flex_shrink(0.0);
         } else {
             box_style = box_style.flex_grow(1.0);
         }

@@ -92,6 +92,8 @@ impl TextRenderer {
             self.buffers.push(buffer);
         }
 
+        let max_right = width as i32;
+        let max_bottom = height as i32;
         let mut text_areas: Vec<TextArea> = Vec::with_capacity(sections.len());
         for (sec, buf) in sections.iter().zip(self.buffers.iter()) {
             let scaled_bounds_h = sec.bounds.height * zoom;
@@ -99,21 +101,16 @@ impl TextRenderer {
             let line_count = buf.layout_runs().count().max(1) as f32;
             let total_text_h = line_count * scaled_line_h;
             let y_offset = ((scaled_bounds_h - total_text_h) * 0.5).max(0.0);
-            let bounds = if let Some(clip) = sec.clip_bounds {
-                TextBounds {
-                    left: (clip.x * zoom).max(0.0) as i32,
-                    top: (clip.y * zoom).max(0.0) as i32,
-                    right: (clip.right() * zoom).max(0.0) as i32,
-                    bottom: (clip.bottom() * zoom).max(0.0) as i32,
-                }
-            } else {
-                TextBounds {
-                    left: (sec.bounds.x * zoom).max(0.0) as i32,
-                    top: (sec.bounds.y * zoom).max(0.0) as i32,
-                    right: (sec.bounds.right() * zoom).max(0.0) as i32,
-                    bottom: (sec.bounds.bottom() * zoom).max(0.0) as i32,
-                }
+            let raw_clip = sec.clip_bounds.unwrap_or(sec.bounds);
+            let bounds = TextBounds {
+                left: (raw_clip.x * zoom).clamp(0.0, max_right as f32) as i32,
+                top: (raw_clip.y * zoom).clamp(0.0, max_bottom as f32) as i32,
+                right: (raw_clip.right() * zoom).clamp(0.0, max_right as f32) as i32,
+                bottom: (raw_clip.bottom() * zoom).clamp(0.0, max_bottom as f32) as i32,
             };
+            if bounds.right <= bounds.left || bounds.bottom <= bounds.top {
+                continue;
+            }
             text_areas.push(TextArea {
                 buffer: buf,
                 left: (sec.bounds.x * zoom).round(),

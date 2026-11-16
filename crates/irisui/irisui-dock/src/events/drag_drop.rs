@@ -143,6 +143,7 @@ pub fn handle_tab_drag_event<T: Clone + Copy + PartialEq>(
     pending_drag: &mut Option<PendingTabDrag<T>>,
     workspace_rect: Rect,
     layout: &ComputedDockLayout<T>,
+    mut resolve_title: impl FnMut(&T) -> String,
 ) -> TabDragInteractionResponse {
     match event {
         UiEvent::MouseMove { point } => {
@@ -234,9 +235,10 @@ pub fn handle_tab_drag_event<T: Clone + Copy + PartialEq>(
             }
 
             // Commit active drag if released
-            if dock_state.active_drag.is_some() {
+            if let Some(tab) = dock_state.active_drag.as_ref().map(|d| d.tab_data) {
+                let title = resolve_title(&tab);
                 let detached = dock_state
-                    .drop_tab_or_float(DEFAULT_FLOATING_PANE_SIZE)
+                    .drop_tab_or_float(DEFAULT_FLOATING_PANE_SIZE, Some(workspace_rect), title)
                     .ok()
                     .flatten();
 
@@ -335,6 +337,7 @@ mod tests {
             &mut pending,
             workspace,
             &layout,
+            |t| format!("{t:?}"),
         );
 
         assert!(!resp.drag_started);
@@ -372,6 +375,7 @@ mod tests {
             &mut pending,
             workspace,
             &layout,
+            |t| format!("{t:?}"),
         );
 
         assert!(resp.drag_started);
@@ -405,8 +409,14 @@ mod tests {
             point: Point::new(101.0, 50.0),
         };
 
-        let resp =
-            handle_tab_drag_event(&mut dock_state, &mouse_up, &mut pending, workspace, &layout);
+        let resp = handle_tab_drag_event(
+            &mut dock_state,
+            &mouse_up,
+            &mut pending,
+            workspace,
+            &layout,
+            |t| format!("{t:?}"),
+        );
 
         assert!(!resp.drag_started);
         assert!(!resp.drop_committed);
@@ -451,6 +461,7 @@ mod tests {
             &mut pending,
             workspace,
             &layout,
+            |t| format!("{t:?}"),
         );
 
         assert!(resp_move.consumed);
@@ -461,8 +472,14 @@ mod tests {
             button: MouseButton::Left,
             point: Point::new(785.0, 300.0),
         };
-        let resp_drop =
-            handle_tab_drag_event(&mut dock_state, &mouse_up, &mut pending, workspace, &layout);
+        let resp_drop = handle_tab_drag_event(
+            &mut dock_state,
+            &mouse_up,
+            &mut pending,
+            workspace,
+            &layout,
+            |t| format!("{t:?}"),
+        );
 
         assert!(resp_drop.drop_committed);
         assert!(resp_drop.layout_changed);
@@ -501,18 +518,89 @@ mod tests {
             button: MouseButton::Left,
             point: Point::new(950.0, 750.0),
         };
-        let resp =
-            handle_tab_drag_event(&mut dock_state, &mouse_up, &mut pending, workspace, &layout);
+        let resp = handle_tab_drag_event(
+            &mut dock_state,
+            &mouse_up,
+            &mut pending,
+            workspace,
+            &layout,
+            |t| format!("{t:?}"),
+        );
 
         assert!(resp.drop_committed);
         assert!(resp.detached_floating_window.is_some());
         assert_eq!(dock_state.floating_windows.len(), 1);
+        let fw = &dock_state.floating_windows[0];
+        assert_eq!(fw.title, "Hierarchy");
+        assert!(fw.rect.right() <= workspace.right());
+        assert!(fw.rect.bottom() <= workspace.bottom());
         assert_eq!(
-            dock_state.floating_windows[0]
-                .tree
-                .find_tab(&TestPanel::Hierarchy)
-                .map(|(_, i)| i),
+            fw.tree.find_tab(&TestPanel::Hierarchy).map(|(_, i)| i),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn test_oversized_pane_detach_clamps_inside_workspace_and_docks_back_to_origin() {
+        let mut tree = DockTree::<TestPanel>::new();
+        let left_leaf = tree.create_leaf(vec![TestPanel::Hierarchy]);
+        tree.set_root(left_leaf);
+        let (_, bottom_leaf) = tree
+            .split(
+                left_leaf,
+                crate::tree::SplitDirection::Vertical,
+                0.7,
+                vec![TestPanel::Inspector, TestPanel::Console],
+            )
+            .unwrap();
+        let mut dock_state = DockState::new(tree);
+        let workspace = Rect::new(0.0, 26.0, 2516.0, 1392.0);
+        let layout = compute_dock_layout(&dock_state.tree, workspace, 2.0, 26.0);
+
+        dock_state
+            .start_tab_drag(
+                bottom_leaf,
+                1,
+                Point::new(2200.0, 1150.0),
+                Rect::new(350.0, 1146.0, 1771.0, 276.0),
+            )
+            .unwrap();
+        if let Some(ref mut d) = dock_state.active_drag {
+            d.hover_target = None;
+            d.tab_reorder_target = None;
+        }
+        let mut pending = None;
+        let mouse_up = UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: Point::new(2350.0, 500.0),
+        };
+        let resp = handle_tab_drag_event(
+            &mut dock_state,
+            &mouse_up,
+            &mut pending,
+            workspace,
+            &layout,
+            |_| "Console".to_string(),
+        );
+        let win_id = resp.detached_floating_window.expect("detached id");
+        let fw = &dock_state.floating_windows[0];
+        assert_eq!(fw.title, "Console");
+        assert!(fw.rect.width <= 920.0);
+        assert!(fw.rect.right() <= workspace.right());
+        assert!(fw.rect.bottom() <= workspace.bottom());
+        assert_eq!(fw.origin_leaf, Some(bottom_leaf));
+
+        dock_state
+            .dock_back_floating_window(win_id)
+            .expect("dock back");
+        assert!(dock_state.floating_windows.is_empty());
+        assert_eq!(
+            dock_state
+                .tree
+                .find_tab(&TestPanel::Console)
+                .map(|(leaf, _)| leaf),
+            Some(bottom_leaf),
+            "Console must dock back to its original bottom leaf rather than left leaf 0"
         );
     }
 
@@ -548,6 +636,7 @@ mod tests {
             &mut pending,
             workspace,
             &layout,
+            |t| format!("{t:?}"),
         );
 
         assert!(resp.drop_committed);

@@ -662,3 +662,179 @@ fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
         "Auto-scroll must be automatically disabled when scrolled up via the declarative hook"
     );
 }
+
+#[test]
+fn test_floating_console_toolbar_text_sections_not_culled() {
+    use irisui::dock::{DockArea, DockState, DockTree, FloatingWindow, TabViewer};
+    use irisui::layout::LayoutEngine;
+    use irisui::text::{TextCollectionOptions, TextSystem, collect_text_sections_with_options};
+
+    struct ConsoleFloatingViewer<'a> {
+        entries: &'a [ConsoleEntry],
+    }
+
+    impl TabViewer<u8> for ConsoleFloatingViewer<'_> {
+        fn title(&self, _tab: &u8) -> String {
+            "Console".to_string()
+        }
+
+        fn ui(&mut self, scope: &mut UiScope<'_>, _tab: &u8) {
+            let mut auto_scroll = true;
+            let mut params = ConsolePanelParams {
+                panel_rect: scope.parent_rect(),
+                entries: self.entries,
+                filter: ConsoleFilterLevel::All,
+                search_query: "",
+                auto_scroll: &mut auto_scroll,
+                cursor_pos: Point::new(0.0, 0.0),
+                blink_caret: false,
+                focus_state: &FocusState::new(),
+                cursor_byte_idx: 0,
+                active_tab: ConsoleTab::Logs,
+            };
+            let mut actions = Vec::new();
+            let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+            build_console_panel(scope, &mut params, &mut scratchpad, &mut actions);
+        }
+    }
+
+    let entries = vec![ConsoleEntry {
+        level: log::Level::Info,
+        target: "ae_engine".to_string(),
+        msg: "Hello floating console".to_string(),
+        timestamp: "12:00:00".to_string(),
+    }];
+
+    let mut dock_tree = DockTree::new();
+    let leaf = dock_tree.create_leaf(vec![0u8]);
+    dock_tree.set_root(leaf);
+    let mut dock_state = DockState::new(dock_tree);
+    dock_state.floating_windows.push(FloatingWindow::new(
+        1,
+        "Console",
+        Rect::new(870.0, 466.0, 1771.0, 276.0),
+        vec![1u8],
+    ));
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut viewer = ConsoleFloatingViewer { entries: &entries };
+
+    let frame = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let frame = DockArea::new(&mut dock_state)
+            .bounds(Rect::new(0.0, 26.0, 2516.0, 1392.0))
+            .show(&mut scope, &mut viewer);
+        scope.finish_layout(Rect::new(0.0, 0.0, 2516.0, 1440.0));
+        frame
+    };
+    text_system.measure_subtree_text(&mut tree, root);
+    layout_engine
+        .compute_layout(&mut tree, irisui::core::Size::new(2516.0, 1440.0))
+        .expect("layout");
+    for &(_, cid) in &frame.leaf_containers {
+        text_system.measure_subtree_text(&mut tree, cid);
+        layout_engine
+            .compute_boundary_subtree(&mut tree, cid)
+            .expect("boundary layout");
+    }
+
+    let sections = collect_text_sections_with_options(&tree, &TextCollectionOptions::new());
+    let texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
+    assert!(
+        texts.iter().any(|t| t.contains("Logs")),
+        "Floating Console toolbar button text 'Logs' missing! Collected texts: {texts:?}"
+    );
+}
+
+#[test]
+fn test_console_toolbar_wraps_without_overlap_in_narrow_pane() {
+    use irisui::layout::LayoutEngine;
+    use irisui::text::TextSystem;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let narrow_rect = Rect::new(0.0, 0.0, 350.0, 500.0);
+
+    let entries = vec![ConsoleEntry {
+        level: log::Level::Info,
+        target: "ae_engine".to_string(),
+        msg: "Narrow console log row".to_string(),
+        timestamp: "12:00:00".to_string(),
+    }];
+    let mut auto_scroll = true;
+    let mut params = ConsolePanelParams {
+        panel_rect: narrow_rect,
+        entries: &entries,
+        filter: ConsoleFilterLevel::All,
+        search_query: "",
+        auto_scroll: &mut auto_scroll,
+        cursor_pos: Point::ZERO,
+        blink_caret: false,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Logs,
+    };
+    let mut actions = Vec::new();
+    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &mut params,
+        &mut scratchpad,
+        &mut actions,
+    );
+
+    let mut text_system = TextSystem::new();
+    let mut layout_engine = LayoutEngine::new();
+    text_system.measure_subtree_text(&mut tree, root);
+    layout_engine
+        .compute_layout(&mut tree, irisui::core::Size::new(350.0, 500.0))
+        .expect("narrow console layout");
+
+    let toolbar_id = tree
+        .iter()
+        .find(|(_, n)| n.tag == CONSOLE_TAG_TOOLBAR)
+        .map(|(id, _)| id)
+        .expect("ConsoleToolbar must exist");
+    let toolbar_rect = tree.get(toolbar_id).unwrap().computed_rect;
+    assert!(
+        toolbar_rect.height > CONSOLE_TOOLBAR_HEIGHT + 20.0,
+        "Narrow ConsoleToolbar must wrap onto multiple rows instead of staying 34px tall (got {})",
+        toolbar_rect.height
+    );
+
+    let item_rects: Vec<Rect> = tree
+        .get(toolbar_id)
+        .unwrap()
+        .children
+        .iter()
+        .filter_map(|&cid| tree.get(cid))
+        .filter(|n| n.interactive && n.computed_rect.width > 0.0 && n.computed_rect.height > 0.0)
+        .map(|n| n.computed_rect)
+        .collect();
+    assert!(item_rects.len() >= 8);
+    for (i, a) in item_rects.iter().enumerate() {
+        for b in &item_rects[i + 1..] {
+            let horiz_overlap = a.x < b.right() && a.right() > b.x;
+            let vert_overlap = a.y < b.bottom() && a.bottom() > b.y;
+            assert!(
+                !(horiz_overlap && vert_overlap),
+                "Toolbar items overlapped in narrow pane: {a:?} vs {b:?}"
+            );
+        }
+    }
+
+    let vp_rect = tree
+        .iter()
+        .find(|(_, n)| n.tag == CONSOLE_TAG_VIEWPORT)
+        .map(|(_, n)| n.computed_rect)
+        .expect("ConsoleViewport must exist");
+    assert!(
+        vp_rect.y >= toolbar_rect.bottom() - 0.5,
+        "ConsoleViewport must start below wrapped toolbar ({} vs {})",
+        vp_rect.y,
+        toolbar_rect.bottom()
+    );
+}

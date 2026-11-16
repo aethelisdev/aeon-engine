@@ -7,7 +7,6 @@
 //! Z-order stacking management (bring-to-front), dock-back, and close button actions
 //! for independent floating windows.
 
-use crate::drag_drop::DropZone;
 use crate::events::drag_drop::PendingTabDrag;
 use crate::floating::bounds::FloatingWindowClampBounds;
 use crate::floating::cursor::{DEFAULT_RESIZE_MARGIN, FloatingResizeEdge, detect_resize_edge};
@@ -214,11 +213,7 @@ pub fn handle_floating_window_event<T: Clone + Copy + PartialEq, V: TabViewer<T>
             ) {
                 match action {
                     FloatingWindowClickAction::DockBack { window_id } => {
-                        let fallback_leaf = dock_state.tree.find_first_leaf();
-                        if let Some(leaf) = fallback_leaf {
-                            let _ =
-                                dock_state.dock_floating_window(window_id, leaf, DropZone::Center);
-                        }
+                        let _ = dock_state.dock_back_floating_window(window_id);
                         return FloatingInteractionResponse {
                             dock_back_window: Some(window_id),
                             consumed: true,

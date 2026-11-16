@@ -129,6 +129,55 @@ pub fn clamp_floating_windows<T>(
     }
 }
 
+/// Computes an ergonomically bounded initial rectangle for a newly detached floating window.
+///
+/// Caps oversized dock pane dimensions (such as full-width bottom strips or full-height sidebars)
+/// to comfortable floating extents and clamps `(x, y)` so the entire window — including top-right
+/// dock-back and close controls — spawns completely inside `workspace_bounds` when provided.
+#[must_use]
+pub fn compute_detached_floating_rect(
+    cursor: irisui_core::geometry::Point,
+    source_rect: irisui_core::geometry::Rect,
+    default_size: irisui_core::geometry::Point,
+    workspace_bounds: Option<irisui_core::geometry::Rect>,
+) -> irisui_core::geometry::Rect {
+    let (max_w, max_h) = match workspace_bounds {
+        Some(wb) => (
+            (wb.width * 0.65)
+                .clamp(380.0, 920.0)
+                .min(wb.width.max(120.0)),
+            (wb.height * 0.70)
+                .clamp(260.0, 680.0)
+                .min(wb.height.max(80.0)),
+        ),
+        None => (920.0, 680.0),
+    };
+
+    let raw_w = if source_rect.width > 50.0 {
+        source_rect.width
+    } else {
+        default_size.x.max(260.0)
+    };
+    let raw_h = if source_rect.height > 50.0 {
+        source_rect.height
+    } else {
+        default_size.y.max(180.0)
+    };
+
+    let width = raw_w.clamp(260.0_f32.min(max_w), max_w);
+    let height = raw_h.clamp(180.0_f32.min(max_h), max_h);
+
+    let (x, y) = match workspace_bounds {
+        Some(wb) => (
+            (cursor.x - 80.0).clamp(wb.x, (wb.right() - width).max(wb.x)),
+            (cursor.y - 14.0).clamp(wb.y, (wb.bottom() - height).max(wb.y)),
+        ),
+        None => ((cursor.x - 80.0).max(10.0), (cursor.y - 14.0).max(10.0)),
+    };
+
+    irisui_core::geometry::Rect::new(x, y, width, height)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

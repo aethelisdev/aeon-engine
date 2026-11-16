@@ -6,6 +6,7 @@
 //! Provides the primary [`FloatingWindow`] container structure, click action evaluators,
 //! and style metrics governing title bar heights, shadows, and themes.
 
+use crate::DropZone;
 use crate::floating::cursor::{FloatingResizeEdge, detect_resize_edge};
 use crate::tab_viewer::TabViewer;
 use crate::tree::{DockNode, DockNodeId, DockTree};
@@ -155,6 +156,10 @@ pub struct FloatingWindow<T> {
     pub is_focused: bool,
     /// Whether this window is collapsed or minimized to title bar.
     pub is_minimized: bool,
+    /// Original dock leaf identifier captured when detached, used to restore tabs on dock-back.
+    pub origin_leaf: Option<DockNodeId>,
+    /// Fallback sibling leaf and split zone captured if the originating leaf became empty and collapsed.
+    pub origin_split_fallback: Option<(DockNodeId, DropZone)>,
 }
 
 impl<T> FloatingWindow<T> {
@@ -173,6 +178,8 @@ impl<T> FloatingWindow<T> {
             tree,
             is_focused: true,
             is_minimized: false,
+            origin_leaf: None,
+            origin_split_fallback: None,
         }
     }
 
@@ -185,7 +192,22 @@ impl<T> FloatingWindow<T> {
             tree,
             is_focused: true,
             is_minimized: false,
+            origin_leaf: None,
+            origin_split_fallback: None,
         }
+    }
+
+    /// Records the originating dock leaf and optional split fallback anchor for dock-back restoration.
+    #[inline]
+    #[must_use]
+    pub const fn with_origin(
+        mut self,
+        origin_leaf: Option<DockNodeId>,
+        origin_split_fallback: Option<(DockNodeId, DropZone)>,
+    ) -> Self {
+        self.origin_leaf = origin_leaf;
+        self.origin_split_fallback = origin_split_fallback;
+        self
     }
 
     /// Translates the floating window position by the specified drag delta.

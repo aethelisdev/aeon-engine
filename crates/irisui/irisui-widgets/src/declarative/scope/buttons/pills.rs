@@ -93,6 +93,7 @@ impl<'a> UiScope<'a> {
             let mut style = Style::new()
                 .width(width)
                 .height(24.0)
+                .flex_shrink(0.0)
                 .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
                 .background(bg)
                 .border(border_w, border_c)

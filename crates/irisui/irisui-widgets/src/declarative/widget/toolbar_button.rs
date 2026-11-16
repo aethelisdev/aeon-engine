@@ -264,6 +264,7 @@ impl Widget for ToolbarButton {
                 .justify_content(JustifyContent::Center)
                 .gap(4.0)
                 .height(h)
+                .flex_shrink(0.0)
                 .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
                 .background(bg)
                 .border(1.0, border)

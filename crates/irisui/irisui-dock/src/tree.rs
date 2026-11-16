@@ -629,6 +629,63 @@ impl<T> DockTree<T> {
         }
     }
 
+    /// Resolves a sibling leaf anchor and split zone for `leaf_id` before collapse pruning.
+    ///
+    /// Returns `Some((sibling_leaf, restore_zone))` when `leaf_id` sits as a child of a
+    /// [`DockNode::Split`], enabling solo detached panes to dock back onto the same relative side.
+    #[must_use]
+    pub fn find_sibling_dock_fallback(
+        &self,
+        leaf_id: DockNodeId,
+    ) -> Option<(DockNodeId, crate::DropZone)> {
+        let root_id = self.root?;
+        self.find_sibling_recursive(root_id, leaf_id)
+    }
+
+    fn find_sibling_recursive(
+        &self,
+        current_id: DockNodeId,
+        target_leaf: DockNodeId,
+    ) -> Option<(DockNodeId, crate::DropZone)> {
+        let DockNode::Split {
+            direction,
+            first,
+            second,
+            ..
+        } = *self.nodes.get(current_id)?
+        else {
+            return None;
+        };
+
+        if first == target_leaf {
+            let zone = match direction {
+                SplitDirection::Horizontal => crate::DropZone::Left,
+                SplitDirection::Vertical => crate::DropZone::Top,
+            };
+            return self.first_leaf_in(second).map(|sib| (sib, zone));
+        }
+        if second == target_leaf {
+            let zone = match direction {
+                SplitDirection::Horizontal => crate::DropZone::Right,
+                SplitDirection::Vertical => crate::DropZone::Bottom,
+            };
+            return self.first_leaf_in(first).map(|sib| (sib, zone));
+        }
+
+        self.find_sibling_recursive(first, target_leaf)
+            .or_else(|| self.find_sibling_recursive(second, target_leaf))
+    }
+
+    fn first_leaf_in(&self, node_id: DockNodeId) -> Option<DockNodeId> {
+        match self.nodes.get(node_id)? {
+            DockNode::Leaf { tabs, .. } if !tabs.is_empty() => Some(node_id),
+            DockNode::Leaf { .. } => None,
+            DockNode::Split { first, second, .. } => self
+                .first_leaf_in(*first)
+                .or_else(|| self.first_leaf_in(*second)),
+        }
+    }
+
     /// Prunes empty leaves and collapses redundant split parent containers.
     pub fn collapse_empty_leaves(&mut self) {
         if let Some(root_id) = self.root {

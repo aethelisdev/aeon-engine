@@ -60,6 +60,7 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
         if let Some(node) = tree.get_mut(win_container) {
             node.set_name(format!("FloatingWindow_{}", win.id));
             node.set_role(WidgetRole::FloatingWindow);
+            node.layer = irisui_core::UiLayer::Floating;
             node.computed_rect = win_rect;
             node.style = Style::new()
                 .position_absolute()

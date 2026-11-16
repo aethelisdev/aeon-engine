@@ -317,6 +317,8 @@ impl Widget for Button {
         }
         if self.is_flex {
             base_style.flex_grow = 1.0;
+        } else {
+            base_style.flex_shrink = 0.0;
         }
         if self.is_active {
             base_style.background_color = theme.button_active_bg;

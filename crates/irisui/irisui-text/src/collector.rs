@@ -172,6 +172,20 @@ pub fn collect_text_sections_with_options<'a>(
     sections
 }
 
+#[inline]
+fn resolve_effective_layer(node: &irisui_core::WidgetNode, inherited_layer: UiLayer) -> UiLayer {
+    let explicit_or_default = if node.layer != UiLayer::Content {
+        node.layer
+    } else {
+        node.role.default_layer()
+    };
+    if explicit_or_default > inherited_layer {
+        explicit_or_default
+    } else {
+        inherited_layer
+    }
+}
+
 /// Discovers opaque rectangular containers capable of occluding text beneath their layer.
 fn discover_layer_occluders(
     tree: &UiTree,
@@ -190,11 +204,7 @@ fn discover_layer_occluders(
     let node_order = *counter;
     *counter += 1;
 
-    let effective_layer = if node.layer > inherited_layer {
-        node.layer
-    } else {
-        inherited_layer
-    };
+    let effective_layer = resolve_effective_layer(node, inherited_layer);
 
     let is_layer_container = matches!(
         node.role,
@@ -252,16 +262,12 @@ fn collect_node_text<'a>(
     let node_order = *counter;
     *counter += 1;
 
-    let effective_layer = if node.layer > ctx.inherited_layer {
-        node.layer
-    } else {
-        ctx.inherited_layer
-    };
+    let effective_layer = resolve_effective_layer(node, ctx.inherited_layer);
 
-    // A node is an elevated overlay root if its explicit layer exceeds the inherited layer,
+    // A node is an elevated overlay root if its explicit or role-inferred layer exceeds the inherited layer,
     // or if its semantic role designates an independent floating/overlay container
     // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
-    let is_elevated_root = node.layer > ctx.inherited_layer
+    let is_elevated_root = effective_layer > ctx.inherited_layer
         || matches!(
             node.role,
             WidgetRole::DropdownPopup

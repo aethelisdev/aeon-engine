@@ -7,9 +7,7 @@ use crate::context_menu::TabContextMenuState;
 use crate::drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect};
 use crate::floating::{FloatingDragState, FloatingWindow};
 use crate::layout::ComputedDockLayout;
-use crate::tab_viewer::TabViewer;
 use crate::tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
-use irisui_core::event::UiEvent;
 use irisui_core::{Point, Rect};
 use serde::{Deserialize, Serialize};
 
@@ -209,6 +207,7 @@ impl<T> DockState<T> {
         cursor: Point,
         source_rect: Rect,
     ) -> Result<(), DockError> {
+        let origin_split_fallback = self.tree.find_sibling_dock_fallback(source_leaf);
         let tab_data = self.tree.remove_tab(source_leaf, tab_idx)?;
         self.active_drag = Some(DockDragState {
             source_leaf,
@@ -216,6 +215,7 @@ impl<T> DockState<T> {
             tab_data,
             cursor_pos: cursor,
             source_rect,
+            origin_split_fallback,
             hover_target: None,
             tab_reorder_target: None,
         });
@@ -238,6 +238,8 @@ impl<T> DockState<T> {
             .find(|w| w.id == window_id)
             .ok_or(DockError::NodeNotFound)?;
         let source_rect = win.rect;
+        let origin_leaf = win.origin_leaf;
+        let origin_split_fallback = win.origin_split_fallback;
         let tab_data = win.tree.remove_tab(source_leaf, tab_idx)?;
         win.tree.collapse_empty_leaves();
         let is_empty = win.tree.root().is_none()
@@ -248,13 +250,17 @@ impl<T> DockState<T> {
         if is_empty {
             self.floating_windows.retain(|w| w.id != window_id);
         }
-        let fallback_leaf = self.tree.find_first_leaf().unwrap_or(source_leaf);
+        let resolved_source = origin_leaf
+            .filter(|&id| matches!(self.tree.get(id), Some(DockNode::Leaf { .. })))
+            .or_else(|| self.tree.find_first_leaf())
+            .unwrap_or(source_leaf);
         self.active_drag = Some(DockDragState {
-            source_leaf: fallback_leaf,
+            source_leaf: resolved_source,
             source_tab_index: 0,
             tab_data,
             cursor_pos: cursor,
             source_rect,
+            origin_split_fallback,
             hover_target: None,
             tab_reorder_target: None,
         });
@@ -344,8 +350,14 @@ impl<T> DockState<T> {
 
     /// Drops the actively dragged tab into its target drop zone, tab strip, or detaches it as a floating window.
     ///
-    /// If dropped outside any docking drop zones or tab strips, detaches into an independent floating window.
-    pub fn drop_tab_or_float(&mut self, default_size: Point) -> Result<Option<u64>, DockError> {
+    /// If dropped outside any docking drop zones or tab strips, detaches into an independent floating window
+    /// constrained inside `workspace_bounds` (when provided) with the supplied `title`.
+    pub fn drop_tab_or_float(
+        &mut self,
+        default_size: Point,
+        workspace_bounds: Option<Rect>,
+        title: impl Into<String>,
+    ) -> Result<Option<u64>, DockError> {
         let Some(drag) = self.active_drag.take() else {
             return Ok(None);
         };
@@ -381,7 +393,7 @@ impl<T> DockState<T> {
             self.tree.collapse_empty_leaves();
             Ok(None)
         } else {
-            // Detach as floating window preserving source pane dimensions
+            // Detach as floating window bounded ergonomically within workspace bounds
             let next_id = self
                 .floating_windows
                 .iter()
@@ -389,23 +401,17 @@ impl<T> DockState<T> {
                 .max()
                 .unwrap_or(0)
                 + 1;
-            let target_w = if drag.source_rect.width > 50.0 {
-                drag.source_rect.width
-            } else {
-                default_size.x.max(260.0)
-            };
-            let target_h = if drag.source_rect.height > 50.0 {
-                drag.source_rect.height
-            } else {
-                default_size.y.max(180.0)
-            };
-            let rect = Rect::new(
-                (drag.cursor_pos.x - 80.0).max(10.0),
-                (drag.cursor_pos.y - 14.0).max(10.0),
-                target_w,
-                target_h,
+            let rect = crate::floating::bounds::compute_detached_floating_rect(
+                drag.cursor_pos,
+                drag.source_rect,
+                default_size,
+                workspace_bounds,
             );
-            let window = FloatingWindow::new(next_id, String::new(), rect, vec![drag.tab_data]);
+            let origin_leaf =
+                matches!(self.tree.get(drag.source_leaf), Some(DockNode::Leaf { tabs, .. }) if !tabs.is_empty())
+                    .then_some(drag.source_leaf);
+            let window = FloatingWindow::new(next_id, title, rect, vec![drag.tab_data])
+                .with_origin(origin_leaf, drag.origin_split_fallback);
             self.floating_windows.push(window);
             self.tree.collapse_empty_leaves();
             Ok(Some(next_id))
@@ -538,155 +544,6 @@ impl<T> DockState<T> {
     {
         serde_json::from_str(json_str)
     }
-
-    /// Checks whether the specified coordinate point falls inside any active floating window.
-    #[inline]
-    pub fn is_point_over_floating_window(&self, point: Point) -> bool {
-        self.floating_windows
-            .iter()
-            .any(|w| w.contains_point(point))
-    }
-
-    /// Checks whether the specified coordinate point falls inside any active floating window
-    /// or within its interactive border resize margin.
-    #[inline]
-    #[must_use]
-    pub fn is_point_over_floating_window_or_border(&self, point: Point, margin: f32) -> bool {
-        self.floating_windows.iter().any(|w| {
-            let expanded = Rect::new(
-                w.rect.x - margin,
-                w.rect.y - margin,
-                w.rect.width + margin * 2.0,
-                w.rect.height + margin * 2.0,
-            );
-            expanded.contains_point(point)
-        })
-    }
-
-    /// Returns `true` if a floating window is actively being dragged or resized.
-    #[inline]
-    #[must_use]
-    pub const fn has_active_floating_drag(&self) -> bool {
-        self.active_floating_drag.is_some()
-    }
-
-    /// Evaluates an incoming interaction event specifically against managed floating windows.
-    ///
-    /// Coordinates titlebar dragging, 8-directional border resizing, close button, dock-back button,
-    /// tab selection, and Z-order focus promotion without requiring complete dock chrome construction.
-    ///
-    /// # Arguments
-    /// * `viewer` - Reference to tab viewer providing tab titles and custom metrics.
-    /// * `event` - Raw interaction event to process.
-    /// * `clamp_bounds` - Boundary constraints ensuring windows remain accessible and visible.
-    pub fn handle_floating_event<V: TabViewer<T>>(
-        &mut self,
-        viewer: &V,
-        event: &UiEvent,
-        clamp_bounds: crate::floating::FloatingWindowClampBounds,
-    ) -> crate::events::floating::FloatingInteractionResponse<T>
-    where
-        T: Clone + Copy + PartialEq,
-    {
-        crate::events::floating::handle_floating_window_event(self, viewer, event, clamp_bounds)
-    }
-
-    /// Synchronizes active floating window bounding rectangles into the provided target buffer.
-    ///
-    /// Clears and repopulates `target` without reallocating underlying capacity when pre-allocated,
-    /// enabling zero-allocation occlusion tracking and text culling on per-frame hot loops.
-    #[inline]
-    pub fn sync_floating_window_rects(&self, target: &mut Vec<Rect>) {
-        target.clear();
-        target.extend(self.floating_windows.iter().map(|w| w.rect));
-    }
-
-    /// Enforces boundary clamping constraints across all detached floating windows.
-    ///
-    /// Ensures title bars remain interactable and grab handles remain visible within screen extents.
-    #[inline]
-    pub fn clamp_floating_windows(&mut self, bounds: &crate::floating::FloatingWindowClampBounds) {
-        crate::floating::clamp_floating_windows(&mut self.floating_windows, bounds);
-    }
-
-    /// Checks whether the specified tab is hosted inside any active floating window.
-    ///
-    /// Executes in O(N_windows * N_tabs) with zero heap allocations.
-    #[inline]
-    #[must_use]
-    pub fn is_tab_in_floating_window(&self, tab: &T) -> bool
-    where
-        T: PartialEq,
-    {
-        self.floating_windows
-            .iter()
-            .any(|w| w.tree.find_tab(tab).is_some())
-    }
-
-    /// Resolves the content rectangle of the specified tab if it resides in an active floating window.
-    #[inline]
-    #[must_use]
-    pub fn find_floating_tab_content_rect(&self, tab: &T, title_bar_height: f32) -> Option<Rect>
-    where
-        T: PartialEq,
-    {
-        crate::floating::find_active_tab_content_rect(&self.floating_windows, tab, title_bar_height)
-    }
-
-    /// Constructs an autonomous [`crate::floating::FloatingWindowManager`] mirroring current floating windows.
-    #[must_use]
-    pub fn floating_manager(
-        &self,
-        bounds: crate::floating::FloatingWindowClampBounds,
-    ) -> crate::floating::FloatingWindowManager<T>
-    where
-        T: Clone,
-    {
-        crate::floating::FloatingWindowManager::new(bounds)
-            .with_windows(self.floating_windows.clone())
-    }
-
-    /// Opens an autonomous floating window containing the specified tab or focuses it if already present.
-    ///
-    /// If the tab is already open within an existing floating window, that window
-    /// is brought to the front of the z-order and its ID is returned without creating a new window.
-    /// If not present, a new floating window is allocated, appended to the top of the z-order,
-    /// and its newly assigned ID is returned.
-    ///
-    /// # Parameters
-    /// - `tab`: The panel or tool data item to host in the floating window.
-    /// - `title`: Window title display text shown on the floating window titlebar.
-    /// - `rect`: Initial bounds rectangle of the floating window in workspace screen space.
-    pub fn open_or_focus_floating_tab(
-        &mut self,
-        tab: T,
-        title: impl Into<String>,
-        rect: Rect,
-    ) -> u64
-    where
-        T: PartialEq + Clone,
-    {
-        if let Some(win_id) = self
-            .floating_windows
-            .iter()
-            .find(|w| w.tree.find_tab(&tab).is_some())
-            .map(|w| w.id)
-        {
-            self.bring_floating_to_front(win_id);
-            return win_id;
-        }
-
-        let next_id = self
-            .floating_windows
-            .iter()
-            .map(|w| w.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
-        let window = FloatingWindow::new(next_id, title, rect, vec![tab]);
-        self.floating_windows.push(window);
-        next_id
-    }
 }
 
 fn collect_all_tabs_recursive<T>(tree: &mut DockTree<T>, node_id: DockNodeId, out: &mut Vec<T>) {
@@ -704,6 +561,8 @@ fn collect_all_tabs_recursive<T>(tree: &mut DockTree<T>, node_id: DockNodeId, ou
         }
     }
 }
+
+mod floating;
 
 #[cfg(test)]
 mod tests;

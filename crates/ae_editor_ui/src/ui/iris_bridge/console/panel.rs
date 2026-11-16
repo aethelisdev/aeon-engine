@@ -60,7 +60,10 @@ pub fn build_console_panel(
         .show(|panel_scope| {
             // 3. Declarative Toolbar Header Bar
             Toolbar::new("ConsoleToolbar")
+                .width(params.panel_rect.width)
                 .height(CONSOLE_TOOLBAR_HEIGHT)
+                .gap(6.0)
+                .wrap()
                 .tag(CONSOLE_TAG_TOOLBAR)
                 .background(Color::rgba(0.02, 0.02, 0.03, 0.98))
                 .show(panel_scope, |tb| {
