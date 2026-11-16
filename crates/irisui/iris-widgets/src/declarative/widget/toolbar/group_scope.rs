@@ -98,6 +98,27 @@ impl<'a, 's> ToolbarGroupScope<'a, 's> {
             .toolbar_mode_button(icon_uv, label, tag, is_open, width, radii)
     }
 
+    /// Emits a popup-backed mode button whose open highlight and click toggle are driven directly
+    /// by `tag` inside [`iris_core::UiTree::active_popup_tags`].
+    #[inline]
+    pub fn mode_button_popup_tagged(
+        &mut self,
+        icon_uv: Option<[f32; 4]>,
+        label: impl Into<String>,
+        tag: u64,
+        width: f32,
+        radii: CornerRadii,
+    ) -> WidgetResponse {
+        let is_open = self.scope.is_popup_tag_active(tag);
+        let resp = self
+            .scope
+            .toolbar_mode_button(icon_uv, label, tag, is_open, width, radii);
+        if resp.clicked() {
+            self.scope.toggle_exclusive_popup(tag);
+        }
+        resp
+    }
+
     /// Emits a vertical divider line inside this group.
     #[inline]
     pub fn divider(&mut self) {
@@ -221,6 +242,25 @@ impl<'a, 's> ToolbarGroupScope<'a, 's> {
     ) -> WidgetResponse {
         self.scope
             .toolbar_dropdown_button(label, tag, is_open, width)
+    }
+
+    /// Emits a popup-backed standalone dropdown button whose open highlight and click toggle
+    /// are driven directly by `tag` inside [`iris_core::UiTree::active_popup_tags`].
+    #[inline]
+    pub fn dropdown_button_popup_tagged(
+        &mut self,
+        label: impl Into<String>,
+        tag: u64,
+        width: f32,
+    ) -> WidgetResponse {
+        let is_open = self.scope.is_popup_tag_active(tag);
+        let resp = self
+            .scope
+            .toolbar_dropdown_button(label, tag, is_open, width);
+        if resp.clicked() {
+            self.scope.toggle_exclusive_popup(tag);
+        }
+        resp
     }
 
     /// Emits a declarative toggle toolbar button reflecting active state.

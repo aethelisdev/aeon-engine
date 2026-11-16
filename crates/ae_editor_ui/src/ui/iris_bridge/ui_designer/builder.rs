@@ -31,19 +31,12 @@ impl IrisEditorOverlay {
             return;
         }
 
-        if scope.popups_dismissed() {
-            self.ui_designer.is_add_menu_open = false;
-            self.ui_designer.is_aspect_open = false;
-        }
-
         let designer_params = UiDesignerPanelParams {
             panel_rect,
             world: params.scene.world,
             selected_entity: params.scene.selected_entity,
             cursor_pos: self.cursor_pos(),
             state: params.panel_data.ui_designer_state,
-            is_aspect_dropdown_open: self.ui_designer.is_aspect_open,
-            is_add_menu_open: self.ui_designer.is_add_menu_open,
         };
 
         let _metrics = build_ui_designer_panel(scope, &designer_params, &mut self.ui_designer);

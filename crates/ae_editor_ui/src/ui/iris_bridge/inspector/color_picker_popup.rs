@@ -59,55 +59,53 @@ pub fn inspector_color_picker_config<'a>(
 }
 
 /// Renders the floating 2D HSV Color Picker popup bound directly to `entity`'s [`ae_core::ecs::Color`]
-/// component in-place, returning `(Rect, Option<EngineUiAction>)` upon drag commit.
+/// component in-place when active in [`irisui::prelude::UiTree`], returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn draw_entity_color_picker_popup(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
     color: &mut ae_core::ecs::Color,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
-) -> (Rect, Option<EngineUiAction>) {
+) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
-        .color_picker_popup_rgba(
+        .scoped_color_picker_popup_rgba(
             (&mut color.r, &mut color.g, &mut color.b, &mut color.a),
             inspector_color_picker_config(params),
         )
-        .on_close(|| *is_color_picker_open = false)
-        .into_rect_and_commit(|old_c, new_c| {
-            EngineUiAction::ModifyColor(entity, to_ecs_color(old_c), to_ecs_color(new_c))
+        .map(|resp| {
+            map_some_rect(resp.into_rect_and_commit(|old_c, new_c| {
+                EngineUiAction::ModifyColor(entity, to_ecs_color(old_c), to_ecs_color(new_c))
+            }))
         })
+        .unwrap_or((None, None))
 }
 
 /// Renders the floating 2D HSV Color Picker popup when no [`ae_core::ecs::Color`] component
-/// is currently attached, returning `(Rect, Option<EngineUiAction>)`.
+/// is currently attached and the swatch popup tag is active, returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn draw_detached_color_picker_popup(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
-) -> (Rect, Option<EngineUiAction>) {
+) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
-        .color_picker_popup_detached(
+        .scoped_color_picker_popup_detached(
             Color::rgba(0.60, 0.75, 0.95, 1.0),
             inspector_color_picker_config(params),
         )
-        .on_close(|| *is_color_picker_open = false)
-        .into_rect_and_opt_commit(|old_c, new_c| {
-            params.selected_entity.map(|entity| {
-                EngineUiAction::ModifyColor(entity, to_ecs_color(old_c), to_ecs_color(new_c))
-            })
+        .map(|resp| {
+            map_some_rect(resp.into_rect_and_opt_commit(|old_c, new_c| {
+                params.selected_entity.map(|entity| {
+                    EngineUiAction::ModifyColor(entity, to_ecs_color(old_c), to_ecs_color(new_c))
+                })
+            }))
         })
+        .unwrap_or((None, None))
 }
 
-/// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity,
+/// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity when active,
 /// mutating [`ae_core::ecs::Color`] live in-place and returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn build_color_picker_popup_with_action(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
-    if !*is_color_picker_open {
-        return (None, None);
-    }
     match params.selected_entity.and_then(|ent| {
         params
             .world
@@ -115,18 +113,10 @@ pub fn build_color_picker_popup_with_action(
             .ok()
             .map(|c| (ent, c))
     }) {
-        Some((entity, mut color)) => map_some_rect(draw_entity_color_picker_popup(
-            scope,
-            entity,
-            &mut color,
-            params,
-            is_color_picker_open,
-        )),
-        None => map_some_rect(draw_detached_color_picker_popup(
-            scope,
-            params,
-            is_color_picker_open,
-        )),
+        Some((entity, mut color)) => {
+            draw_entity_color_picker_popup(scope, entity, &mut color, params)
+        }
+        None => draw_detached_color_picker_popup(scope, params),
     }
 }
 
@@ -136,9 +126,8 @@ pub fn build_color_picker_popup_with_action(
 pub fn build_color_picker_popup(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
 ) -> Option<Rect> {
-    build_color_picker_popup_with_action(scope, params, is_color_picker_open).0
+    build_color_picker_popup_with_action(scope, params).0
 }
 
 #[cfg(test)]
@@ -194,16 +183,14 @@ mod tests {
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
             active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: true,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             inspector_hsv: [0.0, 1.0, 1.0],
         };
 
-        let mut is_open = true;
+        tree.open_popup(appearance_color_swatch_tag());
         let mut scope = UiScope::new(&mut tree, root);
-        build_color_picker_popup(&mut scope, &params, &mut is_open);
+        build_color_picker_popup(&mut scope, &params);
 
         let popup_card = tree
             .iter()

@@ -8,7 +8,6 @@
 
 use super::context::UiScope;
 use crate::declarative::layout::layout_subtree;
-use crate::declarative::scope::hover::update_hover_styles_recursive;
 use crate::declarative::widget::FloatingDragPreview;
 use iris_core::{Point, Rect, Size, Style, UiTree, WidgetId, WidgetResponse};
 
@@ -117,9 +116,7 @@ impl<'a> UiScope<'a> {
     /// position is registered in the UI tree, eliminating manual pointer coordinate plumbing.
     pub fn finish_layout(&mut self, bounds: Rect) {
         layout_subtree(self.tree, self.parent, bounds);
-        if let Some(cursor) = self.tree.cursor_position() {
-            update_hover_styles_recursive(self.tree, self.parent, cursor);
-        }
+        self.tree.refresh_hover_from_cursor();
     }
 
     /// Executes a declarative UI builder closure within a scoped hierarchy on `parent`,
@@ -139,9 +136,7 @@ impl<'a> UiScope<'a> {
         let mut scope = UiScope::new(tree, parent);
         let result = f(&mut scope);
         layout_subtree(tree, parent, bounds);
-        if let Some(cursor) = tree.cursor_position() {
-            update_hover_styles_recursive(tree, parent, cursor);
-        }
+        tree.refresh_hover_from_cursor();
         result
     }
 

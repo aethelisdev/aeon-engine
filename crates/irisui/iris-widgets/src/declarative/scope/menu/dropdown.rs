@@ -326,6 +326,43 @@ impl<'a> UiScope<'a> {
         )
     }
 
+    /// Emits a selectable dropdown item row that autonomously closes all open popups when clicked.
+    ///
+    /// Preserves the returned [`WidgetResponse`] (including `clicked() == true`) so consumers can
+    /// chain domain actions (e.g., `.on_click(...)` / `.then_click(...)`) without intermediate `let`
+    /// statements or manual popup boolean resets.
+    #[inline]
+    pub fn dropdown_item_autoclose(
+        &mut self,
+        tag: u64,
+        icon: &str,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> WidgetResponse {
+        let resp = self.dropdown_item(tag, icon, label, shortcut, enabled);
+        if resp.clicked() {
+            self.tree.close_all_popups();
+        }
+        resp
+    }
+
+    /// Emits a [`CascadingMenuItem`] row that autonomously closes all open popups when clicked.
+    ///
+    /// Preserves the returned [`WidgetResponse`] (including `clicked() == true`) so consumers can
+    /// attach fluent action handlers with zero manual boolean popup flags.
+    #[inline]
+    pub fn dropdown_menu_item_autoclose(
+        &mut self,
+        item: &crate::cascading_menu::CascadingMenuItem,
+    ) -> WidgetResponse {
+        let resp = self.dropdown_menu_item(item);
+        if resp.clicked() {
+            self.tree.close_all_popups();
+        }
+        resp
+    }
+
     /// Emits a subtle horizontal divider line separating dropdown item groups.
     pub fn dropdown_separator(&mut self) -> WidgetId {
         let node_id = self.tree.create_node();

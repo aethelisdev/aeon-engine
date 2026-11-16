@@ -22,7 +22,7 @@ fn test_hierarchy_add_button_toggle_actions() {
     let world = World::new();
     let focus_state = FocusState::new();
 
-    // 1. When menu is closed, clicking '+' generates OpenAddMenu(None)
+    // 1. When menu is closed, clicking '+' activates HIERARCHY_TAG_ADD_BUTTON in UiTree
     tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON);
     let mut actions = Vec::new();
     {
@@ -35,7 +35,6 @@ fn test_hierarchy_add_button_toggle_actions() {
             is_2d: false,
             active_submenu: None,
             active_sub_submenu: None,
-            is_add_menu_open: false,
             active_context_menu: None,
             cursor_pos: Point::new(10.0, 10.0),
             blink_caret: false,
@@ -47,9 +46,9 @@ fn test_hierarchy_add_button_toggle_actions() {
         let mut scope = UiScope::new(&mut tree, root_id);
         build_hierarchy_header(&mut scope, &params, &mut actions);
     }
-    assert_eq!(actions, vec![HierarchyAction::OpenAddMenu(None)]);
+    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
 
-    // 2. When menu is open, clicking '+' generates CloseAddMenu
+    // 2. When menu is open, clicking '+' again toggles HIERARCHY_TAG_ADD_BUTTON off
     tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON);
     actions.clear();
     {
@@ -62,7 +61,6 @@ fn test_hierarchy_add_button_toggle_actions() {
             is_2d: false,
             active_submenu: None,
             active_sub_submenu: None,
-            is_add_menu_open: true,
             active_context_menu: None,
             cursor_pos: Point::new(10.0, 10.0),
             blink_caret: false,
@@ -74,7 +72,7 @@ fn test_hierarchy_add_button_toggle_actions() {
         let mut scope = UiScope::new(&mut tree, root_id);
         build_hierarchy_header(&mut scope, &params, &mut actions);
     }
-    assert_eq!(actions, vec![HierarchyAction::CloseAddMenu]);
+    assert!(!tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
 }
 
 #[test]
@@ -145,7 +143,6 @@ fn test_hierarchy_add_menu_outside_click() {
         is_2d: false,
         active_submenu: None,
         active_sub_submenu: None,
-        is_add_menu_open: true,
         active_context_menu: None,
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: false,
@@ -155,6 +152,7 @@ fn test_hierarchy_add_menu_outside_click() {
         cursor_byte_idx: 0,
     };
 
+    tree.open_popup(HIERARCHY_TAG_ADD_BUTTON);
     // 2. Build cascading add menu
     {
         let mut scope = UiScope::new(&mut tree, root);

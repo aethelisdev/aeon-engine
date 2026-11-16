@@ -44,6 +44,7 @@ impl IrisEditorOverlay {
         let mut options = TreeCompilerOptions::new()
             .with_clip(clip_rect)
             .with_hovered_tag(self.chrome.hovered_tag)
+            .with_hovered_id(self.tree.event_state.hovered)
             .with_focused_tag(self.tree.event_state.focused_tag)
             .with_focused_id(self.tree.event_state.focused)
             .with_blink_caret(self.chrome.last_blink_caret)
@@ -133,6 +134,7 @@ impl IrisEditorOverlay {
 
             let text_options = irisui::text::TextCollectionOptions {
                 hovered_tag: self.chrome.hovered_tag,
+                hovered_id: self.tree.event_state.hovered,
                 focused_tag: self
                     .focus_manager
                     .focused_tag

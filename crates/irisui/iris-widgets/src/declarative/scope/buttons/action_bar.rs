@@ -98,6 +98,8 @@ pub struct ActionBarButton<'a> {
     pub icon: Option<(&'static str, [f32; 4])>,
     /// Optional explicit 64-bit semantic tag. When `None`, a deterministic tag is derived via [`UiScope::tag_for`].
     pub tag: Option<u64>,
+    /// Optional 64-bit popup tag toggled exclusively in [`iris_core::UiTree`] when this button is clicked.
+    pub popup_toggle_tag: Option<u64>,
     /// Whether the button is currently in an active/open toggle state (e.g. an open menu trigger).
     pub is_active: bool,
     /// Horizontal text alignment for the button caption.
@@ -121,6 +123,7 @@ impl<'a> ActionBarButton<'a> {
             text_name: name,
             icon: None,
             tag: None,
+            popup_toggle_tag: None,
             is_active: false,
             text_align: TextAlign::Center,
             padding: Insets::ZERO,
@@ -158,6 +161,18 @@ impl<'a> ActionBarButton<'a> {
     #[must_use]
     pub const fn with_tag(mut self, tag: u64) -> Self {
         self.tag = Some(tag);
+        self
+    }
+
+    /// Configures this action button as an autonomous popup trigger that toggles `popup_tag`
+    /// inside [`iris_core::UiTree::active_popup_tags`] when clicked and reflects active styling automatically.
+    ///
+    /// # Arguments
+    /// * `popup_tag` - 64-bit semantic tag identifying the target floating popup.
+    #[inline]
+    #[must_use]
+    pub const fn with_popup_toggle(mut self, popup_tag: u64) -> Self {
+        self.popup_toggle_tag = Some(popup_tag);
         self
     }
 
@@ -218,7 +233,11 @@ impl<'a> UiScope<'a> {
                 .and_then(|pid| self.tree().get(pid))
                 .is_some_and(|n| n.tag == resolved_tag);
 
-        let (bg, border, text_col) = if desc.is_active {
+        let is_active = desc.is_active
+            || desc
+                .popup_toggle_tag
+                .is_some_and(|t| self.tree().is_popup_tag_active(t));
+        let (bg, border, text_col) = if is_active {
             (
                 Color::rgba(0.118, 0.125, 0.145, 1.0),
                 Color::rgba(0.353, 0.376, 0.439, 0.95),
@@ -249,20 +268,20 @@ impl<'a> UiScope<'a> {
             btn_style = btn_style
                 .background(Color::rgba(0.090, 0.098, 0.118, 1.0))
                 .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
-        } else if !desc.is_active {
+        } else if !is_active {
             btn_style = btn_style
                 .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
                 .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
         }
 
-        self.container_tagged_resp(
+        let resp = self.container_tagged_resp(
             desc.name,
             btn_style,
             WidgetRole::Button,
             resolved_tag,
             |btn| {
                 if let Some((icon_name, icon_uv)) = desc.icon {
-                    if desc.is_active {
+                    if is_active {
                         btn.icon_named(icon_name, icon_uv, text_col, 11.0);
                     } else {
                         btn.icon_hover_named(icon_name, icon_uv, text_col, Color::WHITE, 11.0);
@@ -273,13 +292,19 @@ impl<'a> UiScope<'a> {
                     WrappedLabelDescriptor::new(11.0, text_col, Style::new().height(height))
                         .align(desc.text_align)
                         .wrap(TextWrap::None);
-                if !desc.is_active {
+                if !is_active {
                     label_desc = label_desc.hover_color(Color::WHITE);
                 }
 
                 btn.label_styled_passive_wrapped(desc.text_name, desc.label, label_desc);
             },
-        )
+        );
+        if let Some(popup_tag) = desc.popup_toggle_tag
+            && resp.clicked()
+        {
+            self.tree.toggle_exclusive_popup(popup_tag);
+        }
+        resp
     }
 
     /// Emits a horizontal two-button bottom action bar row dividing available panel width equally

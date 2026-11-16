@@ -256,33 +256,30 @@ pub fn draw_hierarchy_add_menu(
     params: &HierarchyPanelParams<'_>,
     actions: &mut Vec<HierarchyAction>,
 ) -> Option<Rect> {
-    params.is_add_menu_open.then(|| {
-        scope
-            .cascading_popup_anchored_to_tag(
-                "HierarchyAddMenu",
-                HIERARCHY_TAG_ADD_BUTTON,
-                Rect::new(
-                    (params.panel_rect.x + params.panel_rect.width - 56.0)
-                        .max(params.panel_rect.x + 60.0),
-                    params.panel_rect.y + 4.0,
-                    24.0,
-                    24.0,
+    scope
+        .scoped_cascading_popup_anchored_to_tag(
+            "HierarchyAddMenu",
+            HIERARCHY_TAG_ADD_BUTTON,
+            Rect::new(
+                (params.panel_rect.x + params.panel_rect.width - 56.0)
+                    .max(params.panel_rect.x + 60.0),
+                params.panel_rect.y + 4.0,
+                24.0,
+                24.0,
+            ),
+            CascadingPopupConfig::new(185.0, PopupPlacement::Below)
+                .with_active_submenu(params.active_submenu.map(|s| s.to_tag()))
+                .with_nested_submenu(
+                    params
+                        .active_submenu
+                        .zip(params.active_sub_submenu)
+                        .map(|(p, c)| (p.to_tag(), c.to_tag())),
                 ),
-                CascadingPopupConfig::new(185.0, PopupPlacement::Below)
-                    .with_active_submenu(params.active_submenu.map(|s| s.to_tag()))
-                    .with_nested_submenu(
-                        params
-                            .active_submenu
-                            .zip(params.active_sub_submenu)
-                            .map(|(p, c)| (p.to_tag(), c.to_tag())),
-                    ),
-                |card| {
-                    render_menu_items(card, &get_hierarchy_add_menu_items(params.is_2d), actions);
-                },
-            )
-            .response
-            .rect
-    })
+            |card| {
+                render_menu_items(card, &get_hierarchy_add_menu_items(params.is_2d), actions);
+            },
+        )
+        .map(|res| res.response.rect)
 }
 
 /// Renders cascading menu items recursively using pure declarative [`UiScope`].
@@ -309,11 +306,10 @@ fn render_menu_items(
                 },
             );
         } else {
-            card.dropdown_menu_item(item).on_click(|| {
+            card.dropdown_menu_item_autoclose(item).on_click(|| {
                 if let Some(act) = get_hierarchy_add_menu_action(item.tag) {
                     actions.push(act);
                 }
-                actions.push(HierarchyAction::CloseAddMenu);
             });
         }
     }

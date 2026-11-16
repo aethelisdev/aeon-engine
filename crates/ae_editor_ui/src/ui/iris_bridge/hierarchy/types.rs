@@ -319,8 +319,6 @@ pub struct HierarchyPanelParams<'a> {
     pub active_submenu: Option<AddSubmenuId>,
     /// Active nested Add Menu sub-submenu (if open).
     pub active_sub_submenu: Option<AddSubmenuId>,
-    /// Whether the Add Menu is open.
-    pub is_add_menu_open: bool,
     /// Active right-click context menu (target entity, position) if open.
     pub active_context_menu: Option<(hecs::Entity, Point)>,
     /// Current mouse cursor position.

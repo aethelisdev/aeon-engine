@@ -390,9 +390,7 @@ impl<'a> UiScope<'a> {
         let inner = f(&mut child_scope);
         let _ = self.tree.set_layer_recursive(node_id, UiLayer::Modal);
         crate::declarative::layout_subtree(self.tree, node_id, effective_bounds);
-        if let Some(cursor) = self.tree.cursor_position() {
-            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
-        }
+        self.tree.refresh_hover_from_cursor();
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }
@@ -469,6 +467,7 @@ impl<'a> UiScope<'a> {
             } else {
                 theme.text_secondary
             };
+            node.hover_text_color = Some(theme.text_primary);
             let mut danger_hover = theme.danger;
             danger_hover.a = 0.28;
             node.set_style(
@@ -483,7 +482,9 @@ impl<'a> UiScope<'a> {
                     } else {
                         Color::TRANSPARENT
                     })
-                    .border(0.0, Color::TRANSPARENT),
+                    .hover_background(danger_hover)
+                    .border(0.0, Color::TRANSPARENT)
+                    .hover_border(0.0, Color::TRANSPARENT),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
@@ -535,6 +536,7 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = theme.text_primary;
+            node.hover_text_color = Some(theme.text_primary);
             let (bg, border) = if hovered {
                 (theme.button_active_bg, theme.button_hover_border)
             } else {
@@ -556,7 +558,9 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .background(bg)
-                    .border(1.0, border),
+                    .hover_background(theme.button_active_bg)
+                    .border(1.0, border)
+                    .hover_border(1.0, theme.button_hover_border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
@@ -593,6 +597,7 @@ impl<'a> UiScope<'a> {
             } else {
                 theme.text_secondary
             };
+            node.hover_text_color = Some(theme.text_primary);
             let (bg, border) = if hovered {
                 (theme.button_hover_bg, theme.button_hover_border)
             } else {
@@ -606,7 +611,9 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .background(bg)
-                    .border(1.0, border),
+                    .hover_background(theme.button_hover_bg)
+                    .border(1.0, border)
+                    .hover_border(1.0, theme.button_hover_border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
@@ -658,6 +665,7 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = theme.text_primary;
+            node.hover_text_color = Some(theme.text_primary);
             let (bg, border) = if hovered {
                 (theme.danger, theme.button_hover_border)
             } else {
@@ -679,7 +687,9 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .background(bg)
-                    .border(1.0, border),
+                    .hover_background(theme.danger)
+                    .border(1.0, border)
+                    .hover_border(1.0, theme.button_hover_border),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)

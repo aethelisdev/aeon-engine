@@ -31,8 +31,6 @@ fn create_test_params<'a>(
         saved_swatches: swatches,
         cursor_pos: irisui::core::Point::new(0.0, 0.0),
         active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         inspector_hsv: [0.0, 0.0, 1.0],
@@ -66,16 +64,12 @@ fn test_property_label_width_alignment_across_cards() {
     let swatches = [];
     let params = create_test_params(&world, Some(entity), &euler, &swatches);
 
-    let mut is_color_picker_open = false;
     let mut name = String::new();
     let mut swatches = Vec::new();
-    let mut is_add_menu_open = false;
     let mut active_submenu = None;
     let mut session = ae_editor_ui::ui::iris_bridge::inspector::InspectorSessionRefs {
         inspected_name: &mut name,
         saved_swatches: &mut swatches,
-        is_color_picker_open: &mut is_color_picker_open,
-        is_add_menu_open: &mut is_add_menu_open,
         active_submenu: &mut active_submenu,
     };
     build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);

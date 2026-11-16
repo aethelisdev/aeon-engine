@@ -26,8 +26,6 @@ fn create_default_test_params<'a>(
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
         active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         inspector_hsv: [0.0, 0.0, 1.0],
@@ -44,7 +42,6 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
     let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.is_add_menu_open = true;
     params.active_submenu = Some(ComponentCategory::Physics);
 
     // Build Add Component button anchor via declarative UiScope directly in tree
@@ -75,12 +72,11 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     }
 
     // Build the cascading add menu via declarative UiScope
-    let mut is_add_menu_open = true;
+    tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
     let mut active_submenu = Some(ComponentCategory::Physics);
     add_menu::draw_add_component_menu(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut is_add_menu_open,
         &mut active_submenu,
     );
 
@@ -134,7 +130,6 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
     let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.is_color_picker_open = true;
     params.inspector_hsv = [180.0, 0.5, 0.8];
     params.inspector_color_hex = "#33cccc";
 
@@ -166,9 +161,9 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     }
 
     // Build color picker popup via declarative UiScope
-    let mut is_color_picker_open = true;
+    tree.open_popup(appearance_color_swatch_tag());
     let mut scope = UiScope::new(&mut tree, root);
-    color_picker_popup::build_color_picker_popup(&mut scope, &params, &mut is_color_picker_open);
+    color_picker_popup::build_color_picker_popup(&mut scope, &params);
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;
@@ -230,14 +225,10 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
 
     let mut name = String::new();
     let mut swatches = Vec::new();
-    let mut is_color_picker_open = false;
-    let mut is_add_menu_open = false;
     let mut active_submenu = None;
     let mut session = super::types::InspectorSessionRefs {
         inspected_name: &mut name,
         saved_swatches: &mut swatches,
-        is_color_picker_open: &mut is_color_picker_open,
-        is_add_menu_open: &mut is_add_menu_open,
         active_submenu: &mut active_submenu,
     };
     let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);
@@ -269,8 +260,8 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
         panel::build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut session);
 
     assert!(
-        is_color_picker_open,
-        "Clicking Object Color swatch must directly toggle is_color_picker_open to true"
+        tree.is_popup_tag_active(appearance_color_swatch_tag()),
+        "Clicking Object Color swatch must directly activate appearance_color_swatch_tag in UiTree"
     );
 }
 
@@ -301,21 +292,18 @@ fn test_color_picker_drag_and_undo_restoration() {
         saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
         active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: true,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         inspector_hsv: [210.0, 0.66, 0.30],
     };
 
+    tree.open_popup(appearance_color_swatch_tag());
     let mut ui_actions = Vec::new();
-    let mut is_color_picker_open = true;
     // 0. Initial popup build to register SV box bounds
     let (_, init_act) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_color_picker_open,
         );
     assert!(init_act.is_none());
 
@@ -336,7 +324,6 @@ fn test_color_picker_drag_and_undo_restoration() {
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_color_picker_open,
         )
     {
         ui_actions.push(act);
@@ -358,7 +345,6 @@ fn test_color_picker_drag_and_undo_restoration() {
             crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
                 &mut UiScope::new(&mut tree, root),
                 &params,
-                &mut is_color_picker_open,
             )
         {
             ui_actions.push(act);
@@ -385,7 +371,6 @@ fn test_color_picker_drag_and_undo_restoration() {
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_color_picker_open,
         )
     {
         ui_actions.push(act);
@@ -418,7 +403,7 @@ fn test_color_picker_drag_and_undo_restoration() {
     }
 }
 
-/// Verifies that clicking the close button on the color picker popup toggles `is_color_picker_open` to false.
+/// Verifies that clicking the close button on the color picker popup clears `appearance_color_swatch_tag` in `UiTree`.
 #[test]
 fn test_color_picker_popup_close_button_interaction() {
     let mut tree = UiTree::new();
@@ -426,17 +411,12 @@ fn test_color_picker_popup_close_button_interaction() {
     let world = hecs::World::new();
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
-    let mut params = create_default_test_params(&world, None, &euler, &swatches);
-    params.is_color_picker_open = true;
+    let params = create_default_test_params(&world, None, &euler, &swatches);
 
-    let mut is_color_picker_open = true;
+    tree.open_popup(appearance_color_swatch_tag());
     {
         let mut scope = UiScope::new(&mut tree, root);
-        color_picker_popup::build_color_picker_popup(
-            &mut scope,
-            &params,
-            &mut is_color_picker_open,
-        );
+        color_picker_popup::build_color_picker_popup(&mut scope, &params);
     }
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(800.0, 600.0));
 
@@ -467,16 +447,12 @@ fn test_color_picker_popup_close_button_interaction() {
     let root2 = tree.create_root().expect("root2");
     {
         let mut scope = UiScope::new(&mut tree, root2);
-        color_picker_popup::build_color_picker_popup(
-            &mut scope,
-            &params,
-            &mut is_color_picker_open,
-        );
+        color_picker_popup::build_color_picker_popup(&mut scope, &params);
     }
 
     assert!(
-        !is_color_picker_open,
-        "Clicking close button must set is_color_picker_open to false"
+        !tree.is_popup_tag_active(appearance_color_swatch_tag()),
+        "Clicking close button must clear appearance_color_swatch_tag in UiTree"
     );
 }
 
@@ -487,7 +463,6 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let mut is_add_menu_open = true;
     let mut active_submenu = None;
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
@@ -519,14 +494,13 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.is_add_menu_open = true;
+    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
 
     // 2. Build cascading add menu
     add_menu::draw_add_component_menu(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut is_add_menu_open,
         &mut active_submenu,
     );
 
@@ -563,17 +537,6 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
         "Active popup tag must be cleared on dismissal"
     );
     assert!(tree.popups_dismissed());
-
-    // 6. Next frame: scope.popups_dismissed() resets is_add_menu_open
-    {
-        let scope = UiScope::new(&mut tree, root);
-        if scope.popups_dismissed() {
-            is_add_menu_open = false;
-            active_submenu = None;
-        }
-        assert!(!is_add_menu_open);
-        assert!(active_submenu.is_none());
-    }
 }
 
 #[test]
@@ -583,7 +546,6 @@ fn test_inspector_color_picker_popup_outside_click() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let mut is_color_picker_open = true;
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
 
@@ -607,17 +569,13 @@ fn test_inspector_color_picker_popup_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.is_color_picker_open = true;
+    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    tree.open_popup(swatch_tag);
 
     // 2. Build color picker popup
     {
         let mut scope = UiScope::new(&mut tree, root);
-        color_picker_popup::build_color_picker_popup(
-            &mut scope,
-            &params,
-            &mut is_color_picker_open,
-        );
+        color_picker_popup::build_color_picker_popup(&mut scope, &params);
     }
 
     // 3. Verify swatch tag is registered as active popup tag
@@ -653,13 +611,4 @@ fn test_inspector_color_picker_popup_outside_click() {
         "Active popup tag must be cleared on dismissal"
     );
     assert!(tree.popups_dismissed());
-
-    // 6. Next frame: scope.popups_dismissed() resets is_color_picker_open
-    {
-        let scope = UiScope::new(&mut tree, root);
-        if scope.popups_dismissed() {
-            is_color_picker_open = false;
-        }
-        assert!(!is_color_picker_open);
-    }
 }

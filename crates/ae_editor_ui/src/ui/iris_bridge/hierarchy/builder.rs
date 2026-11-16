@@ -29,7 +29,6 @@ impl IrisEditorOverlay {
         }
 
         if scope.popups_dismissed() {
-            self.hierarchy.is_add_menu_open = false;
             self.hierarchy.active_submenu = None;
             self.hierarchy.active_sub_submenu = None;
             self.hierarchy.active_context_menu = None;
@@ -65,7 +64,6 @@ impl IrisEditorOverlay {
             is_2d: params.context.is_2d_mode,
             active_submenu: self.hierarchy.active_submenu,
             active_sub_submenu: self.hierarchy.active_sub_submenu,
-            is_add_menu_open: self.hierarchy.is_add_menu_open,
             active_context_menu: self.hierarchy.active_context_menu,
             cursor_pos,
             blink_caret,

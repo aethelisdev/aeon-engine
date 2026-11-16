@@ -46,14 +46,14 @@ pub fn build_designer_toolbar(
         UI_DESIGNER_TAG_TOOLBAR,
         |tb| {
             // ── 1. Aspect Ratio Selector Button ───────────────────────────────────
-            let aspect_label = format!("📐 {} ▾", params.state.aspect_ratio.label());
-            tb.add(
-                ToolbarButton::new(aspect_label)
+            tb.add_popup_trigger(
+                ToolbarButton::new(format!("📐 {} ▾", params.state.aspect_ratio.label()))
                     .width(142.0)
                     .tag(UI_DESIGNER_TAG_ASPECT_BTN)
+                    .open(tb.is_popup_tag_active(UI_DESIGNER_TAG_ASPECT_BTN))
                     .tooltip("Select viewport aspect ratio preset"),
-            )
-            .on_click(|| designer.dispatch(UiDesignerAction::ToggleAspectDropdown));
+                UI_DESIGNER_TAG_ASPECT_BTN,
+            );
 
             tb.vertical_divider(20.0, Color::rgba(0.22, 0.25, 0.32, 0.80));
 
@@ -125,15 +125,15 @@ pub fn build_designer_toolbar(
             tb.vertical_divider(20.0, Color::rgba(0.22, 0.25, 0.32, 0.80));
 
             // ── 5. ➕ Add Element Palette Button ──────────────────────────────────
-            tb.add(
+            tb.add_popup_trigger(
                 Button::new("Add Element")
                     .width(118.0)
                     .fill(Color::rgba(0.20, 0.90, 0.60, 0.25))
                     .text_color(Color::rgba(0.20, 0.90, 0.60, 1.0))
                     .tag(UI_DESIGNER_TAG_ADD_ELEMENT_BTN)
                     .tooltip("Open UI element creation palette"),
-            )
-            .on_click(|| designer.dispatch(UiDesignerAction::ToggleAddMenu));
+                UI_DESIGNER_TAG_ADD_ELEMENT_BTN,
+            );
         },
     );
 }

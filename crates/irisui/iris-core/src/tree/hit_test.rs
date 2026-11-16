@@ -461,4 +461,16 @@ impl UiTree {
 
         WidgetCursor::Default
     }
+
+    /// Synchronizes [`EventState::hovered`](crate::dispatch::EventState::hovered) against the
+    /// active pointer coordinates using layer-aware top-down hit testing ([`Self::hit_test_layered`]).
+    ///
+    /// Called after layout resolution so newly rebuilt subtrees or popups beneath a stationary
+    /// cursor receive dynamic GPU and text hover feedback without mutating base styles.
+    #[inline]
+    pub fn refresh_hover_from_cursor(&mut self) {
+        if let Some(pos) = self.event_state.last_pointer_pos {
+            self.event_state.hovered = self.hit_test_layered(pos);
+        }
+    }
 }

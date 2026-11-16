@@ -323,13 +323,28 @@ fn test_declarative_modals_buttons_hover_reactivity() {
     assert!(tree.get(del_id).is_some());
 
     // Search for close button and danger button
-    assert!(
-        tree.any_in_subtree(del_id, |node| {
-            node.tag == ModalDialogAction::TAG_CLOSE
-                && node.text.as_deref() == Some("✕")
-                && node.style.background_color == Color::rgba(0.85, 0.22, 0.22, 0.28)
-        }),
-        "Modal close button must react to hover"
+    let close_id = tree
+        .iter()
+        .find(|(_, node)| {
+            node.tag == ModalDialogAction::TAG_CLOSE && node.text.as_deref() == Some("✕")
+        })
+        .map(|(id, _)| id)
+        .expect("Modal close button must exist");
+    let expected_danger = tree.theme().danger;
+    assert_eq!(
+        tree.event_state.hovered,
+        Some(close_id),
+        "Modal close button must be resolved as hovered target under cursor"
+    );
+    assert_eq!(
+        tree.get(close_id).and_then(|n| n.style.hover_background),
+        Some(Color::rgba(
+            expected_danger.r,
+            expected_danger.g,
+            expected_danger.b,
+            0.28,
+        )),
+        "Modal close button must carry theme-driven hover background"
     );
     assert!(
         tree.any_in_subtree(del_id, |node| {

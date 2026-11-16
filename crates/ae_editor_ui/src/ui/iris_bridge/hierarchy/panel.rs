@@ -40,10 +40,8 @@ pub fn build_hierarchy_panel(
             // 4. Footer Status Line (Object Count & Selection Telemetry)
             build_hierarchy_footer(panel_scope, rows_cache.len(), params);
 
-            // 5. Cascading ➕ Add Entity Dropdown Menu (elevated overlay)
-            if params.is_add_menu_open {
-                draw_hierarchy_add_menu(panel_scope, params, actions);
-            }
+            // 5. Cascading ➕ Add Entity Dropdown Menu (elevated overlay; scoped by HIERARCHY_TAG_ADD_BUTTON)
+            draw_hierarchy_add_menu(panel_scope, params, actions);
 
             // 6. Right-Click Entity Context Menu (elevated overlay)
             if params.active_context_menu.is_some() {

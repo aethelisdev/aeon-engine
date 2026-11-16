@@ -121,6 +121,28 @@ impl UiTree {
         })
     }
 
+    /// Resolves the best available non-zero screen-space bounding rectangle for `tag`.
+    ///
+    /// Checks the active arena node's `computed_rect` first, ignoring zero-sized
+    /// placeholders created prior to layout resolution, and falls back to the
+    /// persistent last-frame [`Self::tag_rect`] cache preserved across tree rebuilds.
+    ///
+    /// # Arguments
+    /// * `tag` - Semantic 64-bit tag of the anchor widget (0 always returns `None`).
+    #[inline]
+    #[must_use]
+    pub fn resolve_anchor_rect(&self, tag: u64) -> Option<Rect> {
+        if tag == 0 {
+            return None;
+        }
+        self.node_rect_tagged(tag, Point::ZERO)
+            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .or_else(|| {
+                self.tag_rect(tag)
+                    .filter(|r| r.width > 0.0 && r.height > 0.0)
+            })
+    }
+
     /// Returns the computed bounding rectangle of the widget node with the given `name`,
     /// translated by an optional root coordinate offset (such as a parent panel position).
     ///
@@ -523,5 +545,34 @@ impl UiTree {
         let (path, point) = self.event_state.hovered_file.as_ref()?;
         let target = self.resolve_file_drop_target(*point);
         Some((path.as_path(), *point, target))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_anchor_rect_falls_back_when_live_node_is_zero_sized() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let btn = tree.create_node();
+        const ANCHOR_TAG: u64 = 0xCAFE_0001;
+        let cached = Rect::new(420.0, 280.0, 64.0, 24.0);
+        if let Some(node) = tree.get_mut(btn) {
+            node.tag = ANCHOR_TAG;
+            node.computed_rect = Rect::ZERO;
+        }
+        let _ = tree.add_child(root, btn);
+        tree.set_tag_rect(ANCHOR_TAG, cached);
+
+        assert_eq!(tree.resolve_anchor_rect(0), None);
+        assert_eq!(tree.resolve_anchor_rect(ANCHOR_TAG), Some(cached));
+
+        let live = Rect::new(430.0, 290.0, 64.0, 24.0);
+        if let Some(node) = tree.get_mut(btn) {
+            node.computed_rect = live;
+        }
+        assert_eq!(tree.resolve_anchor_rect(ANCHOR_TAG), Some(live));
     }
 }

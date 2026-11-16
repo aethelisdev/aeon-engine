@@ -25,10 +25,6 @@ pub fn build_viewport_hud_scope(
         return;
     }
 
-    if scope.popups_dismissed() {
-        hud.dropdown = None;
-    }
-
     if params.is_editing {
         // 1. Top-left floating toolbar
         toolbar::build_viewport_toolbar(scope, params, hud);
@@ -42,11 +38,8 @@ pub fn build_viewport_hud_scope(
             camera_hud::build_camera_hud(scope, params);
         }
 
-        // 4. Active dropdown popup if open (rendered before layout resolution so popup receives full layout & hover passes)
-        if let Some(active_dd) = params.active_dropdown {
-            scope.set_popup_tag_active(active_dd.tag(), true);
-            popup::render_viewport_hud_dropdown_popup(scope, active_dd, params, hud);
-        }
+        // 4. Active scoped dropdown popup if its trigger tag is active in UiTree
+        popup::render_active_viewport_hud_dropdown_popup(scope, params, hud);
 
         // 5. Resolve complete HUD layout and hover reconciliation across viewport bounds
         scope.finish_layout(params.viewport_rect);
@@ -74,7 +67,6 @@ pub fn build_viewport_hud(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::ViewportHudDropdownId;
     use crate::ui::iris_bridge::viewport_hud::{
         TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
         TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE,
@@ -115,7 +107,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(100.0, 100.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -150,7 +141,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(100.0, 100.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -191,7 +181,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(100.0, 100.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: false,
@@ -225,13 +214,13 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(100.0, 100.0),
-            active_dropdown: Some(ViewportHudDropdownId::CameraMode),
             selected_entity: None,
             world: &world,
             is_editing: true,
             is_2d: false,
         };
 
+        tree.open_popup(TAG_VIEWPORT_CAMERA_MODE);
         let mut hud = ViewportHudState::default();
         build_viewport_hud(&mut tree, root, &params, &mut hud);
 
@@ -279,12 +268,11 @@ mod tests {
         );
         assert!(tree.popups_dismissed());
 
-        // Rebuilding HUD when popups were dismissed resets hud.dropdown
-        hud.dropdown = Some(ViewportHudDropdownId::CameraMode);
+        // Rebuilding HUD after dismissal renders no dropdown card and keeps tag inactive
         build_viewport_hud(&mut tree, root, &params, &mut hud);
         assert!(
-            hud.dropdown.is_none(),
-            "HUD dropdown must be reset to None when popups were dismissed"
+            !tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
+            "Camera mode popup tag must remain cleared after outside-click dismissal"
         );
     }
 }

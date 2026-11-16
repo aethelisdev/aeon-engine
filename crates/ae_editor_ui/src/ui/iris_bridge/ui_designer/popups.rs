@@ -11,6 +11,7 @@ use super::types::{
     UiElementType, make_add_item_tag, make_aspect_item_tag,
 };
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::PopupPlacement;
 
 /// Standard canvas aspect ratio presets available in the UI Designer.
 pub const ASPECT_RATIO_PRESETS: [CanvasAspectRatio; 4] = [
@@ -34,78 +35,66 @@ pub const UI_ELEMENT_TYPES: [UiElementType; 10] = [
     UiElementType::ScoreDisplay,
 ];
 
-/// Builds the Aspect Ratio dropdown menu popup if open.
+/// Builds the Aspect Ratio dropdown menu popup when [`super::types::UI_DESIGNER_TAG_ASPECT_BTN`] is active.
 pub fn build_aspect_ratio_popup(
     scope: &mut UiScope<'_>,
     params: &UiDesignerPanelParams<'_>,
     designer: &mut UiDesignerPanelState,
 ) {
-    if !params.is_aspect_dropdown_open {
-        return;
-    }
-
-    let anchor = scope
-        .node_rect_tagged(super::types::UI_DESIGNER_TAG_ASPECT_BTN, Point::ZERO)
-        .unwrap_or_else(|| {
-            Rect::new(
-                params.panel_rect.x + 8.0,
-                params.panel_rect.y + 5.0,
-                142.0,
-                24.0,
-            )
-        });
-
-    let popup_x = anchor.x;
-    let popup_y = anchor.y + anchor.height + 2.0;
-    let popup_w = 160.0;
-
-    scope.dropdown_menu_card_named(
+    scope.scoped_popup_anchored_to_tag(
         "AspectRatioPopup",
-        popup_x,
-        popup_y,
-        popup_w,
+        super::types::UI_DESIGNER_TAG_ASPECT_BTN,
+        Rect::new(
+            params.panel_rect.x + 8.0,
+            params.panel_rect.y + 5.0,
+            142.0,
+            24.0,
+        ),
+        160.0,
+        PopupPlacement::Below,
         |popup_scope| {
-            for (idx, preset) in ASPECT_RATIO_PRESETS.iter().enumerate() {
-                let preset = *preset;
-                let is_selected = preset == params.state.aspect_ratio;
-                let shortcut = if is_selected { Some("✓") } else { None };
-                popup_scope
-                    .dropdown_item(
-                        make_aspect_item_tag(idx),
-                        "",
-                        preset.label(),
-                        shortcut,
-                        true,
-                    )
-                    .on_click(|| designer.dispatch(UiDesignerAction::SetAspectRatio(preset)));
-            }
+            ASPECT_RATIO_PRESETS
+                .iter()
+                .enumerate()
+                .for_each(|(idx, &preset)| {
+                    popup_scope
+                        .dropdown_item_autoclose(
+                            make_aspect_item_tag(idx),
+                            "",
+                            preset.label(),
+                            (preset == params.state.aspect_ratio).then_some("✓"),
+                            true,
+                        )
+                        .on_click(|| designer.dispatch(UiDesignerAction::SetAspectRatio(preset)));
+                });
         },
     );
 }
 
-/// Builds the `➕ Add Element` palette popup if open.
+/// Builds the `➕ Add Element` palette popup when [`super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN`] is active.
 pub fn build_add_element_popup(
     scope: &mut UiScope<'_>,
     params: &UiDesignerPanelParams<'_>,
     designer: &mut UiDesignerPanelState,
 ) {
-    if params.is_add_menu_open {
-        scope.popup_anchored_named(
-            "AddElementPopup",
-            scope
-                .node_rect_tagged(super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN, Point::ZERO)
-                .unwrap_or(Rect::new(
-                    params.panel_rect.x + 8.0,
-                    params.panel_rect.y + 5.0,
-                    118.0,
-                    24.0,
-                )),
-            200.0,
-            |popup_scope| {
-                for (idx, elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
-                    let elem_type = *elem_type;
+    scope.scoped_popup_anchored_to_tag(
+        "AddElementPopup",
+        super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN,
+        Rect::new(
+            params.panel_rect.x + 8.0,
+            params.panel_rect.y + 5.0,
+            118.0,
+            24.0,
+        ),
+        200.0,
+        PopupPlacement::Below,
+        |popup_scope| {
+            UI_ELEMENT_TYPES
+                .iter()
+                .enumerate()
+                .for_each(|(idx, &elem_type)| {
                     popup_scope
-                        .dropdown_item(
+                        .dropdown_item_autoclose(
                             make_add_item_tag(idx),
                             elem_type.icon(),
                             elem_type.label(),
@@ -113,8 +102,7 @@ pub fn build_add_element_popup(
                             true,
                         )
                         .on_click(|| designer.dispatch(UiDesignerAction::SpawnElement(elem_type)));
-                }
-            },
-        );
-    }
+                });
+        },
+    );
 }

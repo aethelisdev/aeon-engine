@@ -29,8 +29,6 @@ fn create_default_test_params<'a>(
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
         active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         inspector_hsv: [0.0, 0.0, 1.0],
@@ -41,15 +39,11 @@ fn create_default_test_params<'a>(
 fn default_test_session<'a>(
     name: &'a mut String,
     swatches: &'a mut Vec<[f32; 4]>,
-    is_color: &'a mut bool,
-    is_add: &'a mut bool,
     submenu: &'a mut Option<ComponentCategory>,
 ) -> InspectorSessionRefs<'a> {
     InspectorSessionRefs {
         inspected_name: name,
         saved_swatches: swatches,
-        is_color_picker_open: is_color,
-        is_add_menu_open: is_add,
         active_submenu: submenu,
     }
 }
@@ -67,13 +61,7 @@ fn test_inspector_empty_selection_renders_placeholder() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     let has_empty_label = tree
@@ -102,13 +90,7 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     // Verify 3D Transform inputs are present via declarative assertions
@@ -140,13 +122,7 @@ fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     // Capture initial geometric positions immediately after declarative build (layout_subtree pass)
@@ -230,13 +206,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     // Verify 3D Transform inputs are NOT present
@@ -322,13 +292,7 @@ fn test_inspector_entity_isolation_invariant() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     assert_eq!(
@@ -361,13 +325,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
@@ -386,13 +344,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree2, root2),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
@@ -411,13 +363,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree3, root3),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
@@ -490,13 +436,7 @@ fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(
-            &mut String::new(),
-            &mut Vec::new(),
-            &mut false,
-            &mut false,
-            &mut None,
-        ),
+        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
     );
 
     let find_node_rect = |tree: &UiTree, label: &str| -> Option<Rect> {

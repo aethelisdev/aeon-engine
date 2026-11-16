@@ -17,7 +17,6 @@ pub mod containers;
 pub mod context_menu;
 pub mod core;
 pub mod display;
-pub mod hover;
 pub mod input;
 pub mod input_box;
 pub mod labeled_input;

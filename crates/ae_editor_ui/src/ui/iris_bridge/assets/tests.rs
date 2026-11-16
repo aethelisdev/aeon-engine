@@ -331,14 +331,24 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         &mut actions_hover,
     );
 
-    let mut close_node_hover_bg = None;
-    tree_hover.traverse_depth_first(root_hover, &mut |_id, node| {
+    let mut close_node_info = None;
+    tree_hover.traverse_depth_first(root_hover, &mut |id, node| {
         if node.computed_rect == close_rect {
-            close_node_hover_bg = Some(node.style.background_color);
+            close_node_info = Some((id, node.style.hover_background));
         }
     });
-    let hover_bg = close_node_hover_bg.expect("Hovered close node found");
-    assert_eq!(hover_bg, Color::rgba(0.85, 0.22, 0.22, 0.28));
+    let (close_id, hover_bg) = close_node_info.expect("Hovered close node found");
+    assert_eq!(tree_hover.event_state.hovered, Some(close_id));
+    let expected_danger = tree_hover.theme().danger;
+    assert_eq!(
+        hover_bg,
+        Some(Color::rgba(
+            expected_danger.r,
+            expected_danger.g,
+            expected_danger.b,
+            0.28,
+        ))
+    );
 }
 
 #[test]

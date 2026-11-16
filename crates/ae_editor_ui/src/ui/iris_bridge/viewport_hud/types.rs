@@ -147,8 +147,6 @@ pub struct ViewportHudParams<'a> {
     pub snapping: &'a SnapSettings,
     /// Current mouse cursor coordinates.
     pub cursor_pos: Point,
-    /// Active dropdown menu currently open in the HUD.
-    pub active_dropdown: Option<ViewportHudDropdownId>,
     /// Currently selected entity in the editor, if any.
     pub selected_entity: Option<Entity>,
     /// Active ECS world reference for gameplay HUD and runtime entity queries.

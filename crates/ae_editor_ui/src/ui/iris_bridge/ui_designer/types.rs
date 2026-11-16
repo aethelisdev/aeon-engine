@@ -21,10 +21,6 @@ pub struct UiDesignerPanelParams<'a> {
     pub cursor_pos: Point,
     /// Persistent UI Designer state (aspect ratio, zoom, pan offset, grid snap).
     pub state: &'a UiDesignerState,
-    /// Whether the Aspect Ratio dropdown popup is currently open.
-    pub is_aspect_dropdown_open: bool,
-    /// Whether the `➕ Add Element` palette popup is currently open.
-    pub is_add_menu_open: bool,
 }
 
 // ── 64-Bit Hardware Semantic Tags ────────────────────────────────────────────
@@ -245,10 +241,6 @@ pub struct UiDesignerPanelState {
     pub canvas_metrics: UiDesignerCanvasMetrics,
     /// Cached on-canvas UI element drag contexts for O(1) drag initialization.
     pub drag_contexts: Vec<UiElementDragContext>,
-    /// Whether the Aspect Ratio dropdown popup is open in the UI Designer.
-    pub is_aspect_open: bool,
-    /// Whether the Add Element palette popup is open in the UI Designer.
-    pub is_add_menu_open: bool,
     /// Active element dragging state in the UI Designer.
     pub drag_state: Option<ae_uidesign::UiDragState>,
     /// Whether user is currently panning the UI Designer virtual canvas.
@@ -271,32 +263,12 @@ impl std::ops::DerefMut for UiDesignerPanelState {
 }
 
 impl UiDesignerPanelState {
-    /// Dispatches a UI Designer action directly to the action queue and updates popup visibility.
-    ///
-    /// Coordinates immediate local dropdown state changes and enqueues actionable mutations
-    /// for downstream workbench synchronization.
+    /// Dispatches a UI Designer action directly to the action queue.
     pub fn dispatch(&mut self, action: UiDesignerAction) {
         match action {
-            UiDesignerAction::ToggleAspectDropdown => {
-                self.is_aspect_open = !self.is_aspect_open;
-                self.is_add_menu_open = false;
-            }
-            UiDesignerAction::ToggleAddMenu => {
-                self.is_add_menu_open = !self.is_add_menu_open;
-                self.is_aspect_open = false;
-            }
-            UiDesignerAction::ClosePopups => {
-                self.is_aspect_open = false;
-                self.is_add_menu_open = false;
-            }
-            UiDesignerAction::SetAspectRatio(_) => {
-                self.is_aspect_open = false;
-                self.push_action(action);
-            }
-            UiDesignerAction::SpawnElement(_) => {
-                self.is_add_menu_open = false;
-                self.push_action(action);
-            }
+            UiDesignerAction::ToggleAspectDropdown
+            | UiDesignerAction::ToggleAddMenu
+            | UiDesignerAction::ClosePopups => {}
             _ => {
                 self.push_action(action);
             }

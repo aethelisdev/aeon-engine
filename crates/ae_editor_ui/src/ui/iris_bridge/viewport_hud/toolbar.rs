@@ -9,7 +9,7 @@
 use super::types::{
     TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT, TAG_GIZMO_SPACE_TOGGLE,
     TAG_GIZMO_TRANSLATE, TAG_SNAP_GRID_DROPDOWN, TAG_SNAP_GRID_TOGGLE, TAG_VIEWPORT_SHADING_MODE,
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
+    ViewportHudAction, ViewportHudParams, ViewportHudState,
 };
 use crate::ui::iris_bridge::icons::{
     ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_SNAP_GRID, ICON_TRANSLATE, ICON_WORLD,
@@ -29,10 +29,6 @@ pub fn build_viewport_toolbar(
 ) {
     let cam = params.camera_orientation();
     let sh = params.shading_mode();
-    let is_cam_open =
-        !params.is_2d && params.active_dropdown == Some(ViewportHudDropdownId::CameraMode);
-    let is_sh_open =
-        !params.is_2d && params.active_dropdown == Some(ViewportHudDropdownId::ShadingMode);
 
     Toolbar::floating("ViewportToolbar", 8.0, 6.0)
         .width(params.toolbar_total_width())
@@ -48,44 +44,35 @@ pub fn build_viewport_toolbar(
                     .border_color(Color::rgba(0.24, 0.26, 0.32, 0.85))
                     .corner_radius(4.0),
                 |group| {
-                    group
-                        .mode_button_tagged(
+                    if !params.is_2d {
+                        group.mode_button_popup_tagged(
                             cam.icon_uv(),
                             cam.label(),
                             cam.tag(),
-                            is_cam_open,
                             cam.width(),
                             cam.corner_radii(),
-                        )
-                        .on_click(|| {
-                            if !params.is_2d {
-                                hud.dispatch(ViewportHudAction::ToggleDropdown(if is_cam_open {
-                                    None
-                                } else {
-                                    Some(ViewportHudDropdownId::CameraMode)
-                                }));
-                            }
-                        });
+                        );
+                    } else {
+                        group.mode_button_tagged(
+                            cam.icon_uv(),
+                            cam.label(),
+                            cam.tag(),
+                            false,
+                            cam.width(),
+                            cam.corner_radii(),
+                        );
+                    }
 
                     if !params.is_2d {
                         group.divider();
 
-                        group
-                            .mode_button_tagged(
-                                Some(sh.icon_uv()),
-                                sh.label(),
-                                TAG_VIEWPORT_SHADING_MODE,
-                                is_sh_open,
-                                sh.width(),
-                                sh.corner_radii(),
-                            )
-                            .on_click(|| {
-                                hud.dispatch(ViewportHudAction::ToggleDropdown(if is_sh_open {
-                                    None
-                                } else {
-                                    Some(ViewportHudDropdownId::ShadingMode)
-                                }));
-                            });
+                        group.mode_button_popup_tagged(
+                            Some(sh.icon_uv()),
+                            sh.label(),
+                            TAG_VIEWPORT_SHADING_MODE,
+                            sh.width(),
+                            sh.corner_radii(),
+                        );
                     }
                 },
             );
@@ -117,7 +104,6 @@ pub fn build_viewport_toolbar(
 
             // ── 4. Snapping Group: 32x32 Grid Snap Toggle Button (Vibrant Blue when Active) + Size Dropdown ──
             let is_snap_active = params.snapping.mode != ae_editor::snapping::SnapMode::Off;
-            let is_snap_dd_open = params.active_dropdown == Some(ViewportHudDropdownId::GridSnap);
             let snap_label = snap_size_label(params.snapping.grid_size);
 
             tb.group_styled(
@@ -126,19 +112,7 @@ pub fn build_viewport_toolbar(
                     gg.toggle_tool_tagged(is_snap_active, ICON_SNAP_GRID, TAG_SNAP_GRID_TOGGLE)
                         .on_click(|| hud.dispatch(ViewportHudAction::ToggleSnapping));
 
-                    gg.dropdown_button_tagged(
-                        snap_label,
-                        TAG_SNAP_GRID_DROPDOWN,
-                        is_snap_dd_open,
-                        50.0,
-                    )
-                    .on_click(|| {
-                        hud.dispatch(ViewportHudAction::ToggleDropdown(if is_snap_dd_open {
-                            None
-                        } else {
-                            Some(ViewportHudDropdownId::GridSnap)
-                        }));
-                    });
+                    gg.dropdown_button_popup_tagged(snap_label, TAG_SNAP_GRID_DROPDOWN, 50.0);
                 },
             );
         });
@@ -207,7 +181,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(20.0, 15.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -260,7 +233,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(20.0, 15.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -312,7 +284,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(20.0, 15.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -368,7 +339,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(20.0, 15.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -449,7 +419,6 @@ mod tests {
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(20.0, 15.0),
-            active_dropdown: None,
             selected_entity: None,
             world: &world,
             is_editing: true,
@@ -468,6 +437,61 @@ mod tests {
         assert!(
             tree.iter().any(|(_, n)| n.tag == TAG_SNAP_GRID_DROPDOWN),
             "TAG_SNAP_GRID_DROPDOWN node must exist in toolbar"
+        );
+    }
+
+    /// Regression test verifying that selecting a gizmo button preserves the active theme highlight
+    /// (`theme.button_active_bg`) across layout finalization with pointer tracking.
+    #[test]
+    fn test_active_gizmo_button_preserves_theme_active_background_after_layout() {
+        let mut tree = UiTree::new();
+        let custom_active = Color::rgba(0.0, 0.55, 0.85, 0.95);
+        tree.theme = Theme {
+            button_active_bg: custom_active,
+            ..Theme::dark_default()
+        };
+        let root = tree.create_root().expect("Root node creation failed");
+        tree.set_cursor_position(Point::new(0.0, 0.0));
+
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let snapping = SnapSettings::default();
+        let world = World::new();
+
+        let params = ViewportHudParams {
+            viewport_rect: Rect::new(260.0, 56.0, 800.0, 600.0),
+            camera: &camera,
+            wireframe_enabled: false,
+            gizmo_mode: GizmoMode::Translate,
+            gizmo_space: GizmoSpace::World,
+            snapping: &snapping,
+            cursor_pos: Point::new(0.0, 0.0),
+            selected_entity: None,
+            world: &world,
+            is_editing: true,
+            is_2d: false,
+        };
+
+        let mut hud = ViewportHudState::default();
+        build_viewport_toolbar(&mut UiScope::new(&mut tree, root), &params, &mut hud);
+        UiScope::new(&mut tree, root).finish_layout(params.viewport_rect);
+
+        let translate_btn = tree
+            .node_tagged(TAG_GIZMO_TRANSLATE)
+            .expect("Translate button must exist");
+        assert_eq!(
+            translate_btn.style.background_color, custom_active,
+            "Active gizmo button must keep theme.button_active_bg after layout"
         );
     }
 }

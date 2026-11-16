@@ -71,41 +71,16 @@ fn render_inspected_entity(
                                     entity,
                                     params,
                                     session.saved_swatches,
-                                    session.is_color_picker_open,
                                 )
                             },
                         )
                         .inner,
                 ),
-                footer::build_inspector_footer(
-                    scope,
-                    params,
-                    session.is_add_menu_open,
-                    session.active_submenu,
-                ),
+                footer::build_inspector_footer(scope, params, session.active_submenu),
             ),
-            (*session.is_add_menu_open)
-                .then(|| {
-                    add_menu::draw_add_component_menu(
-                        scope,
-                        params,
-                        session.is_add_menu_open,
-                        session.active_submenu,
-                    )
-                    .1
-                })
-                .flatten(),
+            add_menu::draw_add_component_menu(scope, params, session.active_submenu).1,
         ),
-        (*session.is_color_picker_open)
-            .then(|| {
-                color_picker_popup::build_color_picker_popup_with_action(
-                    scope,
-                    params,
-                    session.is_color_picker_open,
-                )
-                .1
-            })
-            .flatten(),
+        color_picker_popup::build_color_picker_popup_with_action(scope, params).1,
     )
 }
 
@@ -115,7 +90,6 @@ fn render_inspector_cards(
     entity: hecs::Entity,
     params: &InspectorPanelParams<'_>,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
     render_context_cards(
         scope,
@@ -123,7 +97,6 @@ fn render_inspector_cards(
         entity,
         params.inspector_color_hex,
         saved_swatches,
-        is_color_picker_open,
     )
 }
 
@@ -134,17 +107,9 @@ fn render_context_cards(
     entity: hecs::Entity,
     hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
-        render_primary_cards(
-            scope,
-            world,
-            entity,
-            hex_str,
-            saved_swatches,
-            is_color_picker_open,
-        ),
+        render_primary_cards(scope, world, entity, hex_str, saved_swatches),
         render_registry_cards(scope, world, entity).or_else(|| {
             super::components::hierarchy::draw_parent_card_if_present(scope, world, entity)
         }),
@@ -156,20 +121,12 @@ fn render_context_cards(
 pub fn build_inspector_overlays_with_action(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<super::types::ComponentCategory>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
-    if *is_add_menu_open {
-        add_menu::draw_add_component_menu(scope, params, is_add_menu_open, active_submenu)
-    } else if *is_color_picker_open {
-        color_picker_popup::build_color_picker_popup_with_action(
-            scope,
-            params,
-            is_color_picker_open,
-        )
+    if scope.is_popup_tag_active(footer::TAG_INSPECTOR_ADD_COMPONENT) {
+        add_menu::draw_add_component_menu(scope, params, active_submenu)
     } else {
-        (None, None)
+        color_picker_popup::build_color_picker_popup_with_action(scope, params)
     }
 }
 
@@ -180,18 +137,9 @@ pub fn build_inspector_overlays_with_action(
 pub fn build_inspector_overlays(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_color_picker_open: &mut bool,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<super::types::ComponentCategory>,
 ) -> Option<Rect> {
-    build_inspector_overlays_with_action(
-        scope,
-        params,
-        is_color_picker_open,
-        is_add_menu_open,
-        active_submenu,
-    )
-    .0
+    build_inspector_overlays_with_action(scope, params, active_submenu).0
 }
 
 /// Combines two optional UI actions, evaluating both child branches.
@@ -210,21 +158,13 @@ pub fn render_primary_cards(
     entity: hecs::Entity,
     hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if world.get::<&ae_core::ecs::UiElement>(entity).is_ok() {
         ui_transform::build_ui_transform_card(scope, world, entity);
         header::component_delete_action(scope, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
         transform::build_transform_card(scope, world, entity);
-        appearance::build_appearance_card(
-            scope,
-            world,
-            entity,
-            hex_str,
-            saved_swatches,
-            is_color_picker_open,
-        )
+        appearance::build_appearance_card(scope, world, entity, hex_str, saved_swatches)
     }
 }
 
@@ -482,8 +422,6 @@ mod tests {
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
             active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             inspector_hsv: [0.0, 0.0, 1.0],

@@ -74,6 +74,38 @@ impl<'a> UiScope<'a> {
         saved_swatches: &mut Vec<[f32; 4]>,
         is_color_picker_open: &mut bool,
     ) -> Option<Color> {
+        self.render_color_palette_card_impl(config, saved_swatches, |card, row_config| {
+            card.prop_color_swatch_row_with_config(row_config, is_color_picker_open)
+        })
+    }
+
+    /// Renders a scoped zero-boolean color palette card whose color picker popup open state
+    /// is owned directly by [`iris_core::UiTree::active_popup_tags`].
+    ///
+    /// Eliminates consumer `is_color_picker_open: &mut bool` flags by toggling `config.swatch_tag`
+    /// exclusively in the tree on swatch clicks.
+    pub fn color_palette_card_scoped(
+        &mut self,
+        config: ColorPaletteCardConfig<'_>,
+        saved_swatches: &mut Vec<[f32; 4]>,
+    ) -> Option<Color> {
+        self.render_color_palette_card_impl(config, saved_swatches, |card, row_config| {
+            card.prop_color_swatch_row_scoped(row_config)
+        })
+    }
+
+    fn render_color_palette_card_impl<F>(
+        &mut self,
+        config: ColorPaletteCardConfig<'_>,
+        saved_swatches: &mut Vec<[f32; 4]>,
+        emit_row: F,
+    ) -> Option<Color>
+    where
+        F: FnOnce(
+            &mut UiScope<'_>,
+            PropertyColorSwatchRowConfig<'_>,
+        ) -> crate::declarative::scope::properties::swatch_row::PropertyColorSwatchRowResponse,
+{
         let row_config = match (config.swatch_tag, config.hex_tag) {
             (Some(st), Some(ht)) => {
                 PropertyColorSwatchRowConfig::new("Object Color:", config.current_color, config.hex)
@@ -85,14 +117,13 @@ impl<'a> UiScope<'a> {
         };
 
         self.card_named(config.card_name, config.title, |card| {
-            card.prop_color_swatch_row_with_config(row_config, is_color_picker_open)
-                .then_palette_map(
-                    card,
-                    "Add to Palette:",
-                    config.default_palette,
-                    saved_swatches,
-                    |c| c,
-                )
+            emit_row(card, row_config).then_palette_map(
+                card,
+                "Add to Palette:",
+                config.default_palette,
+                saved_swatches,
+                |c| c,
+            )
         })
         .inner
     }

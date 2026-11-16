@@ -15,6 +15,26 @@ use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 use irisui::widgets::declarative::InputBoxProps;
 
+/// Builds the [`Style`] for the Hierarchy `➕` Add Entity toolbar button based on active popup state.
+#[must_use]
+fn hierarchy_add_button_style(is_active: bool) -> Style {
+    let base = Style::new()
+        .width(24.0)
+        .height(24.0)
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .border_radius(4.0);
+    if is_active {
+        base.background(Color::rgba(0.0, 0.38, 0.50, 0.95))
+            .border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.90))
+    } else {
+        base.background(Color::rgba(0.24, 0.27, 0.34, 0.95))
+            .border(1.0, Color::rgba(0.35, 0.39, 0.48, 0.70))
+            .hover_background(Color::rgba(0.30, 0.35, 0.45, 0.98))
+            .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
+    }
+}
+
 /// Builds the declarative Scene Hierarchy header toolbar containing search bar,
 /// Add entity menu button, and Delete selected entity button.
 ///
@@ -52,58 +72,26 @@ pub fn build_hierarchy_header(
             actions.push(HierarchyAction::ClearSearchQuery);
         }
 
-        // 2. "➕" Add Entity Button
-        let (add_bg, add_border, add_icon_col, is_active) = if params.is_add_menu_open {
-            (
-                Color::rgba(0.0, 0.38, 0.50, 0.95),
-                Color::rgba(0.0, 0.90, 1.0, 0.90),
-                Color::rgba(0.0, 0.95, 1.0, 1.0),
-                true,
-            )
-        } else {
-            (
-                Color::rgba(0.24, 0.27, 0.34, 0.95), // Elevated slate
-                Color::rgba(0.35, 0.39, 0.48, 0.70),
-                Color::rgba(0.85, 0.88, 0.95, 1.0),
-                false,
-            )
-        };
-
-        let mut add_btn_style = Style::new()
-            .width(24.0)
-            .height(24.0)
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .background(add_bg)
-            .border(1.0, add_border)
-            .border_radius(4.0);
-
-        if !is_active {
-            add_btn_style = add_btn_style
-                .hover_background(Color::rgba(0.30, 0.35, 0.45, 0.98))
-                .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
-        }
-
-        bar.container_tagged_resp(
+        // 2. "➕" Add Entity Button (scoped directly to UiTree::active_popup_tags)
+        bar.container_tagged_popup_toggle(
             "AddEntityButton",
-            add_btn_style,
+            hierarchy_add_button_style(bar.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON)),
             WidgetRole::Button,
             HIERARCHY_TAG_ADD_BUTTON,
-            |add_btn| {
+            HIERARCHY_TAG_ADD_BUTTON,
+            |add_btn, is_active| {
                 if is_active {
-                    add_btn.icon(ICON_PLUS, add_icon_col, 14.0);
+                    add_btn.icon(ICON_PLUS, Color::rgba(0.0, 0.95, 1.0, 1.0), 14.0);
                 } else {
-                    add_btn.icon_hover(ICON_PLUS, add_icon_col, Color::WHITE, 14.0);
+                    add_btn.icon_hover(
+                        ICON_PLUS,
+                        Color::rgba(0.85, 0.88, 0.95, 1.0),
+                        Color::WHITE,
+                        14.0,
+                    );
                 }
             },
-        )
-        .on_click(|| {
-            if params.is_add_menu_open {
-                actions.push(HierarchyAction::CloseAddMenu);
-            } else {
-                actions.push(HierarchyAction::OpenAddMenu(None));
-            }
-        });
+        );
 
         // 3. "🗑" Delete Entity Button (Permanently visible)
         let has_selection = params.selected_entity.is_some();

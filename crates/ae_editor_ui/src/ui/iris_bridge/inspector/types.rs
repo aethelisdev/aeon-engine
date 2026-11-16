@@ -113,10 +113,6 @@ pub struct InspectorSessionRefs<'a> {
     pub inspected_name: &'a mut String,
     /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
     pub saved_swatches: &'a mut Vec<[f32; 4]>,
-    /// Whether the floating Color Picker popup is open.
-    pub is_color_picker_open: &'a mut bool,
-    /// Whether the top-level Add Component menu is open.
-    pub is_add_menu_open: &'a mut bool,
     /// Active open Add Component category flyout (if any).
     pub active_submenu: &'a mut Option<ComponentCategory>,
 }
@@ -139,10 +135,6 @@ pub struct InspectorPanelParams<'a> {
     pub cursor_pos: Point,
     /// Active open Add Component category flyout (if any).
     pub active_submenu: Option<ComponentCategory>,
-    /// Whether the top-level Add Component menu is open.
-    pub is_add_menu_open: bool,
-    /// Whether the floating Color Picker popup is open.
-    pub is_color_picker_open: bool,
     /// Active entity rename text buffer if currently being edited.
     pub active_rename_buffer: Option<&'a str>,
     /// Whether all text in the active entity rename buffer is currently selected in blue.

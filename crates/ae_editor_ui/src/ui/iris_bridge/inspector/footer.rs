@@ -40,7 +40,6 @@ pub fn prefab_file_path_for_entity(
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<EngineUiAction> {
     scope
@@ -55,16 +54,13 @@ pub fn build_inspector_footer(
                 .with_text_name("AddComponentBtnText")
                 .with_text_align(TextAlign::Left)
                 .with_padding(Insets::new(0.0, 6.0, 0.0, 6.0))
-                .with_active(*is_add_menu_open)
-                .with_tag(TAG_INSPECTOR_ADD_COMPONENT),
+                .with_tag(TAG_INSPECTOR_ADD_COMPONENT)
+                .with_popup_toggle(TAG_INSPECTOR_ADD_COMPONENT),
             ActionBarButton::new("SavePrefabBtn", "💾 Save as Prefab")
                 .with_text_name("SavePrefabBtnText")
                 .with_text_align(TextAlign::Center),
         )
-        .on_primary_click(|| {
-            *is_add_menu_open = !*is_add_menu_open;
-            *active_submenu = None;
-        })
+        .on_primary_click(|| *active_submenu = None)
         .then_secondary(|| {
             params.selected_entity.map(|entity| {
                 EngineUiAction::SaveEntityAsPrefab(
@@ -97,24 +93,16 @@ mod tests {
             saved_swatches: &swatches,
             cursor_pos: Point::new(12.0, 775.0),
             active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             inspector_hsv: [0.0, 0.0, 1.0],
         };
 
-        let mut is_add_menu_open = false;
         let mut active_submenu = None;
         {
             let mut scope = UiScope::new(&mut tree, root);
             scope.configure_container("TestRoot", Style::new().flex_col(), false);
-            let ui_action = build_inspector_footer(
-                &mut scope,
-                &params,
-                &mut is_add_menu_open,
-                &mut active_submenu,
-            );
+            let ui_action = build_inspector_footer(&mut scope, &params, &mut active_submenu);
             assert!(ui_action.is_none());
             scope.finish_layout(params.panel_rect);
         }
@@ -139,7 +127,7 @@ mod tests {
             Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
         );
 
-        // Simulate clicking AddComponentBtn and verify in-place boolean toggle
+        // Simulate clicking AddComponentBtn and verify scoped popup tag activation in UiTree
         let add_rect = tree.assert_node_rect("AddComponentBtn");
         let click_add_pt = Point::new(add_rect.x + 10.0, add_rect.y + 10.0);
         let _ = tree.dispatch_event(&UiEvent::MouseDown {
@@ -152,16 +140,30 @@ mod tests {
         });
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let _ = build_inspector_footer(
-                &mut scope,
-                &params,
-                &mut is_add_menu_open,
-                &mut active_submenu,
-            );
+            let _ = build_inspector_footer(&mut scope, &params, &mut active_submenu);
         }
         assert!(
-            is_add_menu_open,
-            "Clicking Add Component button must toggle is_add_menu_open to true"
+            tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
+            "Clicking Add Component button must activate TAG_INSPECTOR_ADD_COMPONENT in UiTree"
+        );
+
+        // Toggle AddComponentBtn off cleanly before clicking SavePrefabBtn
+        tree.event_state.clear_frame_clicks();
+        let _ = tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: click_add_pt,
+        });
+        let _ = tree.dispatch_event(&UiEvent::MouseUp {
+            button: MouseButton::Left,
+            point: click_add_pt,
+        });
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = build_inspector_footer(&mut scope, &params, &mut active_submenu);
+        }
+        assert!(
+            !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
+            "Clicking Add Component button a second time must toggle TAG_INSPECTOR_ADD_COMPONENT off"
         );
 
         // Simulate clicking SavePrefabBtn and verify direct EngineUiAction::SaveEntityAsPrefab emission
@@ -178,12 +180,7 @@ mod tests {
 
         let emitted = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_inspector_footer(
-                &mut scope,
-                &params,
-                &mut is_add_menu_open,
-                &mut active_submenu,
-            )
+            build_inspector_footer(&mut scope, &params, &mut active_submenu)
         };
         let Some(EngineUiAction::SaveEntityAsPrefab(ent, path)) = emitted else {
             panic!("Expected EngineUiAction::SaveEntityAsPrefab");

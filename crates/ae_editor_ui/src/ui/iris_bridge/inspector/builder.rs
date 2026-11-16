@@ -30,8 +30,6 @@ impl IrisEditorOverlay {
         }
 
         if scope.popups_dismissed() {
-            self.inspector.is_add_menu_open = false;
-            self.inspector.is_color_picker_open = false;
             self.inspector.active_submenu = None;
         }
 
@@ -51,8 +49,6 @@ impl IrisEditorOverlay {
             saved_swatches: params.panel_data.saved_swatches,
             cursor_pos: self.cursor_pos(),
             active_submenu: self.inspector.active_submenu,
-            is_add_menu_open: self.inspector.is_add_menu_open,
-            is_color_picker_open: self.inspector.is_color_picker_open,
             active_rename_buffer: rename_buf_ref,
             is_rename_all_selected: self.inspector.rename_is_all_selected
                 && rename_buf_ref.is_some(),
@@ -62,8 +58,6 @@ impl IrisEditorOverlay {
         let mut session = super::types::InspectorSessionRefs {
             inspected_name: &mut self.inspector.inspected_entity_name,
             saved_swatches: &mut self.inspector.saved_swatches,
-            is_color_picker_open: &mut self.inspector.is_color_picker_open,
-            is_add_menu_open: &mut self.inspector.is_add_menu_open,
             active_submenu: &mut self.inspector.active_submenu,
         };
 

@@ -10,7 +10,9 @@
 use super::containers::InnerResponse;
 use super::core::UiScope;
 use super::menu::{CascadingPopupConfig, PopupPlacement};
-use iris_core::{Color, Insets, Point, Rect, Style, Theme, UiLayer, WidgetId, WidgetRole};
+use crate::declarative::types::WidgetResponse;
+use crate::declarative::widget::Widget;
+use iris_core::{Color, Insets, Rect, Style, Theme, UiLayer, WidgetId, WidgetRole};
 
 /// Customizable visual style overrides for floating popup card containers.
 ///
@@ -277,6 +279,7 @@ impl<'a> UiScope<'a> {
             &config.card_style,
         );
         let name_tag = crate::declarative::types::hash_label(name);
+        self.tree.set_popup_tag_active(name_tag, true);
         let child_seed = crate::declarative::types::combine_seeds(self.seed, name_tag);
         let mut child_scope = self.child_scope_seeded(node_id, child_seed);
         let inner = f(&mut child_scope);
@@ -292,14 +295,12 @@ impl<'a> UiScope<'a> {
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
         if let Some(node) = self.tree.get_mut(node_id) {
             node.computed_rect = bounds;
+            node.style.inset_left = Some(config.x);
             node.style.inset_top = Some(clamped_y);
             node.style.height = Some(height);
         }
         self.tree.set_tag_rect(name_tag, bounds);
-        self.tree.set_popup_tag_active(name_tag, true);
-        if let Some(cursor) = self.tree.cursor_position() {
-            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
-        }
+        self.tree.refresh_hover_from_cursor();
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }
@@ -356,15 +357,10 @@ impl<'a> UiScope<'a> {
             self.tree.set_popup_tag_active(config.anchor_tag, true);
         }
 
-        let anchor_rect = if config.anchor_tag != 0 {
-            self.tree
-                .node_rect_tagged(config.anchor_tag, Point::ZERO)
-                .or_else(|| self.tree.tag_rect(config.anchor_tag))
-                .filter(|r| r.width > 0.0 && r.height > 0.0)
-                .unwrap_or(config.fallback_rect)
-        } else {
-            config.fallback_rect
-        };
+        let anchor_rect = self
+            .tree
+            .resolve_anchor_rect(config.anchor_tag)
+            .unwrap_or(config.fallback_rect);
 
         self.popup_anchored_internal(name, anchor_rect, &config, f)
     }
@@ -425,13 +421,56 @@ impl<'a> UiScope<'a> {
         }
         Some(self.cascading_popup_anchored_to_tag(name, anchor_tag, fallback_rect, config, f))
     }
+
+    /// Emits a widget that exclusively toggles `popup_tag` in [`iris_core::UiTree::active_popup_tags`]
+    /// when clicked, returning the widget's [`WidgetResponse`].
+    ///
+    /// Eliminates panel boolean flags and imperative `if resp.clicked()` plumbing in consumer toolbars.
+    #[inline]
+    pub fn add_popup_trigger<W: Widget<Response = WidgetResponse>>(
+        &mut self,
+        widget: W,
+        popup_tag: u64,
+    ) -> WidgetResponse {
+        let resp = self.add(widget);
+        if resp.clicked() {
+            self.tree.toggle_exclusive_popup(popup_tag);
+        }
+        resp
+    }
+
+    /// Emits a tagged interactive container that exclusively toggles `popup_tag` in
+    /// [`iris_core::UiTree::active_popup_tags`] when clicked.
+    ///
+    /// Passes `is_popup_active` into `f` so consumer button visuals (icons, borders, backgrounds)
+    /// adapt reactively with zero intermediate `let` statements or boolean state fields.
+    #[inline]
+    pub fn container_tagged_popup_toggle<F>(
+        &mut self,
+        name: &'static str,
+        style: Style,
+        role: WidgetRole,
+        tag: u64,
+        popup_tag: u64,
+        f: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut UiScope<'_>, bool),
+    {
+        let is_active = self.tree.is_popup_tag_active(popup_tag);
+        let resp = self.container_tagged_resp(name, style, role, tag, |inner| f(inner, is_active));
+        if resp.clicked() {
+            self.tree.toggle_exclusive_popup(popup_tag);
+        }
+        resp
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::declarative::scope::menu::CascadingPopupConfig;
-    use iris_core::{Color, MouseButton, Rect, Theme, UiEvent, UiTree};
+    use iris_core::{Color, MouseButton, Point, Rect, Theme, UiEvent, UiTree};
 
     #[test]
     fn test_scoped_dropdown_menu_card_lifecycle_and_theme_colors() {
@@ -552,5 +591,53 @@ mod tests {
         });
         assert!(!tree.has_open_popup());
         assert!(!tree.is_popup_tag_active(OTHER_BTN_TAG));
+    }
+
+    #[test]
+    fn test_add_popup_trigger_and_autoclose_dropdown_items() {
+        use crate::declarative::widget::Button;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        if let Some(r) = tree.get_mut(root) {
+            r.computed_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
+        }
+
+        const TRIGGER_TAG: u64 = 0xCC01;
+        const ITEM_TAG: u64 = 0xCC02;
+
+        // 1. Clicking trigger opens exclusive popup tag
+        tree.event_state.frame_clicked_tag = Some(TRIGGER_TAG);
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope.add_popup_trigger(
+                Button::new("Trigger").tag(TRIGGER_TAG).width(100.0),
+                TRIGGER_TAG,
+            );
+            assert!(resp.clicked());
+            assert!(scope.is_popup_tag_active(TRIGGER_TAG));
+        }
+
+        // 2. Clicking autoclose dropdown item emits clicked() == true and closes popup
+        tree.event_state.clear_frame_clicks();
+        tree.event_state.frame_clicked_tag = Some(ITEM_TAG);
+        let mut action_triggered = false;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.scoped_popup_anchored_to_tag(
+                "TriggerPopup",
+                TRIGGER_TAG,
+                Rect::new(10.0, 10.0, 100.0, 24.0),
+                160.0,
+                PopupPlacement::Below,
+                |menu| {
+                    menu.dropdown_item_autoclose(ITEM_TAG, "", "Action", None, true)
+                        .on_click(|| action_triggered = true);
+                },
+            );
+        }
+        assert!(action_triggered);
+        assert!(!tree.is_popup_tag_active(TRIGGER_TAG));
+        assert!(!tree.has_open_popup());
     }
 }

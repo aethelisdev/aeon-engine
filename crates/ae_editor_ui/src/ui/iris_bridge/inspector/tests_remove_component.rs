@@ -27,8 +27,6 @@ fn test_params<'a>(
         saved_swatches: &[],
         cursor_pos: Point::new(0.0, 0.0),
         active_submenu: None,
-        is_add_menu_open: false,
-        is_color_picker_open: false,
         active_rename_buffer: None,
         is_rename_all_selected: false,
         inspector_hsv: [0.0, 0.0, 1.0],
@@ -48,14 +46,10 @@ fn click_delete_and_rebuild(
     let root = tree.create_root().expect("root node");
     let mut name = String::new();
     let mut swatches = Vec::new();
-    let mut is_color = false;
-    let mut is_add = false;
     let mut submenu = None;
     let mut session = super::types::InspectorSessionRefs {
         inspected_name: &mut name,
         saved_swatches: &mut swatches,
-        is_color_picker_open: &mut is_color,
-        is_add_menu_open: &mut is_add,
         active_submenu: &mut submenu,
     };
 

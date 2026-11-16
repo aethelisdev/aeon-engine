@@ -224,6 +224,43 @@ impl<'a> UiScope<'a> {
         config: PropertyColorSwatchRowConfig<'_>,
         is_open: &mut bool,
     ) -> PropertyColorSwatchRowResponse {
+        self.render_color_swatch_row_impl(config, *is_open, |_| {
+            *is_open = !*is_open;
+            *is_open
+        })
+    }
+
+    /// Emits a scoped zero-boolean color swatch and live hex property row whose popup open state
+    /// is managed directly in [`iris_core::UiTree::active_popup_tags`] under the swatch tag.
+    ///
+    /// # Arguments
+    /// * `config` - Full layout, styling, and semantic tag configuration.
+    pub fn prop_color_swatch_row_scoped(
+        &mut self,
+        config: PropertyColorSwatchRowConfig<'_>,
+    ) -> PropertyColorSwatchRowResponse {
+        let swatch_tag = config
+            .swatch_tag
+            .unwrap_or_else(|| self.tag_for("ObjectColorSwatch"));
+        let resolved_config = PropertyColorSwatchRowConfig {
+            swatch_tag: Some(swatch_tag),
+            ..config
+        };
+        let is_open_initial = self.tree.is_popup_tag_active(swatch_tag);
+        self.render_color_swatch_row_impl(resolved_config, is_open_initial, |row| {
+            row.tree.toggle_exclusive_popup(swatch_tag)
+        })
+    }
+
+    fn render_color_swatch_row_impl<F>(
+        &mut self,
+        config: PropertyColorSwatchRowConfig<'_>,
+        is_open_initial: bool,
+        on_swatch_click: F,
+    ) -> PropertyColorSwatchRowResponse
+    where
+        F: FnOnce(&mut UiScope<'_>) -> bool,
+    {
         let row_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
@@ -232,6 +269,7 @@ impl<'a> UiScope<'a> {
 
         let mut swatch_resp = WidgetResponse::default();
         let mut hex_resp = WidgetResponse::default();
+        let mut is_open = is_open_initial;
         let mut toggled = false;
         let mut hex_committed_color = None;
         let mut hex_changed_color = None;
@@ -249,7 +287,7 @@ impl<'a> UiScope<'a> {
             );
 
             let mut swatch_widget = ColorSwatch::new(config.color)
-                .active(*is_open)
+                .active(is_open)
                 .size(config.swatch_width, config.swatch_height);
 
             if let Some(tag) = config.swatch_tag {
@@ -258,7 +296,7 @@ impl<'a> UiScope<'a> {
 
             swatch_resp = row.add(swatch_widget);
             if swatch_resp.clicked() {
-                *is_open = !*is_open;
+                is_open = on_swatch_click(row);
                 toggled = true;
                 // Crucial atomic consumption: clear confirmed clicks so subsequent layout passes
                 // or dirty subtree rebuilds within the same frame cannot double-toggle the popup.
@@ -333,7 +371,7 @@ impl<'a> UiScope<'a> {
         PropertyColorSwatchRowResponse {
             swatch_response: swatch_resp,
             hex_response: hex_resp,
-            is_open: *is_open,
+            is_open,
             toggled,
             hex_committed_color,
             hex_changed_color,

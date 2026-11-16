@@ -399,9 +399,6 @@ impl<'a> UiScope<'a> {
         let mut child_scope = self.child_scope(node_id);
         let inner = f(&mut child_scope);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
-        if let Some(cursor) = self.tree.cursor_position() {
-            super::super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
-        }
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }

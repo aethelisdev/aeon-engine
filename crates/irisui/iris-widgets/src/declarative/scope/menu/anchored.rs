@@ -8,12 +8,11 @@
 
 use super::super::containers::InnerResponse;
 use super::super::core::UiScope;
-use super::super::hover::update_hover_styles_recursive;
 use super::super::scoped_popup::{
     AnchoredPopupConfig, create_popup_card_node, resolve_viewport_extent,
 };
 use super::types::{CascadingPopupConfig, PopupPlacement};
-use iris_core::{Point, Rect, UiLayer, WidgetRole};
+use iris_core::{Rect, UiLayer, WidgetRole};
 
 impl<'a> UiScope<'a> {
     /// Emits an elevated floating popup card container dynamically anchored to `anchor_rect`.
@@ -124,6 +123,7 @@ impl<'a> UiScope<'a> {
         }
 
         let node_id = create_popup_card_node(self, name, x, y, width, card_style);
+        self.tree.set_popup_tag_active(name_tag, true);
 
         let child_seed = crate::declarative::types::combine_seeds(self.seed, name_tag);
         let mut child_scope = self.child_scope_seeded(node_id, child_seed);
@@ -159,10 +159,7 @@ impl<'a> UiScope<'a> {
             node.style.height = Some(height);
         }
         self.tree.set_tag_rect(name_tag, bounds);
-        self.tree.set_popup_tag_active(name_tag, true);
-        if let Some(cursor) = self.tree.cursor_position() {
-            update_hover_styles_recursive(self.tree, node_id, cursor);
-        }
+        self.tree.refresh_hover_from_cursor();
         let response = self.response(node_id);
         InnerResponse::new(response, inner)
     }
@@ -188,9 +185,7 @@ impl<'a> UiScope<'a> {
 
         let anchor_rect = self
             .tree
-            .node_rect_tagged(anchor_tag, Point::ZERO)
-            .or_else(|| self.tree.tag_rect(anchor_tag))
-            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .resolve_anchor_rect(anchor_tag)
             .unwrap_or(fallback_rect);
 
         self.popup_anchored_with_placement(name, anchor_rect, width, placement, f)
@@ -226,9 +221,7 @@ impl<'a> UiScope<'a> {
 
         let anchor_rect = self
             .tree
-            .node_rect_tagged(anchor_tag, Point::ZERO)
-            .or_else(|| self.tree.tag_rect(anchor_tag))
-            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .resolve_anchor_rect(anchor_tag)
             .unwrap_or(fallback_rect);
 
         let mut cfg = AnchoredPopupConfig::new(anchor_tag, anchor_rect, config.width)

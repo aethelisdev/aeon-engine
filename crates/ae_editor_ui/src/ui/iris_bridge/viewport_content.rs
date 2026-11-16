@@ -32,12 +32,7 @@ impl IrisEditorOverlay {
             .with_aspect_ratio(AspectRatio::Stretch)
         });
 
-        if scope.popups_dismissed() {
-            self.viewport_hud.dropdown = None;
-        }
-
         let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
-        let active_dropdown = self.viewport_hud.dropdown;
         let hud = &mut self.viewport_hud;
 
         scope.viewport_surface(texture_view, Some("Rendering viewport..."), |vp_scope| {
@@ -52,7 +47,6 @@ impl IrisEditorOverlay {
                     gizmo_space: params.viewport.gizmo_space,
                     snapping: params.preferences.snapping_settings,
                     cursor_pos,
-                    active_dropdown,
                     selected_entity: params.scene.selected_entity,
                     world: params.scene.world,
                     is_editing: params.context.is_editing,

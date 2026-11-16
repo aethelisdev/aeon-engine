@@ -234,18 +234,12 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
             }
 
             crate::declarative::layout_subtree(self.scope.tree, vp_id, rect);
-            if let Some(cursor) = self.scope.tree.cursor_position() {
-                super::hover::update_hover_styles_recursive(self.scope.tree, vp_id, cursor);
-            }
             let response = self.scope.response(node_id);
             InnerResponse::new(response, inner)
         } else {
             let mut child_scope = self.scope.child_scope_seeded(node_id, panel_seed);
             let inner = f(&mut child_scope);
             crate::declarative::layout_subtree(self.scope.tree, node_id, rect);
-            if let Some(cursor) = self.scope.tree.cursor_position() {
-                super::hover::update_hover_styles_recursive(self.scope.tree, node_id, cursor);
-            }
             let response = self.scope.response(node_id);
             InnerResponse::new(response, inner)
         }

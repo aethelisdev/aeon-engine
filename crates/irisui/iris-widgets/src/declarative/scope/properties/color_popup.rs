@@ -7,7 +7,7 @@
 //! with automatic pre-drag color snapshotting (`color_edit_origin`), continuous HSV hue retention
 //! (`cached_color_hsv`), live two-way color mutation, and fluent commit/close callbacks.
 
-use iris_core::geometry::{Point, Rect};
+use iris_core::geometry::Rect;
 use iris_core::{AlignItems, Color, JustifyContent, Style, TextAlign, WidgetRole};
 
 use crate::color_picker::HsvColorPickerState;
@@ -302,6 +302,19 @@ impl<'a> UiScope<'a> {
         Some(self.color_picker_popup_rgba(rgba, config))
     }
 
+    /// Renders a scoped detached floating 2D HSV Color Picker popup only when
+    /// `config.tags.anchor_tag` is active in [`iris_core::UiTree::active_popup_tags`].
+    pub fn scoped_color_picker_popup_detached(
+        &mut self,
+        fallback: Color,
+        config: ColorPickerPopupConfig<'_>,
+    ) -> Option<ColorPickerPopupResponse> {
+        if !self.tree.is_popup_tag_active(config.tags.anchor_tag) {
+            return None;
+        }
+        Some(self.color_picker_popup_detached(fallback, config))
+    }
+
     fn render_color_picker_popup_internal(
         &mut self,
         color: &mut Color,
@@ -317,8 +330,7 @@ impl<'a> UiScope<'a> {
 
         let anchor_rect = self
             .tree
-            .node_rect_tagged(config.tags.anchor_tag, Point::ZERO)
-            .or_else(|| self.tree.tag_rect(config.tags.anchor_tag))
+            .resolve_anchor_rect(config.tags.anchor_tag)
             .unwrap_or(Rect::new(
                 config.bounds.x + 20.0,
                 config.bounds.y + 120.0,
@@ -332,8 +344,9 @@ impl<'a> UiScope<'a> {
             .x
             .min(config.bounds.right() - popup_w - 6.0)
             .max(config.bounds.x + 6.0);
+        let min_top = config.bounds.y.max(6.0);
         let popup_y = if anchor_rect.bottom() + popup_h > config.bounds.bottom() - 30.0 {
-            (anchor_rect.y - popup_h - 4.0).max(30.0)
+            (anchor_rect.y - popup_h - 4.0).max(min_top)
         } else {
             anchor_rect.bottom() + 4.0
         };
@@ -526,7 +539,7 @@ impl<'a> UiScope<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iris_core::{MouseButton, UiEvent, UiTree};
+    use iris_core::{MouseButton, Point, UiEvent, UiTree};
 
     #[test]
     fn test_color_picker_popup_rgba_live_drag_and_atomic_commit() {
@@ -625,5 +638,99 @@ mod tests {
         let white = Color::rgba(1.0, 1.0, 1.0, 1.0);
         let resolved_white = resolve_hsv_from_color(white, Some([135.0, 0.0, 1.0]));
         assert!((resolved_white.hue - 135.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_scoped_color_picker_popup_detached_and_palette_card_lifecycle() {
+        use crate::declarative::scope::properties::palette_card::ColorPaletteCardConfig;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        const SWATCH_TAG: u64 = 0x5510;
+        const HEX_TAG: u64 = 0x5511;
+        let tags = ColorPickerPopupTags::new(SWATCH_TAG, 0x5512, 0x5513, 0x5514, 0x5515);
+        let bounds = Rect::new(0.0, 0.0, 320.0, 600.0);
+        let mut saved = Vec::new();
+        let palette = [Color::WHITE];
+
+        // 1. Click swatch -> opens popup via UiTree::active_popup_tags
+        tree.event_state.frame_clicked_tag = Some(SWATCH_TAG);
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = scope.color_palette_card_scoped(
+                ColorPaletteCardConfig::new("PalCard", "Color", Color::WHITE, "#ffffff", &palette)
+                    .with_tags(SWATCH_TAG, HEX_TAG),
+                &mut saved,
+            );
+            assert!(scope.is_popup_tag_active(SWATCH_TAG));
+            assert!(
+                scope
+                    .scoped_color_picker_popup_detached(
+                        Color::WHITE,
+                        ColorPickerPopupConfig::new("Picker", bounds, tags),
+                    )
+                    .is_some()
+            );
+        }
+
+        // 2. Click close button -> clears popup tag
+        tree.event_state.clear_frame_clicks();
+        tree.event_state.frame_clicked_tag = Some(tags.close_tag);
+        {
+            let _ = tree.clear_children(root);
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope
+                .scoped_color_picker_popup_detached(
+                    Color::WHITE,
+                    ColorPickerPopupConfig::new("Picker", bounds, tags),
+                )
+                .expect("must render while open");
+            assert!(resp.close_clicked);
+        }
+        assert!(!tree.is_popup_tag_active(SWATCH_TAG));
+        assert!(
+            UiScope::new(&mut tree, root)
+                .scoped_color_picker_popup_detached(
+                    Color::WHITE,
+                    ColorPickerPopupConfig::new("Picker", bounds, tags),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_color_picker_popup_anchors_to_cached_tag_rect_when_live_swatch_is_pre_layout() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        const SWATCH_TAG: u64 = 0xAA44;
+        let bounds = Rect::new(1000.0, 58.0, 280.0, 700.0);
+        let tags = ColorPickerPopupTags::new(SWATCH_TAG, 0xAA45, 0xAA46, 0xAA47, 0xAA48);
+
+        // Simulate a newly rebuilt swatch node prior to Taffy layout (computed_rect == ZERO),
+        // while last frame's layout cached its real screen rect in `tag_rects`.
+        let swatch = tree.create_node();
+        if let Some(node) = tree.get_mut(swatch) {
+            node.tag = SWATCH_TAG;
+            node.computed_rect = Rect::ZERO;
+        }
+        let _ = tree.add_child(root, swatch);
+        let cached_swatch = Rect::new(1120.0, 420.0, 48.0, 20.0);
+        tree.set_tag_rect(SWATCH_TAG, cached_swatch);
+        tree.open_popup(SWATCH_TAG);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope
+            .scoped_color_picker_popup_detached(
+                Color::rgba(0.4, 0.6, 0.8, 1.0),
+                ColorPickerPopupConfig::new("Picker", bounds, tags),
+            )
+            .expect("color picker popup must render");
+
+        assert!(
+            (resp.rect.y - (cached_swatch.bottom() + 4.0)).abs() < 1e-3,
+            "Picker must anchor right below cached swatch (444.0), got rect {:?}",
+            resp.rect
+        );
+        assert!(resp.rect.x >= bounds.x + 6.0 && resp.rect.right() <= bounds.right());
     }
 }

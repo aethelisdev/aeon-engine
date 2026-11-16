@@ -91,10 +91,9 @@ pub fn render_appearance_card(
     entity: hecs::Entity,
     hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
     scope
-        .color_palette_card(
+        .color_palette_card_scoped(
             ColorPaletteCardConfig::new(
                 "AppearanceCard",
                 "🎨 Appearance",
@@ -104,7 +103,6 @@ pub fn render_appearance_card(
             )
             .with_tags(appearance_color_swatch_tag(), appearance_hex_input_tag()),
             saved_swatches,
-            is_color_picker_open,
         )
         .map(|new_col| EngineUiAction::ModifyColor(entity, current_col, to_ecs_color(new_col)))
 }
@@ -118,7 +116,6 @@ pub fn draw_appearance_card(
     entity: hecs::Entity,
     hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
     render_appearance_card(
         scope,
@@ -126,7 +123,6 @@ pub fn draw_appearance_card(
         entity,
         hex_str,
         saved_swatches,
-        is_color_picker_open,
     )
 }
 
@@ -154,16 +150,8 @@ pub fn build_appearance_card(
     entity: hecs::Entity,
     hex_str: &str,
     saved_swatches: &mut Vec<[f32; 4]>,
-    is_color_picker_open: &mut bool,
 ) -> Option<EngineUiAction> {
-    draw_appearance_card(
-        scope,
-        world,
-        entity,
-        hex_str,
-        saved_swatches,
-        is_color_picker_open,
-    )
+    draw_appearance_card(scope, world, entity, hex_str, saved_swatches)
 }
 
 #[cfg(test)]
@@ -194,7 +182,6 @@ mod tests {
         },));
 
         let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
-        let mut is_color_picker_open = false;
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         scope.container_rect(
@@ -202,14 +189,7 @@ mod tests {
             Style::new().width(280.0).height(300.0),
             Rect::new(10.0, 20.0, 280.0, 300.0),
             |card_scope| {
-                build_appearance_card(
-                    card_scope,
-                    &world,
-                    entity,
-                    "#3366cc",
-                    &mut saved_swatches,
-                    &mut is_color_picker_open,
-                );
+                build_appearance_card(card_scope, &world, entity, "#3366cc", &mut saved_swatches);
             },
         );
 
@@ -271,18 +251,10 @@ mod tests {
         tree.event_state.frame_key = Some(KeyCode::Enter);
 
         let mut saved_swatches = Vec::new();
-        let mut is_color_picker_open = false;
 
         let action = {
             let mut scope = UiScope::new(&mut tree, WidgetId::default());
-            build_appearance_card(
-                &mut scope,
-                &world,
-                entity,
-                "#1a334d",
-                &mut saved_swatches,
-                &mut is_color_picker_open,
-            )
+            build_appearance_card(&mut scope, &world, entity, "#1a334d", &mut saved_swatches)
         };
 
         assert!(matches!(
@@ -327,17 +299,9 @@ mod tests {
         },));
 
         let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0]];
-        let mut is_color_picker_open = false;
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        draw_appearance_card(
-            &mut scope,
-            &world,
-            entity,
-            "#3366cc",
-            &mut saved_swatches,
-            &mut is_color_picker_open,
-        );
+        draw_appearance_card(&mut scope, &world, entity, "#3366cc", &mut saved_swatches);
 
         assert!(
             tree.iter()

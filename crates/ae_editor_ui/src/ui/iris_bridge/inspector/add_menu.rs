@@ -198,12 +198,10 @@ fn render_submenu_children(
     sub_card: &mut UiScope<'_>,
     children: &[CascadingMenuItem],
     selected_entity: Option<hecs::Entity>,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     children.iter().find_map(|child| {
-        sub_card.dropdown_menu_item(child).then_click(|| {
-            *is_add_menu_open = false;
+        sub_card.dropdown_menu_item_autoclose(child).then_click(|| {
             *active_submenu = None;
             resolve_component_name_from_tag(child.tag)
                 .zip(selected_entity)
@@ -217,14 +215,11 @@ fn render_category_item(
     card: &mut UiScope<'_>,
     item: &CascadingMenuItem,
     params: &InspectorPanelParams<'_>,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if !item.has_submenu() {
-        card.dropdown_menu_item(item).on_click(|| {
-            *is_add_menu_open = false;
-            *active_submenu = None;
-        });
+        card.dropdown_menu_item_autoclose(item)
+            .on_click(|| *active_submenu = None);
         return None;
     }
 
@@ -238,7 +233,6 @@ fn render_category_item(
                 sub_card,
                 item.submenu.as_deref().unwrap_or(&[]),
                 params.selected_entity,
-                is_add_menu_open,
                 active_submenu,
             )
         },
@@ -258,12 +252,11 @@ fn render_category_items(
     card: &mut UiScope<'_>,
     menu_items: &[CascadingMenuItem],
     params: &InspectorPanelParams<'_>,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     menu_items
         .iter()
-        .find_map(|item| render_category_item(card, item, params, is_add_menu_open, active_submenu))
+        .find_map(|item| render_category_item(card, item, params, active_submenu))
 }
 
 /// Computes the fallback screen-space anchor bounds when the tagged button rectangle is unavailable.
@@ -274,31 +267,26 @@ fn fallback_add_menu_anchor(panel_rect: Rect) -> Rect {
     Rect::new(panel_rect.x + 8.0, panel_rect.bottom() - 32.0, btn_w, 24.0)
 }
 
-/// Renders the root Add Component popup menu card into [`UiScope`], returning the outer bounding bounds and any triggered action.
+/// Renders the root Add Component popup menu card into [`UiScope`] when active in `UiTree`,
+/// returning the outer bounding bounds and any triggered action.
 pub fn draw_add_component_menu(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    is_add_menu_open: &mut bool,
     active_submenu: &mut Option<ComponentCategory>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
-    if !*is_add_menu_open {
-        return (None, None);
-    }
-
     match get_add_component_menu_items(params.world, params.selected_entity) {
         items if !items.is_empty() => scope
-            .cascading_popup_anchored_to_tag(
+            .scoped_cascading_popup_anchored_to_tag(
                 "AddComponentMenu",
                 TAG_INSPECTOR_ADD_COMPONENT,
                 fallback_add_menu_anchor(params.panel_rect),
                 CascadingPopupConfig::new(175.0, PopupPlacement::Above)
                     .with_item_count(items.len())
                     .with_active_submenu(active_submenu.map(|c| c.to_tag())),
-                |card| {
-                    render_category_items(card, &items, params, is_add_menu_open, active_submenu)
-                },
+                |card| render_category_items(card, &items, params, active_submenu),
             )
-            .map_response(|rect, action| (Some(rect), action)),
+            .map(|res| res.map_response(|rect, action| (Some(rect), action)))
+            .unwrap_or((None, None)),
         _ => (None, None),
     }
 }
@@ -324,19 +312,16 @@ mod tests {
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
             active_submenu: Some(ComponentCategory::Physics),
-            is_add_menu_open: true,
-            is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             inspector_hsv: [0.0, 0.0, 1.0],
         };
 
-        let mut is_add_menu_open = true;
+        tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
         let mut active_submenu = Some(ComponentCategory::Physics);
         draw_add_component_menu(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_add_menu_open,
             &mut active_submenu,
         );
 
@@ -406,19 +391,16 @@ mod tests {
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
             active_submenu: Some(ComponentCategory::Physics),
-            is_add_menu_open: true,
-            is_color_picker_open: false,
             active_rename_buffer: None,
             is_rename_all_selected: false,
             inspector_hsv: [0.0, 0.0, 1.0],
         };
 
-        let mut is_add_menu_open = true;
+        tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
         let mut active_submenu = Some(ComponentCategory::Physics);
         let (_, action) = draw_add_component_menu(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_add_menu_open,
             &mut active_submenu,
         );
         assert!(action.is_none());
@@ -426,12 +408,10 @@ mod tests {
         let tag = component_name_to_tag("RigidBody");
         tree.event_state.frame_clicked_tag = Some(tag);
 
-        let mut is_add_menu_open = true;
         let mut active_submenu = Some(ComponentCategory::Physics);
         let (rect, ui_action) = draw_add_component_menu(
             &mut UiScope::new(&mut tree, root),
             &params,
-            &mut is_add_menu_open,
             &mut active_submenu,
         );
 
@@ -447,8 +427,8 @@ mod tests {
             "Clicking component must directly yield EngineUiAction::AddComponent"
         );
         assert!(
-            !is_add_menu_open,
-            "Clicking a component item must reset is_add_menu_open to false in-place"
+            !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
+            "Clicking a component item must clear TAG_INSPECTOR_ADD_COMPONENT in UiTree"
         );
         assert_eq!(
             active_submenu, None,

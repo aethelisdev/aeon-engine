@@ -40,8 +40,6 @@ fn test_ui_designer_panel_build() {
         selected_entity: None,
         cursor_pos: Point::new(0.0, 0.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: false,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -124,8 +122,6 @@ fn test_ui_designer_canvas_projection() {
         selected_entity: Some(ent),
         cursor_pos: Point::new(512.0, 384.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: false,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -163,8 +159,6 @@ fn test_ui_designer_click_hit_testing() {
         selected_entity: None,
         cursor_pos: Point::new(0.0, 0.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: false,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -335,8 +329,6 @@ fn test_ui_designer_toolbar_tags() {
         selected_entity: None,
         cursor_pos: Point::new(0.0, 0.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: false,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -394,15 +386,14 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
     };
     let panel_rect = Rect::new(0.0, 0.0, 1200.0, 800.0);
 
-    // Initial build with element selected and hovered
+    // Initial build with element selected and Add Element popup open via scoped tree tag
+    tree.open_popup(UI_DESIGNER_TAG_ADD_ELEMENT_BTN);
     let params_selected = UiDesignerPanelParams {
         panel_rect,
         world: &world,
         selected_entity: Some(ent),
         cursor_pos: Point::new(100.0, 100.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: true,
     };
     let mut designer = UiDesignerPanelState::default();
     let metrics = build_ui_designer_panel(
@@ -472,14 +463,13 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
     let state = UiDesignerState::default();
 
     let target_tag = super::types::make_add_item_tag(0); // First element type: Panel
+    tree.open_popup(UI_DESIGNER_TAG_ADD_ELEMENT_BTN);
     let params = UiDesignerPanelParams {
         panel_rect,
         world: &world,
         selected_entity: None,
         cursor_pos: Point::new(100.0, 100.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: true,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -540,8 +530,6 @@ fn test_ui_designer_declarative_toolbar_dispatch() {
         selected_entity: None,
         cursor_pos: Point::new(0.0, 0.0),
         state: &state,
-        is_aspect_dropdown_open: false,
-        is_add_menu_open: false,
     };
 
     let mut designer = UiDesignerPanelState::default();
@@ -549,14 +537,24 @@ fn test_ui_designer_declarative_toolbar_dispatch() {
     // 1. Initial build: toolbar rendered
     build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
 
-    // 2. Dispatch actions directly and verify state synchronization
-    designer.dispatch(UiDesignerAction::ToggleAspectDropdown);
-    assert!(designer.is_aspect_open);
-    assert!(!designer.is_add_menu_open);
+    // 2. Click aspect button -> toggles exclusive popup tag in UiTree
+    tree.event_state.frame_clicked_tag = Some(UI_DESIGNER_TAG_ASPECT_BTN);
+    let _ = tree.clear_children(root);
+    build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
+    assert!(tree.is_popup_tag_active(UI_DESIGNER_TAG_ASPECT_BTN));
+    assert!(!tree.is_popup_tag_active(UI_DESIGNER_TAG_ADD_ELEMENT_BTN));
 
-    designer.dispatch(UiDesignerAction::ToggleAddMenu);
-    assert!(!designer.is_aspect_open);
-    assert!(designer.is_add_menu_open);
+    // 3. Click Add Element button -> exclusively switches active popup tag
+    tree.event_state.clear_frame_clicks();
+    tree.event_state.frame_clicked_tag = Some(UI_DESIGNER_TAG_ADD_ELEMENT_BTN);
+    let _ = tree.clear_children(root);
+    build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
+    assert!(!tree.is_popup_tag_active(UI_DESIGNER_TAG_ASPECT_BTN));
+    assert!(tree.is_popup_tag_active(UI_DESIGNER_TAG_ADD_ELEMENT_BTN));
+
+    // 4. Outside click dismisses popup autonomously
+    assert!(tree.dismiss_popups_on_outside_click(Point::new(750.0, 550.0)));
+    assert!(!tree.is_popup_tag_active(UI_DESIGNER_TAG_ADD_ELEMENT_BTN));
 
     designer.dispatch(UiDesignerAction::CycleGridSnap);
     let actions = designer.take_actions();
