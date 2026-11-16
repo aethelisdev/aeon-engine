@@ -11,8 +11,6 @@ use crate::ui::iris_bridge::inspector::types::ComponentCategory;
 /// Persistent interactive state for the Scene Inspector panel overlay.
 #[derive(Debug, Default)]
 pub struct InspectorPanelState {
-    /// Whether `➕ Add Component` menu is open in Inspector.
-    pub is_add_menu_open: bool,
     /// Currently open category submenu in Add Component menu.
     pub active_submenu: Option<ComponentCategory>,
     /// Live entity rename TextInputState session if currently focused.
@@ -21,8 +19,6 @@ pub struct InspectorPanelState {
     pub rename_is_all_selected: bool,
     /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
     pub hsv: [f32; 3],
-    /// Whether the floating Color Picker popup is currently open.
-    pub is_color_picker_open: bool,
     /// Active ECS entity being inspected in the panel.
     pub inspected_entity: Option<hecs::Entity>,
     /// Current display name of the inspected entity.

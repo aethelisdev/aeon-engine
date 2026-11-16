@@ -24,6 +24,15 @@ use iris_winit::frameless::WindowInterface;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+struct TreeAndContentResult<TabId, Action> {
+    consumed: bool,
+    cursor: Option<iris_core::node::WidgetCursor>,
+    needs_redraw: bool,
+    wants_keyboard_input: bool,
+    route: Option<EventInvalidationRoute<TabId>>,
+    extra_actions: Vec<Action>,
+}
+
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
     TabId: Clone + Copy + Eq + Hash + Debug + 'static,
@@ -52,6 +61,7 @@ where
         bool,
         Option<iris_core::node::WidgetCursor>,
         bool,
+        bool,
         EventInvalidationRoute<TabId>,
     ) {
         if let Some(pos) = self.last_cursor_pos {
@@ -78,6 +88,7 @@ where
             dispatch.consumed || modal_click_consumed,
             dispatch.cursor,
             dispatch.needs_redraw || modal_click_consumed,
+            tree.is_text_input_focused(),
             route,
         )
     }
@@ -100,12 +111,214 @@ where
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            wants_keyboard_input: self.wants_keyboard_input(),
             escape_handled: false,
             popups_dismissed: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
         }
+    }
+
+    /// Evaluates active floating/tab pointer captures and floating chrome interactions prior to
+    /// content dispatch.
+    fn try_handle_floating_priority<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+    ) -> Option<WorkbenchOutcome<Action, TabId>> {
+        if dock_state.has_active_floating_drag()
+            || dock_state.active_drag.is_some()
+            || dock_state.pending_tab_drag.is_some()
+        {
+            let mut outcome = self.handle_shell_event_inner(window, event, dock_state, false, true);
+            outcome.consumed = true;
+            outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            return Some(outcome.with_invalidation_route(EventInvalidationRoute::Shell));
+        }
+
+        if let UiEvent::MouseDown {
+            button: MouseButton::Left,
+            ..
+        } = event
+        {
+            let floating_res = self.handle_floating_event(window, event, dock_state);
+            if floating_res.consumed {
+                if let Some(pending) = floating_res.pending_tab_drag {
+                    dock_state.pending_tab_drag = Some(pending);
+                }
+                let mut outcome = self.make_outcome(true, floating_res.cursor);
+                outcome.layout_changed = floating_res.layout_changed;
+                if floating_res.layout_changed {
+                    outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+                }
+                outcome.actions.extend(self.action_bus.drain());
+                return Some(outcome);
+            }
+        }
+        None
+    }
+
+    /// Merges tree/content dispatch telemetry with shell evaluation into a unified [`WorkbenchOutcome`].
+    fn finalize_shell_outcome<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        content: TreeAndContentResult<TabId, Action>,
+    ) -> WorkbenchOutcome<Action, TabId> {
+        if let Some(cursor) = content.cursor {
+            window.set_widget_cursor(cursor);
+        }
+
+        let mut outcome = self.handle_shell_event_inner(
+            window,
+            event,
+            dock_state,
+            content.consumed,
+            content.wants_keyboard_input,
+        );
+        if !self.action_bus.is_empty() {
+            outcome.actions.extend(self.action_bus.drain());
+            outcome.layout_changed = true;
+        }
+        if !content.extra_actions.is_empty() {
+            outcome.actions.extend(content.extra_actions);
+            outcome.layout_changed = true;
+        }
+        if content.consumed {
+            outcome.consumed = true;
+        }
+        if content.wants_keyboard_input {
+            outcome.wants_keyboard_input = true;
+        }
+        if let UiEvent::FileDropped { paths, point } = event
+            && !paths.is_empty()
+            && outcome.dropped_files.is_none()
+        {
+            outcome.dropped_files = Some((paths.clone(), *point));
+        }
+        if content.needs_redraw {
+            outcome.layout_changed = true;
+        }
+        if outcome.cursor.is_none() {
+            outcome.cursor = content.cursor;
+        }
+
+        if let Some(route) = content.route {
+            outcome = outcome.merge_invalidation_route(route);
+        } else if self.lifecycle.is_panel_dirty() {
+            if let Some(&dirty_tab) = self.lifecycle.dirty_tabs().iter().next() {
+                outcome =
+                    outcome.merge_invalidation_route(EventInvalidationRoute::Panel(dirty_tab));
+            }
+        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
+            outcome = outcome.merge_invalidation_route(EventInvalidationRoute::Shell);
+        }
+
+        outcome
+    }
+
+    /// Evaluates active floating/tab pointer captures and floating chrome interactions prior to
+    /// content dispatch.
+    fn try_handle_floating_priority<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+    ) -> Option<WorkbenchOutcome<Action, TabId>> {
+        if dock_state.has_active_floating_drag()
+            || dock_state.active_drag.is_some()
+            || dock_state.pending_tab_drag.is_some()
+        {
+            let mut outcome = self.handle_shell_event_inner(window, event, dock_state, false, true);
+            outcome.consumed = true;
+            outcome.layout_changed = true;
+            outcome.shell_dirty = true;
+            return Some(outcome.with_invalidation_route(EventInvalidationRoute::Shell));
+        }
+
+        if let UiEvent::MouseDown {
+            button: MouseButton::Left,
+            ..
+        } = event
+        {
+            let floating_res = self.handle_floating_event(window, event, dock_state);
+            if floating_res.consumed {
+                if let Some(pending) = floating_res.pending_tab_drag {
+                    dock_state.pending_tab_drag = Some(pending);
+                }
+                let mut outcome = self.make_outcome(true, floating_res.cursor);
+                outcome.layout_changed = floating_res.layout_changed;
+                if floating_res.layout_changed {
+                    outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+                }
+                outcome.actions.extend(self.action_bus.drain());
+                return Some(outcome);
+            }
+        }
+        None
+    }
+
+    /// Merges tree/content dispatch telemetry with shell evaluation into a unified [`WorkbenchOutcome`].
+    fn finalize_shell_outcome<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        content: TreeAndContentResult<TabId, Action>,
+    ) -> WorkbenchOutcome<Action, TabId> {
+        if let Some(cursor) = content.cursor {
+            window.set_widget_cursor(cursor);
+        }
+
+        let mut outcome = self.handle_shell_event_inner(
+            window,
+            event,
+            dock_state,
+            content.consumed,
+            content.wants_keyboard_input,
+        );
+        if !self.action_bus.is_empty() {
+            outcome.actions.extend(self.action_bus.drain());
+            outcome.layout_changed = true;
+        }
+        if !content.extra_actions.is_empty() {
+            outcome.actions.extend(content.extra_actions);
+            outcome.layout_changed = true;
+        }
+        if content.consumed {
+            outcome.consumed = true;
+        }
+        if content.wants_keyboard_input {
+            outcome.wants_keyboard_input = true;
+        }
+        if let UiEvent::FileDropped { paths, point } = event
+            && !paths.is_empty()
+            && outcome.dropped_files.is_none()
+        {
+            outcome.dropped_files = Some((paths.clone(), *point));
+        }
+        if content.needs_redraw {
+            outcome.layout_changed = true;
+        }
+        if outcome.cursor.is_none() {
+            outcome.cursor = content.cursor;
+        }
+
+        if let Some(route) = content.route {
+            outcome = outcome.merge_invalidation_route(route);
+        } else if self.lifecycle.is_panel_dirty() {
+            if let Some(&dirty_tab) = self.lifecycle.dirty_tabs().iter().next() {
+                outcome = outcome.merge_invalidation_route(EventInvalidationRoute::Panel(dirty_tab));
+            }
+        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
+            outcome = outcome.merge_invalidation_route(EventInvalidationRoute::Shell);
+        }
+
+        outcome
     }
 
     /// Dispatches a platform [`UiEvent`] through the autonomous shell layer coordinating
@@ -117,6 +330,17 @@ where
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
         content_consumed: bool,
+    ) -> WorkbenchOutcome<Action, TabId> {
+        self.handle_shell_event_inner(window, event, dock_state, content_consumed, false)
+    }
+
+    fn handle_shell_event_inner<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        event: &UiEvent,
+        dock_state: &mut DockState<TabId>,
+        content_consumed: bool,
+        suppress_global_shortcuts: bool,
     ) -> WorkbenchOutcome<Action, TabId> {
         let logical_size = window.logical_size();
         let screen_w = logical_size.width;
@@ -200,6 +424,7 @@ where
         } = event
             && *is_pressed
             && *ctrl_held
+            && !suppress_global_shortcuts
             && !self.wants_keyboard_input()
         {
             let ch = match key {
@@ -370,74 +595,21 @@ where
             return outcome;
         }
 
-        // 1. If an active floating window drag or active tab drag is in progress, it owns pointer capture
-        // and takes absolute precedence over background content and tree dispatch
-        if dock_state.has_active_floating_drag()
-            || dock_state.active_drag.is_some()
-            || dock_state.pending_tab_drag.is_some()
-        {
-            let mut outcome = self.handle_shell_event(window, event, dock_state, false);
-            outcome.consumed = true;
-            outcome.layout_changed = true;
-            outcome.shell_dirty = true;
-            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+        if let Some(outcome) = self.try_handle_floating_priority(window, event, dock_state) {
             return outcome;
         }
 
-        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back, tab selection)
-        // take priority over background content on left mouse down
-        if let UiEvent::MouseDown {
-            button: MouseButton::Left,
-            ..
-        } = event
-        {
-            let floating_res = self.handle_floating_event(window, event, dock_state);
-            if floating_res.consumed {
-                if let Some(pending) = floating_res.pending_tab_drag {
-                    dock_state.pending_tab_drag = Some(pending);
-                }
-                let mut outcome = self.make_outcome(true, floating_res.cursor);
-                outcome.layout_changed = floating_res.layout_changed;
-                if floating_res.layout_changed {
-                    outcome.shell_dirty = true;
-                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
-                }
-                outcome.actions.extend(self.action_bus.drain());
-                return outcome;
-            }
-        }
+        let (tree_consumed, tree_cursor, tree_redraw, tree_wants_keyboard, tree_route) =
+            if let Some(t) = tree {
+                let (consumed, cursor, redraw, wants_kb, route) =
+                    self.dispatch_tree_with_modals(t, event);
+                (consumed, cursor, redraw, wants_kb, Some(route))
+            } else {
+                (false, None, false, false, None)
+            };
 
-        let (tree_consumed, tree_cursor, tree_redraw, tree_route) = if let Some(t) = tree {
-            let (consumed, cursor, redraw, route) = self.dispatch_tree_with_modals(t, event);
-            (consumed, cursor, redraw, Some(route))
-        } else {
-            (false, None, false, None)
-        };
-
-        let (mut content_consumed, mut content_cursor, content_actions) = content_dispatcher(event);
-        if tree_consumed {
-            content_consumed = true;
-        }
-        if content_cursor.is_none() {
-            content_cursor = tree_cursor;
-        }
-        if let Some(cursor) = content_cursor {
-            window.set_widget_cursor(cursor);
-        }
-
-        let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
-        if !self.action_bus.is_empty() {
-            outcome.actions.extend(self.action_bus.drain());
-            outcome.layout_changed = true;
-        }
-        if !content_actions.is_empty() {
-            outcome.actions.extend(content_actions);
-            outcome.layout_changed = true;
-        }
-        if content_consumed {
-            outcome.consumed = true;
-        }
-        if tree_redraw
+        let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
+        let needs_redraw = tree_redraw
             || matches!(
                 event,
                 UiEvent::MouseDown { .. }
@@ -448,26 +620,20 @@ where
                     }
                     | UiEvent::Ime(_)
                     | UiEvent::FileDropped { .. }
-            )
-        {
-            outcome.layout_changed = true;
-        }
-        if outcome.cursor.is_none() {
-            outcome.cursor = content_cursor;
-        }
-
-        // Reconcile targeted invalidation from tree or lifecycle state machine
-        if let Some(route) = tree_route {
-            outcome = outcome.with_invalidation_route(route);
-        } else if self.lifecycle.is_panel_dirty() {
-            if let Some(&dirty_tab) = self.lifecycle.dirty_tabs().iter().next() {
-                outcome = outcome.with_invalidation_route(EventInvalidationRoute::Panel(dirty_tab));
-            }
-        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
-            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
-        }
-
-        outcome
+            );
+        self.finalize_shell_outcome(
+            window,
+            event,
+            dock_state,
+            TreeAndContentResult {
+                consumed: content_consumed || tree_consumed,
+                cursor: content_cursor.or(tree_cursor),
+                needs_redraw,
+                wants_keyboard_input: tree_wants_keyboard,
+                route: tree_route,
+                extra_actions: content_actions,
+            },
+        )
     }
 
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
@@ -524,75 +690,37 @@ where
             return outcome;
         }
 
-        // 1. If an active floating window drag or active tab drag is in progress, it owns pointer capture
-        // and takes absolute precedence over background content and tree dispatch
-        if dock_state.has_active_floating_drag()
-            || dock_state.active_drag.is_some()
-            || dock_state.pending_tab_drag.is_some()
-        {
-            let mut outcome = self.handle_shell_event(window, event, dock_state, false);
-            outcome.consumed = true;
-            outcome.layout_changed = true;
-            outcome.shell_dirty = true;
-            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+        if let Some(outcome) = self.try_handle_floating_priority(window, event, dock_state) {
             return outcome;
         }
 
-        // 2. Floating window chrome interactions (titlebar drag, resize borders, close, dock-back, tab selection)
-        // take priority over background content on left mouse down
-        if let UiEvent::MouseDown {
-            button: MouseButton::Left,
-            ..
-        } = event
-        {
-            let floating_res = self.handle_floating_event(window, event, dock_state);
-            if floating_res.consumed {
-                if let Some(pending) = floating_res.pending_tab_drag {
-                    dock_state.pending_tab_drag = Some(pending);
-                }
-                let mut outcome = self.make_outcome(true, floating_res.cursor);
-                outcome.layout_changed = floating_res.layout_changed;
-                if floating_res.layout_changed {
-                    outcome.shell_dirty = true;
-                    outcome.invalidation_route = Some(EventInvalidationRoute::Shell);
-                }
-                outcome.actions.extend(self.action_bus.drain());
-                return outcome;
-            }
-        }
+        let (
+            content_consumed,
+            content_cursor,
+            needs_redraw,
+            tree_wants_keyboard,
+            invalidation_route,
+        ) = if let Some(t) = tree {
+            let (consumed, cursor, redraw, wants_kb, route) =
+                self.dispatch_tree_with_modals(t, event);
+            (consumed, cursor, redraw, wants_kb, Some(route))
+        } else {
+            (false, None, false, false, None)
+        };
 
-        let (content_consumed, content_cursor, needs_redraw, invalidation_route) =
-            if let Some(t) = tree {
-                let (consumed, cursor, redraw, route) = self.dispatch_tree_with_modals(t, event);
-                (consumed, cursor, redraw, Some(route))
-            } else {
-                (false, None, false, None)
-            };
-
-        if let Some(cursor) = content_cursor {
-            window.set_widget_cursor(cursor);
-        }
-
-        let mut outcome = self.handle_shell_event(window, event, dock_state, content_consumed);
-        if !self.action_bus.is_empty() {
-            outcome.actions.extend(self.action_bus.drain());
-            outcome.layout_changed = true;
-        }
-        if content_consumed {
-            outcome.consumed = true;
-        }
-        if needs_redraw {
-            outcome.layout_changed = true;
-        }
-        if outcome.cursor.is_none() {
-            outcome.cursor = content_cursor;
-        }
-        if let Some(route) = invalidation_route {
-            outcome = outcome.with_invalidation_route(route);
-        } else if outcome.layout_changed || self.lifecycle.is_forced_shell_rebuild() {
-            outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
-        }
-        outcome
+        self.finalize_shell_outcome(
+            window,
+            event,
+            dock_state,
+            TreeAndContentResult {
+                consumed: content_consumed,
+                cursor: content_cursor,
+                needs_redraw,
+                wants_keyboard_input: tree_wants_keyboard,
+                route: invalidation_route,
+                extra_actions: Vec::new(),
+            },
+        )
     }
 
     /// Routes an interaction event dispatch result to its owning dock panel leaf container,

@@ -179,9 +179,6 @@ impl IrisEditorOverlay {
         let menu_active =
             self.menubar.active_menu.is_some() || self.menubar.dropdown_rect.is_some();
         let menu_changed = menu_active != self.chrome.last_menu_active;
-        let inspector_popups =
-            self.inspector.is_add_menu_open || self.inspector.is_color_picker_open;
-        let inspector_popups_changed = inspector_popups != self.chrome.last_inspector_popups;
         let hierarchy_popups =
             self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some();
         let hierarchy_popups_changed = hierarchy_popups != self.chrome.last_hierarchy_popups;
@@ -218,7 +215,6 @@ impl IrisEditorOverlay {
             || modal_active_changed
             || modal_active
             || menu_changed
-            || inspector_popups_changed
             || hierarchy_popups_changed
             || preferences_changed
             || self.chrome.needs_layout_rebuild;
@@ -576,7 +572,6 @@ impl IrisEditorOverlay {
         self.chrome.last_focused_tag = current_focused_tag;
         self.chrome.last_blink_caret = blink_caret;
         self.chrome.last_menu_active = menu_active;
-        self.chrome.last_inspector_popups = inspector_popups;
         self.chrome.last_hierarchy_popups = hierarchy_popups;
         self.chrome.last_preferences_active = preferences_active;
         self.chrome.last_theme_preset = self.chrome.theme_preset;

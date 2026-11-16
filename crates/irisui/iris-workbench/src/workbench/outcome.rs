@@ -47,6 +47,10 @@ pub struct WorkbenchOutcome<Action, TabId = ()> {
     /// Toggle preferences modal dialog requested via keyboard shortcuts (e.g. Ctrl+,).
     pub toggle_preferences: bool,
 
+    /// Whether active workbench controls (modal dialogs or focused text inputs) require
+    /// exclusive keyboard input, signaling the host application to suppress global hotkeys.
+    pub wants_keyboard_input: bool,
+
     /// Whether an Escape key gesture was intercepted and handled by the workbench
     /// (e.g. dismissing modal dialogs, closing popups, or clearing focus traps).
     pub escape_handled: bool,
@@ -76,6 +80,7 @@ impl<Action, TabId> Default for WorkbenchOutcome<Action, TabId> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
             invalidated_panel: None,
@@ -106,12 +111,21 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
         }
+    }
+
+    /// Marks whether active UI controls require exclusive keyboard focus.
+    #[inline]
+    #[must_use]
+    pub const fn with_wants_keyboard_input(mut self, wants: bool) -> Self {
+        self.wants_keyboard_input = wants;
+        self
     }
 
     /// Attaches an emitted action to the outcome, marking the event as consumed.
@@ -174,6 +188,20 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
         }
         self.invalidation_route = Some(route);
         self
+    }
+
+    /// Merges `route` with any existing invalidation route using priority `Shell > Panel > None`.
+    #[inline]
+    #[must_use]
+    pub fn merge_invalidation_route(mut self, route: EventInvalidationRoute<TabId>) -> Self
+    where
+        TabId: Clone,
+    {
+        let merged = match self.invalidation_route.take() {
+            Some(existing) => existing.merge(route),
+            None => route,
+        };
+        self.with_invalidation_route(merged)
     }
 
     /// Explicitly flags a specific panel tab as invalidated.
@@ -252,6 +280,7 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             dropped_files: self.dropped_files,
             zoom_changed: self.zoom_changed,
             toggle_preferences: self.toggle_preferences,
+            wants_keyboard_input: self.wants_keyboard_input,
             escape_handled: self.escape_handled,
             popups_dismissed: self.popups_dismissed,
             invalidated_panel: None,

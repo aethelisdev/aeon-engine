@@ -58,6 +58,20 @@ impl<TabId> EventInvalidationRoute<TabId> {
         matches!(self, Self::None)
     }
 
+    /// Merges two invalidation routes using strict priority ordering (`Shell > Panel > None`).
+    ///
+    /// Prevents coarse shell invalidation (e.g. from dock splitter drags, tab switches, or
+    /// window shortcuts) from being downgraded by a secondary dormant `None` or localized `Panel` route.
+    #[inline]
+    #[must_use]
+    pub fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Shell, _) | (_, Self::Shell) => Self::Shell,
+            (Self::Panel(tab), _) => Self::Panel(tab),
+            (Self::None, rhs) => rhs,
+        }
+    }
+
     /// Returns a reference to the target panel identifier if routed to a panel.
     #[inline]
     #[must_use]

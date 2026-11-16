@@ -238,8 +238,6 @@ pub struct IrisChromeState {
     pub pointer_capture: Option<PanelId>,
     /// Last recorded presence of an active top menubar dropdown.
     pub last_menu_active: bool,
-    /// Last recorded presence of inspector floating menus/popups.
-    pub last_inspector_popups: bool,
     /// Last recorded presence of hierarchy floating menus/popups.
     pub last_hierarchy_popups: bool,
     /// Last recorded presence of preferences dialog.
@@ -295,7 +293,6 @@ impl Default for IrisChromeState {
             last_blink_caret: false,
             pointer_capture: None,
             last_menu_active: false,
-            last_inspector_popups: false,
             last_hierarchy_popups: false,
             last_preferences_active: false,
             last_preferences_pos: None,

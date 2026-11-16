@@ -52,7 +52,11 @@ pub(crate) fn handle_file_dropped(
 
 /// Cancels an in-progress file drag/hover interaction.
 pub(crate) fn handle_file_cancelled(tree: &mut UiTree) -> DispatchResult {
+    let was_hovering = tree.event_state.hovered_file.is_some();
     tree.event_state.hovered_file = None;
     tree.event_state.frame_dropped_files = None;
-    DispatchResult::default()
+    DispatchResult {
+        needs_redraw: was_hovering,
+        ..DispatchResult::default()
+    }
 }
