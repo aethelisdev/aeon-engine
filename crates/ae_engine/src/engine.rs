@@ -93,10 +93,16 @@ impl AeEngine {
     /// Returns an error string if WGPU fails to locate a compatible graphics adapter or initialize the surface.
     pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Result<Self, String> {
         let (render_state, camera) = RenderState::new(window.clone()).await?;
-        let ui = ae_editor_ui::ui::EngineUi::new(
+        let mut ui = ae_editor_ui::ui::EngineUi::new(
             &render_state.device,
             render_state.config.format,
             &window,
+        );
+        let init_size = window.inner_size();
+        crate::events::handlers::sync_workbench_theme_and_screen_size(
+            &mut ui,
+            init_size.width,
+            init_size.height,
         );
         let gizmo_system = ae_editor::gizmo::GizmoSystem::new(
             &render_state.device,

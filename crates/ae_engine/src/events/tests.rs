@@ -47,3 +47,31 @@ fn test_window_event_debug_formats() {
     let repr = format!("{:?}", event);
     assert!(repr.contains("Focused"));
 }
+
+#[test]
+fn test_compute_logical_screen_size_handles_scaling_and_edge_cases() {
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(1920, 1080, 1.0),
+        Some((1920.0, 1080.0))
+    );
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(1920, 1080, 1.5),
+        Some((1280.0, 720.0))
+    );
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(0, 1080, 1.0),
+        None
+    );
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(1920, 0, 1.0),
+        None
+    );
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(1920, 1080, 0.0),
+        None
+    );
+    assert_eq!(
+        super::handlers::compute_logical_screen_size(1920, 1080, f32::NAN),
+        None
+    );
+}

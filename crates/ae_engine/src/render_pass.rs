@@ -390,7 +390,13 @@ impl AeEngine {
              surface_view: &wgpu::TextureView,
              viewport_texture_view: Option<&wgpu::TextureView>| {
                 ui.sync_console();
-                ui.render(ae_editor_ui::ui::EditorUiRenderParams {
+                let win_size = window.inner_size();
+                crate::events::handlers::sync_workbench_theme_and_screen_size(
+                    ui,
+                    win_size.width,
+                    win_size.height,
+                );
+                let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
                     encoder,
@@ -412,7 +418,13 @@ impl AeEngine {
                     enabled_modules: &event_bus.enabled_modules,
                     is_2d_mode: self.dimension_mode.is_2d(),
                     ui_actions: &mut ui_actions,
-                })
+                });
+                crate::events::handlers::sync_workbench_theme_and_screen_size(
+                    ui,
+                    win_size.width,
+                    win_size.height,
+                );
+                viewport_rect
             };
 
         let params = ae_renderer::render::RenderFrameParams {

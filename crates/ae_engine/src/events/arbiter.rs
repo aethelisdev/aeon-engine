@@ -144,6 +144,12 @@ impl InputArbiter {
         }
         if let Some(zoom) = outcome.zoom_changed {
             engine.ui.ui_zoom_factor = zoom;
+            let win_size = engine.render_state.window.inner_size();
+            super::handlers::sync_workbench_screen_size(
+                &mut engine.ui,
+                win_size.width,
+                win_size.height,
+            );
         }
         if outcome.toggle_preferences {
             engine.ui.toggle_preferences();

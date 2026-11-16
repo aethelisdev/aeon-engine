@@ -146,6 +146,7 @@ impl AeEngine {
         if new_size.width > 0 && new_size.height > 0 {
             self.camera.aspect = new_size.width as f32 / new_size.height as f32;
         }
+        sync_workbench_screen_size(&mut self.ui, new_size.width, new_size.height);
     }
 
     /// Creates a ray from 2D viewport mouse coordinates for entity picking.
@@ -188,4 +189,59 @@ impl AeEngine {
             self.editor.mouse_delta.1 += *dy as f32;
         }
     }
+}
+
+/// Computes logical screen dimensions from physical pixel extents and an active UI scale factor.
+///
+/// Returns `None` when either physical extent is zero (e.g. minimized window) or when the scale
+/// factor is non-finite or non-positive.
+#[inline]
+#[must_use]
+pub(crate) fn compute_logical_screen_size(
+    physical_width: u32,
+    physical_height: u32,
+    scale_factor: f32,
+) -> Option<(f32, f32)> {
+    if physical_width == 0
+        || physical_height == 0
+        || !scale_factor.is_finite()
+        || scale_factor <= 0.0
+    {
+        return None;
+    }
+    Some((
+        physical_width as f32 / scale_factor,
+        physical_height as f32 / scale_factor,
+    ))
+}
+
+/// Synchronizes logical window dimensions directly onto [`irisui::workbench::Workbench::set_screen_size`].
+pub(crate) fn sync_workbench_screen_size(
+    ui: &mut ae_editor_ui::ui::EngineUi,
+    physical_width: u32,
+    physical_height: u32,
+) {
+    if let Some((logical_w, logical_h)) =
+        compute_logical_screen_size(physical_width, physical_height, ui.scale_factor())
+    {
+        ui.workbench.set_screen_size((logical_w, logical_h));
+    }
+}
+
+/// Synchronizes active editor theme tokens and dock chrome styles onto [`irisui::workbench::Workbench`].
+pub(crate) fn sync_workbench_theme(ui: &mut ae_editor_ui::ui::EngineUi) {
+    let tokens = ui.iris_overlay.chrome.theme_preset.tokens();
+    ui.workbench.set_theme(tokens.to_iris_theme());
+    ui.workbench
+        .set_dock_style(ae_editor_ui::ui::iris_bridge::editor_dock_style_with_tokens(&tokens));
+}
+
+/// Synchronizes both active theme styling and logical window dimensions onto [`irisui::workbench::Workbench`].
+pub(crate) fn sync_workbench_theme_and_screen_size(
+    ui: &mut ae_editor_ui::ui::EngineUi,
+    physical_width: u32,
+    physical_height: u32,
+) {
+    sync_workbench_screen_size(ui, physical_width, physical_height);
+    sync_workbench_theme(ui);
 }
