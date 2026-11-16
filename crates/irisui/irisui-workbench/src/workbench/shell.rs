@@ -23,6 +23,34 @@ use crate::layout_sync::dual_layout::SubtreeEngines;
 use crate::layout_sync::leaf_pipeline::synchronize_dock_frame;
 use crate::lifecycle::{LifecycleBranch, LifecycleInputs};
 
+/// Parameters passed into [`Workbench::sync_frame_state`] to synchronize frame-level UI state.
+pub struct WorkbenchFrameSyncParams<'a, TabId: Eq + std::hash::Hash + Copy + Send + Sync + 'static>
+{
+    /// Active docking state.
+    pub dock: &'a irisui_dock::DockState<TabId>,
+    /// Panel invalidation notifier updated with selection, domain, and lifecycle invalidations.
+    pub notifier: &'a mut irisui_dock::UiNotifier<TabId>,
+    /// Active UI scale factor.
+    pub scale_factor: f32,
+    /// Current opaque domain selection identifier.
+    pub selection_id: Option<u64>,
+    /// Current external domain/history revision counter.
+    pub domain_revision: u64,
+}
+
+/// Outcome returned by [`Workbench::sync_frame_state`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkbenchFrameSync<TabId> {
+    /// Caret blink update produced by synchronizing [`irisui_text::TextSystem`].
+    pub caret_blink: irisui_text::CaretBlinkUpdate,
+    /// Whether the opaque domain selection identifier changed this frame.
+    pub selection_changed: bool,
+    /// Whether the external domain revision counter changed this frame.
+    pub domain_revision_changed: bool,
+    /// Evaluated 3-branch shell/panel lifecycle decision.
+    pub lifecycle_branch: LifecycleBranch<TabId>,
+}
+
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
     TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
@@ -302,6 +330,133 @@ where
         );
         self.lifecycle.ingest_notifier(notifier);
         self.lifecycle.evaluate(host_inputs(base))
+    }
+
+    /// Synchronizes caret blink, opaque selection, domain revision, and dock lifecycle in a single
+    /// library call, forwarding any resulting shell or panel invalidations into `params.notifier`.
+    pub fn sync_frame_state(
+        &mut self,
+        text_system: &mut irisui_text::TextSystem,
+        tree: &mut irisui_core::UiTree,
+        params: WorkbenchFrameSyncParams<'_, TabId>,
+        host_inputs: impl FnOnce(LifecycleInputs) -> LifecycleInputs,
+    ) -> WorkbenchFrameSync<TabId> {
+        let caret_blink = self.sync_caret_blink(text_system, tree);
+        let selection_changed =
+            self.sync_selection_with_notifier(params.selection_id, params.notifier);
+        let domain_revision_changed =
+            self.sync_domain_revision_with_notifier(params.domain_revision, params.notifier);
+        let lifecycle_branch = self.evaluate_dock_lifecycle(
+            params.dock,
+            params.notifier,
+            params.scale_factor,
+            |inputs| host_inputs(inputs.with_domain_revision(params.domain_revision)),
+        );
+        match &lifecycle_branch {
+            LifecycleBranch::FullShellRebuild => params.notifier.tag_all(),
+            LifecycleBranch::GranularPanels(tabs) => {
+                for &tab in tabs {
+                    params.notifier.tag_redraw(tab);
+                }
+            }
+            LifecycleBranch::InPlaceRefresh | LifecycleBranch::Dormant => {}
+        }
+        WorkbenchFrameSync {
+            caret_blink,
+            selection_changed,
+            domain_revision_changed,
+            lifecycle_branch,
+        }
+    }
+
+    /// Synchronizes an opaque domain selection identifier (`Option<u64>`) against the workbench.
+    ///
+    /// When the selection changes, all registered domain panels (in [`Self::panel_registry`] and
+    /// [`Self::lifecycle`]) are automatically marked dirty in [`Self::lifecycle`]. Returns `true`
+    /// if the selection changed.
+    pub fn sync_selection(&mut self, selection_id: Option<u64>) -> bool {
+        if self.last_selection_id == selection_id {
+            return false;
+        }
+        self.last_selection_id = selection_id;
+        self.mark_domain_tabs_dirty(None);
+        true
+    }
+
+    /// Synchronizes an opaque domain selection identifier (`Option<u64>`) and forwards dirty
+    /// notifications for all registered domain panels into `notifier` when selection changes.
+    pub fn sync_selection_with_notifier(
+        &mut self,
+        selection_id: Option<u64>,
+        notifier: &mut irisui_dock::UiNotifier<TabId>,
+    ) -> bool {
+        if self.last_selection_id == selection_id {
+            return false;
+        }
+        self.last_selection_id = selection_id;
+        self.mark_domain_tabs_dirty(Some(notifier));
+        true
+    }
+
+    /// Synchronizes an external domain/history revision counter (`u64`) against the workbench.
+    ///
+    /// When the revision changes, all registered domain panels (in [`Self::panel_registry`] and
+    /// [`Self::lifecycle`]) are automatically marked dirty in [`Self::lifecycle`]. Returns `true`
+    /// if the revision changed.
+    pub fn sync_domain_revision(&mut self, revision: u64) -> bool {
+        if self.last_domain_revision == revision {
+            return false;
+        }
+        self.last_domain_revision = revision;
+        self.mark_domain_tabs_dirty(None);
+        true
+    }
+
+    /// Synchronizes an external domain/history revision counter (`u64`) and forwards dirty
+    /// notifications for all registered domain panels into `notifier` when the revision changes.
+    pub fn sync_domain_revision_with_notifier(
+        &mut self,
+        revision: u64,
+        notifier: &mut irisui_dock::UiNotifier<TabId>,
+    ) -> bool {
+        if self.last_domain_revision == revision {
+            return false;
+        }
+        self.last_domain_revision = revision;
+        self.mark_domain_tabs_dirty(Some(notifier));
+        true
+    }
+
+    /// Returns the most recently synchronized opaque selection identifier.
+    #[inline]
+    #[must_use]
+    pub const fn last_selection_id(&self) -> Option<u64> {
+        self.last_selection_id
+    }
+
+    /// Returns the most recently synchronized external domain revision counter.
+    #[inline]
+    #[must_use]
+    pub const fn last_domain_revision(&self) -> u64 {
+        self.last_domain_revision
+    }
+
+    fn mark_domain_tabs_dirty(
+        &mut self,
+        mut notifier: Option<&mut irisui_dock::UiNotifier<TabId>>,
+    ) {
+        for &tab in self.panel_registry.domain_panels() {
+            self.lifecycle.mark_tab_dirty(tab);
+            if let Some(ref mut n) = notifier {
+                n.tag_redraw(tab);
+            }
+        }
+        self.lifecycle.mark_domain_panels_dirty();
+        if let Some(n) = notifier {
+            for &tab in self.lifecycle.domain_panels() {
+                n.tag_redraw(tab);
+            }
+        }
     }
 
     /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`

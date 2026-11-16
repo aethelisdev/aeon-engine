@@ -148,6 +148,12 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.dirty_tabs.extend(tabs);
     }
 
+    /// Marks all registered domain subscriber panels as dirty for granular partial rebuild.
+    #[inline]
+    pub fn mark_domain_panels_dirty(&mut self) {
+        self.dirty_tabs.extend(self.domain_panels.iter().cloned());
+    }
+
     /// Clears the dirty state for a specific panel.
     #[inline]
     pub fn clear_tab_dirty(&mut self, tab: &TabId) {

@@ -104,6 +104,12 @@ impl AeEngine {
             init_size.width,
             init_size.height,
         );
+        ui.workbench.lifecycle.register_domain_panels([
+            ae_editor_ui::ui::PanelId::Inspector,
+            ae_editor_ui::ui::PanelId::Hierarchy,
+            ae_editor_ui::ui::PanelId::MaterialEditor,
+            ae_editor_ui::ui::PanelId::AnimationTimeline,
+        ]);
         let gizmo_system = ae_editor::gizmo::GizmoSystem::new(
             &render_state.device,
             render_state.config.format,

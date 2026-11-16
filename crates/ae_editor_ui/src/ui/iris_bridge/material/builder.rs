@@ -30,6 +30,11 @@ impl IrisEditorOverlay {
             return;
         }
 
+        if self.material.selected_entity != params.scene.selected_entity {
+            self.material.selected_entity = params.scene.selected_entity;
+            scope.set_scroll_offset(super::types::MATERIAL_TAG_VIEWPORT, 0.0);
+        }
+
         let events = std::mem::take(&mut self.material.pending_interaction_events);
 
         let material_params = MaterialPanelParams {

@@ -728,3 +728,109 @@ fn test_workbench_evaluate_dock_lifecycle_tracks_dock_notifier_and_host_flags() 
         crate::lifecycle::LifecycleBranch::FullShellRebuild
     );
 }
+
+#[test]
+fn test_workbench_sync_selection_and_domain_revision_dirty_domain_panels() {
+    let mut wb = create_test_workbench();
+    wb.panel_registry
+        .register_domain_panel(MockTab::Viewport, |_scope, _ctx| {});
+    let mut notifier = irisui_dock::UiNotifier::clean();
+
+    // 1. Same selection (None) -> no-op
+    assert!(!wb.sync_selection_with_notifier(None, &mut notifier));
+    assert!(!wb.lifecycle.is_panel_dirty());
+    assert!(notifier.dirty_panels().is_empty());
+
+    // 2. Changing selection -> marks registered domain panel dirty in lifecycle and notifier
+    assert!(wb.sync_selection_with_notifier(Some(42), &mut notifier));
+    assert_eq!(wb.last_selection_id(), Some(42));
+    assert!(wb.lifecycle.is_tab_dirty(&MockTab::Viewport));
+    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+
+    // 3. Idempotent on repeated selection
+    wb.lifecycle.clear_all_dirty_tabs();
+    notifier.clear_all();
+    assert!(!wb.sync_selection(Some(42)));
+    assert!(!wb.lifecycle.is_panel_dirty());
+
+    // 4. Same domain revision (0) -> no-op; bumped revision -> marks domain panel dirty
+    assert!(!wb.sync_domain_revision_with_notifier(0, &mut notifier));
+    assert!(wb.sync_domain_revision_with_notifier(7, &mut notifier));
+    assert_eq!(wb.last_domain_revision(), 7);
+    assert!(wb.lifecycle.is_tab_dirty(&MockTab::Viewport));
+    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+}
+
+#[test]
+fn test_workbench_sync_frame_state_unifies_blink_selection_domain_and_lifecycle() {
+    let mut wb = create_test_workbench();
+    wb.set_screen_size((1280.0, 720.0));
+    wb.panel_registry
+        .register_domain_panel(MockTab::Viewport, |_scope, _ctx| {});
+
+    let mut tree = irisui_core::UiTree::new();
+    let _root = tree.create_root().expect("root");
+    let mut text_system = irisui_text::TextSystem::new();
+    let dock = DockState::new(DockTree::new());
+    let mut notifier = irisui_dock::UiNotifier::clean();
+
+    // 1. Cold start -> FullShellRebuild and tag_all
+    let s0 = wb.sync_frame_state(
+        &mut text_system,
+        &mut tree,
+        super::shell::WorkbenchFrameSyncParams {
+            dock: &dock,
+            notifier: &mut notifier,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+        },
+        |i| i,
+    );
+    assert_eq!(
+        s0.lifecycle_branch,
+        crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+    assert!(notifier.is_global_dirty());
+
+    // 2. Steady frame -> Dormant
+    notifier.clear_all();
+    let s1 = wb.sync_frame_state(
+        &mut text_system,
+        &mut tree,
+        super::shell::WorkbenchFrameSyncParams {
+            dock: &dock,
+            notifier: &mut notifier,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+        },
+        |i| i,
+    );
+    assert_eq!(
+        s1.lifecycle_branch,
+        crate::lifecycle::LifecycleBranch::Dormant
+    );
+    assert!(!s1.selection_changed);
+    assert!(!s1.domain_revision_changed);
+
+    // 3. Selection change -> GranularPanels and notifier dirty
+    let s2 = wb.sync_frame_state(
+        &mut text_system,
+        &mut tree,
+        super::shell::WorkbenchFrameSyncParams {
+            dock: &dock,
+            notifier: &mut notifier,
+            scale_factor: 1.0,
+            selection_id: Some(99),
+            domain_revision: 0,
+        },
+        |i| i,
+    );
+    assert!(s2.selection_changed);
+    assert_eq!(
+        s2.lifecycle_branch,
+        crate::lifecycle::LifecycleBranch::GranularPanels(vec![MockTab::Viewport])
+    );
+    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+}

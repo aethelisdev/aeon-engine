@@ -396,41 +396,35 @@ impl AeEngine {
                     win_size.width,
                     win_size.height,
                 );
-                let blink_update = ui
-                    .workbench
-                    .sync_caret_blink(&mut ui.iris_overlay.text_system, &mut ui.iris_overlay.tree);
-                ui.iris_overlay.apply_caret_blink_update(blink_update);
                 let signals = ui.iris_overlay.lifecycle_signals(
                     ui.layout_state
                         .is_panel_visible(ae_editor_ui::ui::PanelId::Preferences),
                 );
-                let lifecycle_branch = ui.workbench.evaluate_dock_lifecycle(
-                    &ui.layout_state.dock_state,
-                    &ui.iris_overlay.notifier,
-                    ui.scale_factor(),
+                let scale_factor = ui.scale_factor();
+                let selection_id = ui.selected_entity.map(|e| e.to_bits().get());
+                let is_drag_active = ui.asset_browser.drag_payload.is_some();
+                let frame_sync = ui.workbench.sync_frame_state(
+                    &mut ui.iris_overlay.text_system,
+                    &mut ui.iris_overlay.tree,
+                    irisui::workbench::WorkbenchFrameSyncParams {
+                        dock: &ui.layout_state.dock_state,
+                        notifier: &mut ui.iris_overlay.notifier,
+                        scale_factor,
+                        selection_id,
+                        domain_revision: editor.history_revision,
+                    },
                     |inputs| {
                         inputs
                             .with_menu_active(signals.is_menu_active)
                             .with_modal_active(signals.is_modal_active)
                             .with_popup_active(signals.is_popup_active)
-                            .with_drag_active(ui.asset_browser.drag_payload.is_some())
-                            .with_domain_revision(editor.history_revision)
+                            .with_drag_active(is_drag_active)
                             .with_surface_revision(u64::from(viewport_texture_view.is_some()))
                             .with_overlay_revision(signals.overlay_revision)
                     },
                 );
-                match lifecycle_branch {
-                    irisui::workbench::lifecycle::LifecycleBranch::FullShellRebuild => {
-                        ui.iris_overlay.notifier.tag_all();
-                    }
-                    irisui::workbench::lifecycle::LifecycleBranch::GranularPanels(tabs) => {
-                        for tab in tabs {
-                            ui.iris_overlay.notifier.tag_redraw(tab);
-                        }
-                    }
-                    irisui::workbench::lifecycle::LifecycleBranch::InPlaceRefresh
-                    | irisui::workbench::lifecycle::LifecycleBranch::Dormant => {}
-                }
+                ui.iris_overlay
+                    .apply_caret_blink_update(frame_sync.caret_blink);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,

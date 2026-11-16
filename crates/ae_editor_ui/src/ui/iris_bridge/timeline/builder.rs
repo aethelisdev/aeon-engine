@@ -31,6 +31,8 @@ impl IrisEditorOverlay {
             return;
         }
 
+        self.timeline.selected_entity = params.scene.selected_entity;
+
         let anim_player = params.scene.selected_entity.and_then(|ent| {
             params
                 .scene

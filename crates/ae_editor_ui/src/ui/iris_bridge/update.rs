@@ -122,34 +122,6 @@ impl IrisEditorOverlay {
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
 
-        // Synchronize external domain/history revision (Undo/Redo commands, external entity transactions)
-        self.notifier
-            .sync_domain_revision(params.context.history_revision);
-
-        let selection_changed = self.chrome.last_selected_entity != params.scene.selected_entity;
-        if selection_changed {
-            self.chrome.last_selected_entity = params.scene.selected_entity;
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Hierarchy);
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::MaterialEditor);
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::AnimationTimeline);
-        }
-
-        self.timeline.selected_entity = params.scene.selected_entity;
-        if self.material.selected_entity != params.scene.selected_entity {
-            self.material.selected_entity = params.scene.selected_entity;
-            self.tree
-                .set_scroll_offset(super::material::types::MATERIAL_TAG_VIEWPORT, 0.0);
-        }
-
-        // Safely commit pending inspector edits on selection change
-        self.inspector
-            .commit_pending_edits_on_selection_change(params.scene.selected_entity);
-
         if is_shell_dirty {
             self.chrome.needs_full_quad_upload = true;
             // =========================================================================

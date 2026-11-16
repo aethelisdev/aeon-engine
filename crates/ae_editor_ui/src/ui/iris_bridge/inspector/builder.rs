@@ -29,6 +29,9 @@ impl IrisEditorOverlay {
             return;
         }
 
+        self.inspector
+            .commit_pending_edits_on_selection_change(params.scene.selected_entity);
+
         if scope.popups_dismissed() {
             self.inspector.active_submenu = None;
         }

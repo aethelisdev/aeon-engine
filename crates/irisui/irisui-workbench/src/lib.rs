@@ -61,5 +61,6 @@ pub use lifecycle::{
     route_event_invalidation, route_event_invalidation_with_fallback,
 };
 pub use workbench::{
-    HoverTargetResolution, PointerState, Workbench, WorkbenchOutcome, resolve_hover_targets,
+    HoverTargetResolution, PointerState, Workbench, WorkbenchFrameSync, WorkbenchFrameSyncParams,
+    WorkbenchOutcome, resolve_hover_targets,
 };

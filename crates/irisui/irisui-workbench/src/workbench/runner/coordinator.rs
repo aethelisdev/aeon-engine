@@ -110,6 +110,12 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
 
     /// Most recent caret blink animation evaluation produced by synchronizing [`irisui_text::TextSystem`].
     pub last_caret_blink: irisui_text::CaretBlinkUpdate,
+
+    /// Most recently synchronized opaque domain selection identifier (e.g. entity/node ID).
+    pub last_selection_id: Option<u64>,
+
+    /// Most recently synchronized external domain/history revision counter.
+    pub last_domain_revision: u64,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -151,6 +157,8 @@ where
             last_hovered_panel: None,
             lifecycle: WorkbenchLifecycle::new(),
             last_caret_blink: irisui_text::CaretBlinkUpdate::default(),
+            last_selection_id: None,
+            last_domain_revision: 0,
         }
     }
 
