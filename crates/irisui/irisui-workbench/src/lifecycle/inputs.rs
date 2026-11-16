@@ -183,6 +183,23 @@ impl LifecycleInputs {
         self
     }
 
+    /// Builds [`LifecycleInputs`] directly from a [`irisui_dock::DockState`], capturing
+    /// dock revision, floating window count and geometry hash, and active splitter/tab drag state.
+    #[inline]
+    #[must_use]
+    pub fn from_dock<TabId>(
+        dock: &irisui_dock::DockState<TabId>,
+        dimensions: (f32, f32),
+        scale_factor: f32,
+        theme_revision: u64,
+    ) -> Self {
+        Self::new(dimensions, scale_factor, dock.revision())
+            .with_floating_count(dock.floating_windows.len())
+            .with_floating_rects(dock.floating_windows.iter().map(|w| w.rect))
+            .with_dock_interacting(dock.active_splitter.is_some() || dock.active_drag.is_some())
+            .with_theme_revision(theme_revision)
+    }
+
     /// Sets whether any anchored pop-up, context menu, or flyout is active.
     #[inline]
     #[must_use]

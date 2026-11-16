@@ -284,6 +284,26 @@ where
         Ok(branch)
     }
 
+    /// Synchronizes `notifier` and evaluates [`WorkbenchLifecycle`](crate::lifecycle::WorkbenchLifecycle)
+    /// directly from a [`irisui_dock::DockState`] plus host-provided lifecycle flags.
+    pub fn evaluate_dock_lifecycle(
+        &mut self,
+        dock: &irisui_dock::DockState<TabId>,
+        notifier: &irisui_dock::UiNotifier<TabId>,
+        scale_factor: f32,
+        host_inputs: impl FnOnce(LifecycleInputs) -> LifecycleInputs,
+    ) -> LifecycleBranch<TabId> {
+        let screen = self.screen_size().unwrap_or_default();
+        let base = LifecycleInputs::from_dock(
+            dock,
+            (screen.width, screen.height),
+            scale_factor,
+            self.theme_revision,
+        );
+        self.lifecycle.ingest_notifier(notifier);
+        self.lifecycle.evaluate(host_inputs(base))
+    }
+
     /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`
     /// using the monotonic system clock, marks focused nodes dirty on visibility flips, and caches
     /// the latest [`irisui_text::CaretBlinkUpdate`].

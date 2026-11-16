@@ -697,3 +697,34 @@ fn test_workbench_sync_caret_blink_updates_visibility() {
             .contains(irisui_core::DirtyFlags::PAINT)
     );
 }
+
+#[test]
+fn test_workbench_evaluate_dock_lifecycle_tracks_dock_notifier_and_host_flags() {
+    let mut wb = create_test_workbench();
+    wb.set_screen_size((1280.0, 720.0));
+    let dock = DockState::new(DockTree::new());
+    let mut notifier = irisui_dock::UiNotifier::clean();
+
+    // 1. Cold start -> FullShellRebuild, then Dormant on steady state
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::Dormant
+    );
+
+    // 2. Targeted panel redraw via notifier -> GranularPanels
+    notifier.tag_redraw(MockTab::Viewport);
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::GranularPanels(vec![MockTab::Viewport])
+    );
+
+    // 3. Host flag change (e.g. popup active) -> FullShellRebuild
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i.with_popup_active(true)),
+        crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+}

@@ -264,6 +264,19 @@ pub struct IrisChromeState {
     pub last_selected_entity: Option<hecs::Entity>,
 }
 
+/// Snapshot of overlay-owned lifecycle signals forwarded into `irisui::workbench::lifecycle::LifecycleInputs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OverlayLifecycleSignals {
+    /// Whether a top menu bar dropdown is currently active.
+    pub is_menu_active: bool,
+    /// Whether any modal dialog or preview card is currently active.
+    pub is_modal_active: bool,
+    /// Whether any anchored pop-up node or hierarchy context menu is currently active.
+    pub is_popup_active: bool,
+    /// Packed bitfield capturing preferences visibility/tab, hierarchy pop-up, and dock overflow state.
+    pub overlay_revision: u64,
+}
+
 impl Default for IrisChromeState {
     fn default() -> Self {
         Self {

@@ -16,6 +16,34 @@ impl IrisEditorOverlay {
         }
     }
 
+    /// Collects read-only overlay lifecycle signals for [`irisui::workbench::lifecycle::WorkbenchLifecycle`].
+    #[must_use]
+    pub fn lifecycle_signals(
+        &self,
+        show_preferences: bool,
+    ) -> super::types::OverlayLifecycleSignals {
+        let is_menu_active =
+            self.menubar.active_menu.is_some() || self.menubar.dropdown_rect.is_some();
+        let is_modal_active = self.tree.is_any_modal_open()
+            || self.assets.dialog_host.is_active()
+            || self.assets.preview_modal.is_some()
+            || show_preferences;
+        let is_popup_active = self.tree.has_active_popup_nodes()
+            || self.hierarchy.is_add_menu_open
+            || self.hierarchy.active_context_menu.is_some();
+        let overlay_revision = u64::from(show_preferences)
+            | (u64::from(self.preferences.tab) << 1)
+            | (u64::from(self.hierarchy.is_add_menu_open) << 9)
+            | (u64::from(self.hierarchy.active_context_menu.is_some()) << 10)
+            | (u64::from(self.chrome.active_dock_overflow.is_some()) << 11);
+        super::types::OverlayLifecycleSignals {
+            is_menu_active,
+            is_modal_active,
+            is_popup_active,
+            overlay_revision,
+        }
+    }
+
     /// Recursively converts computed node bounds and styles into layered `DrawCommandList` instances,
     /// ensuring strict back-to-front layer ordering: Background -> Content -> Floating -> Modal -> Popup -> Tooltip.
     ///

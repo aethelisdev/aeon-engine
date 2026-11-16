@@ -65,35 +65,7 @@ impl IrisEditorOverlay {
         let (screen_width, screen_height) = params.context.dimensions;
         let active_tokens = self.chrome.theme_preset.tokens();
 
-        let modal_active = self.tree.is_any_modal_open()
-            || self.assets.dialog_host.is_active()
-            || self.assets.preview_modal.is_some()
-            || params.dialogs.show_preferences;
-
-        let floating_count = params
-            .context
-            .layout_state
-            .dock_state
-            .floating_windows
-            .len();
-
-        let has_drag_payload = params.panel_data.asset_browser.drag_payload.is_some();
         let cursor = self.cursor_pos();
-
-        // 1. Genuine global shell events (only these trigger global tag_all)
-        if self.chrome.last_dimensions != params.context.dimensions
-            || self.chrome.last_theme_preset != self.chrome.theme_preset
-            || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
-            || self.chrome.last_floating_count != floating_count
-            || self.modals.last_modal_active != modal_active
-            || self.preferences.last_tab != self.preferences.tab
-            || self.menubar.active_menu.is_some()
-            || self.chrome.active_dock_overflow.is_some()
-            || self.chrome.needs_layout_rebuild
-            || has_drag_payload
-        {
-            self.notifier.tag_all();
-        }
 
         if !self.is_visible {
             self.command_list.clear();
@@ -103,61 +75,9 @@ impl IrisEditorOverlay {
         let current_focused_tag = self.tree.event_state.focused_tag;
         let focus_target_changed = current_focused_tag != self.chrome.last_focused_tag;
 
-        let floating_changed = floating_count != self.chrome.last_floating_count
-            || params
-                .context
-                .layout_state
-                .dock_state
-                .floating_windows
-                .iter()
-                .zip(&self.chrome.floating_window_rects)
-                .any(|(w, r)| w.rect != *r);
-
-        let modal_active_changed = self.modals.last_modal_active != modal_active;
-        let menu_active =
-            self.menubar.active_menu.is_some() || self.menubar.dropdown_rect.is_some();
-        let menu_changed = menu_active != self.chrome.last_menu_active;
-        let hierarchy_popups =
-            self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some();
-        let hierarchy_popups_changed = hierarchy_popups != self.chrome.last_hierarchy_popups;
-        let preferences_active = params.dialogs.show_preferences;
-        let preferences_changed = preferences_active != self.chrome.last_preferences_active
-            || (preferences_active && self.preferences.last_tab != self.preferences.tab);
-
-        let dock_revision = params.context.layout_state.dock_state.revision();
-        let dock_changed = dock_revision != self.chrome.last_dock_revision;
-
-        let viewport_texture_changed =
-            params.viewport.has_viewport_texture != self.chrome.last_has_viewport_texture;
-
-        let is_shell_dirty = self.chrome.always_rebuild
-            || self.tree.root().is_none()
+        let is_shell_dirty = self.tree.root().is_none()
             || self.chrome.dock_frame.is_none()
-            || self.notifier.is_global_dirty()
-            || viewport_texture_changed
-            || dock_changed
-            || self.chrome.is_dirty(
-                params.context.dimensions,
-                params.context.zoom_factor,
-                floating_count,
-                has_drag_payload,
-            )
-            || floating_changed
-            || params
-                .context
-                .layout_state
-                .dock_state
-                .active_splitter
-                .is_some()
-            || params.context.layout_state.dock_state.active_drag.is_some()
-            || modal_active_changed
-            || modal_active
-            || menu_changed
-            || hierarchy_popups_changed
-            || preferences_changed
-            || self.chrome.needs_layout_rebuild;
-
-        self.chrome.last_dock_revision = dock_revision;
+            || self.notifier.is_global_dirty();
 
         if self.menubar.active_menu.is_none() {
             self.menubar.dropdown_rect = None;
@@ -496,18 +416,12 @@ impl IrisEditorOverlay {
 
         self.chrome.last_dimensions = params.context.dimensions;
         self.chrome.last_zoom_factor = params.context.zoom_factor;
-        self.chrome.last_floating_count = floating_count;
-        self.modals.last_modal_active = modal_active;
         self.preferences.last_tab = self.preferences.tab;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
-        self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = cursor;
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.last_hovered_panel = self.chrome.hovered_panel;
         self.chrome.last_focused_tag = current_focused_tag;
-        self.chrome.last_menu_active = menu_active;
-        self.chrome.last_hierarchy_popups = hierarchy_popups;
-        self.chrome.last_preferences_active = preferences_active;
         self.chrome.last_theme_preset = self.chrome.theme_preset;
         self.chrome.needs_layout_rebuild = false;
         self.notifier.clear_all();

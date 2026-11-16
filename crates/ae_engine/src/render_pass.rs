@@ -400,6 +400,37 @@ impl AeEngine {
                     .workbench
                     .sync_caret_blink(&mut ui.iris_overlay.text_system, &mut ui.iris_overlay.tree);
                 ui.iris_overlay.apply_caret_blink_update(blink_update);
+                let signals = ui.iris_overlay.lifecycle_signals(
+                    ui.layout_state
+                        .is_panel_visible(ae_editor_ui::ui::PanelId::Preferences),
+                );
+                let lifecycle_branch = ui.workbench.evaluate_dock_lifecycle(
+                    &ui.layout_state.dock_state,
+                    &ui.iris_overlay.notifier,
+                    ui.scale_factor(),
+                    |inputs| {
+                        inputs
+                            .with_menu_active(signals.is_menu_active)
+                            .with_modal_active(signals.is_modal_active)
+                            .with_popup_active(signals.is_popup_active)
+                            .with_drag_active(ui.asset_browser.drag_payload.is_some())
+                            .with_domain_revision(editor.history_revision)
+                            .with_surface_revision(u64::from(viewport_texture_view.is_some()))
+                            .with_overlay_revision(signals.overlay_revision)
+                    },
+                );
+                match lifecycle_branch {
+                    irisui::workbench::lifecycle::LifecycleBranch::FullShellRebuild => {
+                        ui.iris_overlay.notifier.tag_all();
+                    }
+                    irisui::workbench::lifecycle::LifecycleBranch::GranularPanels(tabs) => {
+                        for tab in tabs {
+                            ui.iris_overlay.notifier.tag_redraw(tab);
+                        }
+                    }
+                    irisui::workbench::lifecycle::LifecycleBranch::InPlaceRefresh
+                    | irisui::workbench::lifecycle::LifecycleBranch::Dormant => {}
+                }
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
