@@ -256,6 +256,9 @@ where
         inputs: &LifecycleInputs,
         is_cursor_occluded: bool,
     ) -> Result<LifecycleBranch<TabId>, LayoutError> {
+        if engines.tree.root().is_none() || self.dock_frame.is_none() {
+            self.lifecycle.mark_shell_dirty();
+        }
         self.lifecycle.ingest_notifier(notifier);
         let branch = self.lifecycle.evaluate(*inputs);
 

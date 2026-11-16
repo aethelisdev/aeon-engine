@@ -383,3 +383,50 @@ fn test_is_panel_dirty_speculative_with_domain_subscriber() {
     );
     assert!(!lifecycle.is_panel_dirty());
 }
+
+#[test]
+fn test_lifecycle_extended_shell_dirty_inputs_and_floating_rect_hash() {
+    use irisui_core::Rect;
+
+    let mut lifecycle = WorkbenchLifecycle::<TestPanel>::new();
+    let base_rect = [Rect::new(100.0, 100.0, 320.0, 240.0)];
+    let base = LifecycleInputs::new((1920.0, 1080.0), 1.0, 1)
+        .with_floating_count(1)
+        .with_floating_rects(base_rect);
+
+    assert_eq!(lifecycle.evaluate(base), LifecycleBranch::FullShellRebuild);
+    assert_eq!(lifecycle.evaluate(base), LifecycleBranch::Dormant);
+
+    // 1. Floating window move/resize with identical floating_count triggers rebuild
+    let moved = base.with_floating_rects([Rect::new(140.0, 120.0, 320.0, 240.0)]);
+    assert!(lifecycle.is_shell_dirty(&moved));
+    assert_eq!(lifecycle.evaluate(moved), LifecycleBranch::FullShellRebuild);
+    assert_eq!(lifecycle.evaluate(moved), LifecycleBranch::Dormant);
+
+    // 2. Anchored pop-up state transition triggers rebuild, steady open stays Dormant
+    let popup_open = moved.with_popup_active(true);
+    assert!(lifecycle.is_shell_dirty(&popup_open));
+    assert_eq!(
+        lifecycle.evaluate(popup_open),
+        LifecycleBranch::FullShellRebuild
+    );
+    assert_eq!(lifecycle.evaluate(popup_open), LifecycleBranch::Dormant);
+
+    // 3. External surface revision transition triggers rebuild
+    let surface_v1 = popup_open.with_surface_revision(1);
+    assert!(lifecycle.is_shell_dirty(&surface_v1));
+    assert_eq!(
+        lifecycle.evaluate(surface_v1),
+        LifecycleBranch::FullShellRebuild
+    );
+    assert_eq!(lifecycle.evaluate(surface_v1), LifecycleBranch::Dormant);
+
+    // 4. Host overlay revision transition triggers rebuild
+    let overlay_v1 = surface_v1.with_overlay_revision(1);
+    assert!(lifecycle.is_shell_dirty(&overlay_v1));
+    assert_eq!(
+        lifecycle.evaluate(overlay_v1),
+        LifecycleBranch::FullShellRebuild
+    );
+    assert_eq!(lifecycle.evaluate(overlay_v1), LifecycleBranch::Dormant);
+}

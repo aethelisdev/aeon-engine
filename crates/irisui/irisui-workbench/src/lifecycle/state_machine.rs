@@ -68,6 +68,18 @@ pub struct WorkbenchLifecycle<TabId: Eq + Hash + Clone> {
 
     /// Theme configuration revision counter from the previous evaluation pass.
     last_theme_revision: u64,
+
+    /// Floating window geometry hash from the previous evaluation pass.
+    last_floating_geometry_hash: u64,
+
+    /// Whether any anchored pop-up or context menu was active during the previous pass.
+    last_popup_active: bool,
+
+    /// External surface revision counter from the previous evaluation pass.
+    last_surface_revision: u64,
+
+    /// Host-owned overlay/dialog revision counter from the previous evaluation pass.
+    last_overlay_revision: u64,
 }
 
 impl<TabId: Eq + Hash + Clone> Default for WorkbenchLifecycle<TabId> {
@@ -98,6 +110,10 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             domain_panels: HashSet::new(),
             last_domain_revision: 0,
             last_theme_revision: 0,
+            last_floating_geometry_hash: 0,
+            last_popup_active: false,
+            last_surface_revision: 0,
+            last_overlay_revision: 0,
         }
     }
 
@@ -205,6 +221,10 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_modal_active = false;
         self.last_drag_active = false;
         self.last_theme_revision = 0;
+        self.last_floating_geometry_hash = 0;
+        self.last_popup_active = false;
+        self.last_surface_revision = 0;
+        self.last_overlay_revision = 0;
         self.force_shell_rebuild = true;
         self.dirty_tabs.clear();
     }
@@ -283,6 +303,10 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             || self.last_dock_revision != inputs.dock_revision
             || self.last_floating_count != inputs.floating_count
             || self.last_theme_revision != inputs.theme_revision
+            || self.last_floating_geometry_hash != inputs.floating_geometry_hash
+            || self.last_popup_active != inputs.is_popup_active
+            || self.last_surface_revision != inputs.surface_revision
+            || self.last_overlay_revision != inputs.overlay_revision
             || self.last_menu_active != inputs.is_menu_active
             || self.last_modal_active != inputs.is_modal_active
             || self.last_drag_active != inputs.is_drag_active
@@ -333,6 +357,10 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_dock_revision = inputs.dock_revision;
         self.last_floating_count = inputs.floating_count;
         self.last_theme_revision = inputs.theme_revision;
+        self.last_floating_geometry_hash = inputs.floating_geometry_hash;
+        self.last_popup_active = inputs.is_popup_active;
+        self.last_surface_revision = inputs.surface_revision;
+        self.last_overlay_revision = inputs.overlay_revision;
         self.last_menu_active = inputs.is_menu_active;
         self.last_modal_active = inputs.is_modal_active;
         self.last_drag_active = inputs.is_drag_active;

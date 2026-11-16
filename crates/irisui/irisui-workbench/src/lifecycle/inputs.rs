@@ -49,6 +49,19 @@ pub struct LifecycleInputs {
 
     /// Monotonic theme configuration revision counter reflecting styling, token, or color palette switches.
     pub theme_revision: u64,
+
+    /// Deterministic geometry hash of active floating windows (`[Rect]`), detecting move/resize changes
+    /// even when `floating_count` remains constant.
+    pub floating_geometry_hash: u64,
+
+    /// Whether any anchored pop-up, context menu, or flyout card is currently open.
+    pub is_popup_active: bool,
+
+    /// Monotonic revision or state bitfield for external embedded surfaces / viewport textures.
+    pub surface_revision: u64,
+
+    /// Monotonic revision for host-owned overlay/dialog tabs or custom chrome state.
+    pub overlay_revision: u64,
 }
 
 impl LifecycleInputs {
@@ -76,6 +89,10 @@ impl LifecycleInputs {
             is_drag_active: false,
             domain_revision: 0,
             theme_revision: 0,
+            floating_geometry_hash: 0,
+            is_popup_active: false,
+            surface_revision: 0,
+            overlay_revision: 0,
         }
     }
 
@@ -144,5 +161,71 @@ impl LifecycleInputs {
     pub const fn with_theme_revision(mut self, revision: u64) -> Self {
         self.theme_revision = revision;
         self
+    }
+
+    /// Sets the deterministic geometry hash of active floating windows.
+    #[inline]
+    #[must_use]
+    pub const fn with_floating_geometry_hash(mut self, hash: u64) -> Self {
+        self.floating_geometry_hash = hash;
+        self
+    }
+
+    /// Computes and sets [`Self::floating_geometry_hash`] directly from an iterator of floating
+    /// window rectangles with zero heap allocation.
+    #[inline]
+    #[must_use]
+    pub fn with_floating_rects(
+        mut self,
+        rects: impl IntoIterator<Item = irisui_core::Rect>,
+    ) -> Self {
+        self.floating_geometry_hash = Self::hash_floating_rects(rects);
+        self
+    }
+
+    /// Sets whether any anchored pop-up, context menu, or flyout is active.
+    #[inline]
+    #[must_use]
+    pub const fn with_popup_active(mut self, active: bool) -> Self {
+        self.is_popup_active = active;
+        self
+    }
+
+    /// Sets the revision counter for external embedded surfaces / viewport textures.
+    #[inline]
+    #[must_use]
+    pub const fn with_surface_revision(mut self, revision: u64) -> Self {
+        self.surface_revision = revision;
+        self
+    }
+
+    /// Sets the revision counter for host-owned overlay or dialog state.
+    #[inline]
+    #[must_use]
+    pub const fn with_overlay_revision(mut self, revision: u64) -> Self {
+        self.overlay_revision = revision;
+        self
+    }
+
+    /// Computes an FNV-1a 64-bit hash over floating window rectangles so position/size changes
+    /// are detected deterministically with zero heap allocation.
+    #[inline]
+    #[must_use]
+    pub fn hash_floating_rects(rects: impl IntoIterator<Item = irisui_core::Rect>) -> u64 {
+        const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+        const FNV_PRIME: u64 = 0x100000001b3;
+        let mut hash = FNV_OFFSET;
+        for r in rects {
+            for bits in [
+                r.x.to_bits(),
+                r.y.to_bits(),
+                r.width.to_bits(),
+                r.height.to_bits(),
+            ] {
+                hash ^= u64::from(bits);
+                hash = hash.wrapping_mul(FNV_PRIME);
+            }
+        }
+        hash
     }
 }
