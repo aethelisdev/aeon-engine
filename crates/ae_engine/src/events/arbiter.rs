@@ -131,10 +131,18 @@ impl InputArbiter {
             return false;
         }
 
+        Self::dispatch_ui_event(engine, &ui_event)
+    }
+
+    /// Dispatches a translated [`irisui::prelude::UiEvent`] directly through the active
+    /// workbench and synchronizes hover, actions, zoom, preferences, and layout invalidation.
+    ///
+    /// Returns `true` when the UI consumed the event.
+    pub fn dispatch_ui_event(engine: &mut AeEngine, ui_event: &irisui::prelude::UiEvent) -> bool {
         let mut window = &engine.render_state.window;
         let outcome = engine.ui.workbench.handle_event_full(
             &mut window,
-            &ui_event,
+            ui_event,
             &mut engine.ui.layout_state.dock_state,
             Some(&mut engine.ui.iris_overlay.tree),
         );

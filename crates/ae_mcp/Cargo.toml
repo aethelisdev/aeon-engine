@@ -1,0 +1,20 @@
+[package]
+name = "ae_mcp"
+version = "0.1.0"
+edition = "2024"
+description = "Autonomous live UI inspection, visual feedback overlay, and MCP server for Iris UI hosts"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ae_mcp_server"
+path = "src/bin/ae_mcp_server.rs"
+
+[dependencies]
+irisui = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+image = "0.25.10"

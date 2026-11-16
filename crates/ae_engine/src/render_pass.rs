@@ -381,6 +381,8 @@ impl AeEngine {
         let snapping = &self.editor.snapping;
         let asset_manager = &self.asset_manager;
         let event_bus = &self.event_bus;
+        #[cfg(feature = "mcp")]
+        let mcp = &mut self.mcp;
 
         let mut ui_render_callback =
             |device: &wgpu::Device,
@@ -453,6 +455,17 @@ impl AeEngine {
                     win_size.width,
                     win_size.height,
                 );
+                #[cfg(feature = "mcp")]
+                if let Some(session) = mcp.as_mut() {
+                    session.render_overlay(
+                        device,
+                        queue,
+                        encoder,
+                        surface_view,
+                        (win_size.width, win_size.height),
+                        ui.scale_factor(),
+                    );
+                }
                 viewport_rect
             };
 

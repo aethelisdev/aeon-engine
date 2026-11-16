@@ -7,6 +7,8 @@ pub mod engine;
 pub mod events;
 pub mod hud;
 pub mod icon;
+#[cfg(feature = "mcp")]
+pub mod mcp_host;
 
 /// Aeon Engine — Main Entry Point
 ///
@@ -335,6 +337,7 @@ impl AeApp {
             }
         }
         engine.input.end_frame();
+        engine.poll_inspect_requests();
         log::trace!("Render frame end");
     }
 }

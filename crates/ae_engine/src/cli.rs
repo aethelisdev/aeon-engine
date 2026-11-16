@@ -6,6 +6,7 @@
 //! Parses startup parameters passed by the `ae_launcher` or developers via CLI:
 //! - `--project <PATH>`: Project directory containing `aeon_project.json`.
 //! - `--mode <2D|3D>`: Active engine dimension mode enforcing RAM isolation.
+//! - `--inspect <HOST:PORT>`: Enables the local JSON-RPC inspection & automation server for MCP tooling.
 
 use std::path::PathBuf;
 
@@ -19,6 +20,9 @@ pub struct CliArgs {
 
     /// Initial active dimension mode governing engine memory allocation.
     pub mode: ActiveDimensionMode,
+
+    /// Optional local bind address (e.g. `"127.0.0.1:7878"`) enabling the live inspection server.
+    pub inspect_addr: Option<String>,
 }
 
 impl Default for CliArgs {
@@ -26,6 +30,7 @@ impl Default for CliArgs {
         Self {
             project_path: None,
             mode: ActiveDimensionMode::Mode3D,
+            inspect_addr: None,
         }
     }
 }
@@ -62,6 +67,10 @@ impl CliArgs {
                     } else if mode_str.eq_ignore_ascii_case("3d") {
                         cli.mode = ActiveDimensionMode::Mode3D;
                     }
+                    i += 1;
+                }
+                "--inspect" if i + 1 < tokens.len() => {
+                    cli.inspect_addr = Some(tokens[i + 1].trim().to_string());
                     i += 1;
                 }
                 _ => {}
@@ -116,5 +125,13 @@ mod tests {
         let cli = CliArgs::parse_from(args);
         assert_eq!(cli.project_path, Some(PathBuf::from("/path/to/project")));
         assert_eq!(cli.mode, ActiveDimensionMode::Mode2D);
+        assert_eq!(cli.inspect_addr, None);
+    }
+
+    #[test]
+    fn test_cli_parse_inspect_addr() {
+        let args = vec!["ae_engine", "--inspect", "127.0.0.1:7878"];
+        let cli = CliArgs::parse_from(args);
+        assert_eq!(cli.inspect_addr.as_deref(), Some("127.0.0.1:7878"));
     }
 }

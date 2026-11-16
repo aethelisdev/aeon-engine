@@ -18,6 +18,7 @@ members = [
     "crates/ae_2d/ae-2d-animation",
     "crates/ae_2d/ae_2d",
     "crates/ae_launcher",
+    "crates/ae_mcp",
     "crates/ae_engine",
     "crates/irisui/irisui-core",
     "crates/irisui/irisui-dock",
@@ -80,6 +81,7 @@ ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }
 ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
 ae_2d = { path = "crates/ae_2d/ae_2d" }
+ae_mcp = { path = "crates/ae_mcp" }
 
 irisui-core = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-core" }
 irisui-dock = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-dock" }

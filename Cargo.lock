@@ -177,6 +177,7 @@ dependencies = [
  "ae_core",
  "ae_editor",
  "ae_editor_ui",
+ "ae_mcp",
  "ae_physics",
  "ae_plugin_api",
  "ae_plugin_host",
@@ -216,6 +217,18 @@ dependencies = [
  "log",
  "pollster 1.0.1",
  "rfd",
+ "serde",
+ "serde_json",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "ae_mcp"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "irisui",
  "serde",
  "serde_json",
  "wgpu",

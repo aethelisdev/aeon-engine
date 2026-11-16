@@ -78,9 +78,20 @@ pub struct AeEngine {
     pub input_arbiter: crate::events::InputArbiter,
     /// Window event state and HighDPI coordinate translation coordinator.
     pub winit_state: irisui::winit::WinitState,
+    /// Optional localhost MCP inspection session (`--inspect`) isolated in [`ae_mcp`].
+    #[cfg(feature = "mcp")]
+    pub mcp: Option<ae_mcp::McpSession>,
 }
 
 impl AeEngine {
+    /// Advances any active multi-frame MCP sequences and drains queued RPC calls.
+    pub fn poll_inspect_requests(&mut self) {
+        #[cfg(feature = "mcp")]
+        if let Some(mut session) = self.mcp.take() {
+            session.tick(self);
+            self.mcp = Some(session);
+        }
+    }
     /// Pushes a new command to the undo stack, dropping the oldest if the limit is exceeded.
     pub fn push_undo(&mut self, cmd: Command) {
         ae_editor::history::push_undo(&mut self.editor, cmd);
@@ -288,6 +299,25 @@ impl AeEngine {
             render_state.config.format,
             render_state.post_process.msaa_samples,
         );
+        #[cfg(feature = "mcp")]
+        let mcp = cli_args
+            .inspect_addr
+            .as_deref()
+            .map(|addr| {
+                ae_mcp::McpSession::start(addr, &render_state.device, render_state.config.format)
+            })
+            .transpose()?;
+        #[cfg(feature = "mcp")]
+        if let Some(ref session) = mcp {
+            log::info!(
+                "🔌 Live inspection server listening on http://{}",
+                session.bound_addr()
+            );
+        }
+        #[cfg(not(feature = "mcp"))]
+        if cli_args.inspect_addr.is_some() {
+            return Err("ae_engine was compiled without the 'mcp' feature".to_string());
+        }
 
         let mut engine = Self {
             render_state,
@@ -323,6 +353,8 @@ impl AeEngine {
             sprite_2d_system,
             input_arbiter: crate::events::InputArbiter::new(),
             winit_state: irisui::winit::WinitState::new(window.scale_factor()),
+            #[cfg(feature = "mcp")]
+            mcp,
         };
 
         let is_2d = dimension_mode.is_2d();
