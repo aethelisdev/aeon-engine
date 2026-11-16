@@ -38,8 +38,6 @@ impl IrisEditorOverlay {
             text_renderer: None,
             command_list: DrawCommandList::new(),
             notifier,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
             is_visible: true,
             target_format,
             start_time: std::time::Instant::now(),
@@ -66,11 +64,7 @@ impl IrisEditorOverlay {
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
     pub fn update_overlays(&mut self, mut params: OverlayUpdateParams<'_>) {
         let (screen_width, screen_height) = params.context.dimensions;
-        self.screen_width = screen_width;
-        self.screen_height = screen_height;
-
         let active_tokens = self.chrome.theme_preset.tokens();
-        self.tree.set_theme(active_tokens.to_iris_theme());
 
         let modal_active = self.tree.is_any_modal_open()
             || self.assets.dialog_host.is_active()

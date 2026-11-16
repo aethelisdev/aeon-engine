@@ -354,10 +354,6 @@ pub struct IrisEditorOverlay {
     pub target_format: wgpu::TextureFormat,
     /// Texture resources and bind group for the editor tools icon atlas (`editor_tools.png`).
     pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
-    /// Last measured screen width.
-    pub screen_width: f32,
-    /// Last measured screen height.
-    pub screen_height: f32,
     /// Whether the editor overlays are visible.
     pub is_visible: bool,
 

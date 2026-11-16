@@ -129,12 +129,11 @@ impl IrisEditorOverlay {
 
         let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
         let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
-        let screen_size = (self.screen_width, self.screen_height);
         let focus_state = &self.focus_state;
 
         let assets_params = AssetsPanelParams {
             panel_rect,
-            screen_size,
+            screen_size: (scope.screen_bounds().width, scope.screen_bounds().height),
             current_folder: &self.assets.current_folder,
             search_query: self.assets.interactions.search_input.text(),
             active_category: params.panel_data.asset_browser.active_category,
