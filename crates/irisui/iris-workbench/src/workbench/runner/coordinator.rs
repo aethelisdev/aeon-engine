@@ -107,6 +107,9 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
 
     /// Autonomous 3-branch lifecycle state machine tracking shell vs panel invalidation.
     pub lifecycle: WorkbenchLifecycle<TabId>,
+
+    /// Most recent caret blink animation evaluation produced by synchronizing [`iris_text::TextSystem`].
+    pub last_caret_blink: iris_text::CaretBlinkUpdate,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -147,6 +150,7 @@ where
             hovered_panel: None,
             last_hovered_panel: None,
             lifecycle: WorkbenchLifecycle::new(),
+            last_caret_blink: iris_text::CaretBlinkUpdate::default(),
         }
     }
 

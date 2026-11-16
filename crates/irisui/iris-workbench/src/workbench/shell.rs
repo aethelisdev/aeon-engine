@@ -276,7 +276,53 @@ where
             }
         }
 
+        let blink_update = self.sync_caret_blink(engines.text_system, engines.tree);
+        if blink_update.needs_redraw() {
+            self.dual_layout.mark_needs_text_prepare();
+        }
+
         Ok(branch)
+    }
+
+    /// Synchronizes [`iris_text::TextSystem`]'s internal caret blink animation timer against `tree`
+    /// using the monotonic system clock and caches the latest [`iris_text::CaretBlinkUpdate`].
+    #[inline]
+    pub fn sync_caret_blink(
+        &mut self,
+        text_system: &mut iris_text::TextSystem,
+        tree: &iris_core::UiTree,
+    ) -> iris_text::CaretBlinkUpdate {
+        let update = text_system.sync_caret_blink(tree);
+        self.last_caret_blink = update;
+        update
+    }
+
+    /// Synchronizes [`iris_text::TextSystem`]'s internal caret blink animation timer against `tree`
+    /// using an explicit elapsed frame `delta` and caches the latest [`iris_text::CaretBlinkUpdate`].
+    #[inline]
+    pub fn sync_caret_blink_with_delta(
+        &mut self,
+        text_system: &mut iris_text::TextSystem,
+        tree: &iris_core::UiTree,
+        delta: std::time::Duration,
+    ) -> iris_text::CaretBlinkUpdate {
+        let update = text_system.sync_caret_blink_with_delta(tree, delta);
+        self.last_caret_blink = update;
+        update
+    }
+
+    /// Returns the most recently evaluated caret blink synchronization outcome.
+    #[inline]
+    #[must_use]
+    pub const fn caret_blink_state(&self) -> iris_text::CaretBlinkUpdate {
+        self.last_caret_blink
+    }
+
+    /// Returns `true` when any text input currently holds focus and its caret is in the visible blink phase.
+    #[inline]
+    #[must_use]
+    pub const fn is_caret_visible(&self) -> bool {
+        self.last_caret_blink.is_visible
     }
 
     /// Returns an immutable reference to the active docking interaction frame, if available.

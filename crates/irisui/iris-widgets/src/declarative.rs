@@ -8,6 +8,7 @@
 //! `button`, `checkbox`, `drag_float`, `drag_vec3`) instead of manually tracking
 //! pixel coordinates, parallel target lists, or constructing monolithic boilerplate builders.
 
+pub mod caret_sync;
 pub mod layout;
 pub mod scope;
 pub mod subtree;
@@ -16,6 +17,10 @@ mod tests;
 pub mod types;
 pub mod widget;
 
+pub use caret_sync::{
+    build_caret_aware_compile_options, build_caret_aware_text_options, sync_caret_blink_for_tree,
+    sync_caret_blink_with_delta_for_tree,
+};
 pub use layout::{
     layout_subtree, measure_content_height, measure_content_height_constrained, measure_height,
     measure_height_constrained, measure_width,
@@ -25,8 +30,8 @@ pub use scope::{
     CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CascadingPopupConfig, CollapsingBuilder,
     CollapsingResponse, ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags,
     ComboBoxActionResponse, ContainerResponseExt, ContextMenuExt, DropdownCardConfig,
-    DualActionBarResponse, InputBoxProps, LabeledStatusDescriptor, PopupCardStyle, PopupExt,
-    PopupPlacement, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
+    DualActionBarResponse, InputBoxProps, InputBoxStyle, LabeledStatusDescriptor, PopupCardStyle,
+    PopupExt, PopupPlacement, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
     PropertyPaletteResponse, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
     PropertyVec3Options, PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, TooltipExt,
     TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope,

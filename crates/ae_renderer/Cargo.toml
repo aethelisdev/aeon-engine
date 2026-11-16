@@ -6,7 +6,7 @@ description = "Aeon Engine - WGPU rendering pipeline"
 
 [dependencies]
 winit = "0.30.13"
-wgpu = "30.0.1"
+wgpu = "30.0.2"
 log = "0.4.33"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
@@ -22,6 +22,3 @@ ae_plugin_api = { path = "../ae_plugin_api" }
 ae_texture = { path = "../ae_texture" }
 ae_animation = { path = "../ae_animation" }
 irisui = { workspace = true }
-
-
-

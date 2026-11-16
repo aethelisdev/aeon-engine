@@ -64,6 +64,24 @@ impl MultilineEditorProps {
         }
     }
 
+    /// Constructs property descriptor derived dynamically from the provided [`iris_core::Theme`].
+    #[must_use]
+    pub fn from_theme(tag: u64, theme: &iris_core::Theme) -> Self {
+        Self {
+            tag,
+            font_size: 12.0,
+            line_height: 20.0,
+            height: 220.0,
+            show_gutter: true,
+            gutter_style: GutterStyle::default(),
+            background: theme.panel_bg,
+            border_color: theme.panel_border,
+            active_line_bg: theme.card_bg,
+            caret_color: theme.text_caret,
+            blink_caret: true,
+        }
+    }
+
     /// Sets the height of the editor container.
     #[must_use]
     pub const fn with_height(mut self, height: f32) -> Self {
@@ -75,6 +93,34 @@ impl MultilineEditorProps {
     #[must_use]
     pub const fn with_gutter(mut self, show: bool) -> Self {
         self.show_gutter = show;
+        self
+    }
+
+    /// Overrides the editor container background fill color.
+    #[must_use]
+    pub const fn with_background(mut self, color: Color) -> Self {
+        self.background = color;
+        self
+    }
+
+    /// Overrides the editor container border stroke color.
+    #[must_use]
+    pub const fn with_border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    /// Overrides the active cursor line background highlight color.
+    #[must_use]
+    pub const fn with_active_line_bg(mut self, color: Color) -> Self {
+        self.active_line_bg = color;
+        self
+    }
+
+    /// Overrides whether the `TextInputCaret` node is emitted into the retained tree when focused.
+    #[must_use]
+    pub const fn with_blink_caret(mut self, blink: bool) -> Self {
+        self.blink_caret = blink;
         self
     }
 
@@ -105,7 +151,7 @@ impl<'a> UiScope<'a> {
         height: f32,
         state: &mut MultilineTextState,
     ) -> WidgetResponse {
-        let props = MultilineEditorProps::new(tag).with_height(height);
+        let props = MultilineEditorProps::from_theme(tag, &self.theme()).with_height(height);
         self.multiline_editor_with_props(&props, state)
     }
 

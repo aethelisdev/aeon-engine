@@ -30,11 +30,15 @@ pub mod tree_view;
 // Primary declarative showcase elements re-exported at crate root
 pub use clipboard::SystemClipboard;
 pub use controls::{GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState};
+pub use declarative::caret_sync::{
+    build_caret_aware_compile_options, build_caret_aware_text_options, sync_caret_blink_for_tree,
+    sync_caret_blink_with_delta_for_tree,
+};
 pub use declarative::scope::{
     ActionBarButton, AnchoredPopupConfig, AssetSlotConfig, AssetSlotResponse,
     ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout,
-    DropdownCardConfig, DualActionBarResponse, LabeledStatusDescriptor, LogRowDescriptor,
-    ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle,
+    DropdownCardConfig, DualActionBarResponse, InputBoxStyle, LabeledStatusDescriptor,
+    LogRowDescriptor, ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle,
     PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
     TabBarResponse, UiScope, WrappedLabelDescriptor,
 };
@@ -62,17 +66,21 @@ pub use scroll_area::ScrollArea;
 /// Designed to be imported via wildcard `use iris_widgets::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     // 1. Declarative Core & Scope
+    pub use crate::declarative::caret_sync::{
+        build_caret_aware_compile_options, build_caret_aware_text_options,
+        sync_caret_blink_for_tree, sync_caret_blink_with_delta_for_tree,
+    };
     pub use crate::declarative::scope::{
         ActionBarButton, ActionCardButton, ActionCardConfig, AnchoredPopupConfig, AssetSlotConfig,
         AssetSlotResponse, CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions,
         CardResponse, ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
         ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DropdownCardConfig,
-        DualActionBarResponse, LabeledInputButton, LabeledInputConfig, LabeledStatusDescriptor,
-        LogRowBadge, LogRowDescriptor, MultilineEditorProps, NavItemConfig, NumberLabelDescriptor,
-        PopupCardStyle, PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
-        PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
-        PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
-        WrappedLabelDescriptor,
+        DualActionBarResponse, InputBoxStyle, LabeledInputButton, LabeledInputConfig,
+        LabeledStatusDescriptor, LogRowBadge, LogRowDescriptor, MultilineEditorProps,
+        NavItemConfig, NumberLabelDescriptor, PopupCardStyle, PrimaryButtonConfig,
+        PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
+        PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
+        PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope, WrappedLabelDescriptor,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

@@ -87,6 +87,27 @@ impl CaretBlinkTimer {
         self.is_visible
     }
 
+    /// Returns the configured half-cycle blink interval in milliseconds.
+    #[must_use]
+    #[inline]
+    pub const fn interval_ms(&self) -> u64 {
+        self.interval_ms
+    }
+
+    /// Updates the half-cycle blink interval in milliseconds.
+    ///
+    /// Clamps zero intervals to a minimum of `1` millisecond and wraps any accumulated
+    /// elapsed phase within the updated full cycle period.
+    ///
+    /// # Arguments
+    /// * `interval_ms` - New half-period duration in milliseconds (visible duration = hidden duration).
+    #[inline]
+    pub fn set_interval_ms(&mut self, interval_ms: u64) {
+        self.interval_ms = if interval_ms == 0 { 1 } else { interval_ms };
+        self.elapsed_ms %= self.interval_ms * 2;
+        self.is_visible = self.elapsed_ms < self.interval_ms;
+    }
+
     /// Resets the elapsed animation cycle and immediately forces the caret to be visible.
     ///
     /// Recommended to invoke upon receiving keystrokes, character inputs, or caret navigation events
@@ -143,6 +164,31 @@ pub fn calculate_caret_rect(
         caret_width.max(1.0),
         font_size.max(1.0),
     )
+}
+
+/// Outcome of synchronizing [`crate::TextSystem`] internal caret blink animation against a [`iris_core::UiTree`].
+///
+/// Tracks live cursor visibility, whether a text field holds focus, focus target transitions,
+/// and blink phase flips so retained renderers only prepare text or re-upload draw quads when needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CaretBlinkUpdate {
+    /// Whether the caret should currently be drawn visible (`has_text_focus` and blink phase on).
+    pub is_visible: bool,
+    /// Whether any text input widget currently holds keyboard focus in the evaluated tree.
+    pub has_text_focus: bool,
+    /// Whether the focused text input target changed since the previous evaluation.
+    pub focus_changed: bool,
+    /// Whether caret blink visibility transitioned since the previous evaluation.
+    pub blink_changed: bool,
+}
+
+impl CaretBlinkUpdate {
+    /// Returns `true` if either keyboard focus changed or caret blink visibility flipped.
+    #[inline]
+    #[must_use]
+    pub const fn needs_redraw(&self) -> bool {
+        self.focus_changed || self.blink_changed
+    }
 }
 
 /// Visual properties and geometric parameters describing an interactive text caret cursor.
@@ -218,5 +264,30 @@ mod tests {
         assert_eq!(rect.y, 23.0); // 20.0 + (20.0 - 14.0) * 0.5
         assert_eq!(rect.width, 1.5);
         assert_eq!(rect.height, 14.0);
+    }
+
+    #[test]
+    fn test_caret_interval_customization_and_update_redraw() {
+        let mut timer = CaretBlinkTimer::new();
+        assert_eq!(timer.interval_ms(), DEFAULT_CARET_BLINK_INTERVAL_MS);
+
+        timer.set_interval_ms(250);
+        assert_eq!(timer.interval_ms(), 250);
+        assert!(timer.tick(250));
+        assert!(!timer.is_visible());
+
+        // Zero clamps cleanly to 1ms without panicking
+        timer.set_interval_ms(0);
+        assert_eq!(timer.interval_ms(), 1);
+
+        let idle = CaretBlinkUpdate::default();
+        assert!(!idle.needs_redraw());
+        let flipped = CaretBlinkUpdate {
+            is_visible: false,
+            has_text_focus: true,
+            focus_changed: false,
+            blink_changed: true,
+        };
+        assert!(flipped.needs_redraw());
     }
 }

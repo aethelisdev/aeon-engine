@@ -62,6 +62,35 @@ impl<'a> UiScope<'a> {
         self.tree.event_state.clear_text_edit();
     }
 
+    /// Synchronizes internal caret blink timing inside `text_system` with this scope's [`iris_core::UiTree`]
+    /// using the monotonic system clock.
+    #[inline]
+    pub fn sync_caret_blink(
+        &self,
+        text_system: &mut iris_text::TextSystem,
+    ) -> iris_text::CaretBlinkUpdate {
+        text_system.sync_caret_blink(self.tree)
+    }
+
+    /// Synchronizes internal caret blink timing inside `text_system` with this scope's [`iris_core::UiTree`]
+    /// using an explicit elapsed frame `delta`.
+    #[inline]
+    pub fn sync_caret_blink_with_delta(
+        &self,
+        text_system: &mut iris_text::TextSystem,
+        delta: std::time::Duration,
+    ) -> iris_text::CaretBlinkUpdate {
+        text_system.sync_caret_blink_with_delta(self.tree, delta)
+    }
+
+    /// Returns `true` when any text input in this scope holds keyboard focus and `text_system`
+    /// is currently in the visible phase of its internal caret blink cycle.
+    #[inline]
+    #[must_use]
+    pub fn is_caret_visible(&self, text_system: &iris_text::TextSystem) -> bool {
+        self.tree.is_text_input_focused() && text_system.is_caret_visible()
+    }
+
     /// Returns the current text buffer string for an active text input widget tagged with `tag`.
     ///
     /// # Arguments

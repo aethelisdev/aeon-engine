@@ -630,3 +630,49 @@ fn test_workbench_outcome_cursor_pos_export() {
     assert_eq!(outcome_up.cursor_pos, Some(Point::new(505.0, 405.0)));
     assert!(!wb.pointer_state().is_primary_down());
 }
+
+#[test]
+fn test_workbench_sync_caret_blink_updates_visibility() {
+    let mut wb = create_test_workbench();
+    let mut tree = iris_core::UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let mut text_system = iris_text::TextSystem::new();
+    text_system.set_caret_blink_interval_ms(120);
+
+    let input_id = tree.create_node();
+    if let Some(node) = tree.get_mut(input_id) {
+        node.role = iris_core::node::WidgetRole::TextInput;
+        node.tag = 888;
+    }
+    tree.add_child(root, input_id).expect("child");
+
+    // 1. No focus -> caret not active/visible
+    let u0 = wb.sync_caret_blink_with_delta(
+        &mut text_system,
+        &tree,
+        std::time::Duration::from_millis(16),
+    );
+    assert!(!u0.has_text_focus);
+    assert!(!wb.is_caret_visible());
+
+    // 2. Focus -> caret visible
+    tree.event_state.focused = Some(input_id);
+    tree.event_state.focused_tag = Some(888);
+    let u1 = wb.sync_caret_blink_with_delta(
+        &mut text_system,
+        &tree,
+        std::time::Duration::from_millis(16),
+    );
+    assert!(u1.has_text_focus);
+    assert!(wb.is_caret_visible());
+    assert_eq!(wb.caret_blink_state(), u1);
+
+    // 3. Advance past interval -> caret toggles hidden
+    let u2 = wb.sync_caret_blink_with_delta(
+        &mut text_system,
+        &tree,
+        std::time::Duration::from_millis(130),
+    );
+    assert!(u2.blink_changed);
+    assert!(!wb.is_caret_visible());
+}

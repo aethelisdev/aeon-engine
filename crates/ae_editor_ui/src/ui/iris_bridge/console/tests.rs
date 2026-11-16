@@ -320,16 +320,17 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         .find(|(_, n)| n.tag == CONSOLE_TAG_SEARCH_INPUT && n.role == WidgetRole::TextInput)
         .expect("Search input node must exist in tree");
 
+    let expected_style = irisui::widgets::InputBoxStyle::from_theme(&tree.theme());
     assert_eq!(
         search_node.style.hover_background,
-        Some(Color::rgba(0.08, 0.09, 0.12, 0.98)),
+        Some(expected_style.hover_background),
         "Search input must have declarative hover background"
     );
     assert_eq!(
         search_node.style.hover_border,
         Some(irisui::prelude::Border::uniform(
             1.0,
-            Color::rgba(0.35, 0.40, 0.52, 0.95)
+            expected_style.hover_border_color
         )),
         "Search input must have declarative illuminated hover border"
     );

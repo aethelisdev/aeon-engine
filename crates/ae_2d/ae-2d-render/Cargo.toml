@@ -14,4 +14,4 @@ bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
 glam = { workspace = true }
 log = "0.4.33"
-wgpu = "30.0.1"
+wgpu = "30.0.2"

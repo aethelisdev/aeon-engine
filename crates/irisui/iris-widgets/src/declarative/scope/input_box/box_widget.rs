@@ -7,7 +7,7 @@
 //! search icons, clear buttons, selection capsules, and blinking carets on [`UiScope`].
 
 use super::interaction::{TextInputKeyContext, find_cursor_idx_at_x, process_text_input_keys};
-use super::types::{InputBoxProps, calculate_visible_slice_and_caret};
+use super::types::{InputBoxProps, InputBoxStyle, calculate_visible_slice_and_caret};
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{ResponseFlags, WidgetResponse};
 use iris_core::{
@@ -374,28 +374,33 @@ impl<'a> UiScope<'a> {
             .as_ref()
             .is_some_and(|s| s.tag == edit_key);
 
+        let theme_style = props
+            .style
+            .unwrap_or_else(|| InputBoxStyle::from_theme(&self.theme()));
         let border_color = if is_still_focused || props.is_focused {
-            Color::rgba(0.0, 0.90, 1.0, 0.95)
+            theme_style.focus_border_color
         } else if hovered {
-            Color::rgba(0.35, 0.40, 0.52, 0.95)
+            theme_style.hover_border_color
         } else {
-            Color::rgba(0.20, 0.23, 0.30, 0.60)
+            theme_style.border_color
         };
-        let bg_color = if hovered || is_still_focused {
-            Color::rgba(0.08, 0.09, 0.12, 0.98)
+        let bg_color = if is_still_focused || props.is_focused {
+            theme_style.focus_background
+        } else if hovered {
+            theme_style.hover_background
         } else {
-            Color::rgba(0.06, 0.07, 0.09, 0.95)
+            theme_style.background
         };
 
         let mut box_style = Style::new()
-            .height(24.0)
-            .border_radius(4.0)
+            .height(theme_style.height)
+            .border_radius(theme_style.corner_radius)
             .border(1.0, border_color)
-            .hover_border(1.0, Color::rgba(0.35, 0.40, 0.52, 0.95))
-            .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.95))
+            .hover_border(1.0, theme_style.hover_border_color)
+            .focus_border(1.0, theme_style.focus_border_color)
             .background(bg_color)
-            .hover_background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-            .focus_background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+            .hover_background(theme_style.hover_background)
+            .focus_background(theme_style.focus_background)
             .clip_children(true);
 
         if props.width > 0.0 {
@@ -419,16 +424,16 @@ impl<'a> UiScope<'a> {
                 node.role = WidgetRole::TextInputIcon;
                 node.set_text(icon_str);
                 node.font_size = 11.0;
-                node.line_height = 24.0;
+                node.line_height = theme_style.height;
                 node.text_align = TextAlign::Center;
-                node.text_color = Color::rgba(0.55, 0.58, 0.68, 1.0);
+                node.text_color = theme_style.icon_color;
                 node.set_style(
                     Style::new()
                         .position_absolute()
                         .left(7.0)
                         .top(0.0)
                         .width(14.0)
-                        .height(24.0),
+                        .height(theme_style.height),
                 );
             }
             let _ = self.tree.add_child(box_id, icon_id);
@@ -497,7 +502,8 @@ impl<'a> UiScope<'a> {
                 let sel_w = (sel_end_x - sel_start_x).max(2.0);
                 let sel_x = text_start_x + sel_start_x;
                 let sel_id = self.tree.create_node();
-                let sel_bg = self.theme().selection_background;
+                let sel_bg = theme_style.selection_background;
+                let sel_h = (theme_style.height - 7.0).max(8.0);
                 if let Some(node) = self.tree.get_mut(sel_id) {
                     node.set_name("SelectionCapsule");
                     node.interactive = false;
@@ -507,7 +513,7 @@ impl<'a> UiScope<'a> {
                             .left(sel_x)
                             .top(3.5)
                             .width(sel_w)
-                            .height(17.0)
+                            .height(sel_h)
                             .background(sel_bg)
                             .border_radius(3.0),
                     );
@@ -528,21 +534,21 @@ impl<'a> UiScope<'a> {
             node.interactive = false;
             node.set_text(display_text);
             node.font_size = font_size;
-            node.line_height = 24.0;
+            node.line_height = theme_style.height;
             node.text_align = TextAlign::Left;
             node.text_color = if active_text.is_empty() {
-                Color::rgba(0.42, 0.45, 0.55, 1.0)
+                theme_style.placeholder_color
             } else {
-                Color::rgba(0.92, 0.94, 0.98, 1.0)
+                theme_style.text_color
             };
-            node.focus_text_color = Some(Color::rgba(0.92, 0.94, 0.98, 1.0));
+            node.focus_text_color = Some(theme_style.text_color);
             node.set_style(
                 Style::new()
                     .position_absolute()
                     .left(text_start_x)
                     .top(0.0)
                     .width(max_visible_w)
-                    .height(24.0),
+                    .height(theme_style.height),
             );
         }
         let _ = self.tree.add_child(box_id, text_id);
@@ -558,7 +564,8 @@ impl<'a> UiScope<'a> {
         if show_caret {
             let caret_x = text_start_x + caret_offset;
             let caret_id = self.tree.create_node();
-            let caret_color = props.caret_color.unwrap_or(self.theme().text_caret);
+            let caret_color = props.caret_color.unwrap_or(theme_style.caret_color);
+            let caret_top = ((theme_style.height - theme_style.caret_height) * 0.5).max(1.0);
             if let Some(node) = self.tree.get_mut(caret_id) {
                 node.set_name("TextInputCaret");
                 node.role = WidgetRole::TextInputCaret;
@@ -568,11 +575,11 @@ impl<'a> UiScope<'a> {
                     Style::new()
                         .position_absolute()
                         .left(caret_x)
-                        .top(5.0)
-                        .width(1.5)
-                        .height(14.0)
+                        .top(caret_top)
+                        .width(theme_style.caret_width)
+                        .height(theme_style.caret_height)
                         .background(caret_color)
-                        .border_radius(0.75),
+                        .border_radius(theme_style.caret_width * 0.5),
                 );
             }
             let _ = self.tree.add_child(box_id, caret_id);
@@ -592,8 +599,8 @@ impl<'a> UiScope<'a> {
                 node.font_size = 11.0;
                 node.line_height = 18.0;
                 node.text_align = TextAlign::Center;
-                node.text_color = Color::rgba(0.60, 0.63, 0.72, 1.0);
-                node.hover_text_color = Some(Color::WHITE);
+                node.text_color = theme_style.clear_color;
+                node.hover_text_color = Some(theme_style.clear_hover_color);
                 node.set_style(
                     Style::new()
                         .position_absolute()

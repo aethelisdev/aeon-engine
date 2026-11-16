@@ -3,9 +3,14 @@
 
 //! Central font system, text layout measurement, and shaped glyph caching engine.
 
+use crate::caret::{CaretBlinkTimer, CaretBlinkUpdate};
+use crate::collector::TextCollectionOptions;
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache};
 use iris_core::{Size, TextAlign, TextWrap, UiTree, WidgetId};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
+
+type CaretFocusKey = (Option<WidgetId>, Option<u64>, Option<u64>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct MeasureCacheKey {
@@ -57,6 +62,11 @@ pub struct TextSystem {
     measure_cache: HashMap<MeasureCacheKey, Size>,
     shape_cache: HashMap<ShapeCacheKey, Buffer>,
     advance_cache: HashMap<AdvanceCacheKey, f32>,
+    caret_timer: CaretBlinkTimer,
+    caret_subms_ns: u128,
+    last_caret_tick: Option<Instant>,
+    last_blink_focus_key: Option<CaretFocusKey>,
+    caret_blink_enabled: bool,
 }
 
 impl Default for TextSystem {
@@ -91,6 +101,11 @@ impl TextSystem {
             measure_cache: HashMap::with_capacity(256),
             shape_cache: HashMap::with_capacity(256),
             advance_cache: HashMap::with_capacity(256),
+            caret_timer: CaretBlinkTimer::new(),
+            caret_subms_ns: 0,
+            last_caret_tick: None,
+            last_blink_focus_key: None,
+            caret_blink_enabled: true,
         }
     }
 
@@ -363,6 +378,214 @@ impl TextSystem {
     pub fn index_for_position(&mut self, text: &str, font_size: f32, local_x: f32) -> usize {
         crate::hit_test::index_for_position_in_system(self, text, font_size, local_x)
     }
+
+    /// Returns an immutable reference to the internal [`CaretBlinkTimer`].
+    #[inline]
+    #[must_use]
+    pub const fn caret_blink_timer(&self) -> &CaretBlinkTimer {
+        &self.caret_timer
+    }
+
+    /// Returns a mutable reference to the internal [`CaretBlinkTimer`].
+    #[inline]
+    pub fn caret_blink_timer_mut(&mut self) -> &mut CaretBlinkTimer {
+        &mut self.caret_timer
+    }
+
+    /// Returns the configured half-cycle caret blink duration in milliseconds.
+    #[inline]
+    #[must_use]
+    pub const fn caret_blink_interval_ms(&self) -> u64 {
+        self.caret_timer.interval_ms()
+    }
+
+    /// Customizes the half-cycle caret blink interval in milliseconds without hardcoded lock-in.
+    ///
+    /// # Arguments
+    /// * `interval_ms` - Half-period duration in milliseconds (visible duration = hidden duration).
+    #[inline]
+    pub fn set_caret_blink_interval_ms(&mut self, interval_ms: u64) {
+        self.caret_timer.set_interval_ms(interval_ms);
+    }
+
+    /// Returns `true` when periodic caret blinking animation is enabled (`false` yields a steady solid caret).
+    #[inline]
+    #[must_use]
+    pub const fn is_caret_blink_enabled(&self) -> bool {
+        self.caret_blink_enabled
+    }
+
+    /// Enables or disables periodic caret blinking animation (steady solid caret when `false`).
+    #[inline]
+    pub fn set_caret_blink_enabled(&mut self, enabled: bool) {
+        self.caret_blink_enabled = enabled;
+        if !enabled {
+            self.caret_timer.reset();
+            self.caret_subms_ns = 0;
+        }
+    }
+
+    /// Returns `true` if text input carets are currently in the visible blink phase.
+    #[inline]
+    #[must_use]
+    pub const fn is_caret_visible(&self) -> bool {
+        !self.caret_blink_enabled || self.caret_timer.is_visible()
+    }
+
+    /// Resets the internal caret blink animation timer so the caret immediately appears visible.
+    #[inline]
+    pub fn reset_caret_blink(&mut self) {
+        self.reset_caret_blink_at(Instant::now());
+    }
+
+    /// Resets the internal caret blink animation timer anchored at an explicit monotonic timestamp.
+    #[inline]
+    pub fn reset_caret_blink_at(&mut self, now: Instant) {
+        self.caret_timer.reset();
+        self.caret_subms_ns = 0;
+        self.last_caret_tick = Some(now);
+    }
+
+    /// Advances the internal caret blink timer by `delta`, preserving sub-millisecond remainders
+    /// across high-refresh-rate frames, and returns `true` if caret visibility transitioned.
+    pub fn advance_caret_blink(&mut self, delta: Duration) -> bool {
+        if !self.caret_blink_enabled {
+            let was_visible = self.caret_timer.is_visible();
+            self.caret_timer.reset();
+            self.caret_subms_ns = 0;
+            return !was_visible;
+        }
+        self.caret_subms_ns = self.caret_subms_ns.saturating_add(delta.as_nanos());
+        let whole_ms = (self.caret_subms_ns / 1_000_000) as u64;
+        self.caret_subms_ns %= 1_000_000;
+        if whole_ms == 0 {
+            return false;
+        }
+        self.caret_timer.tick(whole_ms)
+    }
+
+    /// Advances the internal caret blink timer using an explicit monotonic timestamp `now`
+    /// and returns `true` if caret visibility transitioned.
+    pub fn tick_caret_blink_at(&mut self, now: Instant) -> bool {
+        if let Some(prev) = self.last_caret_tick {
+            let delta = now.saturating_duration_since(prev);
+            self.last_caret_tick = Some(now);
+            self.advance_caret_blink(delta)
+        } else {
+            self.reset_caret_blink_at(now);
+            false
+        }
+    }
+
+    /// Advances the internal caret blink timer using the OS monotonic clock (`Instant::now()`)
+    /// and returns `true` if caret visibility transitioned.
+    #[inline]
+    pub fn tick_caret_blink(&mut self) -> bool {
+        self.tick_caret_blink_at(Instant::now())
+    }
+
+    /// Synchronizes internal caret blink animation against `tree` using an explicit frame `delta`.
+    ///
+    /// Automatically detects focus transitions, resets the timer to visible on focus gain or
+    /// keyboard typing input, and advances periodic blinking otherwise.
+    pub fn sync_caret_blink_with_delta(
+        &mut self,
+        tree: &UiTree,
+        delta: Duration,
+    ) -> CaretBlinkUpdate {
+        self.evaluate_tree_blink(tree, None, Some(delta))
+    }
+
+    /// Synchronizes internal caret blink animation against `tree` at an explicit monotonic timestamp `now`.
+    pub fn sync_caret_blink_at(&mut self, tree: &UiTree, now: Instant) -> CaretBlinkUpdate {
+        self.evaluate_tree_blink(tree, Some(now), None)
+    }
+
+    /// Synchronizes internal caret blink animation against `tree` using `Instant::now()`.
+    #[inline]
+    pub fn sync_caret_blink(&mut self, tree: &UiTree) -> CaretBlinkUpdate {
+        self.sync_caret_blink_at(tree, Instant::now())
+    }
+
+    /// Builds [`TextCollectionOptions`] pre-populated with focus, hover, and live blink state
+    /// directly from `tree` and this `TextSystem` instance.
+    #[must_use]
+    pub fn text_collection_options(&self, tree: &UiTree) -> TextCollectionOptions {
+        TextCollectionOptions::new()
+            .with_hovered_id(tree.event_state.hovered)
+            .with_focused_id(tree.event_state.focused)
+            .with_focused_tag(tree.event_state.focused_tag)
+            .with_blink_caret(self.is_caret_visible())
+    }
+
+    fn evaluate_tree_blink(
+        &mut self,
+        tree: &UiTree,
+        now: Option<Instant>,
+        delta: Option<Duration>,
+    ) -> CaretBlinkUpdate {
+        let has_text_focus = tree.is_text_input_focused();
+        let focus_key = if has_text_focus {
+            Some((
+                tree.event_state.focused,
+                tree.event_state.focused_tag,
+                tree.event_state.active_text_edit.as_ref().map(|s| s.tag),
+            ))
+        } else {
+            None
+        };
+        let focus_changed = focus_key != self.last_blink_focus_key;
+        self.last_blink_focus_key = focus_key;
+
+        if !has_text_focus {
+            self.caret_timer.reset();
+            self.caret_subms_ns = 0;
+            if let Some(ts) = now {
+                self.last_caret_tick = Some(ts);
+            }
+            return CaretBlinkUpdate {
+                is_visible: false,
+                has_text_focus: false,
+                focus_changed,
+                blink_changed: false,
+            };
+        }
+
+        let had_typing_input = (tree.event_state.frame_key_pressed
+            && tree.event_state.frame_key.is_some())
+            || tree.event_state.frame_text_input.is_some();
+
+        if focus_changed || had_typing_input {
+            let was_visible = self.is_caret_visible();
+            self.caret_timer.reset();
+            self.caret_subms_ns = 0;
+            if let Some(ts) = now {
+                self.last_caret_tick = Some(ts);
+            }
+            let now_visible = self.is_caret_visible();
+            return CaretBlinkUpdate {
+                is_visible: now_visible,
+                has_text_focus: true,
+                focus_changed,
+                blink_changed: was_visible != now_visible,
+            };
+        }
+
+        let blink_changed = if let Some(d) = delta {
+            self.advance_caret_blink(d)
+        } else if let Some(ts) = now {
+            self.tick_caret_blink_at(ts)
+        } else {
+            false
+        };
+
+        CaretBlinkUpdate {
+            is_visible: self.is_caret_visible(),
+            has_text_focus: true,
+            focus_changed: false,
+            blink_changed,
+        }
+    }
 }
 
 impl iris_core::TextMeasurer for TextSystem {
@@ -402,4 +625,81 @@ pub fn set_default_text_family(family: &str) {
             guard.set_default_family(family);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iris_core::{KeyCode, WidgetRole};
+
+    #[test]
+    fn test_text_system_internal_caret_blink_and_subms_accumulation() {
+        let mut sys = TextSystem::new();
+        assert!(sys.is_caret_visible());
+        assert_eq!(sys.caret_blink_interval_ms(), 530);
+
+        sys.set_caret_blink_interval_ms(100);
+        // Sub-millisecond frames (250 frames x 400us = 100ms) must toggle cleanly
+        let mut flipped = false;
+        for _ in 0..250 {
+            if sys.advance_caret_blink(Duration::from_micros(400)) {
+                flipped = true;
+            }
+        }
+        assert!(
+            flipped,
+            "Sub-millisecond frames must accumulate to flip caret"
+        );
+        assert!(!sys.is_caret_visible());
+
+        // Disabling blink forces steady visibility
+        sys.set_caret_blink_enabled(false);
+        assert!(sys.is_caret_visible());
+        assert!(!sys.advance_caret_blink(Duration::from_millis(500)));
+        assert!(sys.is_caret_visible());
+    }
+
+    #[test]
+    fn test_text_system_sync_caret_blink_focus_and_keystroke_reset() {
+        let mut sys = TextSystem::new();
+        sys.set_caret_blink_interval_ms(200);
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let input_id = tree.create_node();
+        if let Some(node) = tree.get_mut(input_id) {
+            node.role = WidgetRole::TextInput;
+            node.tag = 42;
+        }
+        tree.add_child(root, input_id).expect("add child");
+
+        // 1. Unfocused tree -> not visible, no redraw
+        let s0 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(100));
+        assert!(!s0.has_text_focus);
+        assert!(!s0.is_visible);
+        assert!(!s0.needs_redraw());
+
+        // 2. Gain focus -> visible + focus_changed
+        tree.event_state.focused = Some(input_id);
+        tree.event_state.focused_tag = Some(42);
+        let s1 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(16));
+        assert!(s1.has_text_focus);
+        assert!(s1.is_visible);
+        assert!(s1.focus_changed);
+        assert!(s1.needs_redraw());
+
+        // 3. Advance past half-period -> flips hidden
+        let s2 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(210));
+        assert!(!s2.is_visible);
+        assert!(s2.blink_changed);
+        assert!(s2.needs_redraw());
+
+        // 4. Keystroke while hidden -> immediately resets caret visible
+        tree.event_state.frame_key = Some(KeyCode::Character('a'));
+        tree.event_state.frame_key_pressed = true;
+        let s3 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(16));
+        assert!(s3.is_visible);
+        assert!(s3.blink_changed);
+        assert!(s3.needs_redraw());
+    }
 }

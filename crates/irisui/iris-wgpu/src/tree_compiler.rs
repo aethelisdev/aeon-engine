@@ -106,6 +106,16 @@ impl<'a> TreeCompilerOptions<'a> {
         self
     }
 
+    /// Populates hover and focus state tokens directly from the UI tree interaction state.
+    #[must_use]
+    #[inline]
+    pub fn with_tree_focus(mut self, tree: &UiTree) -> Self {
+        self.hovered_id = tree.event_state.hovered;
+        self.focused_id = tree.event_state.focused;
+        self.focused_tag = tree.event_state.focused_tag;
+        self
+    }
+
     /// Sets a custom drawing callback invoked during tree node traversal.
     #[inline]
     pub fn with_custom_drawer(mut self, drawer: CustomDrawCallback<'a>) -> Self {
