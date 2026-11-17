@@ -33,7 +33,7 @@ impl EngineUi {
                     if let Ok(elem) = world.get::<&ae_core::ecs::UiElement>(entity) {
                         let mut updated = *elem;
                         updated.offset = offset;
-                        if let Ok(serialized) = serde_json::to_vec(&updated) {
+                        if let Ok(serialized) = postcard::to_stdvec(&updated) {
                             ui_actions.push(EngineUiAction::ModifyComponent(
                                 entity,
                                 "UiElement",

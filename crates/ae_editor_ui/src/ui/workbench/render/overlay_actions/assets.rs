@@ -71,7 +71,7 @@ impl EngineUi {
                         ui_actions.push(EngineUiAction::SpawnSpritePathAt(path, [0.0, 0.0, 0.0]));
                     }
                     crate::assets::types::AssetCategory::Scenes => {
-                        if is_2d_mode && crate::assets::scanner::is_scene_file_3d(&path) {
+                        if is_2d_mode && crate::assets::scanner::is_world_file_3d(&path) {
                             log::warn!("Cannot load 3D scene in 2D mode: {:?}", path);
                         } else {
                             ui_actions.push(EngineUiAction::LoadSceneFromPath(path));
@@ -237,7 +237,7 @@ impl EngineUi {
                                 }
                                 crate::assets::types::AssetCategory::Scenes => {
                                     if is_2d_mode
-                                        && crate::assets::scanner::is_scene_file_3d(&payload.path)
+                                        && crate::assets::scanner::is_world_file_3d(&payload.path)
                                     {
                                         log::warn!(
                                             "[DRAG-DROP] Cannot load 3D scene in 2D mode: {:?}",

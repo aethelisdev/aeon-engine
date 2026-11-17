@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct SerializedComponent {
     /// Human-readable type identifier corresponding to a registered `ComponentHandler`.
     pub type_name: String,
-    /// Serialized JSON component payload.
+    /// Serialized binary `postcard` component payload.
     pub data: Vec<u8>,
 }
 
@@ -105,7 +105,7 @@ impl EntitySnapshot {
         let name = handler.type_name();
         for comp in &self.components {
             if comp.type_name == name {
-                return serde_json::from_slice(&comp.data).ok();
+                return postcard::from_bytes(&comp.data).ok();
             }
         }
         None
@@ -334,8 +334,8 @@ impl Property {
             .next()
             .unwrap_or(full_name)
             .to_string();
-        let old_data = serde_json::to_vec(old).map_err(|e| e.to_string())?;
-        let new_data = serde_json::to_vec(new).map_err(|e| e.to_string())?;
+        let old_data = postcard::to_stdvec(old).map_err(|e| e.to_string())?;
+        let new_data = postcard::to_stdvec(new).map_err(|e| e.to_string())?;
         Ok(Self::Component {
             type_name,
             old_data,

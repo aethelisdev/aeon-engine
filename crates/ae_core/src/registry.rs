@@ -18,13 +18,22 @@ pub trait ComponentHandler: Send + Sync {
     /// Human-readable type identifier (e.g. "Position", "Rotation", "Name").
     fn type_name(&self) -> &'static str;
 
+    /// Deterministic 64-bit FNV-1a discriminator matching `ae_plugin_api::component_type_hash`.
+    fn type_hash(&self) -> u64;
+
     /// TypeId of the underlying component.
     fn type_id(&self) -> TypeId;
 
-    /// Captures component state from `world` on `entity` as serialized JSON bytes.
+    /// Captures component state from `world` on `entity` as binary `postcard` bytes.
     fn capture(&self, world: &hecs::World, entity: hecs::Entity) -> Option<Vec<u8>>;
 
-    /// Restores serialized component data onto `entity` in `world`.
+    /// Captures component state as a JSON string strictly for live RPC debugging/inspection (`ae_mcp`).
+    fn capture_debug_json(&self, world: &hecs::World, entity: hecs::Entity) -> Option<String>;
+
+    /// Converts an offline JSON object representation into binary `postcard` bytes for migration tools.
+    fn transcode_json_to_binary(&self, json: &str) -> Result<Vec<u8>, String>;
+
+    /// Restores serialized binary `postcard` component data onto `entity` in `world`.
     fn apply(
         &self,
         world: &mut hecs::World,
@@ -85,16 +94,31 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
         self.name
     }
 
+    fn type_hash(&self) -> u64 {
+        ae_plugin_api::component_type_hash(self.name)
+    }
+
     fn type_id(&self) -> TypeId {
         TypeId::of::<T>()
     }
 
     fn capture(&self, world: &hecs::World, entity: hecs::Entity) -> Option<Vec<u8>> {
-        if let Ok(comp) = world.get::<&T>(entity) {
-            serde_json::to_vec(&*comp).ok()
-        } else {
-            None
-        }
+        world
+            .get::<&T>(entity)
+            .ok()
+            .and_then(|comp| postcard::to_stdvec(&*comp).ok())
+    }
+
+    fn capture_debug_json(&self, world: &hecs::World, entity: hecs::Entity) -> Option<String> {
+        world
+            .get::<&T>(entity)
+            .ok()
+            .and_then(|comp| serde_json::to_string(&*comp).ok())
+    }
+
+    fn transcode_json_to_binary(&self, json: &str) -> Result<Vec<u8>, String> {
+        let comp: T = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        postcard::to_stdvec(&comp).map_err(|e| e.to_string())
     }
 
     fn apply(
@@ -103,7 +127,7 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
         entity: hecs::Entity,
         data: &[u8],
     ) -> Result<(), String> {
-        let comp: T = serde_json::from_slice(data).map_err(|e| e.to_string())?;
+        let comp: T = postcard::from_bytes(data).map_err(|e| e.to_string())?;
         world
             .insert_one(entity, comp)
             .map_err(|e| format!("{:?}", e))?;
@@ -138,11 +162,6 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
                 .insert_one(entity, instance)
                 .map_err(|e| format!("{:?}", e))?;
             Ok(())
-        } else if let Ok(comp) = serde_json::from_str::<T>("{}") {
-            world
-                .insert_one(entity, comp)
-                .map_err(|e| format!("{:?}", e))?;
-            Ok(())
         } else {
             Err(format!(
                 "Component '{}' has no default constructor registered",
@@ -156,6 +175,7 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
 pub struct ComponentRegistry {
     handlers: Vec<Box<dyn ComponentHandler>>,
     type_id_map: HashMap<TypeId, usize>,
+    type_hash_map: HashMap<u64, usize>,
     name_map: HashMap<String, usize>,
 }
 
@@ -165,6 +185,7 @@ impl ComponentRegistry {
         Self {
             handlers: Vec::new(),
             type_id_map: HashMap::new(),
+            type_hash_map: HashMap::new(),
             name_map: HashMap::new(),
         }
     }
@@ -188,10 +209,12 @@ impl ComponentRegistry {
         name: &'static str,
     ) {
         let type_id = TypeId::of::<T>();
+        let hash = ae_plugin_api::component_type_hash(name);
         let idx = self.handlers.len();
         self.handlers
             .push(Box::new(TypedComponentHandler::<T>::new(name)));
         self.type_id_map.insert(type_id, idx);
+        self.type_hash_map.insert(hash, idx);
         self.name_map.insert(name.to_string(), idx);
     }
 
@@ -204,12 +227,14 @@ impl ComponentRegistry {
         default_fn: fn() -> T,
     ) {
         let type_id = TypeId::of::<T>();
+        let hash = ae_plugin_api::component_type_hash(name);
         let idx = self.handlers.len();
         self.handlers
             .push(Box::new(TypedComponentHandler::<T>::with_default(
                 name, default_fn,
             )));
         self.type_id_map.insert(type_id, idx);
+        self.type_hash_map.insert(hash, idx);
         self.name_map.insert(name.to_string(), idx);
     }
 
@@ -218,6 +243,18 @@ impl ComponentRegistry {
         self.type_id_map
             .get(&type_id)
             .map(|&idx| &*self.handlers[idx])
+    }
+
+    /// Retrieves a component handler by deterministic 64-bit `type_hash`.
+    pub fn get_by_type_hash(&self, type_hash: u64) -> Option<&dyn ComponentHandler> {
+        self.type_hash_map
+            .get(&type_hash)
+            .map(|&idx| &*self.handlers[idx])
+    }
+
+    /// Returns the set of all registered 64-bit component type hashes.
+    pub fn known_type_hashes(&self) -> std::collections::HashSet<u64> {
+        self.type_hash_map.keys().copied().collect()
     }
 
     /// Retrieves a component handler by component name string.
@@ -256,6 +293,10 @@ impl ComponentRegistry {
     /// Builds a default component registry pre-populated with all core engine components.
     pub fn default_engine_registry() -> Self {
         let mut registry = Self::new();
+        registry.register_with_default::<ae_plugin_api::EntityGuid>(
+            "EntityGuid",
+            ae_plugin_api::EntityGuid::default,
+        );
         registry.register_with_default::<ae_plugin_api::Position>(
             "Position",
             ae_plugin_api::Position::default,
@@ -515,5 +556,42 @@ mod tests {
             .expect("restored SpriteRenderer must exist");
 
         assert_eq!(*restored, sprite);
+    }
+
+    #[test]
+    fn test_component_registry_type_hashes_are_collision_free() {
+        let registry = ComponentRegistry::global();
+        let mut seen = std::collections::HashSet::with_capacity(registry.len());
+        for handler in registry.handlers() {
+            let hash = ae_plugin_api::component_type_hash(handler.type_name());
+            assert!(
+                seen.insert(hash),
+                "Duplicate component_type_hash detected for '{}'",
+                handler.type_name()
+            );
+        }
+        assert!(registry.get_by_name("EntityGuid").is_some());
+    }
+
+    #[test]
+    fn test_binary_dependencies_guid_postcard_lz4_crc_roundtrip() {
+        let entity_guid =
+            ae_plugin_api::EntityGuid::from_raw(0x1122_3344_5566_7788_99aa_bbcc_ddee_ff00);
+        let asset_guid =
+            ae_plugin_api::AssetGuid::from_raw(0x00ff_eedd_ccbb_aa99_8877_6655_4433_2211);
+
+        let raw = postcard::to_stdvec(&(entity_guid, asset_guid))
+            .expect("postcard serialization must succeed");
+        let compressed = lz4_flex::compress_prepend_size(&raw);
+        let checksum = crc32fast::hash(&compressed);
+
+        assert_ne!(checksum, 0);
+        let decompressed = lz4_flex::decompress_size_prepended(&compressed)
+            .expect("lz4_flex decompression must succeed");
+        let (decoded_entity, decoded_asset): (ae_plugin_api::EntityGuid, ae_plugin_api::AssetGuid) =
+            postcard::from_bytes(&decompressed).expect("postcard deserialization must succeed");
+
+        assert_eq!(decoded_entity, entity_guid);
+        assert_eq!(decoded_asset, asset_guid);
     }
 }

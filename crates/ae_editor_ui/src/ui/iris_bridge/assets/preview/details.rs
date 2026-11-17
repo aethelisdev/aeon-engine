@@ -81,7 +81,7 @@ pub(crate) fn render_scene_preview_content(ui: &mut UiScope<'_>, modal: &AssetPr
 
     render_info_box(ui, 314.0, |info| {
         info.key_value("Scene Name", &modal.item.name);
-        info.key_value("File Format", "Aeon Scene Descriptor (.ae3d / .ae2d JSON)");
+        info.key_value("File Format", "Aeon Binary World (.aeworld)");
         info.key_value(
             "Entity Hierarchy",
             "Declarative ECS World State with Transform & Behaviors",

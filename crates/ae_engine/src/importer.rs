@@ -211,12 +211,12 @@ impl AssetLoader for ShaderAssetLoader {
     }
 }
 
-/// Prefab Asset Loader for serialized entity templates (.prefab, .json).
+/// Prefab Asset Loader for binary `.aeprefab` entity hierarchy templates.
 pub struct PrefabAssetLoader;
 
 impl AssetLoader for PrefabAssetLoader {
     fn supported_extensions(&self) -> &'static [&'static str] {
-        &["prefab", "json"]
+        &["aeprefab"]
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
@@ -239,26 +239,16 @@ impl AssetLoader for PrefabAssetLoader {
     }
 }
 
-/// Aeon Scene Asset Loader for runtime `.aee` scene file ingestion.
+/// Binary World Archive loader for `.aeworld` scene files.
 pub struct SceneAssetLoader;
 
 impl AssetLoader for SceneAssetLoader {
     fn supported_extensions(&self) -> &'static [&'static str] {
-        &["aee", "ae3d", "ae2d"]
+        &["aeworld"]
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
-        let is_3d_scene = match path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "ae2d" => false,
-            "ae3d" => true,
-            _ => ae_editor_ui::assets::scanner::is_scene_file_3d(path),
-        };
+        let is_3d_scene = ae_editor_ui::assets::scanner::is_world_file_3d(path);
         if engine.dimension_mode.is_2d() && is_3d_scene {
             log::error!("Cannot load 3D scene in 2D mode: {:?}", path);
             engine.ui.set_status_message(
@@ -477,26 +467,24 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                     .set_status_message("Cannot import 3D models in 2D mode!", Color::RED);
                 return;
             }
-            if ext_lower == "ae3d"
-                || (ext_lower == "aee" && ae_editor_ui::assets::scanner::is_scene_file_3d(&path))
-            {
-                log::warn!("Cannot import 3D scene in 2D mode: {:?}", path);
+            if ext_lower == "aeworld" && ae_editor_ui::assets::scanner::is_world_file_3d(&path) {
+                log::warn!("Cannot import 3D world in 2D mode: {:?}", path);
                 engine.ui.set_status_message(
-                    "Cannot load 3D scene in 2D mode! Switch to 3D mode.",
+                    "Cannot load 3D world in 2D mode! Switch to 3D mode.",
                     Color::RED,
                 );
                 return;
             }
         }
 
-        // Dimension Isolation: Strictly reject external 2D scenes in 3D mode
+        // Dimension Isolation: Strictly reject external 2D worlds in 3D mode
         if engine.dimension_mode.is_3d()
-            && (ext_lower == "ae2d"
-                || (ext_lower == "aee" && !ae_editor_ui::assets::scanner::is_scene_file_3d(&path)))
+            && ext_lower == "aeworld"
+            && !ae_editor_ui::assets::scanner::is_world_file_3d(&path)
         {
-            log::warn!("Cannot import 2D scene in 3D mode: {:?}", path);
+            log::warn!("Cannot import 2D world in 3D mode: {:?}", path);
             engine.ui.set_status_message(
-                "Cannot load 2D scene in 3D mode! Switch to 2D mode.",
+                "Cannot load 2D world in 3D mode! Switch to 2D mode.",
                 Color::RED,
             );
             return;

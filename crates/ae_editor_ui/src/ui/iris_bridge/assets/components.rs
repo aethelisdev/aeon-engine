@@ -622,7 +622,7 @@ pub fn asset_empty_notice(scope: &mut UiScope<'_>, vp_rect: Rect, query: &str) {
 
                     notice.label_styled_passive_wrapped(
                         "EmptySubtitle",
-                        "Place 3D models (.gltf, .glb, .fbx), textures (.png), shaders (.wgsl), or scenes (.ae3d, .ae2d) into this folder.",
+                        "Place 3D models (.gltf, .glb, .fbx), textures (.png), shaders (.wgsl), or worlds (.aeworld) into this folder.",
                         WrappedLabelDescriptor::new(
                             10.0,
                             Color::rgba(0.55, 0.60, 0.70, 1.0),

@@ -135,13 +135,13 @@ pub enum EngineUiAction {
 }
 
 impl EngineUiAction {
-    /// Creates a generic component modification action by serializing `component` data to JSON bytes.
+    /// Creates a generic component modification action by serializing `component` data to binary `postcard` bytes.
     pub fn modify_component<T: serde::Serialize>(
         entity: hecs::Entity,
         type_name: &'static str,
         component: &T,
     ) -> Self {
-        let data = serde_json::to_vec(component).unwrap_or_default();
+        let data = postcard::to_stdvec(component).unwrap_or_default();
         Self::ModifyComponent(entity, type_name, data)
     }
 }

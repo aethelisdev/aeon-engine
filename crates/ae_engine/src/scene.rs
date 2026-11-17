@@ -1,309 +1,390 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Dynamic Scene Serialization & Asynchronous Asset Loading subsystem.
+//! Binary World Archive Serialization & Asynchronous Asset Loading subsystem.
 //!
-//! Provides automated scene persistence and loading powered by the central
-//! `ComponentRegistry`. Eliminates manual component match blocks, ensuring that
-//! all existing and future ECS components are serialized and restored automatically.
+//! Persists and restores ECS worlds in `.aeworld` binary format via `ae_world` and
+//! `ComponentRegistry`, linking entity hierarchies strictly through persistent `EntityGuid`s.
 
 use crate::engine::AeEngine;
 use ae_core::ecs::*;
+use ae_world::{
+    AssetKind, ComponentRecord, EntityRecord, GuidGenerator, SCENE_ASSET_BINDING_TYPE,
+    SavedLodPaths, SceneAssetBinding, SpatialCellCoord, WorldDocument,
+    asset_guid_from_virtual_path, resolve_partitioned_world_paths,
+};
 use hecs::World;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
-/// An intermediate schema for serializing LOD (Level of Detail) groups using asset disk paths.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SavedLodGroup {
-    pub lod_0_path: String,
-    pub lod_1_path: Option<String>,
-    pub lod_2_path: Option<String>,
-    pub threshold_1: f32,
-    pub threshold_2: f32,
+/// Default cubic cell size (world units) for newly authored `.aeworld` partition archives.
+pub const DEFAULT_WORLD_CELL_SIZE: f32 = 128.0;
+
+/// Maximum binary world archive size accepted by `load_scene` (256 MiB).
+const MAX_SCENE_FILE_SIZE: u64 = 256 * 1024 * 1024;
+
+/// Maximum total entity count accepted when loading a scene archive.
+const MAX_SCENE_ENTITIES: usize = 500_000;
+
+/// Parsed texture data bundled with its canonicalized filesystem path.
+pub type ParsedTextureItem = (PathBuf, image::RgbaImage);
+
+/// Tuple pairing a virtual asset path with its parallel background parse outcome.
+pub type ParsedTextureEntry = (String, Result<ParsedTextureItem, String>);
+
+/// Bundle of parsed asset data and binary `EntityRecord`s returned by background workers.
+pub struct PendingSceneData {
+    /// Persistent [`EntityGuid`] read from the loaded `.aeworld` header.
+    pub world_guid: EntityGuid,
+    /// Decoded binary entity records collected from persistent and partitioned world tables.
+    pub entities: Vec<EntityRecord>,
+    /// Partitioned world directory path when loaded from a modular `world.aeworld` directory.
+    pub saved_world_dir: Option<PathBuf>,
+    /// CRC32 map of loaded partition cells used for subsequent dirty-only saves.
+    pub cell_crcs: HashMap<SpatialCellCoord, u32>,
+    /// Pre-parsed 3D GLTF/GLB geometry and skinning payloads.
+    pub parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)>,
+    /// Pre-parsed 2D texture RGBA payloads.
+    pub parsed_textures: Vec<ParsedTextureEntry>,
 }
 
-/// An intermediate schema for serializing an ECS Entity dynamically using `ComponentRegistry`.
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct SavedEntity {
-    /// Dimension domain marker ("2D" or "3D") for dimension isolation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dimension: Option<String>,
+/// Ensures every ECS entity in `world` holds a non-nil `EntityGuid`, returning a lookup map.
+fn ensure_world_entity_guids(world: &mut World) -> HashMap<hecs::Entity, EntityGuid> {
+    let mut guid_gen = GuidGenerator::new();
+    let mut entity_to_guid = HashMap::with_capacity(world.len() as usize);
+    let mut missing_guids = Vec::new();
 
-    /// Source disk path of the 3D model asset.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_path: Option<String>,
+    for entity_ref in world.iter() {
+        let entity = entity_ref.entity();
+        if let Some(existing) = entity_ref.get::<&EntityGuid>()
+            && !existing.is_nil()
+        {
+            entity_to_guid.insert(entity, *existing);
+            continue;
+        }
+        let minted = guid_gen.next_entity_guid();
+        entity_to_guid.insert(entity, minted);
+        missing_guids.push((entity, minted));
+    }
 
-    /// Source disk path of the 2D sprite/texture asset.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sprite_path: Option<String>,
+    for (entity, guid) in missing_guids {
+        let _ = world.insert_one(entity, guid);
+    }
 
-    /// Entity name identifier linking parent-child relationships after reload.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent_name: Option<String>,
-
-    /// Level of Detail configuration paths and thresholds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lod_group: Option<SavedLodGroup>,
-
-    /// Dynamic map storing all component properties serialized by key.
-    /// Supports both legacy scene files and future component additions without manual boilerplate.
-    #[serde(flatten)]
-    pub components: HashMap<String, serde_json::Value>,
+    entity_to_guid
 }
 
-/// Converts a PascalCase identifier to snake_case for clean, standardized JSON keys.
-fn to_snake_case(s: &str) -> String {
-    let mut result = String::with_capacity(s.len() + 4);
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.extend(c.to_lowercase());
-        } else {
-            result.push(c);
+/// Extracts model, sprite, and LOD asset paths for `entity` and registers their GUIDs in `world_doc`.
+fn extract_and_register_asset_binding(
+    engine: &AeEngine,
+    entity: hecs::Entity,
+    world_doc: &mut WorldDocument,
+) -> std::io::Result<Option<SceneAssetBinding>> {
+    let w = &engine.ecs.world;
+    let model_path = w
+        .get::<&ModelId>(entity)
+        .ok()
+        .and_then(|r| engine.asset_manager.models.get(r.0))
+        .map(|asset| asset.source_path.clone());
+    let sprite_path = w
+        .get::<&SpriteId>(entity)
+        .ok()
+        .and_then(|r| engine.asset_manager.textures.get(r.0))
+        .map(|asset| asset.source_path.clone());
+    let lod_group = w.get::<&LodGroup>(entity).ok().and_then(|lod_ref| {
+        let lod_0_path = engine
+            .asset_manager
+            .models
+            .get(lod_ref.lod_0)
+            .map(|a| a.source_path.clone())?;
+        let lod_1_path = lod_ref
+            .lod_1
+            .and_then(|h| engine.asset_manager.models.get(h))
+            .map(|a| a.source_path.clone());
+        let lod_2_path = lod_ref
+            .lod_2
+            .and_then(|h| engine.asset_manager.models.get(h))
+            .map(|a| a.source_path.clone());
+        Some(SavedLodPaths {
+            lod_0_path,
+            lod_1_path,
+            lod_2_path,
+            threshold_1: lod_ref.threshold_1,
+            threshold_2: lod_ref.threshold_2,
+        })
+    });
+
+    if let Some(ref mp) = model_path {
+        world_doc
+            .register_asset_ref(asset_guid_from_virtual_path(mp), AssetKind::Model, mp)
+            .map_err(std::io::Error::other)?;
+    }
+    if let Some(ref sp) = sprite_path {
+        world_doc
+            .register_asset_ref(asset_guid_from_virtual_path(sp), AssetKind::Texture, sp)
+            .map_err(std::io::Error::other)?;
+    }
+    if let Some(ref lg) = lod_group {
+        world_doc
+            .register_asset_ref(
+                asset_guid_from_virtual_path(&lg.lod_0_path),
+                AssetKind::Model,
+                &lg.lod_0_path,
+            )
+            .map_err(std::io::Error::other)?;
+        if let Some(ref l1) = lg.lod_1_path {
+            world_doc
+                .register_asset_ref(asset_guid_from_virtual_path(l1), AssetKind::Model, l1)
+                .map_err(std::io::Error::other)?;
+        }
+        if let Some(ref l2) = lg.lod_2_path {
+            world_doc
+                .register_asset_ref(asset_guid_from_virtual_path(l2), AssetKind::Model, l2)
+                .map_err(std::io::Error::other)?;
         }
     }
-    result
+
+    if model_path.is_none() && sprite_path.is_none() && lod_group.is_none() {
+        return Ok(None);
+    }
+
+    Ok(Some(SceneAssetBinding {
+        model_path,
+        sprite_path,
+        lod_group,
+    }))
 }
 
-/// Dynamic lookup matching component keys across exact names, snake_case, and alias variations.
-fn lookup_registry_handler<'a>(
-    registry: &'a ComponentRegistry,
-    key: &str,
-) -> Option<&'a dyn ae_core::registry::ComponentHandler> {
-    if let Some(handler) = registry.get_by_name(key) {
-        return Some(handler);
-    }
+/// Captures a single ECS entity into an `EntityRecord` using binary `ComponentRegistry` payloads.
+fn capture_entity_record(
+    engine: &AeEngine,
+    entity: hecs::Entity,
+    entity_to_guid: &HashMap<hecs::Entity, EntityGuid>,
+    registry: &ComponentRegistry,
+    world_doc: &mut WorldDocument,
+) -> std::io::Result<(EntityRecord, Option<[f32; 3]>, bool)> {
+    let w = &engine.ecs.world;
+    let guid = entity_to_guid
+        .get(&entity)
+        .copied()
+        .unwrap_or(EntityGuid::NIL);
+    let parent_guid = w
+        .get::<&Parent>(entity)
+        .ok()
+        .and_then(|parent_ref| entity_to_guid.get(&parent_ref.0).copied());
+
+    let mut record = EntityRecord::new(guid, parent_guid);
     for handler in registry.handlers() {
         let name = handler.type_name();
-        if name.eq_ignore_ascii_case(key)
-            || to_snake_case(name) == key
-            || (name == "Rotator" && (key == "rotator" || key == "rot"))
-            || (name == "MovingPlatform" && (key == "moving_platform" || key == "platform"))
-            || (name == "TriggerZone" && (key == "trigger_zone" || key == "trigger"))
-            || (name == "DestructibleTarget"
-                && (key == "destructible_target" || key == "destructible" || key == "target"))
-            || (name == "CharacterAction"
-                && (key == "character_action" || key == "combat" || key == "weapon"))
-            || (name == "BoundingRadius" && (key == "bounding_radius" || key == "radius"))
-            || (name == "BoundingBox" && (key == "bounding_box" || key == "bbox"))
-            || (name == "CharacterController"
-                && (key == "character_controller" || key == "controller"))
-        {
-            return Some(&**handler);
+        if matches!(
+            name,
+            "ModelId"
+                | "SpriteId"
+                | "Parent"
+                | "Children"
+                | "TransformDirty"
+                | "GlobalTransform"
+                | "LodGroup"
+                | "EntityGuid"
+        ) {
+            continue;
+        }
+        if let Some(payload) = handler.capture(w, entity) {
+            record.components.push(ComponentRecord {
+                type_hash: handler.type_hash(),
+                schema_ver: 1,
+                flags: 0,
+                payload,
+            });
         }
     }
-    None
+
+    if let Some(binding) = extract_and_register_asset_binding(engine, entity, world_doc)? {
+        let binding_record = ComponentRecord::from_value(SCENE_ASSET_BINDING_TYPE, 1, &binding)
+            .map_err(std::io::Error::other)?;
+        record.components.push(binding_record);
+    }
+
+    let world_pos = w.get::<&Position>(entity).ok().map(|p| [p.x, p.y, p.z]);
+    let is_global = w.get::<&Light>(entity).is_ok()
+        || w.get::<&PlayerTag>(entity).is_ok()
+        || world_pos.is_none();
+
+    Ok((record, world_pos, is_global))
 }
 
-/// A structured container representing fully parsed but not yet GPU-uploaded model and texture data.
-pub type ParsedTextureItem = (
-    String,
-    Result<(std::path::PathBuf, image::RgbaImage), String>,
-);
-
-/// Bundle of parsed asset data returned by background worker threads to the main engine thread.
-pub struct PendingSceneData {
-    /// Saved entities blueprint deserialized from the JSON scene file.
-    pub entities: Vec<SavedEntity>,
-    /// Thread-safe pre-parsed GLTF model data ready for GPU upload.
-    pub parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)>,
-    /// Thread-safe pre-parsed RGBA textures and their canonical paths.
-    pub parsed_textures: Vec<ParsedTextureItem>,
-}
-
-/// Serializes the current engine ECS state dynamically to a JSON file on disk.
-pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<()> {
-    let mut saved_entities = Vec::new();
+/// Captures all live ECS entities, components, and asset bindings into an in-memory [`WorldDocument`].
+///
+/// Reuses `engine.active_world_guid` so unchanged worlds yield deterministic checksums across
+/// explicit saves and background auto-saves.
+pub(crate) fn capture_world_document(engine: &mut AeEngine) -> std::io::Result<WorldDocument> {
+    let entity_to_guid = ensure_world_entity_guids(&mut engine.ecs.world);
     let registry = ComponentRegistry::global();
+    let world_guid = if engine.active_world_guid.is_nil() {
+        let fresh = GuidGenerator::new().next_entity_guid();
+        engine.active_world_guid = fresh;
+        fresh
+    } else {
+        engine.active_world_guid
+    };
+    let mut world_doc = WorldDocument::new(
+        world_guid,
+        engine.dimension_mode.is_2d(),
+        DEFAULT_WORLD_CELL_SIZE,
+    );
 
-    for entity_ref in engine.ecs.world.iter() {
-        let entity = entity_ref.entity();
-        let w = &engine.ecs.world;
+    let entities: Vec<hecs::Entity> = engine
+        .ecs
+        .world
+        .iter()
+        .map(|entity_ref| entity_ref.entity())
+        .collect();
 
-        let mut model_p = None;
-        if let Ok(model_ref) = w.get::<&ModelId>(entity)
-            && let Some(asset) = engine.asset_manager.models.get(model_ref.0)
-        {
-            model_p = Some(asset.source_path.clone());
-        }
-
-        let mut sprite_p = None;
-        if let Ok(sprite_ref) = w.get::<&SpriteId>(entity)
-            && let Some(asset) = engine.asset_manager.textures.get(sprite_ref.0)
-        {
-            sprite_p = Some(asset.source_path.clone());
-        }
-
-        let mut parent_n = None;
-        if let Ok(parent_ref) = w.get::<&Parent>(entity) {
-            let parent_ent = parent_ref.0;
-            if let Ok(p_name) = w.get::<&Name>(parent_ent) {
-                parent_n = Some(p_name.0.clone());
-            }
-        }
-
-        let mut lod_group_saved = None;
-        if let Ok(lod_ref) = w.get::<&LodGroup>(entity) {
-            let l0_p = engine
-                .asset_manager
-                .models
-                .get(lod_ref.lod_0)
-                .map(|a| a.source_path.clone());
-            let l1_p = lod_ref.lod_1.and_then(|h| {
-                engine
-                    .asset_manager
-                    .models
-                    .get(h)
-                    .map(|a| a.source_path.clone())
-            });
-            let l2_p = lod_ref.lod_2.and_then(|h| {
-                engine
-                    .asset_manager
-                    .models
-                    .get(h)
-                    .map(|a| a.source_path.clone())
-            });
-            if let Some(l0_path) = l0_p {
-                lod_group_saved = Some(SavedLodGroup {
-                    lod_0_path: l0_path,
-                    lod_1_path: l1_p,
-                    lod_2_path: l2_p,
-                    threshold_1: lod_ref.threshold_1,
-                    threshold_2: lod_ref.threshold_2,
-                });
-            }
-        }
-
-        let mut components = HashMap::new();
-
-        // 100% Dynamic Component Serialization via ComponentRegistry
-        for handler in registry.handlers() {
-            let name = handler.type_name();
-            // Skip transient / asset-linked handle components that are saved as paths
-            if name == "ModelId"
-                || name == "SpriteId"
-                || name == "Parent"
-                || name == "Children"
-                || name == "TransformDirty"
-                || name == "GlobalTransform"
-                || name == "LodGroup"
-            {
-                continue;
-            }
-
-            if name == "PlayerTag" {
-                if handler.has_component(w, entity) {
-                    components.insert("is_player".to_string(), serde_json::Value::Bool(true));
-                }
-                continue;
-            }
-
-            if let Some(data) = handler.capture(w, entity)
-                && let Ok(val) = serde_json::from_slice::<serde_json::Value>(&data)
-            {
-                let json_key = to_snake_case(name);
-                components.insert(json_key, val);
-            }
-        }
-
-        let dim_str = if engine.dimension_mode.is_2d() {
-            "2D"
-        } else {
-            "3D"
-        };
-        let se = SavedEntity {
-            dimension: Some(dim_str.to_string()),
-            model_path: model_p,
-            sprite_path: sprite_p,
-            parent_name: parent_n,
-            lod_group: lod_group_saved,
-            components,
-        };
-
-        saved_entities.push(se);
-    }
-
-    let mut path_buf = std::path::PathBuf::from(filepath);
-    if path_buf.extension().is_none() {
-        if engine.dimension_mode.is_2d() {
-            path_buf.set_extension("ae2d");
-        } else {
-            path_buf.set_extension("ae3d");
+    for entity in entities {
+        let (record, world_pos, is_global) =
+            capture_entity_record(engine, entity, &entity_to_guid, registry, &mut world_doc)?;
+        match (is_global, world_pos) {
+            (false, Some(pos)) => world_doc.insert_entity_at(pos, record),
+            _ => world_doc.persistent_entities.push(record),
         }
     }
 
-    let file = File::create(&path_buf)?;
-    let mut writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(&mut writer, &saved_entities)?;
-    writer.flush()?;
+    Ok(world_doc)
+}
+
+/// Saves all ECS entities dynamically into a partitioned binary world directory
+/// (`<WorldDir>/world.aeworld` + `<WorldDir>/cells/*.aechunk`).
+///
+/// Compares each spatial cell's encoded CRC32 against the previously saved snapshot so
+/// unmodified cells on disk are left untouched while only dirty/new chunks are written
+/// atomically in parallel across `rayon` threads.
+pub(crate) fn save_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Result<()> {
+    let world_doc = capture_world_document(engine)?;
+
+    let (world_dir, manifest_path) = resolve_partitioned_world_paths(Path::new(filepath));
+    let prev_crcs = if engine.saved_world_dir.as_ref() == Some(&world_dir) {
+        Some(&engine.last_saved_cell_crcs)
+    } else {
+        None
+    };
+
+    let stats = world_doc
+        .save_partitioned_dir(&world_dir, prev_crcs)
+        .map_err(std::io::Error::other)?;
+    log::info!(
+        "Saved partitioned world {:?}: {} dirty chunk(s) written, {} clean skipped, {} removed.",
+        manifest_path,
+        stats.written_cells,
+        stats.skipped_clean_cells,
+        stats.removed_cells
+    );
+
+    engine.saved_world_dir = Some(world_dir);
+    engine.last_saved_cell_crcs = stats.cell_crcs;
+    engine.editor.active_scene_path = Some(manifest_path.clone());
+    engine.ui.active_scene_path = manifest_path.to_string_lossy().into_owned();
+    engine.autosave.reset_timer();
     Ok(())
 }
 
-/// Inspects a collection of `SavedEntity` blueprints to determine if any entity contains 3D components or data.
-pub fn is_saved_entities_3d(entities: &[SavedEntity]) -> bool {
-    for se in entities {
-        if let Some(ref dim) = se.dimension {
-            if dim.eq_ignore_ascii_case("3d") {
-                return true;
-            }
-            if dim.eq_ignore_ascii_case("2d") {
+/// Collects and validates unique GLTF/texture asset paths referenced by decoded entities.
+fn collect_scene_asset_paths(
+    entities: &[EntityRecord],
+) -> std::io::Result<(Vec<String>, Vec<String>)> {
+    let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
+    let mut unique_models = HashSet::new();
+    let mut unique_textures = HashSet::new();
+
+    for rec in entities {
+        for comp in &rec.components {
+            if comp.type_hash != binding_hash {
                 continue;
             }
-        }
-        if se.model_path.is_some() || se.lod_group.is_some() {
-            return true;
-        }
-        if se.components.contains_key("shape")
-            || se.components.contains_key("character_controller")
-            || se.components.contains_key("rigid_body")
-            || se.components.contains_key("collider")
-            || se.components.contains_key("light")
-            || se.components.contains_key("mesh_renderer")
-        {
-            return true;
+            let binding: SceneAssetBinding = comp
+                .decode_as()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+
+            if let Some(mp) = binding.model_path {
+                if !ae_renderer::asset::is_safe_path(&mp) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("Security Error: Unsafe model path detected: {mp}"),
+                    ));
+                }
+                unique_models.insert(mp);
+            }
+            if let Some(sp) = binding.sprite_path {
+                if !ae_renderer::asset::is_safe_path(&sp) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("Security Error: Unsafe sprite path detected: {sp}"),
+                    ));
+                }
+                unique_textures.insert(sp);
+            }
+            if let Some(lg) = binding.lod_group {
+                if ae_renderer::asset::is_safe_path(&lg.lod_0_path) {
+                    unique_models.insert(lg.lod_0_path);
+                }
+                if let Some(p1) = lg.lod_1_path
+                    && ae_renderer::asset::is_safe_path(&p1)
+                {
+                    unique_models.insert(p1);
+                }
+                if let Some(p2) = lg.lod_2_path
+                    && ae_renderer::asset::is_safe_path(&p2)
+                {
+                    unique_models.insert(p2);
+                }
+            }
         }
     }
-    false
+
+    Ok((
+        unique_models.into_iter().collect(),
+        unique_textures.into_iter().collect(),
+    ))
 }
 
-/// Asynchronously loads a scene JSON from disk.
+/// Asynchronously loads a binary `.aeworld` archive from disk.
 ///
-/// Spawns a background thread that parallel-parses all unique GLTF meshes and texture files
-/// using Rayon, totally avoiding main-thread frames freeze. Updates the UI overlay status.
+/// Validates header dimensionality (`is_2d`) before decompressing chunks, decodes partitions
+/// in parallel, and parses referenced models/textures on Rayon background workers.
 pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Result<()> {
-    // Security: Reject scene files larger than 256 MB to prevent memory exhaustion DoS
-    const MAX_SCENE_FILE_SIZE: u64 = 256 * 1024 * 1024;
-    let metadata = std::fs::metadata(filepath)?;
+    let target_path = Path::new(filepath);
+    let manifest_to_check = if target_path.is_dir() {
+        target_path.join(ae_world::WORLD_MANIFEST_FILENAME)
+    } else {
+        target_path.to_path_buf()
+    };
+    let metadata = std::fs::metadata(&manifest_to_check)?;
     if metadata.len() > MAX_SCENE_FILE_SIZE {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
-                "Scene file too large ({} bytes, max {} bytes)",
+                "World archive too large ({} bytes, max {} bytes)",
                 metadata.len(),
                 MAX_SCENE_FILE_SIZE
             ),
         ));
     }
 
-    let file = File::open(filepath)?;
-    let reader = BufReader::new(file);
-    let saved_entities: Vec<SavedEntity> = serde_json::from_reader(reader)?;
+    let file = File::open(&manifest_to_check)?;
+    let mut reader = BufReader::new(file);
+    let index = WorldDocument::read_index(&mut reader, None)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
-    // Dimension Isolation: Strictly reject loading 3D scenes in 2D mode
-    if engine.dimension_mode.is_2d() && is_saved_entities_3d(&saved_entities) {
+    if engine.dimension_mode.is_2d() && !index.is_2d {
         let msg = format!(
-            "Blocked loading 3D scene '{}' while running in 2D mode. Switch to 3D mode to open this scene.",
+            "Blocked loading 3D world '{}' while running in 2D mode. Switch to 3D mode to open this world.",
             filepath
         );
-        log::error!("{}", msg);
+        log::error!("{msg}");
         engine.ui.set_status_message(
-            "Cannot load 3D scene in 2D mode! Switch to 3D mode.",
+            "Cannot load 3D world in 2D mode! Switch to 3D mode.",
             irisui::prelude::Color::RED,
         );
         return Err(std::io::Error::new(
@@ -312,15 +393,14 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         ));
     }
 
-    // Dimension Isolation: Strictly reject loading 2D scenes in 3D mode
-    if engine.dimension_mode.is_3d() && !is_saved_entities_3d(&saved_entities) {
+    if engine.dimension_mode.is_3d() && index.is_2d {
         let msg = format!(
-            "Blocked loading 2D scene '{}' while running in 3D mode. Switch to 2D mode to open this scene.",
+            "Blocked loading 2D world '{}' while running in 3D mode. Switch to 2D mode to open this world.",
             filepath
         );
-        log::error!("{}", msg);
+        log::error!("{msg}");
         engine.ui.set_status_message(
-            "Cannot load 2D scene in 3D mode! Switch to 2D mode.",
+            "Cannot load 2D world in 3D mode! Switch to 2D mode.",
             irisui::prelude::Color::RED,
         );
         return Err(std::io::Error::new(
@@ -329,74 +409,47 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         ));
     }
 
-    // Security: Reject scenes with an unreasonable number of entities
-    const MAX_SCENE_ENTITIES: usize = 500_000;
-    if saved_entities.len() > MAX_SCENE_ENTITIES {
+    let registry = ComponentRegistry::global();
+    let mut allowed_hashes = registry.known_type_hashes();
+    allowed_hashes.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
+
+    let (world_doc, cell_crcs, is_partitioned_dir) =
+        WorldDocument::load_auto(target_path, Some(&allowed_hashes))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+    let resolved_world_dir = if is_partitioned_dir {
+        if target_path.is_dir() {
+            Some(target_path.to_path_buf())
+        } else {
+            Some(resolve_partitioned_world_paths(&manifest_to_check).0)
+        }
+    } else {
+        None
+    };
+
+    let total_entities = world_doc.total_entity_count();
+    if total_entities > MAX_SCENE_ENTITIES {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!(
-                "Scene has too many entities ({}, max {})",
-                saved_entities.len(),
-                MAX_SCENE_ENTITIES
-            ),
+            format!("World has too many entities ({total_entities}, max {MAX_SCENE_ENTITIES})"),
         ));
     }
 
-    // Gather unique asset paths to avoid redundant background parsing work
-    let mut unique_models = std::collections::HashSet::new();
-    let mut unique_textures = std::collections::HashSet::new();
+    let world_guid = world_doc.world_guid;
+    let all_entities = world_doc.into_all_entities();
 
-    for se in &saved_entities {
-        if let Some(ref mp) = se.model_path {
-            if !ae_renderer::asset::is_safe_path(mp) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
-                    format!("Security Error: Unsafe model path detected: {}", mp),
-                ));
-            }
-            unique_models.insert(mp.clone());
-        }
-        if let Some(ref sp) = se.sprite_path {
-            if !ae_renderer::asset::is_safe_path(sp) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::PermissionDenied,
-                    format!("Security Error: Unsafe sprite path detected: {}", sp),
-                ));
-            }
-            unique_textures.insert(sp.clone());
-        }
-        if let Some(ref lg) = se.lod_group {
-            if ae_renderer::asset::is_safe_path(&lg.lod_0_path) {
-                unique_models.insert(lg.lod_0_path.clone());
-            }
-            if let Some(ref p1) = lg.lod_1_path
-                && ae_renderer::asset::is_safe_path(p1)
-            {
-                unique_models.insert(p1.clone());
-            }
-            if let Some(ref p2) = lg.lod_2_path
-                && ae_renderer::asset::is_safe_path(p2)
-            {
-                unique_models.insert(p2.clone());
-            }
-        }
-    }
+    let (models_list, textures_list) = collect_scene_asset_paths(&all_entities)?;
 
     engine.ui.is_loading_assets = true;
     engine.ui.set_status_message(
-        "Loading scene: parsing assets in background...",
+        "Loading world: parsing assets in background...",
         irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
     );
 
     let (tx, rx) = std::sync::mpsc::channel();
     engine.scene_rx = Some(rx);
-
-    let models_list: Vec<String> = unique_models.into_iter().collect();
-    let textures_list: Vec<String> = unique_textures.into_iter().collect();
     let filepath_str = filepath.to_string();
 
     rayon::spawn(move || {
-        // 1. Parallel parse GLTF/GLB models using Rayon
         let parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)> =
             models_list
                 .into_par_iter()
@@ -406,12 +459,11 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
                 })
                 .collect();
 
-        // 2. Parallel parse texture files using Rayon
-        let parsed_textures: Vec<ParsedTextureItem> = textures_list
+        let parsed_textures: Vec<ParsedTextureEntry> = textures_list
             .into_par_iter()
             .map(|path| {
                 let canonical = std::fs::canonicalize(&path)
-                    .map_err(|e| format!("Failed to canonicalize texture path '{}': {}", path, e));
+                    .map_err(|e| format!("Failed to canonicalize texture path '{path}': {e}"));
                 let res = canonical.and_then(|c_path| {
                     ae_renderer::render::resources::parse_texture_file(&path)
                         .map(|rgba| (c_path, rgba))
@@ -421,234 +473,181 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
             .collect();
 
         let _ = tx.send(Ok(PendingSceneData {
-            entities: saved_entities,
+            world_guid,
+            entities: all_entities,
+            saved_world_dir: resolved_world_dir,
+            cell_crcs,
             parsed_models,
             parsed_textures,
         }));
-        log::info!(
-            "Finished parallel background parsing for scene loaded from: {}",
-            filepath_str
-        );
+        log::info!("Finished parallel background parsing for world: {filepath_str}");
     });
 
     Ok(())
 }
 
-/// Checks the asynchronous scene load channel and uploads completed asset data to the GPU.
-/// Reconstructs the ECS hierarchy dynamically and finishes the scene swap on the main thread.
+/// Applies `SceneAssetBinding` onto a newly spawned entity on the main thread.
+fn apply_asset_binding(engine: &mut AeEngine, entity: hecs::Entity, binding: &SceneAssetBinding) {
+    let vfs = engine.active_vfs.as_deref();
+    crate::streaming::bind_entity_assets_from_binding(
+        &mut engine.ecs.world,
+        &engine.render_state,
+        &mut engine.asset_manager,
+        vfs,
+        entity,
+        binding,
+    );
+}
+
+/// Checks the asynchronous scene load channel, uploads completed asset data to GPU,
+/// reconstructs entities & `EntityGuid` parent-child links, and syncs physics.
 pub fn process_async_scene_load(engine: &mut AeEngine) {
-    if let Some(ref rx) = engine.scene_rx
-        && let Ok(result) = rx.try_recv()
-    {
-        engine.scene_rx = None; // Reset receiver immediately
+    let Some(ref rx) = engine.scene_rx else {
+        return;
+    };
+    let Ok(result) = rx.try_recv() else {
+        return;
+    };
+    engine.scene_rx = None;
 
-        match result {
-            Ok(scene_data) => {
-                log::info!("Scene parsing finished, starting GPU upload of scene assets.");
+    let scene_data = match result {
+        Ok(data) => data,
+        Err(e) => {
+            engine.ui.is_loading_assets = false;
+            engine.ui.set_status_message(
+                format!("Async world load failed: {e}"),
+                irisui::prelude::Color::RED,
+            );
+            return;
+        }
+    };
 
-                // 1. Upload Models to GPU
-                for (orig_path, model_res) in scene_data.parsed_models {
-                    match model_res {
-                        Ok(parsed_data) => {
-                            engine
-                                .render_state
-                                .upload_model_data(&mut engine.asset_manager, parsed_data);
-                        }
-                        Err(e) => {
-                            log::error!(
-                                "Failed to parse model '{}' during scene load: {}",
-                                orig_path,
-                                e
-                            );
-                        }
-                    }
-                }
-
-                // 2. Upload Textures to GPU
-                for (orig_path, tex_res) in scene_data.parsed_textures {
-                    match tex_res {
-                        Ok((c_path, rgba)) => {
-                            engine.render_state.upload_texture_data(
-                                &mut engine.asset_manager,
-                                c_path,
-                                rgba,
-                                &orig_path,
-                            );
-                        }
-                        Err(e) => {
-                            log::error!(
-                                "Failed to parse texture '{}' during scene load: {}",
-                                orig_path,
-                                e
-                            );
-                        }
-                    }
-                }
-
-                // 3. Destruct and Clear old world resources completely
-                engine.ecs.world = World::new();
-                engine.physics_world.clear();
-                engine.editor.selected_entities.clear();
-                engine.editor.undo_stack.clear();
-                engine.editor.redo_stack.clear();
-
-                let registry = ComponentRegistry::global();
-                let mut name_to_entity = HashMap::new();
-                let mut entity_parent_links = Vec::new();
-
-                // 4. Dynamic instantiation of new entities via ComponentRegistry
-                for se in scene_data.entities {
-                    let new_ent = engine.ecs.world.spawn(());
-                    let mut has_physics = false;
-
-                    for (key, val) in &se.components {
-                        if val.is_null() {
-                            continue;
-                        }
-
-                        if key == "is_player" {
-                            if val.as_bool().unwrap_or(false) {
-                                let _ = engine.ecs.world.insert_one(new_ent, PlayerTag);
-                            }
-                            continue;
-                        }
-
-                        if let Some(handler) = lookup_registry_handler(registry, key)
-                            && let Ok(bytes) = serde_json::to_vec(val)
-                            && handler
-                                .apply(&mut engine.ecs.world, new_ent, &bytes)
-                                .is_ok()
-                        {
-                            let name = handler.type_name();
-                            if name == "RigidBody"
-                                || name == "Collider"
-                                || name == "CharacterController"
-                            {
-                                has_physics = true;
-                            }
-                        }
-                    }
-
-                    if has_physics {
-                        let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
-                    }
-
-                    if let Some(lg) = se.lod_group {
-                        let l0_h = std::fs::canonicalize(&lg.lod_0_path)
-                            .ok()
-                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                        let l1_h = lg
-                            .lod_1_path
-                            .as_ref()
-                            .and_then(|p| std::fs::canonicalize(p).ok())
-                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                        let l2_h = lg
-                            .lod_2_path
-                            .as_ref()
-                            .and_then(|p| std::fs::canonicalize(p).ok())
-                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-
-                        if let Some(l0) = l0_h {
-                            let lod_comp = LodGroup {
-                                lod_0: l0,
-                                lod_1: l1_h,
-                                lod_2: l2_h,
-                                threshold_1: lg.threshold_1,
-                                threshold_2: lg.threshold_2,
-                            };
-                            let _ = engine.ecs.world.insert_one(new_ent, lod_comp);
-                        }
-                    }
-
-                    // Assign GPU assets
-                    if let Some(mp) = se.model_path {
-                        let canonical_path = std::fs::canonicalize(&mp).ok();
-                        let handle = canonical_path
-                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                        if let Some(mid) = handle {
-                            let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
-
-                            // Reconstruct bounding sphere if missing
-                            if engine.ecs.world.get::<&BoundingRadius>(new_ent).is_err()
-                                && let Some(m) = engine.asset_manager.models.get(mid)
-                            {
-                                let size_x = m.max[0] - m.min[0];
-                                let size_y = m.max[1] - m.min[1];
-                                let size_z = m.max[2] - m.min[2];
-                                let max_dim = size_x.max(size_y).max(size_z);
-                                let radius = max_dim / 2.0;
-                                let _ =
-                                    engine.ecs.world.insert_one(new_ent, BoundingRadius(radius));
-                            }
-                        }
-                    }
-
-                    if let Some(sp) = se.sprite_path {
-                        let canonical_path = std::fs::canonicalize(&sp).ok();
-                        let handle = canonical_path
-                            .and_then(|c| engine.asset_manager.texture_path_map.get(&c).copied());
-                        if let Some(tid) = handle {
-                            let _ = engine.ecs.world.insert_one(new_ent, SpriteId(tid));
-                        }
-                    }
-
-                    // Track parenting link for hierarchy reconstruction
-                    if let Ok(n) = engine.ecs.world.get::<&Name>(new_ent) {
-                        name_to_entity.insert(n.0.clone(), new_ent);
-                    }
-                    if let Some(pn) = se.parent_name {
-                        entity_parent_links.push((new_ent, pn));
-                    }
-                }
-
-                // Reconstruct parent-child hierarchy links
-                for (child_ent, parent_name) in entity_parent_links {
-                    if let Some(&parent_ent) = name_to_entity.get(&parent_name) {
-                        let _ = engine.ecs.world.insert_one(child_ent, Parent(parent_ent));
-
-                        if let Ok(mut children) = engine.ecs.world.get::<&mut Children>(parent_ent)
-                        {
-                            if !children.0.contains(&child_ent) {
-                                children.0.push(child_ent);
-                            }
-                        } else {
-                            let _ = engine
-                                .ecs
-                                .world
-                                .insert_one(parent_ent, Children(vec![child_ent]));
-                        }
-                    }
-                }
-
-                // Force calculate transforms after loaded scene setup
-                ae_core::ecs::update_hierarchy_transforms(&mut engine.ecs.world);
-
-                // Sync newly loaded scene colliders and rigidbodies into Rapier3D physics world
+    for (orig_path, model_res) in scene_data.parsed_models {
+        match model_res {
+            Ok(parsed_data) => {
                 engine
-                    .physics_world
-                    .sync_ecs_to_physics(&mut engine.ecs.world, |handle| {
-                        engine
-                            .asset_manager
-                            .get_physics_mesh_data(handle)
-                            .map(|(v, i)| (v.as_slice(), i.as_slice()))
-                    });
-
-                engine.ui.is_loading_assets = false;
-                engine.ui.set_status_message(
-                    "Scene loaded successfully!",
-                    irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
-                );
-                log::info!("Async scene load fully processed. Active world rebuilt.");
+                    .render_state
+                    .upload_model_data(&mut engine.asset_manager, parsed_data);
             }
-            Err(e) => {
-                engine.ui.is_loading_assets = false;
-                engine.ui.set_status_message(
-                    format!("Async scene load failed: {}", e),
-                    irisui::prelude::Color::RED,
+            Err(e) => log::error!("Failed to parse model '{orig_path}' during world load: {e}"),
+        }
+    }
+
+    for (orig_path, tex_res) in scene_data.parsed_textures {
+        match tex_res {
+            Ok((c_path, rgba)) => {
+                engine.render_state.upload_texture_data(
+                    &mut engine.asset_manager,
+                    c_path,
+                    rgba,
+                    &orig_path,
                 );
+            }
+            Err(e) => log::error!("Failed to parse texture '{orig_path}' during world load: {e}"),
+        }
+    }
+
+    engine.ecs.world = World::new();
+    engine.physics_world.clear();
+    engine.editor.selected_entities.clear();
+    engine.editor.undo_stack.clear();
+    engine.editor.redo_stack.clear();
+    engine.saved_world_dir = scene_data.saved_world_dir;
+    engine.active_world_guid = scene_data.world_guid;
+    engine.last_saved_cell_crcs = scene_data.cell_crcs;
+    engine.autosave.reset_timer();
+
+    let registry = ComponentRegistry::global();
+    let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
+    let mut guid_to_entity: HashMap<EntityGuid, hecs::Entity> =
+        HashMap::with_capacity(scene_data.entities.len());
+    let mut child_to_parent_guid: Vec<(hecs::Entity, EntityGuid)> = Vec::new();
+    let mut guid_gen = GuidGenerator::new();
+
+    for rec in scene_data.entities {
+        let new_ent = engine.ecs.world.spawn(());
+        let entity_guid = if rec.guid.is_nil() {
+            guid_gen.next_entity_guid()
+        } else {
+            rec.guid
+        };
+        let _ = engine.ecs.world.insert_one(new_ent, entity_guid);
+        guid_to_entity.insert(entity_guid, new_ent);
+
+        let mut has_physics = false;
+        for comp in &rec.components {
+            if comp.type_hash == binding_hash {
+                if let Ok(binding) = comp.decode_as::<SceneAssetBinding>() {
+                    apply_asset_binding(engine, new_ent, &binding);
+                }
+                continue;
+            }
+            if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
+                && handler
+                    .apply(&mut engine.ecs.world, new_ent, &comp.payload)
+                    .is_ok()
+            {
+                let name = handler.type_name();
+                if matches!(name, "RigidBody" | "Collider" | "CharacterController") {
+                    has_physics = true;
+                }
+            }
+        }
+
+        if has_physics {
+            let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
+        }
+        if let Some(p_guid) = rec.parent_guid {
+            child_to_parent_guid.push((new_ent, p_guid));
+        }
+    }
+
+    for (child_ent, parent_guid) in child_to_parent_guid {
+        if let Some(&parent_ent) = guid_to_entity.get(&parent_guid) {
+            let _ = engine.ecs.world.insert_one(child_ent, Parent(parent_ent));
+            if let Ok(mut children) = engine.ecs.world.get::<&mut Children>(parent_ent) {
+                if !children.0.contains(&child_ent) {
+                    children.0.push(child_ent);
+                }
+            } else {
+                let _ = engine
+                    .ecs
+                    .world
+                    .insert_one(parent_ent, Children(vec![child_ent]));
             }
         }
     }
+
+    ae_core::ecs::update_hierarchy_transforms(&mut engine.ecs.world);
+    engine
+        .physics_world
+        .sync_ecs_to_physics(&mut engine.ecs.world, |handle| {
+            engine
+                .asset_manager
+                .get_physics_mesh_data(handle)
+                .map(|(v, i)| (v.as_slice(), i.as_slice()))
+        });
+
+    engine.streaming = engine.saved_world_dir.as_ref().map(|world_dir| {
+        let cells: HashSet<SpatialCellCoord> =
+            engine.last_saved_cell_crcs.keys().copied().collect();
+        crate::streaming::RuntimeStreamingManager::from_world_dir(
+            world_dir,
+            DEFAULT_WORLD_CELL_SIZE,
+            2,
+            3,
+            cells.clone(),
+            cells,
+            &engine.ecs.world,
+        )
+    });
+
+    engine.ui.is_loading_assets = false;
+    engine.ui.set_status_message(
+        "World loaded successfully!",
+        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+    );
+    log::info!("Async binary world load processed cleanly.");
 }
 
 #[cfg(test)]
@@ -657,128 +656,104 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_deserialize_test_suite_scene() {
-        let p = if Path::new("../../test_suite.ae3d").exists() {
-            "../../test_suite.ae3d"
-        } else {
-            "../../test_suite.aee"
-        };
-        if let Ok(file) = File::open(p) {
-            let reader = BufReader::new(file);
-            let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
-            assert!(
-                entities.is_ok(),
-                "test_suite scene must deserialize cleanly into Vec<SavedEntity>: {:?}",
-                entities.err()
-            );
-            let entities = entities.unwrap();
-            assert!(
-                !entities.is_empty(),
-                "test_suite scene must contain entities"
-            );
+    fn test_binary_world_entity_record_guid_hierarchy_roundtrip() {
+        let mut ids = GuidGenerator::from_seed(2026);
+        let parent_guid = ids.next_entity_guid();
+        let child_guid = ids.next_entity_guid();
+
+        let mut world = World::new();
+        let parent_ent = world.spawn((
+            parent_guid,
+            Name("ParentGroup".to_string()),
+            Position::new(10.0, 0.0, 5.0),
+        ));
+        let child_ent = world.spawn((
+            child_guid,
+            Name("ChildMesh".to_string()),
+            Position::new(1.0, 2.0, 3.0),
+            Parent(parent_ent),
+        ));
+        let _ = world.insert_one(parent_ent, Children(vec![child_ent]));
+
+        let entity_to_guid = ensure_world_entity_guids(&mut world);
+        let registry = ComponentRegistry::global();
+
+        let mut doc = WorldDocument::new(ids.next_entity_guid(), false, DEFAULT_WORLD_CELL_SIZE);
+        for ent in [parent_ent, child_ent] {
+            let p_guid = world
+                .get::<&Parent>(ent)
+                .ok()
+                .and_then(|p| entity_to_guid.get(&p.0).copied());
+            let mut rec = EntityRecord::new(entity_to_guid[&ent], p_guid);
+            for handler in registry.handlers() {
+                if matches!(handler.type_name(), "Parent" | "Children" | "EntityGuid") {
+                    continue;
+                }
+                if let Some(payload) = handler.capture(&world, ent) {
+                    rec.components.push(ComponentRecord {
+                        type_hash: handler.type_hash(),
+                        schema_ver: 1,
+                        flags: 0,
+                        payload,
+                    });
+                }
+            }
+            let pos = world.get::<&Position>(ent).expect("position");
+            doc.insert_entity_at([pos.x, pos.y, pos.z], rec);
         }
+
+        let encoded = doc.encode_full().expect("encode binary world");
+        let decoded = WorldDocument::decode_full(&encoded, None).expect("decode binary world");
+        assert!(!decoded.is_2d);
+        let all_entities: Vec<EntityRecord> = decoded
+            .cells
+            .into_values()
+            .flat_map(|c| c.entities.into_iter())
+            .collect();
+        assert_eq!(all_entities.len(), 2);
+        let restored_child = all_entities
+            .iter()
+            .find(|r| r.guid == child_guid)
+            .expect("child record present");
+        assert_eq!(restored_child.parent_guid, Some(parent_guid));
     }
 
     #[test]
-    fn test_deserialize_texture_test_suite_scene() {
-        let p = if Path::new("assets/scenes/texture_test_suite.ae3d").exists() {
-            "assets/scenes/texture_test_suite.ae3d"
-        } else {
-            "assets/scenes/texture_test_suite.aee"
+    fn test_scene_asset_binding_binary_roundtrip() {
+        let binding = SceneAssetBinding {
+            model_path: Some("assets/models/hero.glb".to_string()),
+            sprite_path: None,
+            lod_group: Some(SavedLodPaths {
+                lod_0_path: "assets/models/hero_lod0.glb".to_string(),
+                lod_1_path: Some("assets/models/hero_lod1.glb".to_string()),
+                lod_2_path: None,
+                threshold_1: 25.0,
+                threshold_2: 75.0,
+            }),
         };
-        if let Ok(file) = File::open(p) {
-            let reader = BufReader::new(file);
-            let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
-            assert!(
-                entities.is_ok(),
-                "texture_test_suite scene must deserialize cleanly into Vec<SavedEntity>: {:?}",
-                entities.err()
-            );
-            let entities = entities.unwrap();
-            assert!(
-                !entities.is_empty(),
-                "texture_test_suite scene must contain entities"
-            );
+
+        let rec = ComponentRecord::from_value(SCENE_ASSET_BINDING_TYPE, 1, &binding)
+            .expect("encode asset binding");
+        let decoded: SceneAssetBinding = rec.decode_as().expect("decode asset binding");
+        assert_eq!(decoded, binding);
+    }
+
+    #[test]
+    fn test_load_migrated_test_suite_aeworld_archives() {
+        for candidate in [
+            "../../test_suite.aeworld",
+            "../../assets/scenes/physics_test_suite.aeworld",
+            "../../assets/scenes/texture_test_suite.aeworld",
+            "../../assets/scenes/scene.aeworld",
+        ] {
+            let path = Path::new(candidate);
+            if path.is_file() {
+                let doc = WorldDocument::load_from_file(path, None)
+                    .expect("migrated .aeworld archive must decode cleanly");
+                let count = doc.persistent_entities.len()
+                    + doc.cells.values().map(|c| c.entities.len()).sum::<usize>();
+                assert!(count > 0, "{candidate} must contain entities");
+            }
         }
-    }
-
-    #[test]
-    fn test_dynamic_saved_entity_serialization_round_trip() {
-        let mut entity = SavedEntity {
-            dimension: None,
-            model_path: Some("assets/models/test.gltf".to_string()),
-            sprite_path: None,
-            parent_name: Some("Root_Parent".to_string()),
-            lod_group: None,
-            components: HashMap::new(),
-        };
-
-        entity.components.insert(
-            "position".to_string(),
-            serde_json::json!({ "x": 10.0, "y": 20.0, "z": 30.0 }),
-        );
-        entity
-            .components
-            .insert("name".to_string(), serde_json::json!("DynamicTestEntity"));
-        entity
-            .components
-            .insert("is_player".to_string(), serde_json::json!(true));
-
-        let json = serde_json::to_string_pretty(&entity).unwrap();
-        let deserialized: SavedEntity = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(
-            deserialized.model_path.as_deref(),
-            Some("assets/models/test.gltf")
-        );
-        assert_eq!(deserialized.parent_name.as_deref(), Some("Root_Parent"));
-        assert_eq!(
-            deserialized.components.get("name").unwrap(),
-            &serde_json::json!("DynamicTestEntity")
-        );
-        assert_eq!(
-            deserialized.components.get("position").unwrap(),
-            &serde_json::json!({ "x": 10.0, "y": 20.0, "z": 30.0 })
-        );
-        assert_eq!(
-            deserialized.components.get("is_player").unwrap(),
-            &serde_json::json!(true)
-        );
-    }
-
-    #[test]
-    fn test_is_saved_entities_3d_isolation() {
-        let ent_3d_model = SavedEntity {
-            dimension: None,
-            model_path: Some("assets/models/mesh.gltf".to_string()),
-            sprite_path: None,
-            parent_name: None,
-            lod_group: None,
-            components: HashMap::new(),
-        };
-        assert!(is_saved_entities_3d(&[ent_3d_model]));
-
-        let mut ent_3d_shape = SavedEntity {
-            dimension: None,
-            model_path: None,
-            sprite_path: None,
-            parent_name: None,
-            lod_group: None,
-            components: HashMap::new(),
-        };
-        ent_3d_shape
-            .components
-            .insert("shape".to_string(), serde_json::json!("Cube"));
-        assert!(is_saved_entities_3d(&[ent_3d_shape]));
-
-        let ent_2d = SavedEntity {
-            dimension: Some("2D".to_string()),
-            model_path: None,
-            sprite_path: Some("assets/textures/sprite.png".to_string()),
-            parent_name: None,
-            lod_group: None,
-            components: HashMap::new(),
-        };
-        assert!(!is_saved_entities_3d(&[ent_2d]));
     }
 }

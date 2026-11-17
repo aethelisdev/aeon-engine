@@ -220,9 +220,9 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     let root_id = tree.create_root().expect("Root node creation failed");
 
     let scene_item = AssetItem {
-        name: "test_level.ae3d".to_string(),
-        path: PathBuf::from("assets/scenes/test_level.ae3d"),
-        relative_path: "scenes/test_level.ae3d".to_string(),
+        name: "test_level.aeworld".to_string(),
+        path: PathBuf::from("assets/scenes/test_level.aeworld"),
+        relative_path: "scenes/test_level.aeworld".to_string(),
         category: AssetCategory::Scenes,
         source: AssetSource::Project,
         file_size_bytes: 4096,
@@ -281,7 +281,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     let mut has_action_btn = false;
 
     tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.text.as_deref() == Some("test_level.ae3d") {
+        if node.text.as_deref() == Some("test_level.aeworld") {
             has_test_level_title = true;
         } else if node.tag == ModalDialogAction::TAG_CLOSE {
             close_rect = node.computed_rect;
@@ -294,7 +294,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
 
     assert!(
         has_test_level_title,
-        "Modal title test_level.ae3d must exist in tree"
+        "Modal title test_level.aeworld must exist in tree"
     );
 
     assert!(
@@ -736,9 +736,9 @@ fn test_engine_and_sidebar_vector_icons() {
 #[test]
 fn test_bidirectional_scene_filtering() {
     let scene_3d = AssetItem {
-        name: "physics_test_suite.ae3d".to_string(),
-        path: PathBuf::from("assets/scenes/physics_test_suite.ae3d"),
-        relative_path: "scenes/physics_test_suite.ae3d".to_string(),
+        name: "physics_test_suite.aeworld".to_string(),
+        path: PathBuf::from("assets/scenes/physics_test_suite.aeworld"),
+        relative_path: "scenes/physics_test_suite.aeworld".to_string(),
         category: AssetCategory::Scenes,
         source: AssetSource::Project,
         file_size_bytes: 12000,
@@ -751,9 +751,9 @@ fn test_bidirectional_scene_filtering() {
     };
 
     let scene_2d = AssetItem {
-        name: "level1_2d.ae2d".to_string(),
-        path: PathBuf::from("assets/scenes/level1_2d.ae2d"),
-        relative_path: "scenes/level1_2d.ae2d".to_string(),
+        name: "level1_2d.aeworld".to_string(),
+        path: PathBuf::from("assets/scenes/level1_2d.aeworld"),
+        relative_path: "scenes/level1_2d.aeworld".to_string(),
         category: AssetCategory::Scenes,
         source: AssetSource::Project,
         file_size_bytes: 4000,
@@ -792,9 +792,9 @@ fn test_bidirectional_scene_filtering() {
     assert!(
         !filtered_2d
             .iter()
-            .any(|i| i.name == "physics_test_suite.ae3d")
+            .any(|i| i.name == "physics_test_suite.aeworld")
     );
-    assert!(filtered_2d.iter().any(|i| i.name == "level1_2d.ae2d"));
+    assert!(filtered_2d.iter().any(|i| i.name == "level1_2d.aeworld"));
 
     // Filter in 3D mode: 2D scenes hidden
     let filtered_3d: Vec<_> = all_items
@@ -806,52 +806,28 @@ fn test_bidirectional_scene_filtering() {
     assert!(
         filtered_3d
             .iter()
-            .any(|i| i.name == "physics_test_suite.ae3d")
+            .any(|i| i.name == "physics_test_suite.aeworld")
     );
-    assert!(!filtered_3d.iter().any(|i| i.name == "level1_2d.ae2d"));
+    assert!(!filtered_3d.iter().any(|i| i.name == "level1_2d.aeworld"));
 }
 
-/// Verifies that `is_scene_json_3d` accurately distinguishes 3D vs 2D scene structures.
+/// Verifies that `is_world_bytes_3d` accurately distinguishes 3D vs 2D binary world archives.
 #[test]
-fn test_is_scene_json_3d_detection() {
-    use crate::assets::scanner::is_scene_json_3d;
+fn test_is_world_bytes_3d_detection() {
+    use crate::assets::scanner::is_world_bytes_3d;
 
-    let scene_3d_shape = serde_json::json!([
-        {
-            "name": "Static_Ground",
-            "shape": "Cube",
-            "position": { "x": 0.0, "y": 0.0, "z": 0.0 }
-        }
-    ]);
-    assert!(is_scene_json_3d(&scene_3d_shape));
+    let mut ids = ae_world::GuidGenerator::from_seed(101);
+    let world_3d = ae_world::WorldDocument::new(ids.next_entity_guid(), false, 128.0)
+        .encode_full()
+        .expect("encode 3D binary world");
+    assert!(is_world_bytes_3d(&world_3d));
 
-    let scene_3d_model = serde_json::json!([
-        {
-            "name": "Dragon",
-            "model_path": "assets/models/dragon.glb"
-        }
-    ]);
-    assert!(is_scene_json_3d(&scene_3d_model));
+    let world_2d = ae_world::WorldDocument::new(ids.next_entity_guid(), true, 128.0)
+        .encode_full()
+        .expect("encode 2D binary world");
+    assert!(!is_world_bytes_3d(&world_2d));
 
-    let scene_3d_explicit = serde_json::json!({
-        "dimension": "3D",
-        "entities": []
-    });
-    assert!(is_scene_json_3d(&scene_3d_explicit));
-
-    let scene_2d_explicit = serde_json::json!({
-        "dimension": "2D",
-        "entities": []
-    });
-    assert!(!is_scene_json_3d(&scene_2d_explicit));
-
-    let scene_2d_sprite = serde_json::json!([
-        {
-            "name": "Player_Sprite",
-            "sprite_path": "assets/textures/player.png"
-        }
-    ]);
-    assert!(!is_scene_json_3d(&scene_2d_sprite));
+    assert!(!is_world_bytes_3d(b"corrupted-not-a-world"));
 }
 
 #[test]

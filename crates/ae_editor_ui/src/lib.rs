@@ -126,9 +126,9 @@ mod tests {
         };
 
         let old_data =
-            serde_json::to_vec(&old_vel).expect("serialization of old velocity should succeed");
+            postcard::to_stdvec(&old_vel).expect("serialization of old velocity should succeed");
         let new_data =
-            serde_json::to_vec(&new_vel).expect("serialization of new velocity should succeed");
+            postcard::to_stdvec(&new_vel).expect("serialization of new velocity should succeed");
 
         // Simulate CommitComponentModify processing
         let _ = world.insert_one(entity, new_vel);

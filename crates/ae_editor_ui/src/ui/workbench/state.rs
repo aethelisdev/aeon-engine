@@ -165,7 +165,7 @@ impl EngineUi {
             pending_preferences_actions: Vec::new(),
             should_save_scene: false,
             should_load_scene: false,
-            active_scene_path: "scene.ae3d".to_string(),
+            active_scene_path: "scene.aeworld".to_string(),
             pending_save_path: None,
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),

@@ -88,21 +88,21 @@ pub fn handle_modify_component(
 ) {
     match type_name {
         "AudioSource" => {
-            if let Ok(comp) = serde_json::from_slice::<ae_audio::AudioSource>(data) {
+            if let Ok(comp) = postcard::from_bytes::<ae_audio::AudioSource>(data) {
                 let _ = ctx.world.insert_one(entity, comp);
                 let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
             }
             return;
         }
         "AudioListener" => {
-            if let Ok(comp) = serde_json::from_slice::<ae_audio::AudioListener>(data) {
+            if let Ok(comp) = postcard::from_bytes::<ae_audio::AudioListener>(data) {
                 let _ = ctx.world.insert_one(entity, comp);
                 let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
             }
             return;
         }
         "AnimationPlayer" => {
-            if let Ok(comp) = serde_json::from_slice::<ae_animation::AnimationPlayer>(data) {
+            if let Ok(comp) = postcard::from_bytes::<ae_animation::AnimationPlayer>(data) {
                 let _ = ctx.world.insert_one(entity, comp);
                 let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
             }

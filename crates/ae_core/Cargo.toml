@@ -11,7 +11,13 @@ glam = { workspace = true }
 log = "0.4.33"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+winit = { version = "0.30.13", features = ["serde"] }
 slotmap = { version = "1.1.1", features = ["serde"] }
 rayon = "1.12.0"
 ae_plugin_api = { path = "../ae_plugin_api" }
+postcard = { workspace = true }
+
+[dev-dependencies]
+lz4_flex = { workspace = true }
+crc32fast = { workspace = true }
 
