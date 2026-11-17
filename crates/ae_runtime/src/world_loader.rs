@@ -372,7 +372,9 @@ fn spawn_world_records(
                 continue;
             }
             if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
-                && handler.apply(world, ent, &comp.payload).is_ok()
+                && handler
+                    .apply_versioned(world, ent, comp.schema_ver, &comp.payload)
+                    .is_ok()
                 && matches!(
                     handler.type_name(),
                     "RigidBody" | "Collider" | "CharacterController"

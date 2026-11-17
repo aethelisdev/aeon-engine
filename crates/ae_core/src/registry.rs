@@ -21,6 +21,9 @@ pub trait ComponentHandler: Send + Sync {
     /// Deterministic 64-bit FNV-1a discriminator matching `ae_plugin_api::component_type_hash`.
     fn type_hash(&self) -> u64;
 
+    /// Active binary schema revision emitted when capturing this component (`>= 1`).
+    fn schema_version(&self) -> u16;
+
     /// TypeId of the underlying component.
     fn type_id(&self) -> TypeId;
 
@@ -33,7 +36,18 @@ pub trait ComponentHandler: Send + Sync {
     /// Converts an offline JSON object representation into binary `postcard` bytes for migration tools.
     fn transcode_json_to_binary(&self, json: &str) -> Result<Vec<u8>, String>;
 
-    /// Restores serialized binary `postcard` component data onto `entity` in `world`.
+    /// Restores serialized binary `postcard` component data encoded at `schema_ver` onto `entity`,
+    /// running registered schema upcasters when `schema_ver` predates [`Self::schema_version`].
+    fn apply_versioned(
+        &self,
+        world: &mut hecs::World,
+        entity: hecs::Entity,
+        schema_ver: u16,
+        data: &[u8],
+    ) -> Result<(), String>;
+
+    /// Restores serialized binary `postcard` component data onto `entity` in `world` using the
+    /// handler's current schema version (with automatic fallback to legacy upcasters).
     fn apply(
         &self,
         world: &mut hecs::World,
@@ -60,30 +74,104 @@ pub trait ComponentHandler: Send + Sync {
     fn add_default(&self, world: &mut hecs::World, entity: hecs::Entity) -> Result<(), String>;
 }
 
+type LegacyComponentDecoder<T> = Box<dyn Fn(&[u8]) -> Result<T, String> + Send + Sync>;
+
 /// Generic handler implementation for any component implementing `Serialize + DeserializeOwned + Clone`.
+///
+/// Supports explicit `schema_ver` tagging and historical binary schema upcasters via
+/// [`Self::with_schema_version`] and [`Self::with_migration`].
 pub struct TypedComponentHandler<T> {
     name: &'static str,
+    schema_ver: u16,
     default_fn: Option<fn() -> T>,
+    legacy_decoders: Vec<(u16, LegacyComponentDecoder<T>)>,
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T> TypedComponentHandler<T> {
-    /// Creates a new typed component handler with the given human-readable name.
+impl<T: 'static> TypedComponentHandler<T> {
+    /// Creates a new typed component handler with the given human-readable name at `schema_ver = 1`.
     pub fn new(name: &'static str) -> Self {
         Self {
             name,
+            schema_ver: 1,
             default_fn: None,
+            legacy_decoders: Vec::new(),
             _marker: std::marker::PhantomData,
         }
     }
 
-    /// Creates a new typed component handler with a default value constructor.
+    /// Creates a new typed component handler with a default value constructor at `schema_ver = 1`.
     pub fn with_default(name: &'static str, default_fn: fn() -> T) -> Self {
         Self {
             name,
+            schema_ver: 1,
             default_fn: Some(default_fn),
+            legacy_decoders: Vec::new(),
             _marker: std::marker::PhantomData,
         }
+    }
+
+    /// Sets the active binary schema revision emitted when capturing this component (`>= 1`).
+    #[must_use]
+    pub fn with_schema_version(mut self, schema_ver: u16) -> Self {
+        self.schema_ver = schema_ver.max(1);
+        self
+    }
+
+    /// Registers a strongly typed upcaster converting legacy `postcard` payloads encoded at
+    /// `from_schema_ver` (`OldT`) into the current component layout `T`.
+    ///
+    /// Automatically advances `schema_ver` to at least `from_schema_ver + 1`.
+    #[must_use]
+    pub fn with_migration<OldT: serde::de::DeserializeOwned + 'static>(
+        mut self,
+        from_schema_ver: u16,
+        upcast_fn: fn(OldT) -> T,
+    ) -> Self {
+        self.schema_ver = self.schema_ver.max(from_schema_ver.saturating_add(1));
+        self.legacy_decoders.push((
+            from_schema_ver,
+            Box::new(move |bytes| {
+                let old: OldT = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
+                Ok(upcast_fn(old))
+            }),
+        ));
+        self
+    }
+}
+
+impl<T: serde::de::DeserializeOwned> TypedComponentHandler<T> {
+    fn decode_payload(&self, schema_ver: u16, data: &[u8]) -> Result<T, String> {
+        if schema_ver == self.schema_ver
+            && let Ok(comp) = postcard::from_bytes::<T>(data)
+        {
+            return Ok(comp);
+        }
+
+        if schema_ver != self.schema_ver {
+            for (ver, decoder) in &self.legacy_decoders {
+                if *ver == schema_ver {
+                    return decoder(data);
+                }
+            }
+        }
+
+        if let Ok(comp) = postcard::from_bytes::<T>(data) {
+            return Ok(comp);
+        }
+
+        for (_, decoder) in self.legacy_decoders.iter().rev() {
+            if let Ok(comp) = decoder(data) {
+                return Ok(comp);
+            }
+        }
+
+        postcard::from_bytes::<T>(data).map_err(|e| {
+            format!(
+                "Failed to decode component '{}' (record schema_ver={}, current={}): {e}",
+                self.name, schema_ver, self.schema_ver
+            )
+        })
     }
 }
 
@@ -96,6 +184,10 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
 
     fn type_hash(&self) -> u64 {
         ae_plugin_api::component_type_hash(self.name)
+    }
+
+    fn schema_version(&self) -> u16 {
+        self.schema_ver
     }
 
     fn type_id(&self) -> TypeId {
@@ -121,17 +213,27 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
         postcard::to_stdvec(&comp).map_err(|e| e.to_string())
     }
 
+    fn apply_versioned(
+        &self,
+        world: &mut hecs::World,
+        entity: hecs::Entity,
+        schema_ver: u16,
+        data: &[u8],
+    ) -> Result<(), String> {
+        let comp = self.decode_payload(schema_ver, data)?;
+        world
+            .insert_one(entity, comp)
+            .map_err(|e| format!("{:?}", e))?;
+        Ok(())
+    }
+
     fn apply(
         &self,
         world: &mut hecs::World,
         entity: hecs::Entity,
         data: &[u8],
     ) -> Result<(), String> {
-        let comp: T = postcard::from_bytes(data).map_err(|e| e.to_string())?;
-        world
-            .insert_one(entity, comp)
-            .map_err(|e| format!("{:?}", e))?;
-        Ok(())
+        self.apply_versioned(world, entity, self.schema_ver, data)
     }
 
     fn clone_component(
@@ -226,13 +328,28 @@ impl ComponentRegistry {
         name: &'static str,
         default_fn: fn() -> T,
     ) {
+        self.register_handler(TypedComponentHandler::<T>::with_default(name, default_fn));
+    }
+
+    /// Registers a custom-configured [`TypedComponentHandler`] (including schema version and
+    /// legacy migration upcasters), replacing any prior handler with the same type hash.
+    pub fn register_handler<
+        T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone,
+    >(
+        &mut self,
+        handler: TypedComponentHandler<T>,
+    ) {
+        let name = handler.name;
         let type_id = TypeId::of::<T>();
         let hash = ae_plugin_api::component_type_hash(name);
+        if let Some(&existing_idx) = self.type_hash_map.get(&hash) {
+            self.handlers[existing_idx] = Box::new(handler);
+            self.type_id_map.insert(type_id, existing_idx);
+            self.name_map.insert(name.to_string(), existing_idx);
+            return;
+        }
         let idx = self.handlers.len();
-        self.handlers
-            .push(Box::new(TypedComponentHandler::<T>::with_default(
-                name, default_fn,
-            )));
+        self.handlers.push(Box::new(handler));
         self.type_id_map.insert(type_id, idx);
         self.type_hash_map.insert(hash, idx);
         self.name_map.insert(name.to_string(), idx);
@@ -292,170 +409,71 @@ impl ComponentRegistry {
 
     /// Builds a default component registry pre-populated with all core engine components.
     pub fn default_engine_registry() -> Self {
+        use ae_plugin_api::*;
         let mut registry = Self::new();
-        registry.register_with_default::<ae_plugin_api::EntityGuid>(
-            "EntityGuid",
-            ae_plugin_api::EntityGuid::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Position>(
-            "Position",
-            ae_plugin_api::Position::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Rotation>(
-            "Rotation",
-            ae_plugin_api::Rotation::default,
-        );
-        registry
-            .register_with_default::<ae_plugin_api::Scale>("Scale", ae_plugin_api::Scale::default);
-        registry.register_with_default::<ae_plugin_api::Velocity>(
-            "Velocity",
-            ae_plugin_api::Velocity::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Name>("Name", ae_plugin_api::Name::default);
-        registry
-            .register_with_default::<ae_plugin_api::Shape>("Shape", ae_plugin_api::Shape::default);
-        registry
-            .register_with_default::<ae_plugin_api::Color>("Color", ae_plugin_api::Color::default);
-        registry
-            .register_with_default::<ae_plugin_api::Light>("Light", ae_plugin_api::Light::default);
-        registry.register_with_default::<ae_plugin_api::SpriteId>(
-            "SpriteId",
-            ae_plugin_api::SpriteId::default,
-        );
-        registry.register_with_default::<ae_plugin_api::ModelId>(
-            "ModelId",
-            ae_plugin_api::ModelId::default,
-        );
-        registry.register_with_default::<ae_plugin_api::RigidBody>(
-            "RigidBody",
-            ae_plugin_api::RigidBody::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Collider>(
-            "Collider",
-            ae_plugin_api::Collider::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Rotator>(
-            "Rotator",
-            ae_plugin_api::Rotator::default,
-        );
-        registry.register_with_default::<ae_plugin_api::MovingPlatform>(
-            "MovingPlatform",
-            ae_plugin_api::MovingPlatform::default,
-        );
-        registry.register_with_default::<ae_plugin_api::TriggerZone>(
-            "TriggerZone",
-            ae_plugin_api::TriggerZone::default,
-        );
-        registry.register_with_default::<ae_plugin_api::DestructibleTarget>(
+        registry.register_with_default::<EntityGuid>("EntityGuid", EntityGuid::default);
+        registry.register_with_default::<Position>("Position", Position::default);
+        registry.register_with_default::<Rotation>("Rotation", Rotation::default);
+        registry.register_with_default::<Scale>("Scale", Scale::default);
+        registry.register_with_default::<Velocity>("Velocity", Velocity::default);
+        registry.register_with_default::<Name>("Name", Name::default);
+        registry.register_with_default::<Shape>("Shape", Shape::default);
+        registry.register_with_default::<Color>("Color", Color::default);
+        registry.register_with_default::<Light>("Light", Light::default);
+        registry.register_with_default::<SpriteId>("SpriteId", SpriteId::default);
+        registry.register_with_default::<ModelId>("ModelId", ModelId::default);
+        registry.register_with_default::<RigidBody>("RigidBody", RigidBody::default);
+        registry.register_with_default::<Collider>("Collider", Collider::default);
+        registry.register_with_default::<Rotator>("Rotator", Rotator::default);
+        registry.register_with_default::<MovingPlatform>("MovingPlatform", MovingPlatform::default);
+        registry.register_with_default::<TriggerZone>("TriggerZone", TriggerZone::default);
+        registry.register_with_default::<DestructibleTarget>(
             "DestructibleTarget",
-            ae_plugin_api::DestructibleTarget::default,
+            DestructibleTarget::default,
         );
-        registry.register_with_default::<ae_plugin_api::CharacterAction>(
-            "CharacterAction",
-            ae_plugin_api::CharacterAction::default,
-        );
-        registry.register_with_default::<ae_plugin_api::EphemeralProjectile>(
+        registry
+            .register_with_default::<CharacterAction>("CharacterAction", CharacterAction::default);
+        registry.register_with_default::<EphemeralProjectile>(
             "EphemeralProjectile",
-            ae_plugin_api::EphemeralProjectile::default,
+            EphemeralProjectile::default,
         );
-        registry.register_with_default::<ae_plugin_api::CharacterController>(
+        registry.register_with_default::<CharacterController>(
             "CharacterController",
-            ae_plugin_api::CharacterController::default,
+            CharacterController::default,
         );
-        registry.register_with_default::<ae_plugin_api::PlayerTag>(
-            "PlayerTag",
-            ae_plugin_api::PlayerTag::default,
-        );
-        registry.register_with_default::<ae_plugin_api::BoundingRadius>(
-            "BoundingRadius",
-            ae_plugin_api::BoundingRadius::default,
-        );
-        registry.register_with_default::<ae_plugin_api::BoundingBox>(
-            "BoundingBox",
-            ae_plugin_api::BoundingBox::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Hidden>(
-            "Hidden",
-            ae_plugin_api::Hidden::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Parent>(
-            "Parent",
-            ae_plugin_api::Parent::default,
-        );
-        registry.register_with_default::<ae_plugin_api::Children>(
-            "Children",
-            ae_plugin_api::Children::default,
-        );
+        registry.register_with_default::<PlayerTag>("PlayerTag", PlayerTag::default);
+        registry.register_with_default::<BoundingRadius>("BoundingRadius", BoundingRadius::default);
+        registry.register_with_default::<BoundingBox>("BoundingBox", BoundingBox::default);
+        registry.register_with_default::<Hidden>("Hidden", Hidden::default);
+        registry.register_with_default::<Parent>("Parent", Parent::default);
+        registry.register_with_default::<Children>("Children", Children::default);
         registry.register_with_default::<crate::ecs::LodGroup>(
             "LodGroup",
             crate::ecs::LodGroup::default,
         );
-        registry.register_with_default::<ae_plugin_api::PhysicsMaterialHandle>(
+        registry.register_with_default::<PhysicsMaterialHandle>(
             "PhysicsMaterialHandle",
-            ae_plugin_api::PhysicsMaterialHandle::default,
+            PhysicsMaterialHandle::default,
         );
-        registry.register_with_default::<ae_plugin_api::PhysicsMaterial>(
-            "PhysicsMaterial",
-            ae_plugin_api::PhysicsMaterial::default,
-        );
-        registry.register_with_default::<ae_plugin_api::TransformDirty>(
-            "TransformDirty",
-            ae_plugin_api::TransformDirty::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiElement>(
-            "UiElement",
-            ae_plugin_api::UiElement::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiPanel>(
-            "UiPanel",
-            ae_plugin_api::UiPanel::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiText>(
-            "UiText",
-            ae_plugin_api::UiText::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiProgressBar>(
-            "UiProgressBar",
-            ae_plugin_api::UiProgressBar::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiButton>(
-            "UiButton",
-            ae_plugin_api::UiButton::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiImage>(
-            "UiImage",
-            ae_plugin_api::UiImage::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiSlider>(
-            "UiSlider",
-            ae_plugin_api::UiSlider::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiCheckbox>(
-            "UiCheckbox",
-            ae_plugin_api::UiCheckbox::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiTextInput>(
-            "UiTextInput",
-            ae_plugin_api::UiTextInput::default,
-        );
-        registry.register_with_default::<ae_plugin_api::UiLayoutGroup>(
-            "UiLayoutGroup",
-            ae_plugin_api::UiLayoutGroup::default,
-        );
-        registry.register_with_default::<ae_plugin_api::PlayerHealthBarTag>(
-            "PlayerHealthBarTag",
-            || ae_plugin_api::PlayerHealthBarTag,
-        );
-        registry.register_with_default::<ae_plugin_api::ScoreDisplayTag>("ScoreDisplayTag", || {
-            ae_plugin_api::ScoreDisplayTag
+        registry
+            .register_with_default::<PhysicsMaterial>("PhysicsMaterial", PhysicsMaterial::default);
+        registry.register_with_default::<TransformDirty>("TransformDirty", TransformDirty::default);
+        registry.register_with_default::<UiElement>("UiElement", UiElement::default);
+        registry.register_with_default::<UiPanel>("UiPanel", UiPanel::default);
+        registry.register_with_default::<UiText>("UiText", UiText::default);
+        registry.register_with_default::<UiProgressBar>("UiProgressBar", UiProgressBar::default);
+        registry.register_with_default::<UiButton>("UiButton", UiButton::default);
+        registry.register_with_default::<UiImage>("UiImage", UiImage::default);
+        registry.register_with_default::<UiSlider>("UiSlider", UiSlider::default);
+        registry.register_with_default::<UiCheckbox>("UiCheckbox", UiCheckbox::default);
+        registry.register_with_default::<UiTextInput>("UiTextInput", UiTextInput::default);
+        registry.register_with_default::<UiLayoutGroup>("UiLayoutGroup", UiLayoutGroup::default);
+        registry.register_with_default::<PlayerHealthBarTag>("PlayerHealthBarTag", || {
+            PlayerHealthBarTag
         });
-        registry.register_with_default::<ae_plugin_api::ReticleTag>("ReticleTag", || {
-            ae_plugin_api::ReticleTag
-        });
-        registry.register_with_default::<ae_plugin_api::SpriteRenderer>(
-            "SpriteRenderer",
-            ae_plugin_api::SpriteRenderer::default,
-        );
+        registry.register_with_default::<ScoreDisplayTag>("ScoreDisplayTag", || ScoreDisplayTag);
+        registry.register_with_default::<ReticleTag>("ReticleTag", || ReticleTag);
+        registry.register_with_default::<SpriteRenderer>("SpriteRenderer", SpriteRenderer::default);
 
         registry
     }
@@ -593,5 +611,93 @@ mod tests {
 
         assert_eq!(decoded_entity, entity_guid);
         assert_eq!(decoded_asset, asset_guid);
+    }
+
+    #[test]
+    fn test_component_schema_version_upcast_migration_v1_to_v2_and_v3() {
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        struct ShieldV1 {
+            capacity: f32,
+        }
+
+        #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+        struct ShieldV2 {
+            capacity: f32,
+            recharge_rate: f32,
+        }
+
+        #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+        struct ShieldV3 {
+            capacity: f32,
+            recharge_rate: f32,
+            overcharge: bool,
+        }
+
+        let mut registry = ComponentRegistry::new();
+        registry.register_handler(
+            TypedComponentHandler::<ShieldV3>::with_default("EnergyShield", ShieldV3::default)
+                .with_schema_version(3)
+                .with_migration::<ShieldV1>(1, |v1| ShieldV3 {
+                    capacity: v1.capacity,
+                    recharge_rate: 5.0,
+                    overcharge: false,
+                })
+                .with_migration::<ShieldV2>(2, |v2| ShieldV3 {
+                    capacity: v2.capacity,
+                    recharge_rate: v2.recharge_rate,
+                    overcharge: true,
+                }),
+        );
+
+        let handler = registry
+            .get_by_name("EnergyShield")
+            .expect("registered EnergyShield handler");
+        assert_eq!(handler.schema_version(), 3);
+
+        let v1_bytes = postcard::to_stdvec(&ShieldV1 { capacity: 120.0 }).expect("encode v1");
+        let v2_bytes = postcard::to_stdvec(&ShieldV2 {
+            capacity: 250.0,
+            recharge_rate: 12.5,
+        })
+        .expect("encode v2");
+        let v3_val = ShieldV3 {
+            capacity: 500.0,
+            recharge_rate: 25.0,
+            overcharge: true,
+        };
+        let v3_bytes = postcard::to_stdvec(&v3_val).expect("encode v3");
+
+        let mut world = World::new();
+        let e1 = world.spawn(());
+        let e2 = world.spawn(());
+        let e3 = world.spawn(());
+
+        handler
+            .apply_versioned(&mut world, e1, 1, &v1_bytes)
+            .expect("migrate v1 -> v3");
+        handler
+            .apply_versioned(&mut world, e2, 2, &v2_bytes)
+            .expect("migrate v2 -> v3");
+        handler
+            .apply_versioned(&mut world, e3, 3, &v3_bytes)
+            .expect("apply current v3");
+
+        assert_eq!(
+            *world.get::<&ShieldV3>(e1).expect("e1 shield"),
+            ShieldV3 {
+                capacity: 120.0,
+                recharge_rate: 5.0,
+                overcharge: false,
+            }
+        );
+        assert_eq!(
+            *world.get::<&ShieldV3>(e2).expect("e2 shield"),
+            ShieldV3 {
+                capacity: 250.0,
+                recharge_rate: 12.5,
+                overcharge: true,
+            }
+        );
+        assert_eq!(*world.get::<&ShieldV3>(e3).expect("e3 shield"), v3_val);
     }
 }

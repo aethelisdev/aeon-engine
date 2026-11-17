@@ -337,7 +337,9 @@ impl RuntimeStreamingManager {
                     continue;
                 }
                 if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
-                    && handler.apply(world, entity, &comp.payload).is_ok()
+                    && handler
+                        .apply_versioned(world, entity, comp.schema_ver, &comp.payload)
+                        .is_ok()
                     && matches!(
                         handler.type_name(),
                         "RigidBody" | "Collider" | "CharacterController"

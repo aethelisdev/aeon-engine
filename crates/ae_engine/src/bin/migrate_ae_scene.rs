@@ -161,7 +161,7 @@ fn convert_legacy_scene(input: &Path, output: &Path) -> Result<usize, String> {
                     let bytes = handler.transcode_json_to_binary("null")?;
                     record.components.push(ComponentRecord {
                         type_hash: handler.type_hash(),
-                        schema_ver: 1,
+                        schema_ver: handler.schema_version(),
                         flags: 0,
                         payload: bytes,
                     });
@@ -186,7 +186,7 @@ fn convert_legacy_scene(input: &Path, output: &Path) -> Result<usize, String> {
                 if let Ok(payload) = handler.transcode_json_to_binary(&json_str) {
                     record.components.push(ComponentRecord {
                         type_hash: handler.type_hash(),
-                        schema_ver: 1,
+                        schema_ver: handler.schema_version(),
                         flags: 0,
                         payload,
                     });

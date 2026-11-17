@@ -102,7 +102,7 @@ impl Prefab {
                 if let Some(payload) = handler.capture(world, ent) {
                     record.components.push(ComponentRecord {
                         type_hash: handler.type_hash(),
-                        schema_ver: 1,
+                        schema_ver: handler.schema_version(),
                         flags: 0,
                         payload,
                     });
@@ -139,7 +139,7 @@ impl Prefab {
 
             for comp in &rec.components {
                 if let Some(handler) = registry.get_by_type_hash(comp.type_hash) {
-                    let _ = handler.apply(world, ent, &comp.payload);
+                    let _ = handler.apply_versioned(world, ent, comp.schema_ver, &comp.payload);
                 }
             }
 

@@ -195,7 +195,7 @@ fn capture_entity_record(
         if let Some(payload) = handler.capture(w, entity) {
             record.components.push(ComponentRecord {
                 type_hash: handler.type_hash(),
-                schema_ver: 1,
+                schema_ver: handler.schema_version(),
                 flags: 0,
                 payload,
             });
@@ -584,7 +584,12 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
             }
             if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
                 && handler
-                    .apply(&mut engine.ecs.world, new_ent, &comp.payload)
+                    .apply_versioned(
+                        &mut engine.ecs.world,
+                        new_ent,
+                        comp.schema_ver,
+                        &comp.payload,
+                    )
                     .is_ok()
             {
                 let name = handler.type_name();
@@ -692,7 +697,7 @@ mod tests {
                 if let Some(payload) = handler.capture(&world, ent) {
                     rec.components.push(ComponentRecord {
                         type_hash: handler.type_hash(),
-                        schema_ver: 1,
+                        schema_ver: handler.schema_version(),
                         flags: 0,
                         payload,
                     });

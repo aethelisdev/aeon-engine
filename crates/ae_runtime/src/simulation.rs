@@ -226,7 +226,7 @@ pub fn capture_runtime_save_snapshot(
             if let Some(payload) = handler.capture(world, entity) {
                 rec.components.push(ComponentRecord {
                     type_hash: handler.type_hash(),
-                    schema_ver: 1,
+                    schema_ver: handler.schema_version(),
                     flags: 0,
                     payload,
                 });
@@ -300,7 +300,7 @@ fn apply_record_slice(
         };
         for comp in &rec.components {
             if let Some(handler) = registry.get_by_type_hash(comp.type_hash) {
-                let _ = handler.apply(world, entity, &comp.payload);
+                let _ = handler.apply_versioned(world, entity, comp.schema_ver, &comp.payload);
             }
         }
         let _ = world.insert_one(entity, TransformDirty);
