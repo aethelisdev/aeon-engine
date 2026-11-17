@@ -25,10 +25,17 @@ desktop.ini
 dist/
 dist_export/
 
-# Scene and Prefab files
+# Scene, World, Archive, and Runtime Save files
 *.aee
 *.ae2d
 *.ae3d
 *.aeprefab
+*.aeworld
+*.aechunk
+*.aepak
+*.aesave
+*.aemeta
 assets/scenes/
+Saved/
+Intermediate/
 
