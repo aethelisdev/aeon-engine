@@ -1,0 +1,20 @@
+[package]
+name = "ae_world"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Binary world archive, spatial partition chunks, block-compressed asset pak, VFS, and atomic delta savegame core"
+
+[lints]
+workspace = true
+
+[dependencies]
+ae_plugin_api = { path = "../ae_plugin_api" }
+bytemuck = { workspace = true }
+serde = { workspace = true }
+postcard = { workspace = true }
+lz4_flex = { workspace = true }
+crc32fast = { workspace = true }
+rayon = "1.12.0"
+thiserror = { workspace = true }
+log = { workspace = true }
