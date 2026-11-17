@@ -140,9 +140,9 @@ impl McpHost for AeEngine {
         let registry = ae_core::ecs::ComponentRegistry::global();
         let mut components = Map::new();
         for handler in registry.handlers() {
-            if let Some(bytes) = handler.capture(&self.ecs.world, entity) {
-                let parsed = serde_json::from_slice::<Value>(&bytes)
-                    .unwrap_or_else(|_| json!(String::from_utf8_lossy(&bytes).into_owned()));
+            if let Some(json_str) = handler.capture_debug_json(&self.ecs.world, entity) {
+                let parsed =
+                    serde_json::from_str::<Value>(&json_str).unwrap_or_else(|_| json!(json_str));
                 components.insert(handler.type_name().to_string(), parsed);
             }
         }

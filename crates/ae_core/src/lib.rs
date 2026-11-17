@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+pub mod action_map;
 pub mod behavior;
 pub mod camera;
 pub mod commands;
@@ -9,6 +10,7 @@ pub mod commands;
 /// borrow checker conflicts between modular subsystems.
 pub mod ecs;
 pub mod events;
+pub mod input;
 pub mod math;
 pub mod modules;
 pub mod registry;

@@ -9,7 +9,7 @@ use ae_core::ecs::{
     Rotation, Velocity,
 };
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
-use ae_editor::input::InputManager;
+use ae_core::input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use hecs::World;
 
@@ -158,7 +158,7 @@ fn test_entities_without_character_action_do_not_shoot() {
 
     // Simulate Fire button press
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 
@@ -189,7 +189,7 @@ fn test_entities_without_character_action_do_not_shoot() {
     ));
 
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 
@@ -233,7 +233,7 @@ fn test_character_action_cooldown_and_speed() {
 
     // First shot (timer = 0.0, ready to fire)
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 
@@ -266,7 +266,7 @@ fn test_character_action_cooldown_and_speed() {
     // Second shot immediately (cooldown active: 1.0 - 0.1 = 0.9s remaining)
     input.end_frame();
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 
@@ -290,7 +290,7 @@ fn test_character_action_cooldown_and_speed() {
 
     // Advance time by 1.0s and release key so next press is registered
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Released,
     );
     input.end_frame();
@@ -305,7 +305,7 @@ fn test_character_action_cooldown_and_speed() {
 
     // Third shot after cooldown has elapsed
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 
@@ -376,7 +376,7 @@ fn test_character_action_shoots_and_pushes_dynamic_cube() {
 
     // Fire weapon along +Z towards the cube
     input.process_key_event(
-        ae_editor::input::KeyCode::KeyF,
+        ae_core::input::KeyCode::KeyF,
         winit::event::ElementState::Pressed,
     );
 

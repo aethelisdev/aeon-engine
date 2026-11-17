@@ -8,8 +8,9 @@
 
 pub use ae_plugin_api::{
     AudioMute, CollisionEnter, CollisionExit, DynamicEventBus, EntityDestroyed, EntitySpawned,
-    Event, MaterialChanged, PhysicsTick, PhysicsUpdate, PlaySound, RaycastHitEvent, RenderFrame,
-    StopSound, TargetDestroyedEvent, TriggerEnter, TriggerExit, ViewportResize,
+    Event, LoadGameCompleted, LoadGameRequest, MaterialChanged, PhysicsTick, PhysicsUpdate,
+    PlaySound, RaycastHitEvent, RenderFrame, SaveGameCompleted, SaveGameRequest, StopSound,
+    TargetDestroyedEvent, TriggerEnter, TriggerExit, ViewportResize,
 };
 
 /// Event broadcast when an entity inflicts damage upon a target entity.

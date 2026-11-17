@@ -8,7 +8,7 @@ use ae_core::ecs::{
     RigidBody, RigidBodyType, Rotation, Scale, TransformDirty, Velocity,
 };
 use ae_core::events::{DynamicEventBus, RaycastHitEvent};
-use ae_editor::input::InputManager;
+use ae_core::input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use hecs::{Entity, World};
 
@@ -28,7 +28,7 @@ pub fn update_character_actions(
 
     let fire_pressed = input.is_action_just_pressed("Fire")
         || input.is_mouse_button_just_pressed(winit::event::MouseButton::Left)
-        || input.is_key_just_pressed(ae_editor::input::KeyCode::KeyF);
+        || input.is_key_just_pressed(ae_core::input::KeyCode::KeyF);
 
     if fire_pressed {
         let mut projectiles_to_spawn = Vec::new();

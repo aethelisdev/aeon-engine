@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-pub mod behavior_runner;
+pub use ae_runtime::{behavior_runner, hud, streaming};
+pub mod autosave;
 pub mod cli;
 pub mod debug_renderer;
 pub mod engine;
 pub mod events;
-pub mod hud;
 pub mod icon;
 #[cfg(feature = "mcp")]
 pub mod mcp_host;
@@ -43,7 +43,7 @@ use engine::AeEngine;
 ///
 /// Substitutes the standard allocator with `Jemalloc` under Linux native execution,
 /// while leaving Windows and macOS defaults completely untouched.
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(target_os = "android")))]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -79,19 +79,10 @@ impl ApplicationHandler for AeApp {
                 if let Err(e) = std::env::set_current_dir(target_dir) {
                     log::warn!("Could not set working directory to {:?}: {}", target_dir, e);
                 } else {
-                    log::info!("📂 Project root activated: {:?}", target_dir);
-                }
-            }
-
-            if let Some(ref proj_path) = self.cli_args.project_path {
-                let target_dir = if proj_path.is_file() {
-                    proj_path.parent().unwrap_or(proj_path)
-                } else {
-                    proj_path.as_path()
-                };
-                if let Err(e) = std::env::set_current_dir(target_dir) {
-                    log::warn!("Could not set working directory to {:?}: {}", target_dir, e);
-                } else {
+                    let layout = ae_world::ProjectWorkspaceLayout::new(".");
+                    if let Err(err) = layout.ensure_directories() {
+                        log::warn!("Could not initialize project folders: {err}");
+                    }
                     log::info!("📂 Project root activated: {:?}", target_dir);
                 }
             }

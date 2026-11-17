@@ -5,7 +5,7 @@
 
 use ae_core::ecs::Position;
 use ae_core::events::DynamicEventBus;
-use ae_editor::input::InputManager;
+use ae_core::input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use hecs::World;
 

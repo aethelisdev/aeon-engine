@@ -1,217 +1,227 @@
 # Aeon Engine Architecture
 
-This document describes the software architecture, crate dependency boundaries, execution lifecycle, and design invariants of Aeon Engine and the Iris UI framework.
+This document describes the workspace crate topology, binary world and asset persistence formats, execution lifecycle, and engineering invariants of Aeon Engine and the Iris UI framework.
 
 ---
 
 ## 1. Architectural Principles
 
-1. **Zero Unsafe Mandate:**  
-   The workspace strictly enforces `#![forbid(unsafe_code)]`. Memory safety, pointer validity, and thread safety are guaranteed at compile time through safe abstractions and standard library primitives.
+1. **Memory Safety Boundary (`unsafe_code = "forbid"`):**  
+   Safe Rust crates inheriting `[workspace.lints.rust]` strictly enforce `unsafe_code = "forbid"`. Dynamic shared-library FFI interop (`libloading`) is isolated solely inside `ae_plugin_host`; exported runtime builds using `ae_runtime --features static-game-logic` link gameplay code statically with zero dynamic symbol resolution.
 
 2. **Unidirectional Dependency Flow:**  
-   Circular dependencies between engine subsystems are prohibited. Higher-level modules consume lower-level primitives; lower-level primitives have zero awareness of consuming layers.
+   Circular dependencies between engine subsystems are prohibited. Lower-level foundation crates (`ae_plugin_api`, `ae_core`, `ae_world`) have zero awareness of rendering, editor UI, or application host layers.
 
-3. **Strict Domain Separation & Crates.io Independence (Engine vs. UI Framework):**  
-   `irisui` is an autonomous, standalone desktop IDE framework engineered for independent publication to `crates.io`. It maintains zero dependencies on `ae_core` or engine runtime primitives. It implements a pure retained-mode widget tree architecture with fine-grained partial layout invalidation, completely decoupled from any game engine lifecycle. `ae_editor_ui` acts strictly as an external declarative consumer.
+3. **Strict Domain Separation (Engine vs. Iris UI Framework):**  
+   `irisui` is a standalone, desktop-grade retained UI framework structured for independent distribution. It maintains zero dependencies on `ae_core` or engine crates. `ae_editor_ui` operates exclusively as a declarative `UiScope` view consumer.
 
-4. **Hot-Path Allocation Lock:**  
-   Per-frame execution paths (`update`, `render`, `hit_test`, and physics steps) avoid heap allocations (`format!`, `String`, dynamic `Vec` expansion, or redundant `.clone()` operations) to maintain deterministic frame timing.
+4. **Shared Simulation Core (`ae_runtime` vs. `ae_engine` Editor Host):**  
+   Core gameplay execution (`behavior_runner`, `hud`, `streaming`, `world_loader`, skeletal animation updates, Play camera tracking, and `.aesave` delta persistence) resides in `ae_runtime` with zero dependencies on `ae_editor`, `ae_editor_ui`, `ae_mcp`, `ae_launcher`, or `rfd`. `ae_engine` composes `ae_runtime` alongside editor-only crates and background Edit-mode auto-save.
 
 5. **Data-Driven & Explicit Type System:**  
-   Subsystem state transitions and behavioral switches are driven by explicit Rust enums, mathematical quantities, and strongly typed ECS components. String-based heuristics (`name.contains(...)`) are prohibited.
+   Subsystem decisions and ECS component serialization operate strictly on deterministic 64-bit type hashes (`component_type_hash`), 128-bit persistent GUIDs (`EntityGuid`, `AssetGuid`), strongly typed Rust enums, and mathematical quantities without string-based heuristics.
 
 ---
 
 ## 2. Workspace Dependency Topology
 
-The workspace is organized into modular crates with clear dependency boundaries:
+The workspace comprises modular crates organized into six architectural layers:
 
 ```mermaid
 graph TD
-    subgraph Core_Foundation["Core Foundation Layer"]
-        ae_plugin_api --> ae_core
+    subgraph Foundation["Foundation & Persistence Layer"]
+        ae_plugin_api --> ae_core["ae_core (ECS, InputManager, ActionMap, Events, State)"]
+        ae_plugin_api --> ae_world["ae_world (.aeworld, .aechunk, .aepak, .aesave, VFS, Cooked)"]
+        ae_plugin_api --> ae_plugin_host["ae_plugin_host (Hot-Reload FFI Loader)"]
+        ae_plugin_api --> game_logic["game_logic (cdylib + rlib)"]
         ae_plugin_api --> ae_texture
+        ae_world --> ae_texture
         ae_core --> ae_audio
+        ae_world --> ae_audio
+        ae_plugin_api --> ae_uidesign
+        ae_core --> ae_uidesign
     end
 
     subgraph Pipeline3D["3D Engine Subsystem"]
         ae_core --> ae_physics["ae_physics (Rapier3D & KCC)"]
         ae_core --> ae_animation["ae_animation (3D Skeletal)"]
-        ae_physics --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR)"]
+        ae_texture --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
-        ae_texture --> ae_renderer
+        ae_world --> ae_renderer
     end
 
-    subgraph Pipeline2D["2D Engine Subsystem (Autonomous ae_2d Workspace)"]
+    subgraph Pipeline2D["2D Engine Subsystem (ae_2d)"]
         ae_core --> ae_2d_core["ae-2d-core (2D Camera, Transform, Sorting)"]
         ae_texture --> ae_2d_core
         ae_2d_core --> ae_2d_render["ae-2d-render (Instanced Sprite Batcher)"]
         ae_2d_core --> ae_2d_physics["ae-2d-physics (Rapier2D Simulation)"]
         ae_2d_core --> ae_2d_anim["ae-2d-animation (Flipbook & Sprite Sheet)"]
-        ae_2d_render --> ae_2d["ae_2d (Top-Level 2D Facade)"]
+        ae_2d_render --> ae_2d["ae_2d (Unified 2D Facade)"]
         ae_2d_physics --> ae_2d
         ae_2d_anim --> ae_2d
     end
 
-    subgraph IrisUI_Framework["Iris UI Framework (Autonomous Crates.io Suite)"]
-        iris-core --> iris-layout
-        iris-layout --> iris-text
-        iris-text --> iris-widgets
-        iris-widgets --> iris-dock
-        iris-dock --> iris-workbench
-        iris-workbench --> irisui["irisui (Top-Level Facade)"]
-        iris-winit --> irisui
-        iris-wgpu --> irisui
+    subgraph IrisUI_Framework["Iris UI Framework (crates/irisui)"]
+        iris_core["irisui-core"] --> iris_layout["irisui-layout"]
+        iris_layout --> iris_text["irisui-text"]
+        iris_text --> iris_widgets["irisui-widgets (clipboard-os)"]
+        iris_widgets --> iris_dock["irisui-dock"]
+        iris_dock --> iris_workbench["irisui-workbench"]
+        iris_workbench --> irisui["irisui (Top-Level Facade)"]
+        iris_winit["irisui-winit"] --> irisui
+        iris_wgpu["irisui-wgpu"] --> irisui
     end
 
-    subgraph Application_Runtime["Editor & Application Runtime"]
-        ae_renderer --> ae_editor
-        ae_editor --> ae_editor_ui
+    subgraph Tooling["Inspection & Project Management"]
+        irisui --> ae_mcp["ae_mcp (Inspect Server & Overlay)"]
+        ae_world --> ae_launcher["ae_launcher (Project Hub)"]
+        irisui --> ae_launcher
+    end
+
+    subgraph Runtime_And_Hosts["Runtime Core & Application Hosts"]
+        ae_renderer --> ae_runtime["ae_runtime (Editor-Free Player & Core)"]
+        ae_physics --> ae_runtime
+        ae_audio --> ae_runtime
+        ae_2d --> ae_runtime
+        ae_plugin_host --> ae_runtime
+        ae_world --> ae_runtime
+
+        ae_renderer --> ae_editor["ae_editor (Gizmos, Selection, Undo/Redo, Prefabs)"]
+        ae_editor --> ae_editor_ui["ae_editor_ui (Declarative IDE Views)"]
         irisui --> ae_editor_ui
-        ae_editor_ui --> ae_engine["ae_engine (ActiveDimensionMode::Mode2D / Mode3D)"]
-        ae_2d --> ae_engine
-        ae_audio --> ae_engine
-        ae_launcher --> ae_engine
+        ae_world --> ae_editor_ui
+
+        ae_runtime --> ae_engine["ae_engine (Full IDE Host & Auto-Save)"]
+        ae_editor_ui --> ae_engine
+        ae_uidesign --> ae_engine
+        ae_mcp --> ae_engine
     end
 ```
 
-### Dependency Rules:
-- `ae_core` provides base ECS (`hecs`), component registration, and event bus with zero dependencies on 2D or 3D rendering pipelines.
-- **2D vs. 3D Engine Isolation**: The 2D pipeline (`ae_2d/*`) and the 3D pipeline (`ae_renderer`, `ae_physics`, `ae_animation`) are strictly decoupled. 2D uses dedicated Rapier2D physics and instanced sprite batchers; 3D uses Rapier3D and multi-pass PBR/CSM pipelines. Both feed into `ae_engine` via `ActiveDimensionMode`.
-- `irisui` has zero dependencies on any engine crate and publishes independently to `crates.io`.
-- `ae_editor_ui` depends on `irisui` and `ae_editor`, but does not implement low-level UI infrastructure (dock trees, event dispatchers, or SDF shaders).
+---
+
+## 3. Binary Data Architecture & Modular Project Tree
+
+Every project initialized by `ae_launcher` or opened via `--project` follows a partitioned directory layout managed by `ae_world::ProjectWorkspaceLayout`:
+
+```txt
+<ProjectRoot>/
+ ├── aeon_project.json           # Project metadata, entry world, active dimension mode
+ ├── Config/                     # Render, physics, and input binding profiles
+ ├── Content/                    # Source assets (.glb, .png, .wav, .wgsl, .aeprefab + .aemeta [AssetGuid])
+ ├── Worlds/
+ │    └── MainWorld/
+ │         ├── world.aeworld     # Light manifest: header, string/asset pools, global entities, cell index
+ │         └── cells/
+ │              ├── 0_0_0.aechunk
+ │              └── -1_0_2.aechunk  # Independent LZ4+CRC32 spatial cells (parallel dirty-only writes)
+ ├── Intermediate/               # Platform-keyed cooked cache (<desktop|android>/<asset_hash>.<ext>)
+ └── Saved/
+      ├── Autosaves/             # Rotating background Edit-mode snapshots (*_autosave_{0..2}.aeworld)
+      ├── Logs/                  # Session logs
+      └── SaveGames/             # Runtime player slot_<id>.aesave (+ .bak recovery)
+```
+
+### Binary Containers (`crates/ae_world`):
+* **`.aeworld` / `.aechunk`:** Envelope headers with magic signatures (`AEWLD001`, `AECHK001`), IEEE CRC32 validation, `postcard` component payloads keyed by FNV-1a 64-bit type hashes, and `lz4_flex` per-chunk compression written in parallel via `rayon`.
+* **`.aepak` (`AEPAK001`):** Random-access 64 KiB block-compressed archive with `PAK_BLOCK_ALIGNMENT = 16` offsets and `AlignedBuffer` (`Vec<[u8; 16]>`) backing for safe zero-copy `bytemuck::try_cast_slice` uploads.
+* **`.aesave` (`AESAV001` v2):** Cell-indexed delta snapshots (`global_delta` + `BTreeMap<SpatialCellCoord, CellDelta>`) supporting $O(\log C)$ chunk streaming application, asymmetric cross-cell relocation (`relocate_entity`), and crash-safe `.tmp -> sync_all -> .bak -> rename` writes.
+* **`.aemeta` (`AEMET001`) & Cooked Assets (`AECKM001`, `AECKT001`, `AECKA001`):** Persistent asset identity across disk moves (`AssetMeta`) and platform-profiled `CookedMesh` / `CookedTexture` / `CookedAudio` blobs.
 
 ---
 
-## 3. Subsystem Breakdown
+## 4. Subsystem Breakdown
 
-### 3.1. `ae_core` (Core State & ECS)
-- **Role:** Entity-Component-System primitives, state manager, serialization, and event bus.
-- **ECS Engine:** Utilizes `hecs` for archetypal, cache-coherent component iteration.
-- **Event Bus:** Decoupled `EngineEvent` channel for cross-system notification without tight structural coupling.
-- **Serialization:** Strongly typed component registration providing deterministic binary (`bincode`) and text (`json`/`ron`) serialization for `.ae3d` scenes and `.aeprefab` assets.
+### 4.1. `ae_plugin_api`, `ae_core` & `ae_plugin_host`
+* **`ae_plugin_api`:** Defines `EntityGuid`, `AssetGuid`, POD gameplay components, `Resources`, `PluginContext` / `PluginContextFFI`, and standard events including `SaveGameRequest` / `LoadGameRequest` (`DynamicEventBus::{save_slot, load_slot}`).
+* **`ae_core`:** Houses the `hecs` ECS wrapper, deterministic `ComponentRegistry`, pushdown `StateManager`, `SpatialGrid`, `Camera`, shared `InputManager` / `ActionMap`, and `DynamicEventBus`.
+* **`ae_plugin_host` & `game_logic`:** Supports hot-reloadable dynamic `cdylib` plugins in Editor workflows (`NativePluginBackend` via `libloading`) and dual `cdylib` + `rlib` compilation for static linkage in exported runtimes.
 
-### 3.2. `ae_physics` (Physics Simulation)
-- **Role:** 3D rigid body dynamics, collision detection, and kinematic character control.
-- **Integration:** Wraps Rapier3D.
-- **Collider Cache:** Maintains a retained mapping (`entity_to_collider_scale`) to eliminate per-frame collider reconstruction when scales remain unchanged.
-- **Kinematic Controller (KCC):** Step-handling, slope limits, and ground projection with fixed-timestep sub-stepping.
+### 4.2. `ae_world` (Partitioning, VFS & Persistence)
+* Abstracts file access across editor folders (`DiskVfsProvider`), in-memory bundles (`PakMemoryVfsProvider`), file-backed archives (`PakFileVfsProvider`), and layered mount stacks (`CompositeVfs`).
+* Provides `CellStreamingPlanner` (cubic hysteresis streaming), `PendingGuidResolver` (deferred cross-cell `EntityGuid` resolution and boundary ownership transfer), `AlignedBuffer`, and `CookedMesh`/`CookedTexture`/`CookedAudio`.
 
-### 3.3. `ae_renderer` (3D Graphics & AeonGPU)
-- **Role:** WGPU-based hardware-accelerated rendering pipeline.
-- **Lighting & Materials:** Physically Based Rendering (PBR) using the Cook-Torrance GGX microfacet distribution with metallic-roughness workflow.
-- **Shadow Mapping:** Directional Cascaded Shadow Maps (CSM) across 4 depth cascades with percentage-closer filtering (PCF).
-- **Pipeline Architecture:** Retained bind group allocations, depth-stencil passes, forward+/clustered light evaluation, and procedural sky dome rendering.
+### 4.3. `ae_runtime` (Editor-Free Simulation Core & Standalone Player)
+* Owns the shared runtime simulation core (`behavior_runner`, `hud`, `streaming::RuntimeStreamingManager`, `world_loader`, `simulation`, `static_plugin`) and the standalone `ae_runtime` desktop binary (`--pak`, `--world`, `--save-dir`, neighboring `game.aepak`, or embedded pak bytes).
+* Binds `game_logic` statically under `feature = "static-game-logic"` and executes runtime `SaveGameRequest`/`LoadGameRequest` slot commands.
 
-### 3.4. `ae_2d` (Autonomous 2D Engine Subsystem)
-The 2D engine is architecturally decoupled from the 3D pipeline into a modular 5-crate subsystem:
+### 4.4. `ae_physics` & `ae_audio`
+* **`ae_physics`:** Wraps Rapier3D with retained collider scale mapping (`entity_to_collider_scale`), kinematic character control (KCC), and collision/trigger event emission.
+* **`ae_audio`:** Spatial 3D audio mixing via `rodio`, reading directly from `VfsProvider` byte streams or zero-parse `CookedAudio` PCM buffers.
 
-| Crate | Technical Function |
-| :--- | :--- |
-| `ae-2d-core` | 2D camera projections (orthographic), pixel-snapped 2D transforms, layer sorting keys (`SpriteSortKey`), and ECS components (`SpriteRenderer`). |
-| `ae-2d-render` | High-throughput WGPU 2D pipeline: `Sprite2DPipeline`, `SpriteBatcher`, dynamic quad instancing, and texture atlas coordinate mapping. |
-| `ae-2d-physics` | Rapier2D integration: 2D rigid bodies, 2D colliders, velocity resolution, and collision event propagation. |
-| `ae-2d-animation` | 2D flipbook animation and sprite-sheet frame sequencer. |
-| `ae_2d` | Unified top-level 2D facade exporting consolidated APIs and `ActiveDimensionMode`. |
+### 4.5. `ae_renderer` & `ae_texture`
+* **`ae_texture`:** CPU pixel/mipmap decoding and VFS/GUID loading (`parse_texture_bytes`, `load_texture_from_vfs`, `CookedTexture` conversion).
+* **`ae_renderer`:** WGPU forward PBR pipeline (4-cascade CSM shadows, sky atmosphere, MSAA/post-process, `FloatingOrigin` double-precision camera offset helpers, `AssetManager` chunk reference counting, and VFS mesh/texture/shader loaders).
 
-When running in `ActiveDimensionMode::Mode2D`, the engine completely bypasses 3D PBR/CSM pipelines and 3D physics, dispatching exclusively to the dedicated 2D sprite batching and Rapier2D simulation loops.
+### 4.6. `ae_2d` (Decoupled 2D Subsystem)
+Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-animation`, `ae_2d`) operating under `ActiveDimensionMode::Mode2D`, bypassing 3D PBR/Rapier3D when 2D mode is active.
 
-### 3.5. `ae_editor` (Editor Tooling & Spatial Manipulation)
-- **Role:** 3D viewport interaction, spatial raycasting, gizmos, and command management.
-- **Gizmo Pipeline:** Mathematical raycast hit-testing against transformation axes (Translate, Rotate, Scale) with a 1.5-pixel hit threshold.
-- **Command History:** Transactional Undo/Redo command stack for non-destructive scene modification.
+### 4.7. `irisui` & `ae_editor_ui`
+* **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
+* **`ae_editor` & `ae_editor_ui`:** 3D transform gizmos, raycast selection, Undo/Redo, binary prefabs (`.aeprefab`), content scanner, and pure declarative `UiScope` views.
 
-### 3.6. `irisui` (Autonomous Crates.io Retained Desktop UI Framework)
-`irisui` is an autonomous, general-purpose desktop IDE and windowing framework designed for standalone publication to `crates.io`. It maintains zero dependencies on Aeon Engine and can be consumed by any Rust desktop application.
-
-Unlike immediate-mode UI libraries that reconstruct the entire widget tree and layout hierarchy every frame, `irisui` is engineered with a pure **retained-mode architecture**:
-- **Persistent Generational Widget Trees:** Persistent widget nodes with generational IDs that preserve internal state (focus, text selection, scroll offsets) across frames without rebuilding.
-- **Fine-Grained Invalidation Boundaries:** Instead of clearing or recalculating the entire layout tree on every frame (`tree.clear()` is prohibited in regular updates), `DualLayoutEliminator::rebuild_dirty_panels` performs $O(M)$ subtree updates, modifying only dirty leaf containers while keeping stable dock containers cached in Taffy.
-- **GPU-Native Signed Distance Fields (SDF):** Analytically evaluates rounded rectangles, borders, shadows, and clip regions on the GPU via custom shaders, eliminating CPU mesh tessellation.
-- **Autonomous IDE Window Chrome:** Native frameless window border hit-testing, safe double-click maximize/drag coordination (`WindowDragHost`), independent docking trees (`iris-dock`), and multi-tab layouts.
-
-| Crate | Technical Function |
-| :--- | :--- |
-| `iris-core` | Retained widget tree, generational IDs, input event dispatch, layout invalidation tags. |
-| `iris-layout` | Taffy integration for Flexbox and Grid computation. |
-| `iris-text` | Text shaping, font metrics, multiline text layout using `glyphon` and `cosmic-text`. |
-| `iris-widgets` | Declarative widget primitives (`Button`, `Slider`, `NumericDrag`, `InputBox`, `TreeList`). |
-| `iris-dock` | Docking hierarchy (`DockTree`), panel tearing, splitters, tab reordering. |
-| `iris-workbench`| IDE chrome: status bars, title bars, menu bars, and `DualLayoutEliminator`. |
-| `iris-winit` | Winit event translation, frameless border resize, native window drag host. |
-| `iris-wgpu` | GPU backend: Signed Distance Field (SDF) rounded rects, drop shadows, scissor stacks. |
-| `irisui` | Top-level consolidated facade re-exporting the entire ecosystem for `crates.io`. |
-
-### 3.7. `ae_editor_ui` (Editor Interface Views)
-- **Role:** Connects editor state (`ae_editor`) and ECS data (`ae_core`) to declarative `UiScope` views.
-- **Purity Rule:** Contains zero widget implementations, custom render passes, or manual hit-test arithmetic; operates strictly via declarative builders.
-
-### 3.8. `ae_engine` & `ae_launcher` (Runtime Coordination)
-- **`ae_launcher`:** Initial project launcher (Aeon Hub) for creating, configuring, and opening projects.
-- **`ae_engine`:** Top-level application coordinator managing the OS event loop (`winit`), fixed-timestep accumulators, and render target swapchain management.
+### 4.8. `ae_mcp` & `ae_engine` & `ae_launcher`
+* **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).
+* **`ae_launcher`:** Project hub creating and opening modular workspaces.
+* **`ae_engine`:** Full editor IDE host composing `ae_runtime`, `ae_editor_ui`, `ae_uidesign`, optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), dirty-only parallel `save_scene`, and periodic non-blocking background `EditorAutosaveState` snapshots into `Saved/Autosaves/`.
 
 ---
 
-## 4. Execution Lifecycle (The Frame Highway)
-
-The engine coordinates runtime systems through a deterministic frame loop, branching according to `ActiveDimensionMode`:
+## 5. Execution Lifecycle (The Frame Highway)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor OS as Operating System / Winit
-    participant Engine as ae_engine
-    participant UI as irisui
+    participant Host as ae_engine / ae_runtime
+    participant UI as irisui (ae_engine only)
+    participant Stream as RuntimeStreamingManager (ae_world + VFS)
     participant Sim as Physics (Rapier3D or Rapier2D)
-    participant ECS as ae_core
-    participant Render as Graphics (ae_renderer or ae-2d-render)
+    participant ECS as ae_core & ae_runtime
+    participant Render as ae_renderer / ae-2d-render
     participant GPU as WGPU Surface
 
-    OS->>Engine: WindowEvent (Input, Cursor, Resize)
-    Engine->>UI: Route Input Events (Frameless drag, Focus, Pointer)
-    UI-->>Engine: Event Consumption State (Captured / Unhandled)
-
-    loop Fixed Timestep Accumulator (e.g. 60Hz)
-        alt Mode3D
-            Engine->>Sim: ae_physics::PhysicsWorld::step(dt)
-        else Mode2D
-            Engine->>Sim: ae_2d_physics::Physics2DWorld::step(dt)
-        end
-        Sim->>ECS: Synchronize Transforms to ECS Entities
+    OS->>Host: WindowEvent & DeviceEvent
+    opt Editor Host (ae_engine)
+        Host->>UI: Route Frameless Drag, Focus & Pointer Events
+        UI-->>Host: Event Consumption State
     end
 
-    Engine->>ECS: Run Frame Systems (Gameplay, Animation, Scripting)
-    Engine->>UI: DualLayoutEliminator::rebuild_dirty_panels()
-    
-    Engine->>Render: Begin Frame Render Pass
-    alt Mode3D
-        Render->>GPU: Pass 1: Cascaded Shadow Maps (4 Cascades)
-        Render->>GPU: Pass 2: 3D Scene PBR / Skybox Pass
-        Render->>GPU: Pass 3: Editor 3D Gizmo Overlay Pass
-    else Mode2D
-        Render->>GPU: Pass 1: SpriteBatcher (Instanced 2D Quads)
+    loop Fixed Timestep Accumulator
+        Host->>Sim: PhysicsWorld / Physics2DWorld step(fixed_dt)
+        Sim->>ECS: Synchronize Transforms
     end
-    Engine->>GPU: Pass N: Iris UI SDF Batch & Text Render Pass
-    Engine->>GPU: Present Swapchain
+
+    opt Play Mode
+        Host->>Stream: Check Camera Cell & Boundary Migrations
+        Stream->>ECS: Load Dirty/Save-Indexed Chunks & Unload Distant Cells
+        Host->>ECS: Run behavior_runner, Scripting (Static/FFI), Audio & Skinning
+        Host->>Stream: Process SaveGameRequest / LoadGameRequest (.aesave)
+    end
+
+    opt Edit Mode Periodic Timer (ae_engine)
+        Host->>Stream: Async CRC32-Filtered Snapshot -> Saved/Autosaves/
+    end
+
+    opt Editor Host (ae_engine)
+        Host->>UI: DualLayoutEliminator::rebuild_dirty_panels()
+    end
+
+    Host->>Render: Extract Visible Scene & Build GPU Batches
+    Render->>GPU: 3D (CSM -> PBR/Sky -> Gizmos) or 2D SpriteBatcher Pass
+    opt Editor Host (ae_engine)
+        Host->>GPU: Iris UI SDF & Text Pass + Optional MCP Overlay
+    end
+    Host->>GPU: Present Swapchain
 ```
-
----
-
-## 5. Concurrency & Memory Model
-
-- **Thread Concurrency:** Heavy computation (e.g., asset decompression, shader pre-compilation, background scene loading) runs on thread pools, communicating with the main thread via lock-free channels or explicit message buffers.
-- **No Hidden Global Singletons:** Global mutable singletons and interior-mutability escapes (such as unchecked `RefCell::borrow_mut()` across system boundaries) are prohibited. All mutations require explicit `&mut` access passed through the frame lifecycle.
-- **Cache Locality:** Component arrays in `hecs` are stored in contiguous typed archetype storages to optimize CPU L1/L2 data cache hit rates during system iteration.
 
 ---
 
 ## 6. Verification & Quality Invariants
 
-Continuous code quality across all workspace crates is enforced via automated tooling:
+Continuous code quality across all workspace crates is enforced via:
 
-- **Compiler Lints:** Enforced `#![forbid(unsafe_code)]` on package roots.
-- **Clippy Configuration (`clippy.toml`):** Zero warnings allowed (`-D warnings`). Prohibits `disallowed_types`, `redundant_clone`, `clone_on_copy`, `todo`, `unimplemented`, and debug macros in production code.
-- **Formatting:** Enforced standard style via `cargo fmt --check`.
-- **Automated Tests:** Unit tests verify mathematical invariants (transform matrix singular handling, gizmo pick raycast tolerances, and layout constraints) on every modification.
-
+* **Memory Safety:** `unsafe_code = "forbid"` enforced via `[workspace.lints.rust]` across engine and UI crates (FFI dynamic loading confined to `ae_plugin_host`).
+* **Clippy Strictness:** Workspace lints deny warnings, `clone_on_ref_ptr`, `disallowed_types`, `redundant_clone`, `clone_on_copy`, `todo`, `unimplemented`, `dbg_macro`, and `allow_attributes`.
+* **Formatting:** Validated via `cargo fmt --check`.
+* **Modular & Test Verification:** Verified per change with `cargo clippy --workspace --all-targets` and `cargo test --workspace`, plus feature isolation builds (`--no-default-features`, `--features static-game-logic`).

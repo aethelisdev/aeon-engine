@@ -26,13 +26,9 @@ pub extern "C" fn plugin_abi_hash() -> *const std::ffi::c_char {
     ae_plugin_api::ENGINE_ABI_HASH_C_STR.as_ptr()
 }
 
-/// Main update function called by the engine every frame.
-///
-/// This function is resolved by name ("plugin_update") via libloading.
-/// Modify this function and rebuild (`cargo build -p game_logic`) to see
-/// hot reload in action — no engine restart needed!
-#[unsafe(no_mangle)]
-pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
+/// Executes one static gameplay frame tick when linked directly into `ae_runtime`
+/// (`feature = "static-game-logic"`), matching [`plugin_update`] behavior in 100% Safe Rust.
+pub fn tick_static(ctx: &mut PluginContextFFI<'_>) {
     let _dt = ctx.delta_time;
 
     // Get visible entities from resources if available (cloned to release the borrow on ctx)
@@ -50,6 +46,16 @@ pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
     // ===== GAMEPLAY CODE GOES HERE =====
     // Note: Standard linear velocity integration (pos += vel * dt) and character
     // rotation are handled robustly in the engine core. This plugin demonstrates
-    // hot-reloadable gameplay logic and event processing.
+    // hot-reloadable and statically-linked gameplay logic and event processing.
     // ====================================
+}
+
+/// Main update function called by the engine every frame.
+///
+/// This function is resolved by name ("plugin_update") via libloading.
+/// Modify this function and rebuild (`cargo build -p game_logic`) to see
+/// hot reload in action — no engine restart needed!
+#[unsafe(no_mangle)]
+pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
+    tick_static(ctx);
 }

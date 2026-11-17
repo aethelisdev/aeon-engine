@@ -2,8 +2,8 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::engine::AeEngine;
+use ae_core::input::KeyCode;
 use ae_core::modules::EngineMode;
-use ae_editor::input::KeyCode;
 use cgmath::Rotation3;
 
 impl AeEngine {
@@ -65,18 +65,13 @@ impl AeEngine {
             if shortcut_res.trigger_redo {
                 self.redo();
             }
+            #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
             if shortcut_res.trigger_open_scene_dialog {
                 let (tx, rx) = std::sync::mpsc::channel();
                 self.ui.scene_dialog_receivers.push(rx);
-                let is_2d = self.dimension_mode.is_2d();
                 rayon::spawn(move || {
-                    let (filter_name, extensions) = if is_2d {
-                        ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..])
-                    } else {
-                        ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..])
-                    };
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter(filter_name, extensions)
+                        .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
                         .pick_file()
                     {
                         let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::LoadFrom(path));
@@ -86,23 +81,20 @@ impl AeEngine {
             if shortcut_res.trigger_save_scene_as
                 || (shortcut_res.trigger_save_scene && self.editor.active_scene_path.is_none())
             {
-                let (tx, rx) = std::sync::mpsc::channel();
-                self.ui.scene_dialog_receivers.push(rx);
-                let is_2d = self.dimension_mode.is_2d();
-                rayon::spawn(move || {
-                    let (filter_name, extensions, default_name) = if is_2d {
-                        ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..], "scene.ae2d")
-                    } else {
-                        ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..], "scene.ae3d")
-                    };
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter(filter_name, extensions)
-                        .set_file_name(default_name)
-                        .save_file()
-                    {
-                        let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
-                    }
-                });
+                #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
+                {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    self.ui.scene_dialog_receivers.push(rx);
+                    rayon::spawn(move || {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
+                            .set_file_name("world.aeworld")
+                            .save_file()
+                        {
+                            let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
+                        }
+                    });
+                }
             } else if shortcut_res.trigger_save_scene
                 && let Some(path) = self.editor.active_scene_path.as_ref()
             {
@@ -223,73 +215,36 @@ impl AeEngine {
             .update(&self.ecs.world, cam_pos, cam_right, is_audio_enabled);
 
         // --- SKELETAL ANIMATION PLAYER SYSTEM UPDATE ---
-        let dt = self.time.delta_time;
-        let mut candidate_entities = Vec::new();
+        ae_runtime::update_skeletal_animations(
+            &mut self.ecs.world,
+            &self.render_state,
+            &mut self.asset_manager,
+            self.time.delta_time,
+        );
 
-        for (entity, player, model_id) in self
-            .ecs
-            .world
-            .query_mut::<(
-                hecs::Entity,
-                &mut ae_animation::AnimationPlayer,
-                &ae_core::ecs::ModelId,
-            )>()
-            .into_iter()
-        {
-            candidate_entities.push((entity, model_id.0, player.current_clip.is_none()));
-        }
-
-        for (entity, model_id, needs_clip) in candidate_entities {
-            if self
-                .ecs
-                .world
-                .get::<&ae_animation::Skeleton>(entity)
-                .is_err()
-                && let Some(asset) = self.asset_manager.models.get(model_id)
-            {
-                if let Some(ref skel) = asset.skeleton {
-                    let _ = self.ecs.world.insert_one(entity, skel.clone());
-                }
-                if needs_clip
-                    && !asset.animations.is_empty()
-                    && let Ok(mut player) = self
-                        .ecs
-                        .world
-                        .get::<&mut ae_animation::AnimationPlayer>(entity)
-                {
-                    player.play(asset.animations[0].clone());
-                }
+        if self.mode == EngineMode::Play {
+            let save_dir = std::path::PathBuf::from("Saved").join("SaveGames");
+            if ae_runtime::process_save_load_requests(&mut ae_runtime::SaveLoadDispatchContext {
+                save_games_dir: &save_dir,
+                world_guid: self.active_world_guid,
+                cell_size: crate::scene::DEFAULT_WORLD_CELL_SIZE,
+                play_time_secs: self.time.total_time as u64,
+                world: &mut self.ecs.world,
+                event_bus: &mut self.event_bus,
+                streaming: self.streaming.as_mut(),
+            }) {
+                self.physics_sync_dirty = true;
             }
-        }
-
-        let mut skinning_updates = Vec::new();
-
-        for (_entity, player, skeleton, model_id) in self
-            .ecs
-            .world
-            .query_mut::<(
-                hecs::Entity,
-                &mut ae_animation::AnimationPlayer,
-                &ae_animation::Skeleton,
-                &ae_core::ecs::ModelId,
-            )>()
-            .into_iter()
+        } else if let Some(target_path) = self.autosave.poll_trigger(
+            self.mode,
+            self.time.delta_time,
+            self.ecs.world.len(),
+            None,
+            self.saved_world_dir.as_deref(),
+            self.editor.active_scene_path.as_deref(),
+        ) && let Ok(doc) = crate::scene::capture_world_document(self)
         {
-            player.update(dt);
-            if player.state == ae_animation::AnimationState::Playing {
-                let local_poses = player.evaluate_pose(skeleton);
-                let globals = skeleton.evaluate_global_transforms(&local_poses);
-                let palette = ae_animation::compute_skinning_matrices(skeleton, &globals);
-                skinning_updates.push((model_id.0, palette));
-            }
-        }
-
-        for (model_handle, palette) in skinning_updates {
-            self.render_state.update_model_skinning(
-                &mut self.asset_manager,
-                model_handle,
-                &palette,
-            );
+            self.autosave.dispatch_background_write(doc, target_path);
         }
 
         self.profiler.end_ecs();
@@ -521,10 +476,45 @@ impl AeEngine {
             return;
         }
 
-        ae_editor::modes::update_play_mode(&mut self.ecs, &mut self.camera, &mut self.editor);
+        ae_runtime::update_play_camera(
+            &mut self.ecs,
+            &mut self.camera,
+            &mut self.editor.mouse_delta,
+            self.editor.config.mouse_sensitivity,
+        );
 
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
         self.spatial_grid.sync(&self.ecs.world);
+
+        if let Some(mut streaming) = self.streaming.take() {
+            let active_vfs = streaming.vfs().clone();
+            let render_state = &self.render_state;
+            let report = streaming.step(
+                &mut self.ecs.world,
+                &mut self.asset_manager,
+                [
+                    self.camera.position.x,
+                    self.camera.position.y,
+                    self.camera.position.z,
+                ],
+                4,
+                |world, asset_manager, entity, binding| {
+                    crate::streaming::bind_entity_assets_from_binding(
+                        world,
+                        render_state,
+                        asset_manager,
+                        Some(active_vfs.as_ref()),
+                        entity,
+                        binding,
+                    );
+                },
+            );
+            if report.spawned_entities > 0 || report.despawned_entities > 0 {
+                ae_core::ecs::update_hierarchy_transforms(&mut self.ecs.world);
+                self.physics_sync_dirty = true;
+            }
+            self.streaming = Some(streaming);
+        }
 
         // Run gameplay behaviors (rotators, moving platforms, trigger zones, destructible targets, character actions)
         let cam_fwd = self.camera.get_forward();

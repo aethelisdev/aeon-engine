@@ -4,9 +4,9 @@
 use ae_core::ecs::{
     EcsManager, Light, Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity,
 };
+use ae_core::input::InputManager;
 use ae_core::time::Time;
 use ae_editor::editor_state::EditorState;
-use ae_editor::input::InputManager;
 use ae_editor::undo_redo::Command;
 use ae_physics::PhysicsWorld;
 use ae_renderer::render::RenderState;
@@ -81,6 +81,18 @@ pub struct AeEngine {
     /// Optional localhost MCP inspection session (`--inspect`) isolated in [`ae_mcp`].
     #[cfg(feature = "mcp")]
     pub mcp: Option<ae_mcp::McpSession>,
+    /// Active partitioned world directory tracking dirty-only `.aechunk` differential saves.
+    pub saved_world_dir: Option<std::path::PathBuf>,
+    /// Persistent [`ae_world::EntityGuid`] identifying the active authored world.
+    pub active_world_guid: ae_world::EntityGuid,
+    /// Per-cell CRC32 checksums from the most recent world load or partitioned directory save.
+    pub last_saved_cell_crcs: std::collections::HashMap<ae_world::SpatialCellCoord, u32>,
+    /// Periodic background Edit-mode auto-save state writing to `Saved/Autosaves/`.
+    pub autosave: crate::autosave::EditorAutosaveState,
+    /// Active Virtual File System provider (`DiskVfsProvider` in editor or `Pak*VfsProvider`).
+    pub active_vfs: Option<Arc<dyn ae_world::VfsProvider>>,
+    /// Runtime spatial chunk streaming coordinator and cross-cell GUID resolver.
+    pub streaming: Option<crate::streaming::RuntimeStreamingManager>,
 }
 
 impl AeEngine {
@@ -319,6 +331,11 @@ impl AeEngine {
             return Err("ae_engine was compiled without the 'mcp' feature".to_string());
         }
 
+        let active_vfs: Arc<dyn ae_world::VfsProvider> =
+            Arc::new(ae_world::DiskVfsProvider::new("."));
+        let mut audio_manager = ae_audio::AudioManager::new();
+        audio_manager.set_vfs_provider(Some(active_vfs.clone()));
+
         let mut engine = Self {
             render_state,
             ui,
@@ -344,7 +361,7 @@ impl AeEngine {
             spatial_grid: ae_core::spatial::SpatialGrid::new(200.0), // 200-unit default cell size for spatial grid culling
             profiler: crate::profiler::Profiler::new(),
             physics_world: PhysicsWorld::new(),
-            audio_manager: ae_audio::AudioManager::new(),
+            audio_manager,
             texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
             state_manager: ae_core::state::StateManager::new(),
@@ -355,20 +372,25 @@ impl AeEngine {
             winit_state: irisui::winit::WinitState::new(window.scale_factor()),
             #[cfg(feature = "mcp")]
             mcp,
+            saved_world_dir: None,
+            active_world_guid: ae_world::GuidGenerator::new().next_entity_guid(),
+            last_saved_cell_crcs: std::collections::HashMap::new(),
+            autosave: crate::autosave::EditorAutosaveState::default(),
+            active_vfs: Some(active_vfs),
+            streaming: None,
         };
 
         let is_2d = dimension_mode.is_2d();
         engine.editor.is_2d = is_2d;
+        engine.ui.active_scene_path =
+            ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL.to_string();
         if is_2d {
-            engine.ui.active_scene_path = "scene.ae2d".to_string();
             engine.camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
             engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
             engine.camera.yaw = cgmath::Deg(-90.0).into();
             engine.camera.pitch = cgmath::Deg(0.0).into();
             engine.camera.mode = ae_core::camera::ProjectionMode::Orthographic;
             engine.camera.ortho_scale = 10.0;
-        } else {
-            engine.ui.active_scene_path = "scene.ae3d".to_string();
         }
 
         // Align physics fixed time step with EditorConfig frequency

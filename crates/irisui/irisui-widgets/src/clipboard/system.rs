@@ -3,36 +3,49 @@
 
 //! Native operating system clipboard driver implementing [`ClipboardProvider`].
 //!
-//! Provides thread-safe, 100% safe Rust clipboard integration using `arboard`
-//! with automatic headless in-memory fallback for environments without a display server.
+//! Provides thread-safe, 100% safe Rust clipboard integration using `arboard` when enabled on
+//! desktop platforms (`clipboard-os` feature and non-Android targets), with automatic headless
+//! in-memory fallback when disabled or running on mobile targets.
 
 use std::sync::Mutex;
 
+#[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
 use arboard::Clipboard;
 use irisui_core::platform::{ClipboardProvider, InMemoryClipboard};
 
-/// Production-grade operating system clipboard driver for Iris UI desktop applications.
+#[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
+type NativeClipboardHandle = Option<Clipboard>;
+
+#[cfg(not(all(feature = "clipboard-os", not(target_os = "android"))))]
+type NativeClipboardHandle = Option<()>;
+
+fn try_open_native_clipboard() -> NativeClipboardHandle {
+    #[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
+    {
+        Clipboard::new().ok()
+    }
+    #[cfg(not(all(feature = "clipboard-os", not(target_os = "android"))))]
+    {
+        None
+    }
+}
+
+/// Operating system clipboard driver for Iris UI applications.
 ///
 /// Encapsulates platform pasteboard access (X11, Wayland, Windows, macOS) behind
-/// a thread-safe `Mutex`. In headless environments, CI pipelines, or when OS clipboard
-/// initialization fails, gracefully falls back to an [`InMemoryClipboard`] to guarantee
-/// unbroken runtime continuity without panicking.
+/// a thread-safe `Mutex`. When OS clipboard initialization is unavailable or disabled on mobile,
+/// falls back cleanly to an [`InMemoryClipboard`].
 pub struct SystemClipboard {
-    os_clipboard: Mutex<Option<Clipboard>>,
+    os_clipboard: Mutex<NativeClipboardHandle>,
     fallback: InMemoryClipboard,
 }
 
 impl SystemClipboard {
     /// Creates a new system clipboard instance, attempting to connect to the OS clipboard.
-    ///
-    /// If platform clipboard initialization fails (e.g., headless display server,
-    /// missing X11/Wayland environment, or restricted sandbox), an internal fallback
-    /// is used transparently.
     #[must_use]
     pub fn new() -> Self {
-        let os_clipboard = Clipboard::new().ok();
         Self {
-            os_clipboard: Mutex::new(os_clipboard),
+            os_clipboard: Mutex::new(try_open_native_clipboard()),
             fallback: InMemoryClipboard::new(),
         }
     }
@@ -40,9 +53,8 @@ impl SystemClipboard {
     /// Creates a system clipboard initialized with specified initial text in the fallback buffer.
     #[must_use]
     pub fn with_initial_text(initial_text: impl Into<String>) -> Self {
-        let os_clipboard = Clipboard::new().ok();
         Self {
-            os_clipboard: Mutex::new(os_clipboard),
+            os_clipboard: Mutex::new(try_open_native_clipboard()),
             fallback: InMemoryClipboard::with_text(initial_text),
         }
     }
@@ -75,50 +87,38 @@ impl Default for SystemClipboard {
 
 impl ClipboardProvider for SystemClipboard {
     fn get_text(&self) -> Option<String> {
-        let Ok(mut guard) = self.os_clipboard.lock() else {
-            return self.fallback.get_text();
-        };
-
-        if let Some(clipboard) = guard.as_mut() {
-            match clipboard.get_text() {
-                Ok(text) => Some(text),
-                Err(_) => self.fallback.get_text(),
-            }
-        } else {
-            self.fallback.get_text()
+        #[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
+        if let Ok(mut guard) = self.os_clipboard.lock()
+            && let Some(clipboard) = guard.as_mut()
+            && let Ok(text) = clipboard.get_text()
+        {
+            return Some(text);
         }
+        self.fallback.get_text()
     }
 
     fn set_text(&self, text: &str) -> bool {
-        let Ok(mut guard) = self.os_clipboard.lock() else {
-            return self.fallback.set_text(text);
-        };
-
-        if let Some(clipboard) = guard.as_mut() {
-            if clipboard.set_text(text).is_ok() {
-                // Keep the in-memory fallback synchronized as well
-                let _ = self.fallback.set_text(text);
-                true
-            } else {
-                self.fallback.set_text(text)
-            }
-        } else {
-            self.fallback.set_text(text)
+        #[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
+        if let Ok(mut guard) = self.os_clipboard.lock()
+            && let Some(clipboard) = guard.as_mut()
+            && clipboard.set_text(text).is_ok()
+        {
+            let _ = self.fallback.set_text(text);
+            return true;
         }
+        self.fallback.set_text(text)
     }
 
     fn clear(&self) -> bool {
-        let Ok(mut guard) = self.os_clipboard.lock() else {
-            return self.fallback.clear();
-        };
-
-        if let Some(clipboard) = guard.as_mut() {
+        #[cfg(all(feature = "clipboard-os", not(target_os = "android")))]
+        if let Ok(mut guard) = self.os_clipboard.lock()
+            && let Some(clipboard) = guard.as_mut()
+        {
             let _ = clipboard.clear();
             let _ = self.fallback.clear();
-            true
-        } else {
-            self.fallback.clear()
+            return true;
         }
+        self.fallback.clear()
     }
 }
 
@@ -131,11 +131,9 @@ mod tests {
         let clipboard = SystemClipboard::headless_fallback();
         let test_message = "Aeon Engine - OS Clipboard Integration Test";
 
-        // Writing must succeed either natively or via in-memory fallback
         assert!(clipboard.set_text(test_message));
         assert_eq!(clipboard.get_text(), Some(test_message.to_owned()));
 
-        // Clear must succeed and reflect in subsequent reads
         assert!(clipboard.clear());
         assert_eq!(clipboard.get_text(), None);
     }
@@ -151,7 +149,6 @@ mod tests {
 
     #[test]
     fn test_system_clipboard_fallback_cohesion() {
-        // Test fallback path directly when native clipboard is None
         let clipboard = SystemClipboard::headless_fallback();
 
         assert!(!clipboard.is_os_native_available());
@@ -167,7 +164,6 @@ mod tests {
     #[test]
     fn test_system_clipboard_default_and_native_instantiation() {
         let clipboard = SystemClipboard::default();
-        // Verifies graceful initialization without panic in either headless or display environment
         let _ = clipboard.is_os_native_available();
     }
 }

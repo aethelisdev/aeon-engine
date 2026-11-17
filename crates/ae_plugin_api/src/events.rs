@@ -246,6 +246,68 @@ pub struct TargetDestroyedEvent {
 }
 impl Event for TargetDestroyedEvent {}
 
+/// Command event emitted by gameplay behaviors or plugins to persist runtime delta state to disk.
+///
+/// Consumed on the host runtime tick to serialize a [`ae_world::WorldDeltaSnapshot`] into
+/// `Saved/SaveGames/slot_<slot_index>.aesave` atomically.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveGameRequest {
+    /// Save slot number (`0` autosave/quicksave, `1..N` manual slots).
+    pub slot_index: u16,
+    /// Human-readable save title displayed in slot menus.
+    pub label: String,
+}
+impl Event for SaveGameRequest {}
+
+/// Command event emitted by gameplay behaviors or plugins to restore runtime state from a slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoadGameRequest {
+    /// Save slot number to load from `Saved/SaveGames/slot_<slot_index>.aesave`.
+    pub slot_index: u16,
+}
+impl Event for LoadGameRequest {}
+
+/// Completion notification broadcast after servicing a [`SaveGameRequest`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveGameCompleted {
+    /// Target save slot index.
+    pub slot_index: u16,
+    /// `true` when atomic write completed cleanly.
+    pub success: bool,
+    /// Diagnostic error message when `success` is `false`.
+    pub error: Option<String>,
+}
+impl Event for SaveGameCompleted {}
+
+/// Completion notification broadcast after servicing a [`LoadGameRequest`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadGameCompleted {
+    /// Target save slot index.
+    pub slot_index: u16,
+    /// `true` when savegame validation and restoration succeeded.
+    pub success: bool,
+    /// Diagnostic error message when `success` is `false`.
+    pub error: Option<String>,
+}
+impl Event for LoadGameCompleted {}
+
+impl DynamicEventBus {
+    /// Enqueues a [`SaveGameRequest`] asking the runtime to persist slot `slot_id`.
+    pub fn save_slot(&mut self, slot_id: u16, label: impl Into<String>) {
+        self.send(SaveGameRequest {
+            slot_index: slot_id,
+            label: label.into(),
+        });
+    }
+
+    /// Enqueues a [`LoadGameRequest`] asking the runtime to restore slot `slot_id`.
+    pub fn load_slot(&mut self, slot_id: u16) {
+        self.send(LoadGameRequest {
+            slot_index: slot_id,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,5 +331,21 @@ mod tests {
 
         bus.set_module_enabled(EngineModule::Render2D, true);
         assert!(bus.is_module_enabled(EngineModule::Render2D));
+    }
+
+    #[test]
+    fn test_event_bus_save_and_load_slot_commands() {
+        let mut bus = DynamicEventBus::new();
+        bus.save_slot(2, "Foundry Gate");
+        bus.load_slot(2);
+
+        let saves = bus.receive::<SaveGameRequest>().expect("save queue");
+        assert_eq!(saves.len(), 1);
+        assert_eq!(saves[0].slot_index, 2);
+        assert_eq!(saves[0].label, "Foundry Gate");
+
+        let loads = bus.receive::<LoadGameRequest>().expect("load queue");
+        assert_eq!(loads.len(), 1);
+        assert_eq!(loads[0].slot_index, 2);
     }
 }
