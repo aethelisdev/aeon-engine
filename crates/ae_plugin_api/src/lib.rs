@@ -7,6 +7,7 @@ pub mod abi;
 pub mod components;
 pub mod context;
 pub mod events;
+pub mod identity;
 pub mod resources;
 
 // Re-export everything to maintain a clean, flat public API surface
@@ -14,4 +15,5 @@ pub use abi::*;
 pub use components::*;
 pub use context::*;
 pub use events::*;
+pub use identity::*;
 pub use resources::*;

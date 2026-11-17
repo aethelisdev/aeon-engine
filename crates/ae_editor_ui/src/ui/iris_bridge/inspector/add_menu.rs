@@ -95,6 +95,7 @@ fn is_internal_or_specialized(type_name: &str) -> bool {
             | "Children"
             | "ModelId"
             | "SpriteId"
+            | "EntityGuid"
     )
 }
 

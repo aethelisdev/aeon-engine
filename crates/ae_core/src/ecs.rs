@@ -10,14 +10,14 @@ use hecs::World;
 use serde::{Deserialize, Serialize};
 
 pub use ae_plugin_api::{
-    AssetHandle, BoundingBox, BoundingRadius, CharacterAction, CharacterController, Children,
-    Collider, ColliderShape, Color, DestructibleTarget, EphemeralProjectile, GlobalTransform,
-    Hidden, Light, ModelId, MovingPlatform, Name, Parent, PhysicsMaterial, PlayerHealthBarTag,
-    PlayerTag, Position, RaycastHit, ReticleTag, RigidBody, RigidBodyType, Rotation, Rotator,
-    Scale, ScoreDisplayTag, Shape, SpriteId, SpriteRenderer, SurfaceType, TransformDirty,
-    TriggerZone, UiAnchor, UiButton, UiCheckbox, UiElement, UiImage, UiLayoutGroup, UiLayoutType,
-    UiPanel, UiProgressBar, UiRect, UiSliceMode, UiSlider, UiText, UiTextAlignment, UiTextInput,
-    Velocity,
+    AssetGuid, AssetHandle, BoundingBox, BoundingRadius, CharacterAction, CharacterController,
+    Children, Collider, ColliderShape, Color, DestructibleTarget, EntityGuid, EphemeralProjectile,
+    GlobalTransform, Hidden, Light, ModelId, MovingPlatform, Name, Parent, PhysicsMaterial,
+    PlayerHealthBarTag, PlayerTag, Position, RaycastHit, ReticleTag, RigidBody, RigidBodyType,
+    Rotation, Rotator, Scale, ScoreDisplayTag, Shape, SpriteId, SpriteRenderer, SurfaceType,
+    TransformDirty, TriggerZone, UiAnchor, UiButton, UiCheckbox, UiElement, UiImage, UiLayoutGroup,
+    UiLayoutType, UiPanel, UiProgressBar, UiRect, UiSliceMode, UiSlider, UiText, UiTextAlignment,
+    UiTextInput, Velocity, component_type_hash,
 };
 
 pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};
