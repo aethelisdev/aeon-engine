@@ -90,6 +90,8 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         mouse_sensitivity: 0.005,
         max_undo_history: 100,
         physics_hz: 60.0,
+        autosave_enabled: true,
+        autosave_interval_secs: 300.0,
     };
 
     let tag_fly_speed = hash_label("Base Fly Speed");
@@ -195,6 +197,75 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         (editor_config.mouse_sensitivity - 0.007).abs() < 1e-5,
         "Mouse sensitivity must mutate from 0.005 to 0.007: got {}",
         editor_config.mouse_sensitivity
+    );
+
+    // 3. Editor Tab (Tab 2): Test Auto-Save Interval drag while enabled, then toggle checkbox
+    let mut tree_editor = UiTree::new();
+    let tag_autosave_interval = hash_label("Auto-Save Interval");
+    let tag_autosave_toggle = hash_label("Enable Periodic Auto-Save");
+    let drag_events = [(
+        tag_autosave_interval,
+        InteractionEvent::Drag {
+            delta: Point::new(10.0, 0.0),
+        },
+    )];
+
+    let params_editor = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut 2, // Editor tab
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: &mut false,
+        enabled_modules: &enabled_modules,
+        events: &drag_events,
+        current_theme: Default::default(),
+    };
+
+    build_preferences_dialog(&mut tree_editor, params_editor, &mut Vec::new());
+
+    // Auto-Save Interval: 300.0 + 10.0 * 5.0 = 350.0
+    assert!(
+        (editor_config.autosave_interval_secs - 350.0).abs() < 1e-3,
+        "Auto-Save interval must mutate from 300.0 to 350.0: got {}",
+        editor_config.autosave_interval_secs
+    );
+
+    let click_events = [(
+        tag_autosave_toggle,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params_toggle = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: &mut 2,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: &mut false,
+        enabled_modules: &enabled_modules,
+        events: &click_events,
+        current_theme: Default::default(),
+    };
+    build_preferences_dialog(&mut tree_editor, params_toggle, &mut Vec::new());
+    assert!(
+        !editor_config.autosave_enabled,
+        "Enable Periodic Auto-Save checkbox click must toggle autosave_enabled to false"
     );
 }
 

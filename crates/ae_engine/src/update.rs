@@ -235,14 +235,19 @@ impl AeEngine {
             }) {
                 self.physics_sync_dirty = true;
             }
-        } else if let Some(target_path) = self.autosave.poll_trigger(
-            self.mode,
-            self.time.delta_time,
-            self.ecs.world.len(),
-            None,
-            self.saved_world_dir.as_deref(),
-            self.editor.active_scene_path.as_deref(),
-        ) && let Ok(doc) = crate::scene::capture_world_document(self)
+        } else if let Some(target_path) =
+            self.autosave
+                .poll_trigger(crate::autosave::AutosavePollContext {
+                    mode: self.mode,
+                    enabled: self.editor.config.autosave_enabled,
+                    interval_secs: self.editor.config.autosave_interval_secs,
+                    dt: self.time.delta_time,
+                    entity_count: self.ecs.world.len(),
+                    autosaves_root: None,
+                    saved_world_dir: self.saved_world_dir.as_deref(),
+                    active_scene_path: self.editor.active_scene_path.as_deref(),
+                })
+            && let Ok(doc) = crate::scene::capture_world_document(self)
         {
             self.autosave.dispatch_background_write(doc, target_path);
         }

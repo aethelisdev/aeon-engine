@@ -20,6 +20,10 @@ pub struct EditorConfig {
     pub max_undo_history: usize,
     /// The physics simulation fixed update step frequency in Hertz (Hz).
     pub physics_hz: f32,
+    /// Whether periodic background Edit-mode auto-save snapshots are enabled.
+    pub autosave_enabled: bool,
+    /// Seconds of Edit-mode activity between periodic auto-save snapshots (`>= 10.0`).
+    pub autosave_interval_secs: f32,
 }
 
 impl Default for EditorConfig {
@@ -31,6 +35,8 @@ impl Default for EditorConfig {
             mouse_sensitivity: 0.005,
             max_undo_history: 100,
             physics_hz: 120.0,
+            autosave_enabled: true,
+            autosave_interval_secs: 300.0,
         }
     }
 }

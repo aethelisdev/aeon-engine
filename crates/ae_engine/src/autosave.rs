@@ -16,15 +16,32 @@ pub const DEFAULT_AUTOSAVE_INTERVAL_SECS: f32 = 300.0;
 /// Number of rotating autosave slots maintained inside `Saved/Autosaves/`.
 pub const AUTOSAVE_ROTATING_SLOTS: usize = 3;
 
+/// Frame context evaluated by [`EditorAutosaveState::poll_trigger`].
+pub struct AutosavePollContext<'a> {
+    /// Current engine execution mode (`Edit` vs `Play`).
+    pub mode: EngineMode,
+    /// Whether periodic background autosaves are enabled in `EditorConfig`.
+    pub enabled: bool,
+    /// Seconds between periodic autosaves configured in `EditorConfig`.
+    pub interval_secs: f32,
+    /// Frame delta time in seconds.
+    pub dt: f32,
+    /// Active entity count in the live ECS world.
+    pub entity_count: u32,
+    /// Optional explicit root directory override for `Saved/Autosaves/`.
+    pub autosaves_root: Option<&'a Path>,
+    /// Currently open partitioned world directory, if any.
+    pub saved_world_dir: Option<&'a Path>,
+    /// Currently active `.aeworld` scene file path, if any.
+    pub active_scene_path: Option<&'a Path>,
+}
+
 /// Tracks edit-mode frame elapsed time and dispatches non-blocking background autosaves
 /// to rotating `Saved/Autosaves/<world>_autosave_<slot>.aeworld` recovery archives.
 ///
-/// Identical worlds (matching full binary CRC32) skip disk writes to eliminate redundant I/O.
+/// Enable state and interval are read directly from [`ae_editor::editor_state::EditorConfig`]
+/// as the single source of truth; identical worlds (matching full binary CRC32) skip disk writes.
 pub struct EditorAutosaveState {
-    /// Whether periodic background autosaves are enabled.
-    pub enabled: bool,
-    /// Seconds of Edit mode accumulation between autosave checks.
-    pub interval_secs: f32,
     elapsed_secs: f32,
     next_slot: usize,
     last_crc32: Arc<AtomicU32>,
@@ -33,17 +50,15 @@ pub struct EditorAutosaveState {
 
 impl Default for EditorAutosaveState {
     fn default() -> Self {
-        Self::new(DEFAULT_AUTOSAVE_INTERVAL_SECS)
+        Self::new()
     }
 }
 
 impl EditorAutosaveState {
-    /// Creates an autosave tracker triggering every `interval_secs` seconds in Edit mode.
+    /// Creates an autosave runtime state tracker.
     #[must_use]
-    pub fn new(interval_secs: f32) -> Self {
+    pub fn new() -> Self {
         Self {
-            enabled: true,
-            interval_secs: interval_secs.max(10.0),
             elapsed_secs: 0.0,
             next_slot: 0,
             last_crc32: Arc::new(AtomicU32::new(0)),
@@ -60,24 +75,21 @@ impl EditorAutosaveState {
     /// when a new autosave snapshot should be captured and flushed in the background.
     ///
     /// Returns `None` during Play mode, when disabled, when an empty world is open, when a prior
-    /// worker is still writing, or before `interval_secs` has elapsed.
-    pub fn poll_trigger(
-        &mut self,
-        mode: EngineMode,
-        dt: f32,
-        entity_count: u32,
-        autosaves_root: Option<&Path>,
-        saved_world_dir: Option<&Path>,
-        active_scene_path: Option<&Path>,
-    ) -> Option<PathBuf> {
-        if !self.enabled || mode != EngineMode::Edit || entity_count == 0 {
+    /// worker is still writing, or before `ctx.interval_secs` has elapsed.
+    pub fn poll_trigger(&mut self, ctx: AutosavePollContext<'_>) -> Option<PathBuf> {
+        if !ctx.enabled || ctx.mode != EngineMode::Edit || ctx.entity_count == 0 {
             return None;
         }
-        if !dt.is_finite() || dt <= 0.0 {
+        if !ctx.dt.is_finite() || ctx.dt <= 0.0 {
             return None;
         }
-        self.elapsed_secs += dt;
-        if self.elapsed_secs < self.interval_secs {
+        let clamped_interval = if ctx.interval_secs.is_finite() {
+            ctx.interval_secs.max(10.0)
+        } else {
+            DEFAULT_AUTOSAVE_INTERVAL_SECS
+        };
+        self.elapsed_secs += ctx.dt;
+        if self.elapsed_secs < clamped_interval {
             return None;
         }
         if self.in_flight.swap(true, Ordering::AcqRel) {
@@ -88,9 +100,9 @@ impl EditorAutosaveState {
         let slot = self.next_slot % AUTOSAVE_ROTATING_SLOTS;
         self.next_slot = (slot + 1) % AUTOSAVE_ROTATING_SLOTS;
         Some(resolve_autosave_target(
-            autosaves_root,
-            saved_world_dir,
-            active_scene_path,
+            ctx.autosaves_root,
+            ctx.saved_world_dir,
+            ctx.active_scene_path,
             slot,
         ))
     }
@@ -192,75 +204,86 @@ mod tests {
         let autosaves_dir = root.join("Saved/Autosaves");
         let _ = std::fs::remove_dir_all(&root);
 
-        let mut state = EditorAutosaveState::new(30.0);
-        // Never triggers in Play mode or on empty worlds
+        let mut state = EditorAutosaveState::new();
+        let make_ctx = |mode, enabled, dt, entity_count, world_dir| AutosavePollContext {
+            mode,
+            enabled,
+            interval_secs: 30.0,
+            dt,
+            entity_count,
+            autosaves_root: Some(&autosaves_dir),
+            saved_world_dir: world_dir,
+            active_scene_path: None,
+        };
+        // Never triggers in Play mode, when disabled, or on empty worlds
         assert!(
             state
-                .poll_trigger(EngineMode::Play, 60.0, 10, Some(&autosaves_dir), None, None)
+                .poll_trigger(make_ctx(EngineMode::Play, true, 60.0, 10, None))
                 .is_none()
         );
         assert!(
             state
-                .poll_trigger(EngineMode::Edit, 60.0, 0, Some(&autosaves_dir), None, None)
+                .poll_trigger(make_ctx(EngineMode::Edit, false, 60.0, 10, None))
+                .is_none()
+        );
+        assert!(
+            state
+                .poll_trigger(make_ctx(EngineMode::Edit, true, 60.0, 0, None))
                 .is_none()
         );
         // Before interval expires -> None
         assert!(
             state
-                .poll_trigger(EngineMode::Edit, 10.0, 5, Some(&autosaves_dir), None, None)
+                .poll_trigger(make_ctx(EngineMode::Edit, true, 10.0, 5, None))
                 .is_none()
         );
 
         let world_dir = root.join("Worlds/Frontier");
         let slot0 = state
-            .poll_trigger(
+            .poll_trigger(make_ctx(
                 EngineMode::Edit,
+                true,
                 25.0,
                 5,
-                Some(&autosaves_dir),
-                Some(&world_dir),
-                None,
-            )
+                Some(world_dir.as_path()),
+            ))
             .expect("slot 0 triggers");
         assert!(slot0.ends_with("Frontier_autosave_0.aeworld"));
         // Simulate worker finishing so slot 1 can trigger next
         state.in_flight.store(false, Ordering::Release);
 
         let slot1 = state
-            .poll_trigger(
+            .poll_trigger(make_ctx(
                 EngineMode::Edit,
+                true,
                 30.0,
                 5,
-                Some(&autosaves_dir),
-                Some(&world_dir),
-                None,
-            )
+                Some(world_dir.as_path()),
+            ))
             .expect("slot 1 triggers");
         assert!(slot1.ends_with("Frontier_autosave_1.aeworld"));
         state.in_flight.store(false, Ordering::Release);
 
         let slot2 = state
-            .poll_trigger(
+            .poll_trigger(make_ctx(
                 EngineMode::Edit,
+                true,
                 30.0,
                 5,
-                Some(&autosaves_dir),
-                Some(&world_dir),
-                None,
-            )
+                Some(world_dir.as_path()),
+            ))
             .expect("slot 2 triggers");
         assert!(slot2.ends_with("Frontier_autosave_2.aeworld"));
         state.in_flight.store(false, Ordering::Release);
 
         let wrap0 = state
-            .poll_trigger(
+            .poll_trigger(make_ctx(
                 EngineMode::Edit,
+                true,
                 30.0,
                 5,
-                Some(&autosaves_dir),
-                Some(&world_dir),
-                None,
-            )
+                Some(world_dir.as_path()),
+            ))
             .expect("slot wraps to 0");
         assert!(wrap0.ends_with("Frontier_autosave_0.aeworld"));
 

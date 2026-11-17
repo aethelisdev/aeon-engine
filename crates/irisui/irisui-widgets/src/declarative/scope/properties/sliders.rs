@@ -474,6 +474,21 @@ impl<'a> UiScope<'a> {
         self.property_slider_with_options(label, value, PropertySliderOptions::new(min, max, speed))
     }
 
+    /// Emits a rich two-way bound `usize` property slider row configured with custom options.
+    ///
+    /// Converts `*value` cleanly without requiring intermediate caller variables.
+    pub fn property_slider_usize_with_options(
+        &mut self,
+        label: &str,
+        value: &mut usize,
+        options: PropertySliderOptions<'_>,
+    ) -> WidgetResponse {
+        let mut scalar = *value as f32;
+        let resp = self.property_slider_with_options(label, &mut scalar, options);
+        *value = scalar.round().max(0.0) as usize;
+        resp
+    }
+
     /// Emits a compact draggable float scalar input row.
     ///
     /// Modifies `value` in place based on continuous pointer drag deltas.

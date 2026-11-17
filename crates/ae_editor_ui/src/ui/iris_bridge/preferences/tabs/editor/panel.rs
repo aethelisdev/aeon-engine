@@ -23,7 +23,7 @@ pub fn build_editor_tab(
     pref_heading(
         scope,
         "Editor Settings",
-        "Configure viewport snapping, undo history depth, physics update rate, and live reloading.",
+        "Configure viewport snapping, undo history depth, periodic auto-save, physics update rate, and live reloading.",
     );
 
     build_snapping_card(scope, params);
