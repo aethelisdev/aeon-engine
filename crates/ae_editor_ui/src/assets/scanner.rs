@@ -27,24 +27,43 @@ pub fn rescan_assets_if_needed(
 
     state.last_scan_time = Instant::now();
 
-    let root_path = Path::new("assets");
-    if !root_path.exists() {
-        let _ = std::fs::create_dir_all("assets/models");
-        let _ = std::fs::create_dir_all("assets/textures");
-        let _ = std::fs::create_dir_all("assets/shaders");
-        let _ = std::fs::create_dir_all("assets/scenes");
-    }
-
     let mut discovered_items = Vec::new();
     let mut discovered_subfolders = Vec::new();
 
-    // 1. Recursive File System Walk under `assets/`
-    walk_directory(
-        root_path,
-        AssetSource::Project,
-        &mut discovered_items,
-        &mut discovered_subfolders,
-    );
+    // 1. Recursive File System Walk under `Content/` + `Worlds/` (modular project) or `assets/` fallback
+    let content_dir = Path::new("Content");
+    if content_dir.is_dir() {
+        let _ = ae_world::sync_content_metadata(content_dir, classify_world_asset_kind);
+        walk_directory(
+            content_dir,
+            AssetSource::Project,
+            &mut discovered_items,
+            &mut discovered_subfolders,
+        );
+        let worlds_dir = Path::new("Worlds");
+        if worlds_dir.is_dir() {
+            walk_directory(
+                worlds_dir,
+                AssetSource::Project,
+                &mut discovered_items,
+                &mut discovered_subfolders,
+            );
+        }
+    } else {
+        let root_path = Path::new("assets");
+        if !root_path.exists() {
+            let _ = std::fs::create_dir_all("assets/models");
+            let _ = std::fs::create_dir_all("assets/textures");
+            let _ = std::fs::create_dir_all("assets/shaders");
+            let _ = std::fs::create_dir_all("assets/scenes");
+        }
+        walk_directory(
+            root_path,
+            AssetSource::Project,
+            &mut discovered_items,
+            &mut discovered_subfolders,
+        );
+    }
 
     // Also check `crates/ae_renderer/src/shaders` for internal shaders
     let internal_shaders_path = Path::new("crates/ae_renderer/src/shaders");
@@ -225,20 +244,7 @@ fn walk_directory(
             let metadata_badge = AssetBrowserState::format_file_size(file_size_bytes);
             let is_3d = match category {
                 AssetCategory::Models3D => true,
-                AssetCategory::Scenes => {
-                    let ext = path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("")
-                        .to_ascii_lowercase();
-                    if ext == "ae2d" {
-                        false
-                    } else if ext == "ae3d" {
-                        true
-                    } else {
-                        is_scene_file_3d(&path)
-                    }
-                }
+                AssetCategory::Scenes => is_world_file_3d(&path),
                 _ => false,
             };
 
@@ -260,110 +266,22 @@ fn walk_directory(
     }
 }
 
-/// Inspects a deserialized entity JSON object to determine if it defines 3D components or attributes.
-pub fn is_entity_json_3d(entity: &serde_json::Value) -> bool {
-    if let Some(dim) = entity.get("dimension").and_then(|v| v.as_str()) {
-        if dim.eq_ignore_ascii_case("3d") {
-            return true;
-        }
-        if dim.eq_ignore_ascii_case("2d") {
-            return false;
-        }
-    }
-
-    if let Some(mp) = entity.get("model_path")
-        && !mp.is_null()
-        && mp.as_str().is_some_and(|s| !s.is_empty())
-    {
-        return true;
-    }
-
-    if let Some(lod) = entity.get("lod_group")
-        && !lod.is_null()
-    {
-        return true;
-    }
-
-    if let Some(shape) = entity.get("shape")
-        && !shape.is_null()
-        && shape.as_str().is_some_and(|s| !s.is_empty())
-    {
-        return true;
-    }
-
-    if let Some(kcc) = entity.get("character_controller")
-        && !kcc.is_null()
-    {
-        return true;
-    }
-
-    if let Some(rb) = entity.get("rigid_body")
-        && !rb.is_null()
-    {
-        return true;
-    }
-
-    if let Some(col) = entity.get("collider")
-        && !col.is_null()
-    {
-        return true;
-    }
-
-    if let Some(light) = entity.get("light")
-        && !light.is_null()
-    {
-        return true;
-    }
-
-    if let Some(mr) = entity.get("mesh_renderer")
-        && !mr.is_null()
-    {
-        return true;
-    }
-
-    false
+/// Inspects raw `.aeworld` binary bytes to determine whether the world archive targets 3D (`true`)
+/// or 2D (`false`) without decompressing spatial chunks.
+pub fn is_world_bytes_3d(bytes: &[u8]) -> bool {
+    let mut cursor = std::io::Cursor::new(bytes);
+    ae_world::WorldDocument::read_index(&mut cursor, None).is_ok_and(|index| !index.is_2d)
 }
 
-/// Inspects a parsed JSON structure to determine if it represents a 3D scene.
+/// Inspects a binary `.aeworld` file header on disk to determine whether it defines a 3D world.
 ///
-/// Supports standard arrays of entities (`[SavedEntity]`) as well as enveloped objects (`{"dimension": "3D", ...}`).
-pub fn is_scene_json_3d(json: &serde_json::Value) -> bool {
-    if let Some(dim) = json.get("dimension").and_then(|v| v.as_str()) {
-        if dim.eq_ignore_ascii_case("3d") {
-            return true;
-        }
-        if dim.eq_ignore_ascii_case("2d") {
-            return false;
-        }
-    }
-
-    if let Some(arr) = json.as_array() {
-        return arr.iter().any(is_entity_json_3d);
-    }
-
-    if let Some(entities) = json.get("entities").and_then(|v| v.as_array()) {
-        return entities.iter().any(is_entity_json_3d);
-    }
-
-    if json.is_object() {
-        return is_entity_json_3d(json);
-    }
-
-    false
-}
-
-/// Inspects a scene file on disk to determine if it contains 3D entities or 3D scene metadata.
-///
-/// Reads and parses the file safely without modifying runtime state.
-pub fn is_scene_file_3d(path: &Path) -> bool {
+/// Reads ONLY the archive header and index without decompressing chunk payloads or modifying state.
+pub fn is_world_file_3d(path: &Path) -> bool {
     let Ok(file) = std::fs::File::open(path) else {
         return false;
     };
-    let reader = std::io::BufReader::new(file);
-    let Ok(json) = serde_json::from_reader::<_, serde_json::Value>(reader) else {
-        return false;
-    };
-    is_scene_json_3d(&json)
+    let mut reader = std::io::BufReader::new(file);
+    ae_world::WorldDocument::read_index(&mut reader, None).is_ok_and(|index| !index.is_2d)
 }
 
 /// Classifies a file extension into an `AssetCategory`.
@@ -373,10 +291,27 @@ pub fn classify_asset_category(path: &Path) -> Option<AssetCategory> {
         "gltf" | "glb" | "obj" | "fbx" => Some(AssetCategory::Models3D),
         "png" | "jpg" | "jpeg" | "tga" | "bmp" | "hdr" => Some(AssetCategory::Textures2D),
         "wgsl" => Some(AssetCategory::Shaders),
-        "aee" | "ae3d" | "ae2d" => Some(AssetCategory::Scenes),
+        "aeworld" => Some(AssetCategory::Scenes),
         "mat" => Some(AssetCategory::Materials),
         "wav" | "ogg" | "mp3" | "flac" => Some(AssetCategory::Audio),
         _ => None,
+    }
+}
+
+/// Maps a disk asset extension into `ae_world::AssetKind` for `.aemeta` companion tracking.
+#[must_use]
+pub fn classify_world_asset_kind(path: &Path) -> Option<ae_world::AssetKind> {
+    match classify_asset_category(path) {
+        Some(AssetCategory::Models3D) => Some(ae_world::AssetKind::Model),
+        Some(AssetCategory::Textures2D) => Some(ae_world::AssetKind::Texture),
+        Some(AssetCategory::Shaders) => Some(ae_world::AssetKind::Shader),
+        Some(AssetCategory::Materials) => Some(ae_world::AssetKind::Material),
+        Some(AssetCategory::Audio) => Some(ae_world::AssetKind::Audio),
+        _ => path
+            .extension()
+            .and_then(|e| e.to_str())
+            .filter(|ext| ext.eq_ignore_ascii_case("aeprefab"))
+            .map(|_| ae_world::AssetKind::Prefab),
     }
 }
 
@@ -399,15 +334,7 @@ mod tests {
             Some(AssetCategory::Shaders)
         );
         assert_eq!(
-            classify_asset_category(Path::new("scenes/main.aee")),
-            Some(AssetCategory::Scenes)
-        );
-        assert_eq!(
-            classify_asset_category(Path::new("scenes/main.ae3d")),
-            Some(AssetCategory::Scenes)
-        );
-        assert_eq!(
-            classify_asset_category(Path::new("scenes/level1.ae2d")),
+            classify_asset_category(Path::new("scenes/main.aeworld")),
             Some(AssetCategory::Scenes)
         );
         assert_eq!(

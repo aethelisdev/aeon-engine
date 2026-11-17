@@ -70,19 +70,41 @@ fn test_create_project_on_disk() {
 
     assert_eq!(config_2d.name, "Sandbox2D");
     assert_eq!(config_2d.dimension_mode, "2D");
-    assert_eq!(config_2d.entry_scene, "scenes/main.ae2d");
+    assert_eq!(
+        config_2d.entry_scene,
+        ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL
+    );
 
     let proj_2d_path = PathBuf::from(&config_2d.path);
-    assert!(proj_2d_path.join("assets").is_dir());
-    assert!(proj_2d_path.join("scenes").is_dir());
-    assert!(proj_2d_path.join("scenes/main.ae2d").is_file());
+    let layout_2d = ae_world::ProjectWorkspaceLayout::new(&proj_2d_path);
+    assert!(layout_2d.config_dir().is_dir());
+    assert!(layout_2d.content_dir().is_dir());
+    assert!(layout_2d.world_dir("MainWorld").join("cells").is_dir());
+    assert!(layout_2d.intermediate_dir().is_dir());
+    assert!(layout_2d.autosaves_dir().is_dir());
+    assert!(layout_2d.logs_dir().is_dir());
+    assert!(layout_2d.savegames_dir().is_dir());
+    assert!(proj_2d_path.join(&config_2d.entry_scene).is_file());
+    let (loaded_2d, _, is_part_2d) =
+        ae_world::WorldDocument::load_auto(&proj_2d_path.join(&config_2d.entry_scene), None)
+            .expect("2D binary entry world must be valid");
+    assert!(is_part_2d);
+    assert!(loaded_2d.is_2d);
     assert!(proj_2d_path.join("aeon_project.json").is_file());
 
     let config_3d = ProjectRegistry::create_project("Sandbox3D", &temp_dir, "3D")
         .expect("Project creation failed");
-    assert_eq!(config_3d.entry_scene, "scenes/main.ae3d");
+    assert_eq!(
+        config_3d.entry_scene,
+        ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL
+    );
     let proj_3d_path = PathBuf::from(&config_3d.path);
-    assert!(proj_3d_path.join("scenes/main.ae3d").is_file());
+    assert!(proj_3d_path.join(&config_3d.entry_scene).is_file());
+    let (loaded_3d, _, is_part_3d) =
+        ae_world::WorldDocument::load_auto(&proj_3d_path.join(&config_3d.entry_scene), None)
+            .expect("3D binary entry world must be valid");
+    assert!(is_part_3d);
+    assert!(!loaded_3d.is_2d);
 
     // Clean up
     let _ = fs::remove_dir_all(&temp_dir);

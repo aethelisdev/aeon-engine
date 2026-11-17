@@ -21,7 +21,12 @@ pub fn prefab_file_path_for_entity(
     entity: hecs::Entity,
 ) -> std::path::PathBuf {
     std::path::PathBuf::from(format!(
-        "assets/prefabs/{}.prefab.json",
+        "{}/{}.aeprefab",
+        if std::path::Path::new("Content").is_dir() {
+            "Content/Prefabs"
+        } else {
+            "assets/prefabs"
+        },
         world
             .get::<&ae_core::ecs::Name>(entity)
             .ok()
@@ -188,7 +193,7 @@ mod tests {
         assert_eq!(ent, entity);
         assert_eq!(
             path,
-            std::path::PathBuf::from("assets/prefabs/Hero_Guard.prefab.json")
+            std::path::PathBuf::from("assets/prefabs/Hero_Guard.aeprefab")
         );
     }
 }

@@ -22,7 +22,7 @@ pub struct ProjectConfig {
     /// Engine version compatibility identifier (e.g., `"0.9.0"`).
     pub engine_version: String,
 
-    /// Initial scene path relative to the project root (e.g., `"scenes/main.ae3d"` or `"scenes/main.ae2d"`).
+    /// Initial world manifest path relative to the project root (e.g., `"Worlds/MainWorld/world.aeworld"`).
     pub entry_scene: String,
 
     /// UNIX timestamp of the most recent access in seconds.
@@ -36,7 +36,7 @@ impl Default for ProjectConfig {
             path: String::new(),
             dimension_mode: "3D".to_string(),
             engine_version: "0.9.0".to_string(),
-            entry_scene: "scenes/main.ae3d".to_string(),
+            entry_scene: ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL.to_string(),
             last_opened: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -102,9 +102,10 @@ impl ProjectRegistry {
         self.save_to_disk();
     }
 
-    /// Initializes a new project directory structure on disk with `aeon_project.json`.
+    /// Initializes a modular project directory tree on disk with `aeon_project.json`.
     ///
-    /// Creates `assets/`, `scenes/`, and an initial empty `scenes/main.ae3d` or `scenes/main.ae2d` file.
+    /// Creates `Config/`, `Content/`, `Worlds/MainWorld/{world.aeworld, cells/}`,
+    /// `Intermediate/`, and `Saved/{Autosaves, Logs, SaveGames}/`.
     pub fn create_project(
         name: &str,
         parent_dir: &Path,
@@ -112,21 +113,19 @@ impl ProjectRegistry {
     ) -> std::io::Result<ProjectConfig> {
         let sanitized_name = name.trim();
         let project_dir = parent_dir.join(sanitized_name);
-        fs::create_dir_all(project_dir.join("assets"))?;
-        fs::create_dir_all(project_dir.join("scenes"))?;
+        let layout = ae_world::ProjectWorkspaceLayout::new(&project_dir);
+        layout.ensure_directories().map_err(std::io::Error::other)?;
 
         let is_2d = dimension_mode.trim().eq_ignore_ascii_case("2D");
-        let (scene_filename, entry_scene) = if is_2d {
-            ("main.ae2d", "scenes/main.ae2d".to_string())
-        } else {
-            ("main.ae3d", "scenes/main.ae3d".to_string())
-        };
-
-        // Write a valid empty initial scene
-        let scene_path = project_dir.join("scenes").join(scene_filename);
-        if !scene_path.exists() {
-            let initial_scene_json = r#"{"name":"Main Scene","entities":[]}"#;
-            fs::write(&scene_path, initial_scene_json)?;
+        let entry_scene = ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL.to_string();
+        let main_world_dir = layout.world_dir("MainWorld");
+        let manifest_path = main_world_dir.join(ae_world::WORLD_MANIFEST_FILENAME);
+        if !manifest_path.exists() {
+            let mut guid_gen = ae_world::GuidGenerator::new();
+            let world_doc = ae_world::WorldDocument::new(guid_gen.next_entity_guid(), is_2d, 128.0);
+            world_doc
+                .save_partitioned_dir(&main_world_dir, None)
+                .map_err(std::io::Error::other)?;
         }
 
         let config = ProjectConfig {
