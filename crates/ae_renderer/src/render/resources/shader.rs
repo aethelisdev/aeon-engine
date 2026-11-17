@@ -108,4 +108,41 @@ impl RenderState {
 
         self.load_shader_from_memory(assets, file_name, &source, Some(path))
     }
+
+    /// Loads, deduplicates, and compiles a `.wgsl` shader from any [`ae_world::VfsProvider`]
+    /// without assuming direct OS filesystem paths.
+    ///
+    /// # Errors
+    /// Returns an error string on unsafe virtual path traversal, missing VFS entry, or invalid UTF-8.
+    pub fn load_shader_from_vfs(
+        &self,
+        assets: &mut AssetManager,
+        vfs: &dyn ae_world::VfsProvider,
+        virtual_path: &str,
+    ) -> Result<AssetHandle, String> {
+        let clean = ae_world::sanitize_virtual_path(virtual_path).map_err(|e| {
+            format!("[SECURITY ERROR] Blocked unsafe shader VFS path '{virtual_path}': {e}")
+        })?;
+        if let Some(&handle) = assets
+            .shader_path_map
+            .get(&clean)
+            .filter(|&&h| assets.shaders.get(h).is_some())
+        {
+            return Ok(handle);
+        }
+
+        let raw_bytes = vfs
+            .read_bytes(virtual_path)
+            .map_err(|e| format!("[ERROR] VFS failed to read shader '{virtual_path}': {e}"))?;
+        let source = String::from_utf8(raw_bytes)
+            .map_err(|e| format!("[ERROR] Shader '{virtual_path}' is not valid UTF-8: {e}"))?;
+        let file_name = clean
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unnamed_shader");
+        let handle =
+            self.load_shader_from_memory(assets, file_name, &source, Some(virtual_path))?;
+        assets.shader_path_map.insert(clean, handle);
+        Ok(handle)
+    }
 }

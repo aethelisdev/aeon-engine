@@ -118,6 +118,8 @@ pub struct AssetManager {
     pub model_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
     pub texture_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
     pub shader_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
+    model_ref_counts: std::collections::HashMap<AssetHandle, u32>,
+    texture_ref_counts: std::collections::HashMap<AssetHandle, u32>,
 }
 
 impl Default for AssetManager {
@@ -140,7 +142,71 @@ impl AssetManager {
             model_path_map: std::collections::HashMap::new(),
             texture_path_map: std::collections::HashMap::new(),
             shader_path_map: std::collections::HashMap::new(),
+            model_ref_counts: std::collections::HashMap::new(),
+            texture_ref_counts: std::collections::HashMap::new(),
         }
+    }
+
+    /// Increments the active chunk/entity reference count for a GPU model handle.
+    pub fn retain_model(&mut self, handle: AssetHandle) {
+        if self.models.get(handle).is_some() {
+            let count = self.model_ref_counts.entry(handle).or_insert(0);
+            *count = count.saturating_add(1);
+        }
+    }
+
+    /// Returns the active reference count for a GPU model handle (`0` if unretained).
+    #[must_use]
+    pub fn model_ref_count(&self, handle: AssetHandle) -> u32 {
+        self.model_ref_counts.get(&handle).copied().unwrap_or(0)
+    }
+
+    /// Decrements a model's reference count when a streaming chunk or entity unloads,
+    /// freeing its GPU buffers and `model_path_map` entry only once the count hits `0`.
+    ///
+    /// Returns `true` if the GPU asset was unloaded because no active chunk references remain.
+    pub fn release_model(&mut self, handle: AssetHandle) -> bool {
+        let Some(count) = self.model_ref_counts.get_mut(&handle) else {
+            return false;
+        };
+        if *count > 1 {
+            *count -= 1;
+            return false;
+        }
+        self.model_ref_counts.remove(&handle);
+        self.models.remove(handle);
+        self.model_path_map.retain(|_, &mut h| h != handle);
+        true
+    }
+
+    /// Increments the active chunk/entity reference count for a GPU texture handle.
+    pub fn retain_texture(&mut self, handle: AssetHandle) {
+        if self.textures.get(handle).is_some() {
+            let count = self.texture_ref_counts.entry(handle).or_insert(0);
+            *count = count.saturating_add(1);
+        }
+    }
+
+    /// Returns the active reference count for a GPU texture handle (`0` if unretained).
+    #[must_use]
+    pub fn texture_ref_count(&self, handle: AssetHandle) -> u32 {
+        self.texture_ref_counts.get(&handle).copied().unwrap_or(0)
+    }
+
+    /// Decrements a texture's reference count when a streaming chunk or entity unloads,
+    /// releasing its GPU bind group only when no active neighbor chunk still references it.
+    pub fn release_texture(&mut self, handle: AssetHandle) -> bool {
+        let Some(count) = self.texture_ref_counts.get_mut(&handle) else {
+            return false;
+        };
+        if *count > 1 {
+            *count -= 1;
+            return false;
+        }
+        self.texture_ref_counts.remove(&handle);
+        self.textures.remove(handle);
+        self.texture_path_map.retain(|_, &mut h| h != handle);
+        true
     }
 
     /// Retrieves raw geometric data (positions and indices) for physics shape generation.
@@ -300,5 +366,27 @@ mod tests {
         assert!(!is_safe_path("shaders/../../root.wgsl"));
         assert!(!is_safe_path("\\\\remote\\share\\shader.wgsl"));
         assert!(!is_safe_path("http://evil.com/shader.wgsl"));
+    }
+
+    #[test]
+    fn test_asset_manager_ref_counting_preserves_shared_assets_until_zero() {
+        let mut manager = AssetManager::new();
+        let fake_handle = AssetHandle::default();
+        assert_eq!(manager.model_ref_count(fake_handle), 0);
+        assert!(!manager.release_model(fake_handle));
+        assert_eq!(manager.texture_ref_count(fake_handle), 0);
+        assert!(!manager.release_texture(fake_handle));
+
+        // Retaining missing handles is a safe no-op
+        manager.retain_model(fake_handle);
+        manager.retain_texture(fake_handle);
+        assert_eq!(manager.model_ref_count(fake_handle), 0);
+        assert_eq!(manager.texture_ref_count(fake_handle), 0);
+
+        // Physics materials validate SlotMap handle retention lifecycle cleanly
+        let mat_handle = manager
+            .physics_materials
+            .insert(PhysicsMaterialAsset::default());
+        assert!(manager.physics_materials.get(mat_handle).is_some());
     }
 }

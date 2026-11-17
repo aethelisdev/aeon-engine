@@ -4,11 +4,12 @@
 use crate::components::{AudioListener, AudioSource};
 use crate::spatial::SpatialAudioMath;
 use ae_core::ecs::Position;
+use ae_world::{COOKED_AUDIO_MAGIC, CookedAudio, VfsProvider};
 use glam::Vec3;
 use rodio::Source;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
+use std::io::Cursor;
+use std::sync::Arc;
 
 /// High-performance audio mixer managing hardware output streams, active sound sinks,
 /// and real-time 3D spatial updates.
@@ -19,6 +20,7 @@ pub struct AudioManager {
     _stream: Option<rodio::OutputStream>,
     stream_handle: Option<rodio::OutputStreamHandle>,
     sinks: HashMap<hecs::Entity, (rodio::Sink, String)>,
+    vfs: Option<Arc<dyn VfsProvider>>,
     master_volume: f32,
     is_muted: bool,
 }
@@ -38,6 +40,7 @@ impl AudioManager {
             _stream: None,
             stream_handle: None,
             sinks: HashMap::new(),
+            vfs: None,
             master_volume: 1.0,
             is_muted: false,
         }
@@ -79,9 +82,22 @@ impl AudioManager {
             _stream: stream,
             stream_handle,
             sinks: HashMap::new(),
+            vfs: None,
             master_volume: 1.0,
             is_muted: false,
         }
+    }
+
+    /// Attaches a [`VfsProvider`] used to stream compressed or cooked audio payloads from
+    /// `.aepak` bundles or partitioned project directories without raw disk paths.
+    pub fn set_vfs_provider(&mut self, vfs: Option<Arc<dyn VfsProvider>>) {
+        self.vfs = vfs;
+    }
+
+    /// Returns the attached [`VfsProvider`], if any.
+    #[must_use]
+    pub fn vfs_provider(&self) -> Option<&Arc<dyn VfsProvider>> {
+        self.vfs.as_ref()
     }
 
     /// Sets global master volume gain multiplier `[0.0, 1.0+]`.
@@ -104,8 +120,49 @@ impl AudioManager {
         self.is_muted
     }
 
-    /// Triggers sound playback for a specific entity's `AudioSource`.
+    /// Triggers sound playback for a specific entity's `AudioSource`, reading via the attached
+    /// [`VfsProvider`] when present or falling back to workspace filesystem bytes.
     pub fn play_sound(&mut self, entity: hecs::Entity, source: &AudioSource) -> bool {
+        if self.is_muted || source.sound_path.trim().is_empty() {
+            return false;
+        }
+        let bytes = match self.read_audio_bytes(&source.sound_path) {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("Failed to read audio '{}': {}", source.sound_path, e);
+                return false;
+            }
+        };
+        self.play_sound_from_bytes(entity, source, bytes)
+    }
+
+    /// Triggers sound playback for `entity` by reading `source.sound_path` directly from `vfs`.
+    pub fn play_sound_from_vfs(
+        &mut self,
+        entity: hecs::Entity,
+        source: &AudioSource,
+        vfs: &dyn VfsProvider,
+    ) -> bool {
+        if self.is_muted || source.sound_path.trim().is_empty() {
+            return false;
+        }
+        let bytes = match read_audio_from_vfs(vfs, &source.sound_path) {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("Failed to read VFS audio '{}': {}", source.sound_path, e);
+                return false;
+            }
+        };
+        self.play_sound_from_bytes(entity, source, bytes)
+    }
+
+    /// Triggers sound playback directly from an in-memory encoded or [`CookedAudio`] byte buffer.
+    pub fn play_sound_from_bytes(
+        &mut self,
+        entity: hecs::Entity,
+        source: &AudioSource,
+        bytes: Vec<u8>,
+    ) -> bool {
         if self.is_muted {
             return false;
         }
@@ -119,37 +176,8 @@ impl AudioManager {
             self.stream_handle = Some(handle);
         }
 
-        let handle = match &self.stream_handle {
-            Some(h) => h,
-            None => return false,
-        };
-
-        if source.sound_path.trim().is_empty() {
+        let Some(handle) = &self.stream_handle else {
             return false;
-        }
-
-        let file = match File::open(&source.sound_path).or_else(|_| {
-            let fallback = std::path::Path::new("assets").join(&source.sound_path);
-            File::open(fallback)
-        }) {
-            Ok(f) => f,
-            Err(e) => {
-                log::warn!("Failed to open sound file '{:?}': {}", source.sound_path, e);
-                return false;
-            }
-        };
-
-        let reader = BufReader::new(file);
-        let decoder = match rodio::Decoder::new(reader) {
-            Ok(d) => d,
-            Err(e) => {
-                log::warn!(
-                    "Failed to decode sound file '{:?}': {}",
-                    source.sound_path,
-                    e
-                );
-                return false;
-            }
         };
 
         let sink = match rodio::Sink::try_new(handle) {
@@ -163,10 +191,9 @@ impl AudioManager {
         sink.set_volume(source.volume * self.master_volume);
         sink.set_speed(source.pitch);
 
-        if source.looping {
-            sink.append(decoder.repeat_infinite());
-        } else {
-            sink.append(decoder);
+        if let Err(e) = append_decoded_audio_to_sink(&sink, bytes, source.looping) {
+            log::warn!("Failed to decode sound '{}': {}", source.sound_path, e);
+            return false;
         }
 
         self.sinks.insert(entity, (sink, source.sound_path.clone()));
@@ -176,6 +203,17 @@ impl AudioManager {
             entity
         );
         true
+    }
+
+    fn read_audio_bytes(&self, sound_path: &str) -> Result<Vec<u8>, String> {
+        if let Some(vfs) = &self.vfs
+            && let Ok(bytes) = read_audio_from_vfs(vfs.as_ref(), sound_path)
+        {
+            return Ok(bytes);
+        }
+        std::fs::read(sound_path)
+            .or_else(|_| std::fs::read(std::path::Path::new("assets").join(sound_path)))
+            .map_err(|e| e.to_string())
     }
 
     /// Stops sound playback for a specific entity's `AudioSource`.
@@ -287,5 +325,95 @@ impl AudioManager {
                 sink.set_speed(source.pitch);
             }
         }
+    }
+}
+
+/// Reads an audio file by virtual path from a [`VfsProvider`], checking raw virtual path first
+/// and falling back to `"assets/<path>"` or `"Content/<path>"` workspace prefixes.
+fn read_audio_from_vfs(vfs: &dyn VfsProvider, sound_path: &str) -> Result<Vec<u8>, String> {
+    let trimmed = sound_path.trim();
+    if trimmed.is_empty() {
+        return Err("Empty audio path".to_string());
+    }
+    if let Ok(bytes) = vfs.read_bytes(trimmed) {
+        return Ok(bytes);
+    }
+    let normalized = trimmed.replace('\\', "/");
+    let stripped = normalized.trim_start_matches("./").trim_start_matches('/');
+    if stripped != trimmed
+        && let Ok(bytes) = vfs.read_bytes(stripped)
+    {
+        return Ok(bytes);
+    }
+    if !stripped.starts_with("assets/")
+        && let Ok(bytes) = vfs.read_bytes(&format!("assets/{stripped}"))
+    {
+        return Ok(bytes);
+    }
+    if !stripped.starts_with("Content/")
+        && let Ok(bytes) = vfs.read_bytes(&format!("Content/{stripped}"))
+    {
+        return Ok(bytes);
+    }
+    Err(format!("Audio asset not found in VFS: '{sound_path}'"))
+}
+
+/// Decodes either a [`CookedAudio`] payload (`SamplesBuffer`) or compressed WAV/OGG/FLAC bytes
+/// in memory and queues them onto `sink`.
+fn append_decoded_audio_to_sink(
+    sink: &rodio::Sink,
+    bytes: Vec<u8>,
+    looping: bool,
+) -> Result<(), String> {
+    if bytes.starts_with(&COOKED_AUDIO_MAGIC) {
+        let cooked = CookedAudio::decode(&bytes).map_err(|e| e.to_string())?;
+        let samples = cooked.samples_i16().map_err(|e| e.to_string())?.to_vec();
+        let buffer =
+            rodio::buffer::SamplesBuffer::new(cooked.channels, cooked.sample_rate, samples);
+        if looping {
+            sink.append(buffer.repeat_infinite());
+        } else {
+            sink.append(buffer);
+        }
+        return Ok(());
+    }
+
+    let decoder = rodio::Decoder::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    if looping {
+        sink.append(decoder.repeat_infinite());
+    } else {
+        sink.append(decoder);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod vfs_tests {
+    use super::*;
+    use ae_world::{AssetKind, PakBuilder, PakCodec, PakMemoryVfsProvider};
+
+    #[test]
+    fn test_audio_vfs_reads_cooked_audio_without_filesystem() {
+        let cooked = CookedAudio::from_samples_i16(44_100, 1, &[0, 500, -500, 1000, -1000]);
+        let cooked_bytes = cooked.encode().expect("encode cooked audio");
+
+        let mut builder = PakBuilder::new();
+        builder.add_asset(
+            "Content/sfx/chime.cookaud",
+            AssetKind::Audio,
+            PakCodec::Raw,
+            cooked_bytes,
+        );
+        let pak = builder.build_to_vec().expect("build pak");
+        let vfs = PakMemoryVfsProvider::from_bytes(pak).expect("mount pak");
+
+        let bytes = read_audio_from_vfs(&vfs, "sfx/chime.cookaud").expect("read from Content/");
+        let decoded = CookedAudio::decode(&bytes).expect("decode cooked audio");
+        assert_eq!(decoded.sample_rate, 44_100);
+        assert_eq!(decoded.channels, 1);
+        assert_eq!(
+            decoded.samples_i16().expect("pcm samples"),
+            &[0, 500, -500, 1000, -1000]
+        );
     }
 }

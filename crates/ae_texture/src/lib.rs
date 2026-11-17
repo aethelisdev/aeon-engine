@@ -25,6 +25,9 @@ pub use data::{
     PbrMaterialTextures, SamplerConfig, TextureMapType, WrapMode,
 };
 pub use fallback::FallbackTextureGenerator;
-pub use loader::{MAX_TEXTURE_DIMENSION, is_safe_path, parse_texture_file};
+pub use loader::{
+    MAX_TEXTURE_DIMENSION, cooked_to_cpu_texture, cpu_texture_to_cooked, is_safe_path,
+    load_texture_by_guid_from_vfs, load_texture_from_vfs, parse_texture_bytes, parse_texture_file,
+};
 pub use mipmap::{CpuMipmapLevel, generate_mipmap_chain};
 pub use watcher::TextureFileWatcher;

@@ -11,3 +11,4 @@ image = "0.25"
 log = "0.4"
 slotmap = "1.0"
 ae_plugin_api = { path = "../ae_plugin_api" }
+ae_world = { workspace = true }

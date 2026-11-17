@@ -321,6 +321,178 @@ impl RenderState {
         handle
     }
 
+    /// Uploads a pre-cooked [`ae_world::CookedTexture`] (RGBA8, BC7, ASTC 4x4, or ETC2) with its
+    /// pre-generated mipmap chain directly to GPU VRAM without runtime decoding overhead.
+    pub fn upload_cooked_texture(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        canonical_path: std::path::PathBuf,
+        cooked: ae_world::CookedTexture,
+        original_path: &str,
+    ) -> crate::asset::AssetHandle {
+        if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
+            return id;
+        }
+        if !cooked.format.is_block_compressed()
+            && let Ok(cpu) = ae_texture::cooked_to_cpu_texture(&cooked, original_path)
+        {
+            return self.upload_cpu_texture_data(assets, canonical_path, cpu, original_path);
+        }
+
+        let format = match (cooked.format, cooked.is_srgb) {
+            (ae_world::CookedTextureFormat::Bc7, true) => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
+            (ae_world::CookedTextureFormat::Bc7, false) => wgpu::TextureFormat::Bc7RgbaUnorm,
+            (ae_world::CookedTextureFormat::Astc4x4, srgb) => wgpu::TextureFormat::Astc {
+                block: wgpu::AstcBlock::B4x4,
+                channel: if srgb {
+                    wgpu::AstcChannel::UnormSrgb
+                } else {
+                    wgpu::AstcChannel::Unorm
+                },
+            },
+            (ae_world::CookedTextureFormat::Etc2, true) => wgpu::TextureFormat::Etc2Rgba8UnormSrgb,
+            (ae_world::CookedTextureFormat::Etc2, false) => wgpu::TextureFormat::Etc2Rgba8Unorm,
+            (ae_world::CookedTextureFormat::Rgba8Srgb, _) => wgpu::TextureFormat::Rgba8UnormSrgb,
+            (ae_world::CookedTextureFormat::Rgba8Unorm, _) => wgpu::TextureFormat::Rgba8Unorm,
+        };
+
+        let mip_level_count = cooked.mipmaps.len().max(1) as u32;
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: cooked.width,
+                height: cooked.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some(original_path),
+            view_formats: &[],
+        });
+
+        for (level_idx, mip) in cooked.mipmaps.iter().enumerate() {
+            let (bytes_per_row, rows_per_image) = if cooked.format.is_block_compressed() {
+                (mip.width.div_ceil(4) * 16, mip.height.div_ceil(4))
+            } else {
+                (mip.width * 4, mip.height)
+            };
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: level_idx as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                mip.data.as_bytes(),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(rows_per_image),
+                },
+                wgpu::Extent3d {
+                    width: mip.width,
+                    height: mip.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
+            anisotropy_clamp: 16,
+            ..Default::default()
+        });
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.uniforms.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+            label: Some(original_path),
+        });
+        let handle = assets.textures.insert(TextureAsset {
+            bind_group,
+            source_path: original_path.to_string(),
+            width: cooked.width,
+            height: cooked.height,
+        });
+        assets.texture_path_map.insert(canonical_path, handle);
+        handle
+    }
+
+    /// Loads a texture by virtual path from a [`ae_world::VfsProvider`], supporting both
+    /// cooked GPU textures (`AECKT001`) and raw image streams.
+    pub fn load_texture_from_vfs(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        vfs: &dyn ae_world::VfsProvider,
+        virtual_path: &str,
+    ) -> crate::asset::AssetHandle {
+        let Ok(clean_path) = ae_world::sanitize_virtual_path(virtual_path) else {
+            return crate::asset::AssetHandle::default();
+        };
+        if let Some(&id) = assets.texture_path_map.get(&clean_path) {
+            return id;
+        }
+        let Ok(bytes) = vfs.read_bytes(virtual_path) else {
+            return crate::asset::AssetHandle::default();
+        };
+        self.upload_texture_bytes_for_path(assets, clean_path, &bytes, virtual_path)
+    }
+
+    /// Loads a texture by [`ae_world::AssetGuid`] directly from a [`ae_world::VfsProvider`].
+    pub fn load_texture_by_guid_from_vfs(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        vfs: &dyn ae_world::VfsProvider,
+        guid: ae_world::AssetGuid,
+        label: &str,
+    ) -> crate::asset::AssetHandle {
+        let key = std::path::PathBuf::from(format!("guid://{guid}"));
+        if let Some(&id) = assets.texture_path_map.get(&key) {
+            return id;
+        }
+        let Ok(bytes) = vfs.read_by_guid(guid) else {
+            return crate::asset::AssetHandle::default();
+        };
+        self.upload_texture_bytes_for_path(assets, key, &bytes, label)
+    }
+
+    fn upload_texture_bytes_for_path(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        key_path: std::path::PathBuf,
+        bytes: &[u8],
+        label: &str,
+    ) -> crate::asset::AssetHandle {
+        if bytes.starts_with(&ae_world::COOKED_TEXTURE_MAGIC)
+            && let Ok(cooked) = ae_world::CookedTexture::decode(bytes)
+        {
+            return self.upload_cooked_texture(assets, key_path, cooked, label);
+        }
+        match ae_texture::parse_texture_bytes(bytes, label, ae_texture::ColorSpace::Srgb) {
+            Ok(cpu) => self.upload_cpu_texture_data(assets, key_path, cpu, label),
+            Err(e) => {
+                log::error!("Failed to decode VFS texture '{label}': {e}");
+                crate::asset::AssetHandle::default()
+            }
+        }
+    }
+
     /// Legacy wrapper for uploading raw `image::RgbaImage` data to the GPU.
     /// Delegates internally to `upload_cpu_texture_data`.
     pub fn upload_texture_data(
