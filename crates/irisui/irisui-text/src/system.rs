@@ -3,26 +3,31 @@
 
 //! Central font system, text layout measurement, and shaped glyph caching engine.
 
+use crate::cache::{CacheEntry, StringKeyedArenaCache, hash_str_fnv1a};
 use crate::caret::{CaretBlinkTimer, CaretBlinkUpdate};
 use crate::collector::TextCollectionOptions;
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache};
 use irisui_core::{Size, TextAlign, TextWrap, UiTree, WidgetId};
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 type CaretFocusKey = (Option<WidgetId>, Option<u64>, Option<u64>);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+const MAX_METRIC_CACHE_ENTRIES: usize = 1024;
+const MAX_SHAPE_CACHE_ENTRIES: usize = 2048;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct MeasureCacheKey {
-    text: String,
+    text_hash: u64,
+    text_len: usize,
     font_size_bits: u32,
     line_height_bits: u32,
     max_width_bits: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ShapeCacheKey {
-    text: String,
+    text_hash: u64,
+    text_len: usize,
     font_size_bits: u32,
     line_height_bits: u32,
     bounds_width_bits: u32,
@@ -31,9 +36,10 @@ struct ShapeCacheKey {
     wrap: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct AdvanceCacheKey {
-    text: String,
+    text_hash: u64,
+    text_len: usize,
     font_size_bits: u32,
 }
 
@@ -59,9 +65,9 @@ pub struct TextSystem {
     font_system: FontSystem,
     swash_cache: SwashCache,
     default_family: Option<String>,
-    measure_cache: HashMap<MeasureCacheKey, Size>,
-    shape_cache: HashMap<ShapeCacheKey, Buffer>,
-    advance_cache: HashMap<AdvanceCacheKey, f32>,
+    measure_cache: StringKeyedArenaCache<MeasureCacheKey, Size>,
+    shape_cache: StringKeyedArenaCache<ShapeCacheKey, Buffer>,
+    advance_cache: StringKeyedArenaCache<AdvanceCacheKey, f32>,
     caret_timer: CaretBlinkTimer,
     caret_subms_ns: u128,
     last_caret_tick: Option<Instant>,
@@ -81,12 +87,19 @@ impl TextSystem {
     pub fn new() -> Self {
         let mut db = cosmic_text::fontdb::Database::new();
 
-        // Load embedded default fonts for isolated standalone typography rendering
-        db.load_font_data(include_bytes!("../assets/fonts/NotoSans-Regular.ttf").to_vec());
-        db.load_font_data(include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf").to_vec());
-        db.load_font_data(include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf").to_vec());
-        db.load_font_data(include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf").to_vec());
-        db.load_font_data(include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf").to_vec());
+        // Load embedded default fonts via zero-copy static binary slices (eliminates 3.9 MB heap copies)
+        const EMBEDDED_FONTS: [&[u8]; 5] = [
+            include_bytes!("../assets/fonts/NotoSans-Regular.ttf"),
+            include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf"),
+            include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf"),
+            include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf"),
+            include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf"),
+        ];
+        for bytes in EMBEDDED_FONTS {
+            db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+                bytes,
+            )));
+        }
 
         db.set_sans_serif_family("Noto Sans");
         db.set_serif_family("Noto Sans");
@@ -98,9 +111,9 @@ impl TextSystem {
             font_system,
             swash_cache: SwashCache::new(),
             default_family: None,
-            measure_cache: HashMap::with_capacity(256),
-            shape_cache: HashMap::with_capacity(256),
-            advance_cache: HashMap::with_capacity(256),
+            measure_cache: StringKeyedArenaCache::with_capacity(256),
+            shape_cache: StringKeyedArenaCache::with_capacity(256),
+            advance_cache: StringKeyedArenaCache::with_capacity(256),
             caret_timer: CaretBlinkTimer::new(),
             caret_subms_ns: 0,
             last_caret_tick: None,
@@ -163,6 +176,27 @@ impl TextSystem {
         (&mut self.font_system, &mut self.swash_cache)
     }
 
+    /// Provides simultaneous disjoint mutable access to `FontSystem`, `SwashCache`, and shaped buffer entries.
+    #[inline]
+    pub(crate) fn parts_for_prepare(
+        &mut self,
+    ) -> (&mut FontSystem, &mut SwashCache, &[CacheEntry<Buffer>]) {
+        (
+            &mut self.font_system,
+            &mut self.swash_cache,
+            self.shape_cache.entries(),
+        )
+    }
+
+    /// Prunes the shape cache cleanly before a render prepare frame so indices minted during
+    /// that frame remain valid until `parts_for_prepare`.
+    #[inline]
+    pub(crate) fn begin_prepare_frame(&mut self) {
+        if self.shape_cache.len() > MAX_SHAPE_CACHE_ENTRIES {
+            self.shape_cache.clear();
+        }
+    }
+
     /// Clears internal shaping and measurement caches if needed.
     #[inline]
     pub fn clear_cache(&mut self) {
@@ -187,13 +221,14 @@ impl TextSystem {
 
         let max_w_bits = max_width.unwrap_or(0.0).to_bits();
         let key = MeasureCacheKey {
-            text: text.to_string(),
+            text_hash: hash_str_fnv1a(text),
+            text_len: text.len(),
             font_size_bits: font_size.to_bits(),
             line_height_bits: line_height.to_bits(),
             max_width_bits: max_w_bits,
         };
 
-        if let Some(&cached) = self.measure_cache.get(&key) {
+        if let Some((_, &cached)) = self.measure_cache.get_indexed(&key, text) {
             return cached;
         }
 
@@ -221,10 +256,8 @@ impl TextSystem {
         let measured_height = (line_count as f32) * line_height;
         let size = Size::new(measured_width.ceil(), measured_height.ceil());
 
-        if self.measure_cache.len() > 1024 {
-            self.measure_cache.clear();
-        }
-        self.measure_cache.insert(key, size);
+        self.measure_cache
+            .insert_bounded(key, text, size, MAX_METRIC_CACHE_ENTRIES);
         size
     }
 
@@ -245,34 +278,50 @@ impl TextSystem {
         });
     }
 
-    /// Creates and shapes a `cosmic_text::Buffer` for rendering a text section with caching.
-    pub fn shape_text(&mut self, text: &str, params: TextShapeParams) -> Buffer {
-        let align_code = match params.align {
-            TextAlign::Left => 0,
-            TextAlign::Center => 1,
-            TextAlign::Right => 2,
-        };
-
-        let wrap_code = match params.wrap {
-            TextWrap::Auto => 0,
-            TextWrap::None => 1,
-            TextWrap::Word => 2,
-        };
-
-        let key = ShapeCacheKey {
-            text: text.to_string(),
-            font_size_bits: params.font_size.to_bits(),
-            line_height_bits: params.line_height.to_bits(),
-            bounds_width_bits: params.bounds_width.to_bits(),
-            bounds_height_bits: params.bounds_height.to_bits(),
-            align: align_code,
-            wrap: wrap_code,
-        };
-
-        if let Some(cached) = self.shape_cache.get(&key) {
-            return cached.clone();
+    /// Creates or retrieves a cached shaped `cosmic_text::Buffer`, returning its arena index
+    /// without cloning `Buffer` or allocating lookup strings on cache hits.
+    ///
+    /// Callers executing within a prepare batch should call [`Self::begin_prepare_frame`] beforehand;
+    /// this method preserves all existing indices for the active batch.
+    pub fn shape_text_indexed(&mut self, text: &str, params: TextShapeParams) -> usize {
+        let key = build_shape_cache_key(text, params);
+        if let Some((idx, _)) = self.shape_cache.get_indexed(&key, text) {
+            return idx;
         }
+        let buffer = self.build_shaped_buffer(text, params);
+        self.shape_cache
+            .insert_preserving_indices(key, text, buffer)
+    }
 
+    /// Returns a borrowed reference to the cached shaped buffer at `index`, if present.
+    #[inline]
+    #[must_use]
+    pub fn shaped_buffer(&self, index: usize) -> Option<&Buffer> {
+        self.shape_cache.get_value(index)
+    }
+
+    /// Returns a zero-clone reference to a cached shaped `cosmic_text::Buffer`, computing and
+    /// caching it on miss with zero `String` allocation on cache hits.
+    pub fn shape_text_ref(&mut self, text: &str, params: TextShapeParams) -> &Buffer {
+        let key = build_shape_cache_key(text, params);
+        let idx = if let Some((existing_idx, _)) = self.shape_cache.get_indexed(&key, text) {
+            existing_idx
+        } else {
+            let buffer = self.build_shaped_buffer(text, params);
+            self.shape_cache
+                .insert_bounded(key, text, buffer, MAX_SHAPE_CACHE_ENTRIES)
+        };
+        self.shape_cache
+            .get_value(idx)
+            .expect("shape cache entry inserted at idx must exist")
+    }
+
+    /// Creates and shapes a cloned `cosmic_text::Buffer` for callers requiring ownership.
+    pub fn shape_text(&mut self, text: &str, params: TextShapeParams) -> Buffer {
+        self.shape_text_ref(text, params).clone()
+    }
+
+    fn build_shaped_buffer(&mut self, text: &str, params: TextShapeParams) -> Buffer {
         let metrics = Metrics::new(params.font_size, params.line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
@@ -309,11 +358,6 @@ impl TextSystem {
         buffer.set_text(text, &attrs, shaping, Some(cosmic_align));
 
         buffer.shape_until_scroll(&mut self.font_system, false);
-
-        if self.shape_cache.len() > 1024 {
-            self.shape_cache.clear();
-        }
-        self.shape_cache.insert(key, buffer.clone());
         buffer
     }
 
@@ -334,11 +378,12 @@ impl TextSystem {
         }
 
         let key = AdvanceCacheKey {
-            text: text.to_string(),
+            text_hash: hash_str_fnv1a(text),
+            text_len: text.len(),
             font_size_bits: font_size.to_bits(),
         };
 
-        if let Some(&cached) = self.advance_cache.get(&key) {
+        if let Some((_, &cached)) = self.advance_cache.get_indexed(&key, text) {
             return cached;
         }
 
@@ -356,10 +401,8 @@ impl TextSystem {
 
         let advance = buffer.layout_runs().next().map_or(0.0, |run| run.line_w);
 
-        if self.advance_cache.len() > 1024 {
-            self.advance_cache.clear();
-        }
-        self.advance_cache.insert(key, advance);
+        self.advance_cache
+            .insert_bounded(key, text, advance, MAX_METRIC_CACHE_ENTRIES);
         advance
     }
 
@@ -627,79 +670,30 @@ pub fn set_default_text_family(family: &str) {
     });
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use irisui_core::{KeyCode, WidgetRole};
-
-    #[test]
-    fn test_text_system_internal_caret_blink_and_subms_accumulation() {
-        let mut sys = TextSystem::new();
-        assert!(sys.is_caret_visible());
-        assert_eq!(sys.caret_blink_interval_ms(), 530);
-
-        sys.set_caret_blink_interval_ms(100);
-        // Sub-millisecond frames (250 frames x 400us = 100ms) must toggle cleanly
-        let mut flipped = false;
-        for _ in 0..250 {
-            if sys.advance_caret_blink(Duration::from_micros(400)) {
-                flipped = true;
-            }
-        }
-        assert!(
-            flipped,
-            "Sub-millisecond frames must accumulate to flip caret"
-        );
-        assert!(!sys.is_caret_visible());
-
-        // Disabling blink forces steady visibility
-        sys.set_caret_blink_enabled(false);
-        assert!(sys.is_caret_visible());
-        assert!(!sys.advance_caret_blink(Duration::from_millis(500)));
-        assert!(sys.is_caret_visible());
-    }
-
-    #[test]
-    fn test_text_system_sync_caret_blink_focus_and_keystroke_reset() {
-        let mut sys = TextSystem::new();
-        sys.set_caret_blink_interval_ms(200);
-
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root node");
-        let input_id = tree.create_node();
-        if let Some(node) = tree.get_mut(input_id) {
-            node.role = WidgetRole::TextInput;
-            node.tag = 42;
-        }
-        tree.add_child(root, input_id).expect("add child");
-
-        // 1. Unfocused tree -> not visible, no redraw
-        let s0 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(100));
-        assert!(!s0.has_text_focus);
-        assert!(!s0.is_visible);
-        assert!(!s0.needs_redraw());
-
-        // 2. Gain focus -> visible + focus_changed
-        tree.event_state.focused = Some(input_id);
-        tree.event_state.focused_tag = Some(42);
-        let s1 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(16));
-        assert!(s1.has_text_focus);
-        assert!(s1.is_visible);
-        assert!(s1.focus_changed);
-        assert!(s1.needs_redraw());
-
-        // 3. Advance past half-period -> flips hidden
-        let s2 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(210));
-        assert!(!s2.is_visible);
-        assert!(s2.blink_changed);
-        assert!(s2.needs_redraw());
-
-        // 4. Keystroke while hidden -> immediately resets caret visible
-        tree.event_state.frame_key = Some(KeyCode::Character('a'));
-        tree.event_state.frame_key_pressed = true;
-        let s3 = sys.sync_caret_blink_with_delta(&tree, Duration::from_millis(16));
-        assert!(s3.is_visible);
-        assert!(s3.blink_changed);
-        assert!(s3.needs_redraw());
+#[inline]
+fn build_shape_cache_key(text: &str, params: TextShapeParams) -> ShapeCacheKey {
+    let align_code = match params.align {
+        TextAlign::Left => 0,
+        TextAlign::Center => 1,
+        TextAlign::Right => 2,
+    };
+    let wrap_code = match params.wrap {
+        TextWrap::Auto => 0,
+        TextWrap::None => 1,
+        TextWrap::Word => 2,
+    };
+    ShapeCacheKey {
+        text_hash: hash_str_fnv1a(text),
+        text_len: text.len(),
+        font_size_bits: params.font_size.to_bits(),
+        line_height_bits: params.line_height.to_bits(),
+        bounds_width_bits: params.bounds_width.to_bits(),
+        bounds_height_bits: params.bounds_height.to_bits(),
+        align: align_code,
+        wrap: wrap_code,
     }
 }
+
+#[cfg(test)]
+#[path = "system_tests.rs"]
+mod tests;

@@ -21,6 +21,18 @@ struct Occluder {
     subtree_max_order: usize,
 }
 
+/// Partitioning filter separating static panel typography from high-frequency volatile text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextVolatilityFilter {
+    /// Collect all visible text sections in the tree.
+    #[default]
+    All,
+    /// Collect only static retained widget labels (excluding live tags and canvas primitives).
+    StaticOnly,
+    /// Collect only volatile/live widget labels (`UiTree::is_live_tag`) and canvas `Text` primitives.
+    VolatileOnly,
+}
+
 /// Options for configuring text section extraction and layer-based occlusion culling.
 #[derive(Debug, Clone, Default)]
 pub struct TextCollectionOptions {
@@ -38,6 +50,8 @@ pub struct TextCollectionOptions {
     pub blink_caret: bool,
     /// Optional inclusive layer elevation range `(min, max)` to collect.
     pub layer_range: Option<(UiLayer, UiLayer)>,
+    /// Volatility partition filter isolating static UI text from high-frequency live text.
+    pub volatility_filter: TextVolatilityFilter,
 }
 
 impl TextCollectionOptions {
@@ -94,6 +108,14 @@ impl TextCollectionOptions {
         self.blink_caret = blink;
         self
     }
+
+    /// Sets the volatility filter isolating static UI text from high-frequency live text.
+    #[must_use]
+    #[inline]
+    pub fn with_volatility(mut self, filter: TextVolatilityFilter) -> Self {
+        self.volatility_filter = filter;
+        self
+    }
 }
 
 /// Helper context passed during recursive tree traversal.
@@ -111,6 +133,41 @@ struct CollectionContext<'a> {
     extra_occluders: &'a [Rect],
 }
 
+struct CollectionTargets<'r, 'a> {
+    filter: TextVolatilityFilter,
+    primary_layers: &'r mut [Vec<TextSection<'a>>; 6],
+    volatile_layers: Option<&'r mut [Vec<TextSection<'a>>; 6]>,
+}
+
+impl<'r, 'a> CollectionTargets<'r, 'a> {
+    #[inline]
+    fn accepts(&self, is_volatile: bool) -> bool {
+        if self.volatile_layers.is_some() {
+            return true;
+        }
+        match self.filter {
+            TextVolatilityFilter::All => true,
+            TextVolatilityFilter::StaticOnly => !is_volatile,
+            TextVolatilityFilter::VolatileOnly => is_volatile,
+        }
+    }
+
+    #[inline]
+    fn push(&mut self, layer_idx: usize, is_volatile: bool, section: TextSection<'a>) {
+        if let Some(volatile_layers) = &mut self.volatile_layers {
+            if is_volatile {
+                volatile_layers[layer_idx].push(section);
+            } else {
+                self.primary_layers[layer_idx].push(section);
+            }
+            return;
+        }
+        if self.accepts(is_volatile) {
+            self.primary_layers[layer_idx].push(section);
+        }
+    }
+}
+
 /// Collects shaped text sections from the UI tree with automatic layer-based occlusion culling.
 ///
 /// Text elements on lower layers (e.g. `UiLayer::Content`) positioned behind opaque
@@ -125,11 +182,51 @@ pub fn collect_text_sections_with_options<'a>(
     tree: &'a UiTree,
     options: &TextCollectionOptions,
 ) -> Vec<TextSection<'a>> {
+    let mut single_layers: [Vec<TextSection<'a>>; 6] = Default::default();
+    collect_partitioned_layers(
+        tree,
+        options,
+        CollectionTargets {
+            filter: options.volatility_filter,
+            primary_layers: &mut single_layers,
+            volatile_layers: None,
+        },
+    );
+    flatten_layer_buckets(single_layers, options.layer_range)
+}
+
+/// Collects both static and volatile text sections in a single tree traversal with shared
+/// occlusion discovery, returning `(static_sections, volatile_sections)`.
+pub fn collect_split_text_sections_with_options<'a>(
+    tree: &'a UiTree,
+    options: &TextCollectionOptions,
+) -> (Vec<TextSection<'a>>, Vec<TextSection<'a>>) {
+    let mut static_layers: [Vec<TextSection<'a>>; 6] = Default::default();
+    let mut volatile_layers: [Vec<TextSection<'a>>; 6] = Default::default();
+    collect_partitioned_layers(
+        tree,
+        options,
+        CollectionTargets {
+            filter: TextVolatilityFilter::All,
+            primary_layers: &mut static_layers,
+            volatile_layers: Some(&mut volatile_layers),
+        },
+    );
+    (
+        flatten_layer_buckets(static_layers, options.layer_range),
+        flatten_layer_buckets(volatile_layers, options.layer_range),
+    )
+}
+
+fn collect_partitioned_layers<'a>(
+    tree: &'a UiTree,
+    options: &TextCollectionOptions,
+    mut targets: CollectionTargets<'_, 'a>,
+) {
     let Some(root) = tree.root() else {
-        return Vec::new();
+        return;
     };
 
-    // Step 1: Discover all opaque occluders with tree traversal order
     let mut occluders = Vec::with_capacity(32);
     let mut counter = 0usize;
     discover_layer_occluders(
@@ -140,8 +237,6 @@ pub fn collect_text_sections_with_options<'a>(
         &mut occluders,
     );
 
-    // Step 2: Recursively extract text sections with occlusion clipping and culling into discrete layer buckets
-    let mut layer_sections: [Vec<TextSection<'a>>; 6] = Default::default();
     let mut text_counter = 0usize;
     let ctx = CollectionContext {
         clip_rect: None,
@@ -156,19 +251,23 @@ pub fn collect_text_sections_with_options<'a>(
         occluders: &occluders,
         extra_occluders: &options.extra_occluders,
     };
-    collect_node_text(tree, root, &ctx, &mut text_counter, &mut layer_sections);
+    collect_node_text(tree, root, &ctx, &mut text_counter, &mut targets);
+}
 
-    let total_count: usize = layer_sections.iter().map(|s| s.len()).sum();
+fn flatten_layer_buckets<'a>(
+    buckets: [Vec<TextSection<'a>>; 6],
+    layer_range: Option<(UiLayer, UiLayer)>,
+) -> Vec<TextSection<'a>> {
+    let total_count: usize = buckets.iter().map(|s| s.len()).sum();
     let mut sections = Vec::with_capacity(total_count);
-    for (layer_idx, layer) in layer_sections.into_iter().enumerate() {
-        if let Some((min_layer, max_layer)) = options.layer_range
+    for (layer_idx, layer) in buckets.into_iter().enumerate() {
+        if let Some((min_layer, max_layer)) = layer_range
             && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
         {
             continue;
         }
         sections.extend(layer);
     }
-
     sections
 }
 
@@ -250,7 +349,7 @@ fn collect_node_text<'a>(
     current: WidgetId,
     ctx: &CollectionContext<'_>,
     counter: &mut usize,
-    layer_sections: &mut [Vec<TextSection<'a>>; 6],
+    targets: &mut CollectionTargets<'_, 'a>,
 ) {
     let Some(node) = tree.get(current) else {
         return;
@@ -311,8 +410,11 @@ fn collect_node_text<'a>(
         return;
     }
 
+    let is_node_volatile = node.tag != 0 && tree.is_live_tag(node.tag);
+
     // If node has text and valid dimensions, test occlusion and collect
-    if let Some(text) = &node.text
+    if targets.accepts(is_node_volatile)
+        && let Some(text) = &node.text
         && !text.is_empty()
         && node.computed_rect.width > 0.0
         && node.computed_rect.height > 0.0
@@ -494,13 +596,16 @@ fn collect_node_text<'a>(
                     clip_bounds: effective_clip,
                     layer: effective_layer,
                 };
-                layer_sections[effective_layer.index()].push(section);
+                targets.push(effective_layer.index(), is_node_volatile, section);
             }
         }
     }
 
     // Extract volatile immediate-mode canvas text primitives if registered on this node
-    if let Some(primitives) = tree.canvas_primitives(current) {
+    if targets.accepts(true)
+        && let Some(primitives) = tree.canvas_primitives(current)
+    {
+        let origin_offset = node.canvas_origin.resolve_offset(node.computed_rect);
         for prim in primitives {
             if let CanvasPrimitive::Text {
                 pos,
@@ -510,11 +615,13 @@ fn collect_node_text<'a>(
             } = prim
                 && !text.is_empty()
             {
-                let text_bounds = Rect::new(pos.x, pos.y, 10_000.0, *font_size + 4.0);
+                let abs_x = pos.x + origin_offset.x;
+                let abs_y = pos.y + origin_offset.y;
+                let text_bounds = Rect::new(abs_x, abs_y, 10_000.0, *font_size + 4.0);
                 let is_clipped_out = if let Some(clip) = child_clip {
-                    pos.y + *font_size + 4.0 <= clip.y
-                        || pos.y >= clip.bottom()
-                        || pos.x >= clip.right()
+                    abs_y + *font_size + 4.0 <= clip.y
+                        || abs_y >= clip.bottom()
+                        || abs_x >= clip.right()
                 } else {
                     false
                 };
@@ -530,7 +637,7 @@ fn collect_node_text<'a>(
                         clip_bounds: child_clip,
                         layer: effective_layer,
                     };
-                    layer_sections[effective_layer.index()].push(section);
+                    targets.push(effective_layer.index(), true, section);
                 }
             }
         }
@@ -551,320 +658,10 @@ fn collect_node_text<'a>(
     };
 
     for &child_id in &node.children {
-        collect_node_text(tree, child_id, &child_ctx, counter, layer_sections);
+        collect_node_text(tree, child_id, &child_ctx, counter, targets);
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use irisui_core::{Color, Rect, UiTree};
-
-    #[test]
-    fn test_collect_text_sections_basic() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-        }
-
-        let label = tree.create_node();
-        if let Some(node) = tree.get_mut(label) {
-            node.computed_rect = Rect::new(10.0, 10.0, 100.0, 24.0);
-            node.text = Some("Hello World".to_owned());
-        }
-        tree.add_child(root, label).unwrap();
-
-        let sections = collect_text_sections(&tree);
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].text, "Hello World");
-    }
-
-    #[test]
-    fn test_collect_text_occlusion_culling() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-        }
-
-        // Background label at (50, 50, 100, 30) on Content layer
-        let bg_label = tree.create_node();
-        if let Some(node) = tree.get_mut(bg_label) {
-            node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
-            node.text = Some("Occluded Text".to_owned());
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, bg_label).unwrap();
-
-        // Popup covering (40, 40, 150, 100) on Popup layer
-        let popup = tree.create_node();
-        if let Some(node) = tree.get_mut(popup) {
-            node.computed_rect = Rect::new(40.0, 40.0, 150.0, 100.0);
-            node.layer = UiLayer::Popup;
-            node.style.background_color = Color::BLACK; // Opaque
-        }
-        tree.add_child(root, popup).unwrap();
-
-        // Popup label inside the popup
-        let popup_label = tree.create_node();
-        if let Some(node) = tree.get_mut(popup_label) {
-            node.computed_rect = Rect::new(50.0, 60.0, 100.0, 20.0);
-            node.text = Some("Popup Text".to_owned());
-            node.layer = UiLayer::Popup;
-        }
-        tree.add_child(popup, popup_label).unwrap();
-
-        let sections = collect_text_sections(&tree);
-        // The background label MUST be culled completely, only popup_label should survive!
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].text, "Popup Text");
-    }
-
-    #[test]
-    fn test_collect_text_scissor_clipping_culling() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-            node.layer = UiLayer::Background;
-        }
-
-        // Panel with clip_children: true, bounded at (0, 0, 400, 200)
-        let panel = tree.create_node();
-        if let Some(node) = tree.get_mut(panel) {
-            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 200.0);
-            node.style.clip_children = true;
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, panel).unwrap();
-
-        // Label 1 inside panel (y = 50)
-        let label_inside = tree.create_node();
-        if let Some(node) = tree.get_mut(label_inside) {
-            node.computed_rect = Rect::new(10.0, 50.0, 100.0, 20.0);
-            node.text = Some("Inside Panel".to_owned());
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(panel, label_inside).unwrap();
-
-        // Label 2 overflowing below panel (y = 250, outside panel height 200)
-        let label_overflow = tree.create_node();
-        if let Some(node) = tree.get_mut(label_overflow) {
-            node.computed_rect = Rect::new(10.0, 250.0, 100.0, 20.0);
-            node.text = Some("Bleeding Text Outside".to_owned());
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(panel, label_overflow).unwrap();
-
-        let sections = collect_text_sections(&tree);
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].text, "Inside Panel");
-    }
-
-    #[test]
-    fn test_collect_text_hover_color_in_place() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        let btn_tag = 12345u64;
-
-        let btn = tree.create_node();
-        if let Some(node) = tree.get_mut(btn) {
-            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 30.0);
-            node.tag = btn_tag;
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, btn).unwrap();
-
-        let label = tree.create_node();
-        if let Some(node) = tree.get_mut(label) {
-            node.computed_rect = Rect::new(10.0, 5.0, 80.0, 20.0);
-            node.text = Some("Click Me".to_owned());
-            node.text_color = Color::BLACK;
-            node.hover_text_color = Some(Color::WHITE);
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(btn, label).unwrap();
-
-        // 1. Unhovered collection
-        let normal_sections = collect_text_sections(&tree);
-        assert_eq!(normal_sections.len(), 1);
-        assert_eq!(normal_sections[0].color, Color::BLACK);
-
-        // 2. Hovered collection
-        let hover_opts = TextCollectionOptions::default().with_hovered_tag(Some(btn_tag));
-        let hover_sections = collect_text_sections_with_options(&tree, &hover_opts);
-        assert_eq!(hover_sections.len(), 1);
-        assert_eq!(hover_sections[0].color, Color::WHITE);
-    }
-
-    #[test]
-    fn test_collect_text_focus_and_caret_in_place() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        let input_tag = 9999u64;
-
-        let input_box = tree.create_node();
-        if let Some(node) = tree.get_mut(input_box) {
-            node.computed_rect = Rect::new(0.0, 0.0, 200.0, 30.0);
-            node.tag = input_tag;
-            node.role = WidgetRole::TextInput;
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, input_box).unwrap();
-
-        let text_node = tree.create_node();
-        if let Some(node) = tree.get_mut(text_node) {
-            node.computed_rect = Rect::new(10.0, 5.0, 100.0, 20.0);
-            node.text = Some("Search query".to_owned());
-            node.text_color = Color::rgb(0.5, 0.5, 0.5);
-            node.focus_text_color = Some(Color::WHITE);
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(input_box, text_node).unwrap();
-
-        let caret_node = tree.create_node();
-        if let Some(node) = tree.get_mut(caret_node) {
-            node.computed_rect = Rect::new(115.0, 5.0, 6.0, 20.0);
-            node.text = Some("|".to_owned());
-            node.text_color = Color::CYAN;
-            node.role = WidgetRole::TextInputCaret;
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(input_box, caret_node).unwrap();
-
-        // 1. Unfocused collection -> text is gray, caret is NOT collected
-        let unfocused_sections = collect_text_sections(&tree);
-        assert_eq!(unfocused_sections.len(), 1);
-        assert_eq!(unfocused_sections[0].color, Color::rgb(0.5, 0.5, 0.5));
-        assert_eq!(unfocused_sections[0].text, "Search query");
-
-        // 2. Focused collection with blink on -> text is WHITE, caret IS collected
-        let focused_opts = TextCollectionOptions::default()
-            .with_focused_tag(Some(input_tag))
-            .with_blink_caret(true);
-        let focused_sections = collect_text_sections_with_options(&tree, &focused_opts);
-        assert_eq!(focused_sections.len(), 2);
-        assert_eq!(focused_sections[0].color, Color::WHITE);
-        assert_eq!(focused_sections[1].text, "|");
-
-        // 3. Focused collection with blink off -> caret is hidden
-        let blink_off_opts = TextCollectionOptions::default()
-            .with_focused_tag(Some(input_tag))
-            .with_blink_caret(false);
-        let blink_off_sections = collect_text_sections_with_options(&tree, &blink_off_opts);
-        assert_eq!(blink_off_sections.len(), 1);
-    }
-
-    #[test]
-    fn test_collect_text_layer_sorting_order() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-            node.layer = UiLayer::Background;
-        }
-
-        // Add nodes in reverse/scrambled layer order: Tooltip, Modal, Content, Popup, Background
-        let tooltip_node = tree.create_node();
-        if let Some(node) = tree.get_mut(tooltip_node) {
-            node.computed_rect = Rect::new(10.0, 10.0, 100.0, 20.0);
-            node.text = Some("Tooltip Text".to_owned());
-            node.layer = UiLayer::Tooltip;
-        }
-        tree.add_child(root, tooltip_node).unwrap();
-
-        let modal_node = tree.create_node();
-        if let Some(node) = tree.get_mut(modal_node) {
-            node.computed_rect = Rect::new(10.0, 40.0, 100.0, 20.0);
-            node.text = Some("Modal Text".to_owned());
-            node.layer = UiLayer::Modal;
-        }
-        tree.add_child(root, modal_node).unwrap();
-
-        let content_node = tree.create_node();
-        if let Some(node) = tree.get_mut(content_node) {
-            node.computed_rect = Rect::new(10.0, 70.0, 100.0, 20.0);
-            node.text = Some("Content Text".to_owned());
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, content_node).unwrap();
-
-        let popup_node = tree.create_node();
-        if let Some(node) = tree.get_mut(popup_node) {
-            node.computed_rect = Rect::new(10.0, 100.0, 100.0, 20.0);
-            node.text = Some("Popup Text".to_owned());
-            node.layer = UiLayer::Popup;
-        }
-        tree.add_child(root, popup_node).unwrap();
-
-        let bg_node = tree.create_node();
-        if let Some(node) = tree.get_mut(bg_node) {
-            node.computed_rect = Rect::new(10.0, 130.0, 100.0, 20.0);
-            node.text = Some("Background Text".to_owned());
-            node.layer = UiLayer::Background;
-        }
-        tree.add_child(root, bg_node).unwrap();
-
-        let sections = collect_text_sections(&tree);
-        assert_eq!(sections.len(), 5);
-        // Strict layer elevation ordering: Background (0) -> Content (1) -> Modal (3) -> Popup (4) -> Tooltip (5)
-        assert_eq!(sections[0].text, "Background Text");
-        assert_eq!(sections[0].layer, UiLayer::Background);
-
-        assert_eq!(sections[1].text, "Content Text");
-        assert_eq!(sections[1].layer, UiLayer::Content);
-
-        assert_eq!(sections[2].text, "Modal Text");
-        assert_eq!(sections[2].layer, UiLayer::Modal);
-
-        assert_eq!(sections[3].text, "Popup Text");
-        assert_eq!(sections[3].layer, UiLayer::Popup);
-
-        assert_eq!(sections[4].text, "Tooltip Text");
-        assert_eq!(sections[4].layer, UiLayer::Tooltip);
-    }
-
-    #[test]
-    fn test_collect_text_scissor_bypass_for_elevated_layer() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().unwrap();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
-            node.layer = UiLayer::Background;
-        }
-
-        // Panel bounded at (0, 0, 300, 300) with clip_children = true
-        let panel = tree.create_node();
-        if let Some(node) = tree.get_mut(panel) {
-            node.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
-            node.style.clip_children = true;
-            node.layer = UiLayer::Content;
-        }
-        tree.add_child(root, panel).unwrap();
-
-        // Popup placed at (250, 250, 200, 150) - sticking out to (450, 400)
-        let popup = tree.create_node();
-        if let Some(node) = tree.get_mut(popup) {
-            node.computed_rect = Rect::new(250.0, 250.0, 200.0, 150.0);
-            node.role = WidgetRole::DropdownPopup;
-            node.layer = UiLayer::Popup;
-        }
-        tree.add_child(panel, popup).unwrap();
-
-        // Label inside popup placed at (320, 320, 100, 20) - entirely outside parent panel bounds!
-        let popup_label = tree.create_node();
-        if let Some(node) = tree.get_mut(popup_label) {
-            node.computed_rect = Rect::new(320.0, 320.0, 100.0, 20.0);
-            node.text = Some("Flyout Label".to_owned());
-            node.layer = UiLayer::Popup;
-        }
-        tree.add_child(popup, popup_label).unwrap();
-
-        let sections = collect_text_sections(&tree);
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].text, "Flyout Label");
-        // Scissor clip must be None (decoupled from panel), NOT clipped by parent panel (0, 0, 300, 300)
-        assert_eq!(sections[0].clip_bounds, None);
-    }
-}
+#[path = "collector_tests.rs"]
+mod tests;

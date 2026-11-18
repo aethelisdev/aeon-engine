@@ -134,7 +134,7 @@ pub fn index_for_position_in_system(
         wrap: irisui_core::TextWrap::None,
     };
 
-    let buffer = system.shape_text(text, params);
+    let buffer = system.shape_text_ref(text, params);
     let Some(run) = buffer.layout_runs().next() else {
         return 0;
     };

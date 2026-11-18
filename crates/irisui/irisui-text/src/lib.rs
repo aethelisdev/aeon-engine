@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+mod cache;
 pub mod caret;
 pub mod collector;
 pub mod hit_test;
@@ -23,15 +24,32 @@ pub use caret::{
     DEFAULT_CARET_WIDTH, calculate_caret_rect,
 };
 pub use collector::{
-    TextCollectionOptions, collect_text_sections, collect_text_sections_with_options,
+    TextCollectionOptions, TextVolatilityFilter, collect_split_text_sections_with_options,
+    collect_text_sections, collect_text_sections_with_options,
 };
 pub use hit_test::{
     hit_test_from_cached_advances, hit_test_from_cached_clusters, index_for_position_in_system,
 };
 pub use irisui_core::TextMeasurer;
-pub use renderer::TextRenderer;
+pub use renderer::{LayeredTextRenderer, TextRenderer};
 pub use section::TextSection;
 pub use system::{TextShapeParams, TextSystem, measure_text_advance, set_default_text_family};
+
+/// Safely truncates UTF-8 `text` to `keep_chars` scalar characters plus `"..."` when exceeding `max_chars`.
+///
+/// Prevents slicing inside multi-byte UTF-8 sequences such as accented letters, CJK, or emojis.
+#[must_use]
+pub fn truncate_with_ellipsis(text: &str, max_chars: usize, keep_chars: usize) -> String {
+    if text.chars().count() > max_chars {
+        let cutoff = text
+            .char_indices()
+            .nth(keep_chars.min(max_chars))
+            .map_or(text.len(), |(idx, _)| idx);
+        format!("{}...", &text[..cutoff])
+    } else {
+        text.to_string()
+    }
+}
 
 /// Typography engine prelude re-exporting text systems, sections, and measurement helpers.
 ///
@@ -39,11 +57,12 @@ pub use system::{TextShapeParams, TextSystem, measure_text_advance, set_default_
 pub mod prelude {
     pub use crate::{
         CaretBlinkTimer, CaretBlinkUpdate, CaretDescriptor, DEFAULT_CARET_BLINK_INTERVAL_MS,
-        DEFAULT_CARET_WIDTH, TextCollectionOptions, TextMeasurer, TextRenderer, TextSection,
-        TextShapeParams, TextSystem, calculate_caret_rect, collect_text_sections,
+        DEFAULT_CARET_WIDTH, LayeredTextRenderer, TextCollectionOptions, TextMeasurer,
+        TextRenderer, TextSection, TextShapeParams, TextSystem, TextVolatilityFilter,
+        calculate_caret_rect, collect_split_text_sections_with_options, collect_text_sections,
         collect_text_sections_with_options, hit_test_from_cached_advances,
         hit_test_from_cached_clusters, index_for_position_in_system, measure_text_advance,
-        set_default_text_family,
+        set_default_text_family, truncate_with_ellipsis,
     };
 }
 
@@ -146,5 +165,20 @@ mod tests {
             single_lines, 1,
             "Expected exactly 1 line for TextWrap::None, got {single_lines}"
         );
+    }
+
+    #[test]
+    fn test_truncate_with_ellipsis() {
+        assert_eq!(truncate_with_ellipsis("mesh.gltf", 12, 9), "mesh.gltf");
+        assert_eq!(
+            truncate_with_ellipsis("very_long_asset_name", 12, 9),
+            "very_long..."
+        );
+        // UTF-8 multi-byte characters must slice on char boundaries safely.
+        assert_eq!(
+            truncate_with_ellipsis("ğüşiöç_dosya.png", 10, 7),
+            "ğüşiöç_..."
+        );
+        assert_eq!(truncate_with_ellipsis("abcdef", 3, 5), "abc...");
     }
 }
