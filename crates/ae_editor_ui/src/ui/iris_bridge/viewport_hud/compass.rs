@@ -60,18 +60,21 @@ pub fn draw_compass_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera, re
             if is_positive { 0.95 } else { 0.45 },
         );
 
-        // Draw smooth, continuous solid axis line from center to endpoint
+        // Draw smooth, continuous solid axis line from center to endpoint using a constant step
+        // count so compass quad slice cardinality stays invariant across camera orientations.
+        const AXIS_STEPS: usize = 24;
         let len = (dx * dx + dy * dy).sqrt();
-        if len > 1.0 {
-            let line_thick = if is_positive { 1.8 } else { 1.0 };
-            let step_dist = line_thick * 0.75;
-            let num_steps = (len / step_dist).ceil().max(1.0) as usize;
-            for i in 0..=num_steps {
-                let t = i as f32 / num_steps as f32;
-                let qx = center_x + dx * t - line_thick * 0.5;
-                let qy = center_y + dy * t - line_thick * 0.5;
-                canvas.fill_rect(Rect::new(qx, qy, line_thick, line_thick), axis_color, 0.0);
-            }
+        let line_thick = if is_positive { 1.8 } else { 1.0 };
+        let step_color = if len > 1.0 {
+            axis_color
+        } else {
+            Color::TRANSPARENT
+        };
+        for i in 0..=AXIS_STEPS {
+            let t = i as f32 / AXIS_STEPS as f32;
+            let qx = center_x + dx * t - line_thick * 0.5;
+            let qy = center_y + dy * t - line_thick * 0.5;
+            canvas.fill_rect(Rect::new(qx, qy, line_thick, line_thick), step_color, 0.0);
         }
 
         // Draw endpoint knob or dot
@@ -291,12 +294,22 @@ mod tests {
             "ImmediateCanvas should contain at least 30 volatile primitives for compass visualization"
         );
 
-        // Test in-place volatile update pass without structural modifications
+        // Unchanged camera state must skip dirtying primitives
         let mut scope = UiScope::new(&mut tree, root);
-        let updated = update_compass_canvas(&mut scope, &camera, params.viewport_rect);
+        let unchanged = update_compass_canvas(&mut scope, &camera, params.viewport_rect);
+        assert!(
+            !unchanged,
+            "update_compass_canvas must skip dirty marking when camera did not move"
+        );
+
+        // Rotated camera state must update in-place without structural modifications
+        let mut rotated_camera = make_test_camera();
+        rotated_camera.yaw = cgmath::Rad(0.75);
+        let mut scope = UiScope::new(&mut tree, root);
+        let updated = update_compass_canvas(&mut scope, &rotated_camera, params.viewport_rect);
         assert!(
             updated,
-            "update_compass_canvas must succeed for valid compass tag"
+            "update_compass_canvas must succeed when camera orientation changes"
         );
     }
 }

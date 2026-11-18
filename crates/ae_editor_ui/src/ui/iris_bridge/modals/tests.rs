@@ -8,7 +8,6 @@
 //! occluded or suppressed by their own dialog bounding boxes during text extraction.
 
 use super::*;
-use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::prelude::*;
 use irisui::widgets::modal::ModalDialogAction;
 use std::path::Path;
@@ -38,7 +37,7 @@ fn test_new_folder_modal_text_sections_not_occluded() {
         INPUT_MODAL_HEIGHT,
     )];
     let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(
@@ -84,7 +83,7 @@ fn test_rename_modal_text_sections_not_occluded() {
         INPUT_MODAL_HEIGHT,
     )];
     let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(
@@ -123,7 +122,7 @@ fn test_delete_modal_text_sections_not_occluded() {
         DELETE_MODAL_HEIGHT,
     )];
     let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(
@@ -161,7 +160,7 @@ fn test_loading_overlay_text_sections_not_occluded() {
         180.0,
     )];
     let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(
@@ -244,7 +243,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
     // Register modals in Z-order: Preferences (Layer 0), About (Layer 1)
     let active_modals = [pref_card_rect, about_dialog_rect];
     let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     // Topmost About dialog text must render cleanly

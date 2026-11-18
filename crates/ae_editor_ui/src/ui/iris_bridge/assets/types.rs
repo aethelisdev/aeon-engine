@@ -6,7 +6,10 @@
 //! Provides data models, event actions, and layout bounding rectangles for the
 //! 100% native Iris UI GPU SDF Asset Browser panel.
 
-use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use crate::assets::types::{
+    AssetBrowserState, AssetCategory, AssetItem, AssetSource, AssetViewMode,
+};
+use irisui::core::MemoCache;
 use irisui::prelude::{Point, Rect, TreeState};
 use irisui::widgets::controls::{FocusState, FocusTarget};
 use std::collections::HashMap;
@@ -558,25 +561,62 @@ impl<'a> AssetsPanelParams<'a> {
     }
 }
 
-/// Truncates a UTF-8 string safely at Unicode code point boundaries.
-///
-/// If the character count exceeds `max_chars`, the string is sliced at the `keep_chars`-th
-/// Unicode character boundary and an ellipsis (`"..."`) is appended. If the character
-/// count is within limits, a clone of the original string is returned unchanged.
-///
-/// This prevents byte index panics on multi-byte characters such as Turkish (`ğ`, `ü`, `ş`, `ı`, `ö`, `ç`),
-/// Cyrillic, CJK ideographs, or emojis.
+/// Truncates a UTF-8 string safely at Unicode code point boundaries via `irisui::text`.
 pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) -> String {
-    if text.chars().count() > max_chars {
-        format!(
-            "{}...",
-            &text[..text
-                .char_indices()
-                .nth(keep_chars)
-                .map_or(text.len(), |(idx, _)| idx)]
-        )
-    } else {
-        text.to_string()
+    irisui::text::truncate_with_ellipsis(text, max_chars, keep_chars)
+}
+
+/// Key snapshot used by [`AssetsPanelState::filtered_cache`] to detect asset view changes
+/// without allocating heap keys on cache hits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AssetsFilterKey {
+    pub current_folder: PathBuf,
+    pub selected_asset: Option<PathBuf>,
+    pub search_query: String,
+    pub active_category: AssetCategory,
+    pub view_mode: AssetViewMode,
+    pub sidebar_collapsed: bool,
+    pub is_2d_mode: bool,
+    pub show_engine_content: bool,
+    pub cached_items_len: usize,
+}
+
+impl AssetsFilterKey {
+    #[must_use]
+    pub(crate) fn matches(
+        &self,
+        asset_browser: &AssetBrowserState,
+        query: &str,
+        is_2d_mode: bool,
+    ) -> bool {
+        self.current_folder == asset_browser.current_folder
+            && self.selected_asset == asset_browser.selected_asset
+            && self.search_query == query
+            && self.active_category == asset_browser.active_category
+            && self.view_mode == asset_browser.view_mode
+            && self.sidebar_collapsed == asset_browser.sidebar_collapsed
+            && self.is_2d_mode == is_2d_mode
+            && self.show_engine_content == asset_browser.show_engine_content
+            && self.cached_items_len == asset_browser.cached_items.len()
+    }
+
+    #[must_use]
+    pub(crate) fn capture(
+        asset_browser: &AssetBrowserState,
+        query: &str,
+        is_2d_mode: bool,
+    ) -> Self {
+        Self {
+            current_folder: asset_browser.current_folder.clone(),
+            selected_asset: asset_browser.selected_asset.clone(),
+            search_query: query.to_string(),
+            active_category: asset_browser.active_category,
+            view_mode: asset_browser.view_mode,
+            sidebar_collapsed: asset_browser.sidebar_collapsed,
+            is_2d_mode,
+            show_engine_content: asset_browser.show_engine_content,
+            cached_items_len: asset_browser.cached_items.len(),
+        }
     }
 }
 
@@ -585,8 +625,6 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
 pub struct AssetsPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>,
-    /// Current folder path in Asset Browser panel.
-    pub current_folder: PathBuf,
     /// Double-click tracking state for asset spawning.
     pub click_tracker: AssetClickTracker,
     /// Active right-click context menu: `(target, click_pos)`.
@@ -597,61 +635,36 @@ pub struct AssetsPanelState {
     pub dialog_host: irisui::workbench::DialogHost<AssetsPanelAction>,
     /// Action bus collecting actions dispatched by file operation dialogues.
     pub action_bus: irisui::workbench::ActionBus<AssetsPanelAction>,
-    /// Currently selected asset path.
-    pub selected_asset: Option<PathBuf>,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (32..255).
     pub thumbnail_layers: HashMap<PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (32..255).
     pub next_thumbnail_layer: u32,
-    /// Cached filtered asset items from the active frame for O(1) semantic hit-testing.
-    pub filtered_items_cache: Vec<AssetItem>,
-    /// Last recorded directory items count for detecting file additions or deletions.
-    pub last_cached_items_count: usize,
-    /// Last processed search query for filter dirty detection.
-    pub last_search_query: String,
-    /// Last processed asset category filter.
-    pub last_active_category: AssetCategory,
-    /// Last processed asset view presentation mode (Grid vs List).
-    pub last_view_mode: AssetViewMode,
-    /// Last recorded directory tree sidebar collapsed state.
-    pub last_sidebar_collapsed: bool,
-    /// Last recorded 2D mode status.
-    pub last_is_2d_mode: bool,
-    /// Last recorded engine content visibility status.
-    pub last_show_engine_content: bool,
-    /// Whether the initial filter cache has been populated.
-    pub is_filter_initialized: bool,
+    /// Library-managed memoized cache storing filtered assets and key snapshot.
+    pub(crate) filtered_cache: MemoCache<AssetsFilterKey, Vec<AssetItem>>,
     /// Active hierarchical folder tree state managing directory expansion and selection.
     pub tree_state: TreeState<PathBuf>,
+    /// Reusable scratch buffer collecting panel actions emitted during a single build pass.
+    pub(crate) pending_build_actions: Vec<AssetsPanelAction>,
 }
 
 impl Default for AssetsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            current_folder: PathBuf::from("assets"),
             click_tracker: AssetClickTracker::default(),
             context_menu: None,
             preview_modal: None,
             dialog_host: irisui::workbench::DialogHost::new(),
             action_bus: irisui::workbench::ActionBus::new(),
-            selected_asset: None,
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,
-            filtered_items_cache: Vec::new(),
-            is_filter_initialized: false,
-            last_cached_items_count: 0,
-            last_search_query: String::new(),
-            last_active_category: AssetCategory::All,
-            last_view_mode: AssetViewMode::Grid,
-            last_sidebar_collapsed: false,
-            last_is_2d_mode: false,
-            last_show_engine_content: false,
+            filtered_cache: MemoCache::default(),
             tree_state: {
                 let mut ts = TreeState::default();
                 ts.set_expanded(PathBuf::from("assets"), true);
                 ts
             },
+            pending_build_actions: Vec::new(),
         }
     }
 }

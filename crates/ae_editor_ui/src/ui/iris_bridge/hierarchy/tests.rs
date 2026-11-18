@@ -13,7 +13,6 @@ use super::types::{
     HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyAction, HierarchyPanelParams,
     is_hierarchy_tag, make_eye_tag, make_row_tag, parse_eye_tag, parse_row_tag,
 };
-use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use hecs::World;
 use irisui::prelude::*;
 use irisui::widgets::controls::FocusState;
@@ -91,8 +90,12 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
 
     // Collect text sections with both dropdown rects registered as active dropdowns
     let active_dropdowns = [add_menu_rect, submenu_rect];
-    let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &active_dropdowns, &[], &[]);
+    let sections = irisui::IrisSurfaceHost::collect_text_sections_from_tree(
+        &tree,
+        &active_dropdowns,
+        &[],
+        &[],
+    );
 
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
@@ -165,8 +168,12 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
     let submenu_rect = menu_rects[1];
 
     let active_dropdowns = [add_menu_rect, submenu_rect];
-    let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &active_dropdowns, &[], &[]);
+    let sections = irisui::IrisSurfaceHost::collect_text_sections_from_tree(
+        &tree,
+        &active_dropdowns,
+        &[],
+        &[],
+    );
 
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
@@ -238,8 +245,12 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
 
     // Verify text labels render without self-occlusion in text collector
     let active_dropdowns = [menu_rects[0], submenu_rect, sub_submenu_rect];
-    let sections =
-        IrisEditorOverlay::collect_text_sections_from_tree(&tree, &active_dropdowns, &[], &[]);
+    let sections = irisui::IrisSurfaceHost::collect_text_sections_from_tree(
+        &tree,
+        &active_dropdowns,
+        &[],
+        &[],
+    );
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(

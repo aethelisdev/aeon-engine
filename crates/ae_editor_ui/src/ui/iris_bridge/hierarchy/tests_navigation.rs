@@ -325,7 +325,7 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
     );
 
     let sections_initial =
-        crate::ui::IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &[], &[]);
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &[], &[]);
     let texts_initial: Vec<&str> = sections_initial.iter().map(|s| s.text.as_ref()).collect();
     assert!(texts_initial.contains(&"Cube_0"));
     assert!(texts_initial.contains(&"Cube_1"));
@@ -350,8 +350,7 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
         &mut tree_state,
     );
 
-    let sections =
-        crate::ui::IrisEditorOverlay::collect_text_sections_from_tree(&tree2, &[], &[], &[]);
+    let sections = irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree2, &[], &[], &[]);
     let texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
     assert!(texts.contains(&"Cube_78"));
     assert!(texts.contains(&"Cube_79"));

@@ -219,6 +219,50 @@ impl AssetBrowserState {
             format!("{:.2} MB", bytes as f64 / (1024.0 * 1024.0))
         }
     }
+
+    /// Returns filtered asset items matching active folder, category, search query, and dimension mode.
+    #[must_use]
+    pub fn filter_items(&self, search_query: &str, is_2d_mode: bool) -> Vec<AssetItem> {
+        let trimmed = search_query.trim();
+        let query_lower = trimmed.to_ascii_lowercase();
+        let is_root_folder = self.current_folder == std::path::Path::new("assets");
+
+        self.cached_items
+            .iter()
+            .filter(|item| self.matches_item_filter(item, is_2d_mode, is_root_folder, &query_lower))
+            .cloned()
+            .collect()
+    }
+
+    fn matches_item_filter(
+        &self,
+        item: &AssetItem,
+        is_2d_mode: bool,
+        is_root_folder: bool,
+        query_lower: &str,
+    ) -> bool {
+        if !self.show_engine_content && item.source == AssetSource::Engine {
+            return false;
+        }
+        if is_2d_mode && item.is_3d {
+            return false;
+        }
+        if !is_2d_mode && !item.is_3d && item.category == AssetCategory::Scenes {
+            return false;
+        }
+        if !is_root_folder && !item.path.starts_with(&self.current_folder) {
+            return false;
+        }
+        if self.active_category != AssetCategory::All && item.category != self.active_category {
+            return false;
+        }
+        query_lower.is_empty()
+            || item.name.to_ascii_lowercase().contains(query_lower)
+            || item
+                .relative_path
+                .to_ascii_lowercase()
+                .contains(query_lower)
+    }
 }
 
 #[cfg(test)]
@@ -251,5 +295,45 @@ mod tests {
         assert_eq!(state.sidebar_width, 180.0);
         assert!(state.drag_payload.is_none());
         assert!(!state.show_engine_content);
+    }
+
+    #[test]
+    fn test_asset_browser_filter_items() {
+        let mut state = AssetBrowserState::new();
+        state.cached_items = vec![
+            AssetItem {
+                path: PathBuf::from("assets/models/cube.gltf"),
+                relative_path: "assets/models/cube.gltf".to_string(),
+                name: "cube.gltf".to_string(),
+                category: AssetCategory::Models3D,
+                source: AssetSource::Project,
+                file_size_bytes: 128,
+                metadata_badge: "128 B".to_string(),
+                is_loaded_in_memory: false,
+                model_handle: None,
+                texture_handle: None,
+                shader_handle: None,
+                is_3d: true,
+            },
+            AssetItem {
+                path: PathBuf::from("crates/ae_renderer/src/shaders/sky.wgsl"),
+                relative_path: "crates/ae_renderer/src/shaders/sky.wgsl".to_string(),
+                name: "sky.wgsl".to_string(),
+                category: AssetCategory::Shaders,
+                source: AssetSource::Engine,
+                file_size_bytes: 256,
+                metadata_badge: "WGSL".to_string(),
+                is_loaded_in_memory: false,
+                model_handle: None,
+                texture_handle: None,
+                shader_handle: None,
+                is_3d: false,
+            },
+        ];
+
+        assert_eq!(state.filter_items("", false).len(), 1);
+        assert!(state.filter_items("", true).is_empty());
+        state.show_engine_content = true;
+        assert_eq!(state.filter_items("sky", false).len(), 1);
     }
 }

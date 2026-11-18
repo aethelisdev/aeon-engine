@@ -218,6 +218,12 @@ pub fn update_cpu_breakdown_texts(
     scope: &mut UiScope<'_>,
     cpu: &ae_core::telemetry::CpuSyncTimings,
 ) -> bool {
+    if scope
+        .node_id_tagged(super::types::STATS_TAG_CPU_TOTAL)
+        .is_none()
+    {
+        return false;
+    }
     update_cpu_breakdown_with_total(
         scope,
         cpu,
@@ -243,31 +249,56 @@ fn cpu_balance_label(total_cpu_ms: f32) -> &'static str {
     }
 }
 
+#[inline]
+fn format_ms_fixed2(val_ms: f32, buf: &mut [u8; 24]) -> &str {
+    use std::io::{Cursor, Write};
+    let mut cursor = Cursor::new(&mut buf[..]);
+    let clamped = if val_ms.is_finite() {
+        val_ms.clamp(0.0, 99999.99)
+    } else {
+        0.0
+    };
+    if write!(cursor, "{clamped:.2} ms").is_ok() {
+        let len = cursor.position() as usize;
+        std::str::from_utf8(&buf[..len]).unwrap_or("0.00 ms")
+    } else {
+        "0.00 ms"
+    }
+}
+
 fn update_cpu_breakdown_with_total(
     scope: &mut UiScope<'_>,
     cpu: &ae_core::telemetry::CpuSyncTimings,
     total_cpu_ms: f32,
 ) -> bool {
-    scope.update_live_text(
+    let mut buf = [0u8; 24];
+    let mut changed = scope.update_live_text(
         super::types::STATS_TAG_CPU_BALANCE,
         cpu_balance_label(total_cpu_ms),
-    ) | scope.update_live_text(
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_ECS,
-        &format!("{:.2} ms", cpu.main_logic_ms),
-    ) | scope.update_live_text(
+        format_ms_fixed2(cpu.main_logic_ms, &mut buf),
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_PHYSICS,
-        &format!("{:.2} ms", cpu.physics_ms),
-    ) | scope.update_live_text(
+        format_ms_fixed2(cpu.physics_ms, &mut buf),
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_RENDER,
-        &format!("{:.2} ms", cpu.render_prep_ms),
-    ) | scope.update_live_text(
+        format_ms_fixed2(cpu.render_prep_ms, &mut buf),
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_WAIT,
-        &format!("{:.2} ms", cpu.wait_for_gpu_ms),
-    ) | scope.update_live_text(
+        format_ms_fixed2(cpu.wait_for_gpu_ms, &mut buf),
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_UI,
-        &format!("{:.2} ms", cpu.ui_editor_ms),
-    ) | scope.update_live_text(
+        format_ms_fixed2(cpu.ui_editor_ms, &mut buf),
+    );
+    changed |= scope.update_live_text(
         super::types::STATS_TAG_CPU_TOTAL,
-        &format!("{:.2} ms", total_cpu_ms),
-    )
+        format_ms_fixed2(total_cpu_ms, &mut buf),
+    );
+    changed
 }

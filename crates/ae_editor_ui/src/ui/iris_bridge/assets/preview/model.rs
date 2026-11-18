@@ -5,16 +5,18 @@
 //!
 //! Renders an interactive 3D bounding box wireframe canvas with projected 3D coordinates,
 //! orbital yaw and pitch rotation, zoom distance scaling, and 3D coordinate axes
-//! using pure declarative [`UiScope`] and zero-allocation GPU command list quads.
+//! using declarative [`UiScope::immediate_canvas_with`] and `CanvasOrigin::NodeCenter`
+//! primitives without render-time custom-draw hooks.
 
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;
+use irisui::widgets::canvas::ImmediateCanvas;
 
 /// Renders the 3D model inspection preview with interactive wireframe orbit canvas using declarative [`UiScope`].
 ///
 /// TODO(architecture): Replace CPU 2D projection software-rendering with an
 /// offscreen WGPU render-to-texture preview pipeline from `ae_renderer`.
-pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetPreviewModalState) {
+pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
     // 1. Controls Bar: Instruction Hint + Spawn Action Button
     ui.container(
         Style::new()
@@ -32,17 +34,21 @@ pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetP
     );
 
     // 2. Interactive 3D Wireframe Viewport Canvas Container (Height: 280 px)
-    ui.canvas(
-        Style::new()
-            .flex_col()
-            .height(280.0)
-            .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
-            .border_radius(6.0)
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60))
-            .clip_children(true),
-        WidgetRole::OscilloscopeCanvas,
-        crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_ORBIT,
-        Some(WidgetCursor::Grab),
+    ui.immediate_canvas_with(
+        ImmediateCanvasSpec::new(
+            "AssetPreviewOrbitCanvas",
+            crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_ORBIT,
+            Style::new()
+                .flex_col()
+                .height(280.0)
+                .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
+                .border_radius(6.0)
+                .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60))
+                .clip_children(true),
+        )
+        .origin(CanvasOrigin::NodeCenter)
+        .cursor(WidgetCursor::Grab),
+        |canvas| draw_wireframe_orbit_primitives(canvas, modal),
     );
 
     // 3. Model Metrics Summary Row
@@ -52,78 +58,58 @@ pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetP
     );
 }
 
-/// Directly appends the 12 wireframe bounding box edges and 3 coordinate axis quads to the draw command list.
-pub fn append_wireframe_quads(
-    command_list: &mut DrawCommandList,
-    canvas_rect: Rect,
+/// Emits node-centered 12 wireframe bounding box edges and 3 coordinate axes into `canvas`.
+fn draw_wireframe_orbit_primitives(
+    canvas: &mut ImmediateCanvas<'_>,
     modal: &AssetPreviewModalState,
 ) {
-    if canvas_rect.width <= 0.0 || canvas_rect.height <= 0.0 {
-        return;
-    }
-
-    let cx = canvas_rect.x + canvas_rect.width * 0.5;
-    let cy = canvas_rect.y + canvas_rect.height * 0.5;
     let scale = (85.0 / modal.zoom_distance).clamp(25.0, 180.0);
+    let center = [0.0, 0.0];
 
-    // 8 Box corners in local 3D unit coordinates: `[-1..1, -1..1, -1..1]`
     let corners_3d = [
-        (-1.0, -1.0, -1.0),
-        (1.0, -1.0, -1.0),
-        (1.0, 1.0, -1.0),
-        (-1.0, 1.0, -1.0),
-        (-1.0, -1.0, 1.0),
-        (1.0, -1.0, 1.0),
-        (1.0, 1.0, 1.0),
-        (-1.0, 1.0, 1.0),
+        [-1.0, -1.0, -1.0],
+        [1.0, -1.0, -1.0],
+        [1.0, 1.0, -1.0],
+        [-1.0, 1.0, -1.0],
+        [-1.0, -1.0, 1.0],
+        [1.0, -1.0, 1.0],
+        [1.0, 1.0, 1.0],
+        [-1.0, 1.0, 1.0],
     ];
-
-    let center = [cx, cy];
-    let mut proj_points = [(0.0_f32, 0.0_f32); 8];
-    for (i, &(x, y, z)) in corners_3d.iter().enumerate() {
-        proj_points[i] =
-            project_3d_point([x, y, z], modal.orbit_yaw, modal.orbit_pitch, center, scale);
-    }
-
-    // 12 Wireframe Box Edges
-    let edges = [
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (3, 0), // Bottom ring
-        (4, 5),
-        (5, 6),
-        (6, 7),
-        (7, 4), // Top ring
-        (0, 4),
-        (1, 5),
-        (2, 6),
-        (3, 7), // Vertical pillars
-    ];
+    let proj_points: [(f32, f32); 8] = corners_3d
+        .map(|pt| project_3d_point(pt, modal.orbit_yaw, modal.orbit_pitch, center, scale));
 
     if modal.show_wireframe {
-        let edge_style = Style::new()
-            .background(Color::rgba(0.0, 0.85, 1.0, 0.45))
-            .border_radius(0.75);
-
-        for &(p0_idx, p1_idx) in &edges {
+        let edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        ];
+        for (p0_idx, p1_idx) in edges {
             let (x0, y0) = proj_points[p0_idx];
             let (x1, y1) = proj_points[p1_idx];
-
-            let min_x = x0.min(x1);
-            let min_y = y0.min(y1);
-            let w = (x1 - x0).abs().max(1.5);
-            let h = (y1 - y0).abs().max(1.5);
-
-            command_list.push_quad(QuadInstance::from_style(
-                Rect::new(min_x, min_y, w, h),
-                &edge_style,
-                Some(canvas_rect),
-            ));
+            canvas.fill_rect(
+                Rect::new(
+                    x0.min(x1),
+                    y0.min(y1),
+                    (x1 - x0).abs().max(1.5),
+                    (y1 - y0).abs().max(1.5),
+                ),
+                Color::rgba(0.0, 0.85, 1.0, 0.45),
+                0.75,
+            );
         }
     }
 
-    // Center Coordinate Axes Indicator
     let (ox, oy) = project_3d_point(
         [0.0, 0.0, 0.0],
         modal.orbit_yaw,
@@ -131,69 +117,27 @@ pub fn append_wireframe_quads(
         center,
         scale,
     );
-    let (xx, xy) = project_3d_point(
-        [0.6, 0.0, 0.0],
-        modal.orbit_yaw,
-        modal.orbit_pitch,
-        center,
-        scale,
-    );
-    let (yx, yy) = project_3d_point(
-        [0.0, 0.6, 0.0],
-        modal.orbit_yaw,
-        modal.orbit_pitch,
-        center,
-        scale,
-    );
-    let (zx, zy) = project_3d_point(
-        [0.0, 0.0, 0.6],
-        modal.orbit_yaw,
-        modal.orbit_pitch,
-        center,
-        scale,
-    );
-
-    // X Axis (Red)
-    let x_style = Style::new().background(Color::rgba(1.0, 0.30, 0.30, 0.90));
-    command_list.push_quad(QuadInstance::from_style(
-        Rect::new(
-            ox.min(xx),
-            oy.min(xy),
-            (xx - ox).abs().max(2.0),
-            (xy - oy).abs().max(2.0),
-        ),
-        &x_style,
-        Some(canvas_rect),
-    ));
-
-    // Y Axis (Green)
-    let y_style = Style::new().background(Color::rgba(0.30, 1.0, 0.30, 0.90));
-    command_list.push_quad(QuadInstance::from_style(
-        Rect::new(
-            ox.min(yx),
-            oy.min(yy),
-            (yx - ox).abs().max(2.0),
-            (yy - oy).abs().max(2.0),
-        ),
-        &y_style,
-        Some(canvas_rect),
-    ));
-
-    // Z Axis (Blue)
-    let z_style = Style::new().background(Color::rgba(0.30, 0.60, 1.0, 0.90));
-    command_list.push_quad(QuadInstance::from_style(
-        Rect::new(
-            ox.min(zx),
-            oy.min(zy),
-            (zx - ox).abs().max(2.0),
-            (zy - oy).abs().max(2.0),
-        ),
-        &z_style,
-        Some(canvas_rect),
-    ));
+    let axes = [
+        ([0.6, 0.0, 0.0], Color::rgba(1.0, 0.30, 0.30, 0.90)),
+        ([0.0, 0.6, 0.0], Color::rgba(0.30, 1.0, 0.30, 0.90)),
+        ([0.0, 0.0, 0.6], Color::rgba(0.30, 0.60, 1.0, 0.90)),
+    ];
+    for (tip, color) in axes {
+        let (tx, ty) = project_3d_point(tip, modal.orbit_yaw, modal.orbit_pitch, center, scale);
+        canvas.fill_rect(
+            Rect::new(
+                ox.min(tx),
+                oy.min(ty),
+                (tx - ox).abs().max(2.0),
+                (ty - oy).abs().max(2.0),
+            ),
+            color,
+            0.0,
+        );
+    }
 }
 
-/// Helper for projecting 3D point through yaw and pitch angles into 2D viewport coordinates.
+/// Projects a local 3D point through yaw/pitch rotation around `center`.
 fn project_3d_point(
     pt: [f32; 3],
     yaw: f32,
@@ -224,17 +168,14 @@ mod tests {
         let center = [200.0, 150.0];
         let scale = 50.0;
 
-        // Origin projects exactly to center
         let (ox, oy) = project_3d_point([0.0, 0.0, 0.0], 0.0, 0.0, center, scale);
         assert!((ox - center[0]).abs() < f32::EPSILON);
         assert!((oy - center[1]).abs() < f32::EPSILON);
 
-        // Symmetric X displacement
         let (pos_x, _) = project_3d_point([1.0, 0.0, 0.0], 0.0, 0.0, center, scale);
         let (neg_x, _) = project_3d_point([-1.0, 0.0, 0.0], 0.0, 0.0, center, scale);
         assert!((pos_x - center[0] - (center[0] - neg_x)).abs() < 1e-4);
 
-        // No NaN or Inf on extreme values
         let (ex, ey) = project_3d_point(
             [10.0, -10.0, 50.0],
             std::f32::consts::PI,
@@ -247,39 +188,59 @@ mod tests {
     }
 
     #[test]
-    fn test_append_wireframe_quads_direct_command_list() {
-        let canvas = Rect::new(50.0, 50.0, 300.0, 200.0);
+    fn test_render_model_preview_compiles_wireframe_and_axes_on_first_frame() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
         let mut modal = AssetPreviewModalState::default();
 
-        // 1. With wireframe enabled: 12 edges + 3 axes = 15 quads
-        let mut list_with_wireframe = DrawCommandList::new();
-        append_wireframe_quads(&mut list_with_wireframe, canvas, &modal);
-        assert_eq!(list_with_wireframe.quads.len(), 15);
-
-        for quad in &list_with_wireframe.quads {
-            assert!(quad.rect[0].is_finite());
-            assert!(quad.rect[1].is_finite());
-            assert!(quad.rect[2] >= 1.5);
-            assert!(quad.rect[3] >= 1.5);
-            assert_eq!(
-                quad.clip_rect,
-                [canvas.x, canvas.y, canvas.right(), canvas.bottom()]
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.container(
+                Style::new().flex_col().size(Size::new(400.0, 360.0)),
+                |col| render_model_preview_content(col, &modal),
             );
         }
+        let mut layout = LayoutEngine::new();
+        let _ = layout.compute_layout(&mut tree, Size::new(400.0, 360.0));
 
-        // 2. With wireframe disabled: only 3 coordinate axes quads
+        let orbit_id = tree
+            .find_node_by_tag(crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_ORBIT)
+            .expect("orbit canvas node");
+        let orbit_rect = tree.get(orbit_id).expect("orbit node").computed_rect;
+        assert!((orbit_rect.width - 400.0).abs() < f32::EPSILON);
+        assert!((orbit_rect.height - 280.0).abs() < f32::EPSILON);
+
+        let mut opts = irisui::wgpu_backend::TreeCompilerOptions::new();
+        let cmd_with_wireframe =
+            irisui::wgpu_backend::compile_tree_draw_commands(&tree, orbit_id, &mut opts);
+        // 1 container background quad + 12 wireframe edges + 3 axes = 16 quads
+        assert_eq!(cmd_with_wireframe.quads.len(), 16);
+        let center_x = orbit_rect.x + orbit_rect.width * 0.5;
+        let center_y = orbit_rect.y + orbit_rect.height * 0.5;
+        for quad in &cmd_with_wireframe.quads[1..] {
+            assert!(quad.rect[0] > orbit_rect.x && quad.rect[0] < orbit_rect.x + orbit_rect.width);
+            assert!(quad.rect[1] > orbit_rect.y && quad.rect[1] < orbit_rect.y + orbit_rect.height);
+            assert!((quad.rect[0] - center_x).abs() < 150.0);
+            assert!((quad.rect[1] - center_y).abs() < 150.0);
+        }
+
         modal.show_wireframe = false;
-        let mut list_without_wireframe = DrawCommandList::new();
-        append_wireframe_quads(&mut list_without_wireframe, canvas, &modal);
-        assert_eq!(list_without_wireframe.quads.len(), 3);
-
-        for quad in &list_without_wireframe.quads {
-            assert!(quad.rect[0].is_finite());
-            assert!(quad.rect[1].is_finite());
-            assert_eq!(
-                quad.clip_rect,
-                [canvas.x, canvas.y, canvas.right(), canvas.bottom()]
+        let mut tree2 = UiTree::new();
+        let root2 = tree2.create_root().expect("root2");
+        {
+            let mut scope2 = UiScope::new(&mut tree2, root2);
+            scope2.container(
+                Style::new().flex_col().size(Size::new(400.0, 360.0)),
+                |col| render_model_preview_content(col, &modal),
             );
         }
+        let _ = layout.compute_layout(&mut tree2, Size::new(400.0, 360.0));
+        let orbit_id2 = tree2
+            .find_node_by_tag(crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_ORBIT)
+            .expect("orbit canvas node 2");
+        let cmd_without_wireframe =
+            irisui::wgpu_backend::compile_tree_draw_commands(&tree2, orbit_id2, &mut opts);
+        // 1 container background quad + 3 axes = 4 quads
+        assert_eq!(cmd_without_wireframe.quads.len(), 4);
     }
 }

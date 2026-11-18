@@ -7,76 +7,72 @@
 //! live numeric math expression sessions, and rename inputs.
 
 use super::panel::build_inspector_panel;
-use super::types::InspectorPanelParams;
-use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use super::types::{InspectorPanelParams, InspectorPanelState, InspectorSessionRefs};
+use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
+use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use irisui::prelude::*;
 
-impl IrisEditorOverlay {
-    /// Builds the Scene Inspector panel if active in either docked or floating mode.
-    ///
-    /// Evaluates currently selected entity, extracts active numeric drag/text input sessions,
-    /// and constructs the component property cards, transform math controls, and empty state cards
-    /// directly within the unified [`UiScope`] docking coordinate system.
-    pub(crate) fn build_inspector_panel_if_active(
+impl InspectorPanelState {
+    /// Builds the Scene Inspector panel directly using typed inspector state and `UiScope`.
+    pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
+        cursor_pos: Point,
+        pending_actions: &mut Vec<crate::ui::EngineUiAction>,
+        notifier: &mut DeferredPanelNotifier<'_>,
     ) {
-        let panel_rect = scope.parent_rect();
-        if panel_rect.width <= 20.0 || panel_rect.height <= 20.0 {
-            self.inspector.inspected_entity = None;
-            self.inspector.inspected_entity_name.clear();
+        if scope.is_collapsed() {
+            self.inspected_entity = None;
+            self.inspected_entity_name.clear();
             return;
         }
 
-        self.inspector
-            .commit_pending_edits_on_selection_change(params.scene.selected_entity);
+        self.commit_pending_edits_on_selection_change(params.scene.selected_entity);
 
         if scope.popups_dismissed() {
-            self.inspector.active_submenu = None;
+            self.active_submenu = None;
         }
 
-        let rename_buf_ref = self
-            .inspector
-            .rename_input
-            .as_ref()
-            .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-            .map(|(_, input)| input.text());
+        build_inspector_panel(
+            scope,
+            &InspectorPanelParams {
+                panel_rect: scope.parent_rect(),
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                inspector_euler: params.panel_data.inspector_euler,
+                inspector_color_hex: params.panel_data.inspector_color_hex,
+                saved_swatches: params.panel_data.saved_swatches,
+                cursor_pos,
+                active_submenu: self.active_submenu,
+                active_rename_buffer: self
+                    .rename_input
+                    .as_ref()
+                    .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
+                    .map(|(_, input)| input.text()),
+                is_rename_all_selected: self.rename_is_all_selected
+                    && self
+                        .rename_input
+                        .as_ref()
+                        .is_some_and(|(ent, _)| Some(*ent) == params.scene.selected_entity),
+                inspector_hsv: self.hsv,
+            },
+            &mut InspectorSessionRefs {
+                inspected_name: &mut self.inspected_entity_name,
+                saved_swatches: &mut self.saved_swatches,
+                active_submenu: &mut self.active_submenu,
+            },
+        )
+        .into_iter()
+        .for_each(|ui_action| {
+            pending_actions.push(ui_action);
+            notifier.tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+        });
 
-        let insp_params = InspectorPanelParams {
-            panel_rect,
-            world: params.scene.world,
-            selected_entity: params.scene.selected_entity,
-            inspector_euler: params.panel_data.inspector_euler,
-            inspector_color_hex: params.panel_data.inspector_color_hex,
-            saved_swatches: params.panel_data.saved_swatches,
-            cursor_pos: self.cursor_pos(),
-            active_submenu: self.inspector.active_submenu,
-            active_rename_buffer: rename_buf_ref,
-            is_rename_all_selected: self.inspector.rename_is_all_selected
-                && rename_buf_ref.is_some(),
-            inspector_hsv: self.inspector.hsv,
-        };
-
-        let mut session = super::types::InspectorSessionRefs {
-            inspected_name: &mut self.inspector.inspected_entity_name,
-            saved_swatches: &mut self.inspector.saved_swatches,
-            active_submenu: &mut self.inspector.active_submenu,
-        };
-
-        if let Some(ui_action) = build_inspector_panel(scope, &insp_params, &mut session) {
-            self.pending_actions.push(ui_action);
-        }
-        self.inspector.inspected_entity = params.scene.selected_entity;
-        self.inspector.inspector_euler = *params.panel_data.inspector_euler;
-
-        self.inspector.inspected_entity_name.clear();
-        if let Some(entity) = params.scene.selected_entity
-            && let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity)
-        {
-            self.inspector
-                .inspected_entity_name
-                .push_str(name.0.as_str());
-        }
+        self.sync_after_build(
+            params.scene.selected_entity,
+            *params.panel_data.inspector_euler,
+            params.scene.world,
+        );
     }
 }

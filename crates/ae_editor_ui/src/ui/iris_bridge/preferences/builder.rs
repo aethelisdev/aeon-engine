@@ -5,17 +5,16 @@
 //!
 //! Assembles the complete hardware-accelerated GPU SDF Preferences modal dialog
 //! declaratively using [`UiScope`], including glassmorphic card framing, titlebar,
-//! sidebar tab navigation, content routing, scrollbar, and active dropdown popups.
+//! sidebar tab navigation, content routing, and declarative [`VerticalScrollbarSpec`].
 
 use super::tabs::*;
 use super::types::{
     PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER,
-    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesParams,
-    encode_tab_tag, preferences_scroll_style,
+    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesDialogState,
+    PreferencesParams, encode_tab_tag, preferences_scroll_style,
 };
-use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use irisui::prelude::*;
-use irisui::widgets::scroll_area::ScrollBarGeometry;
 
 /// Width of the preferences modal card in physical pixels.
 pub const PREF_CARD_WIDTH: f32 = 760.0;
@@ -59,7 +58,7 @@ pub const SIDEBAR_TABS_TAGGED: [(&str, u8, u64); 10] = [
 pub fn tab_virtual_height(tab_idx: u8) -> f32 {
     match tab_idx {
         0 => 680.0,
-        1 => 1800.0, // Graphics tab: complete Shadows, Performance, AA, Bloom, Atmosphere, Clouds & Fog
+        1 => 1800.0,
         2 => 1100.0,
         3 => 650.0,
         4 => 1100.0,
@@ -73,22 +72,19 @@ pub fn tab_virtual_height(tab_idx: u8) -> f32 {
 }
 
 /// Calculates the clamped preferences floating window position during titlebar dragging.
-///
-/// Delegates directly to the Iris UI floating panel drag solver.
 pub fn calculate_preferences_drag_pos(
     cursor: Point,
     drag_offset: Point,
     screen_width: f32,
     screen_height: f32,
 ) -> Point {
-    let min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
     irisui::widgets::floating_panel::calculate_floating_drag_pos(
         cursor,
         drag_offset,
         (PREF_CARD_WIDTH, PREF_CARD_HEIGHT),
         screen_width,
         screen_height,
-        min_y,
+        crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
     )
 }
 
@@ -97,54 +93,65 @@ pub fn calculate_preferences_drag_pos(
 /// Returns `(card_id, card_rect, content_rect, max_scroll_y)`.
 pub fn build_preferences_dialog(
     tree: &mut UiTree,
+    params: PreferencesParams<'_>,
+    actions: &mut Vec<super::types::PreferencesAction>,
+) -> (WidgetId, Rect, Rect, f32) {
+    build_preferences_dialog_with_card(
+        irisui::widgets::calculate_floating_card_rect(
+            Size::new(params.screen_width, params.screen_height),
+            Size::new(PREF_CARD_WIDTH, PREF_CARD_HEIGHT),
+            params.window_pos,
+            crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
+        ),
+        (params.active_number_input, params.blink_caret),
+        params.events,
+        tree.root()
+            .or_else(|| tree.create_root().ok())
+            .unwrap_or_default(),
+        tree,
+        params,
+        actions,
+    )
+}
+
+fn build_preferences_dialog_with_card(
+    card_rect: Rect,
+    (active_number_input, blink_caret): (Option<(u64, &str, bool)>, bool),
+    events: &[(u64, InteractionEvent)],
+    root_id: WidgetId,
+    tree: &mut UiTree,
     mut params: PreferencesParams<'_>,
     actions: &mut Vec<super::types::PreferencesAction>,
 ) -> (WidgetId, Rect, Rect, f32) {
-    let screen_width = params.screen_width;
-    let screen_height = params.screen_height;
-    let cursor_pos = params.cursor_pos;
-    let min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
-
-    let (left, top) = if let Some(pos) = params.window_pos {
-        let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
-        let max_y = (screen_height - PREF_CARD_HEIGHT).max(min_y);
+    render_preferences_dialog_in_scope(
+        UiScope::with_tagged_interactions(tree, root_id, events, None)
+            .with_active_text_input_blink(active_number_input, blink_caret),
+        &mut params,
+        actions,
         (
-            pos.x.clamp(0.0, max_x).round(),
-            pos.y.clamp(min_y, max_y).round(),
-        )
-    } else {
-        (
-            ((screen_width - PREF_CARD_WIDTH) * 0.5).max(0.0).round(),
-            ((screen_height - PREF_CARD_HEIGHT) * 0.5)
-                .max(min_y)
-                .round(),
-        )
-    };
+            card_rect,
+            Rect::new(
+                card_rect.x + SIDEBAR_WIDTH + 1.0,
+                card_rect.y + TITLEBAR_HEIGHT,
+                PREF_CARD_WIDTH - SIDEBAR_WIDTH - 1.0,
+                PREF_CARD_HEIGHT - TITLEBAR_HEIGHT,
+            ),
+        ),
+    )
+}
 
-    let card_rect = Rect::new(left, top, PREF_CARD_WIDTH, PREF_CARD_HEIGHT);
-    let content_w = PREF_CARD_WIDTH - SIDEBAR_WIDTH - 1.0;
-    let content_h = PREF_CARD_HEIGHT - TITLEBAR_HEIGHT;
-    let content_rect = Rect::new(
-        left + SIDEBAR_WIDTH + 1.0,
-        top + TITLEBAR_HEIGHT,
-        content_w,
-        content_h,
-    );
-
-    let root_id = tree
-        .root()
-        .or_else(|| tree.create_root().ok())
-        .unwrap_or_default();
-    let mut root_scope = UiScope::with_tagged_interactions(tree, root_id, params.events, None)
-        .with_active_text_input(params.active_number_input);
-
-    // 1. Floating Preferences Dialog Card
+fn render_preferences_dialog_in_scope(
+    mut root_scope: UiScope<'_>,
+    params: &mut PreferencesParams<'_>,
+    actions: &mut Vec<super::types::PreferencesAction>,
+    (card_rect, content_rect): (Rect, Rect),
+) -> (WidgetId, Rect, Rect, f32) {
     root_scope.container_tagged(
         "PreferencesDialogCard",
         Style::new()
             .position_absolute()
-            .left(left)
-            .top(top)
+            .left(card_rect.x)
+            .top(card_rect.y)
             .width(PREF_CARD_WIDTH)
             .height(PREF_CARD_HEIGHT)
             .flex_col()
@@ -156,8 +163,6 @@ pub fn build_preferences_dialog(
         WidgetRole::FloatingWindow,
         PREF_TAG_CARD,
         |card| {
-            // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
-            let titlebar_bg = card.theme().toolbar_bg;
             card.container_tagged_resp(
                 "PreferencesTitlebar",
                 Style::new()
@@ -166,7 +171,7 @@ pub fn build_preferences_dialog(
                     .justify_content(JustifyContent::SpaceBetween)
                     .height(TITLEBAR_HEIGHT)
                     .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
-                    .background(titlebar_bg)
+                    .background(card.theme().toolbar_bg)
                     .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
                 WidgetRole::FloatingTitlebar,
                 PREF_TAG_TITLEBAR,
@@ -176,12 +181,10 @@ pub fn build_preferences_dialog(
                         Color::rgba(0.85, 0.88, 0.94, 1.0),
                         15.0,
                     );
-
                     titlebar.empty_box_passive_named(
                         "PrefTitleGap",
                         Style::new().width(8.0).height(1.0),
                     );
-
                     titlebar.label_styled_passive(
                         "PrefTitleText",
                         "Preferences",
@@ -191,7 +194,6 @@ pub fn build_preferences_dialog(
                         Style::new().flex_grow(1.0),
                     );
 
-                    // Close Button
                     if titlebar
                         .container_tagged_resp(
                             "PrefCloseButton",
@@ -223,73 +225,45 @@ pub fn build_preferences_dialog(
                 },
             );
 
-            // 1px Horizontal Titlebar Divider
-            let card_divider = card.theme().divider;
-            card.divider(card_divider);
-
-            // 3. Body: Sidebar + Divider + Content View
+            card.divider_themed();
             card.container_named(
                 "PreferencesBody",
-                Style::new().flex_row().flex_grow(1.0).height(content_h),
+                Style::new()
+                    .flex_row()
+                    .flex_grow(1.0)
+                    .height(content_rect.height),
                 |body| {
-                    build_preferences_view(body, &mut params, actions, content_w, content_h);
+                    build_preferences_view(
+                        body,
+                        params,
+                        actions,
+                        content_rect.width,
+                        content_rect.height,
+                    );
                 },
             );
-
-            // Calculate and assign layout geometry to the entire preferences dialog hierarchy
             card.finish_layout(card_rect);
         },
     );
 
-    let card_id = root_scope.node_id_tagged(PREF_TAG_CARD).unwrap_or_default();
-
-    let current_scroll = root_scope.scroll_offset(PREF_TAG_CONTENT_VIEW);
-
-    // Measure dynamic accumulated height of all tab content sections from layout pass
-    let measured_total_h = root_scope
-        .node_id_tagged(PREF_TAG_SCROLL_CONTAINER)
-        .and_then(|id| root_scope.node_ref(id))
-        .map(|node| {
-            node.children
-                .iter()
-                .filter_map(|&cid| root_scope.node_ref(cid))
-                .map(|child| child.computed_rect.bottom() + current_scroll - content_rect.y)
-                .fold(0.0_f32, f32::max)
-        })
-        .unwrap_or(0.0);
-
-    let total_h = measured_total_h
-        .max(tab_virtual_height(*params.active_tab))
-        .max(content_h);
-    let max_scroll_y = (total_h - content_h).max(0.0);
-    let safe_scroll = current_scroll.clamp(0.0, max_scroll_y);
-
-    // Register measured content size and scroll boundaries on the viewport node
-    root_scope.set_content_size_tagged(PREF_TAG_CONTENT_VIEW, content_w, total_h);
-    root_scope.set_max_scroll(PREF_TAG_CONTENT_VIEW, max_scroll_y);
-    root_scope.set_scroll_offset(PREF_TAG_CONTENT_VIEW, safe_scroll);
-
-    // 4. Custom Scrollbar Indicator if virtual height exceeds content height
-    if total_h > content_h {
-        let style = preferences_scroll_style();
-        if let Some(geom) =
-            ScrollBarGeometry::compute_vertical(content_rect, total_h, safe_scroll, &style)
-        {
-            let is_scrollbar_dragging = root_scope.is_tag_captured(PREF_TAG_SCROLLBAR_THUMB);
-
-            let mut card_scope = root_scope.child_scope(card_id);
-            card_scope.scrollbar_vertical(
-                geom,
-                card_rect,
-                is_scrollbar_dragging,
-                Some(cursor_pos),
+    (
+        root_scope.node_id_tagged(PREF_TAG_CARD).unwrap_or_default(),
+        card_rect,
+        content_rect,
+        root_scope.sync_and_render_vertical_scrollbar(
+            VerticalScrollbarSpec::new(
+                PREF_TAG_CONTENT_VIEW,
+                PREF_TAG_SCROLL_CONTAINER,
                 PREF_TAG_SCROLLBAR_TRACK,
                 PREF_TAG_SCROLLBAR_THUMB,
-            );
-        }
-    }
-
-    (card_id, card_rect, content_rect, max_scroll_y)
+                content_rect,
+            )
+            .host(card_rect, Some(PREF_TAG_CARD))
+            .min_virtual_height(tab_virtual_height(*params.active_tab))
+            .cursor(Some(params.cursor_pos))
+            .style(preferences_scroll_style()),
+        ),
+    )
 }
 
 /// Renders the complete body of the preferences view (sidebar tabs, vertical divider, scrollable content area).
@@ -300,21 +274,16 @@ pub fn build_preferences_view(
     content_w: f32,
     content_h: f32,
 ) {
-    if let Some(clicked) = body
-        .sidebar_tabs_tagged(
-            &SIDEBAR_TABS_TAGGED,
-            params.active_tab,
-            Some(PREF_TAG_CONTENT_VIEW),
-        )
-        .clicked_tab
-    {
-        actions.push(super::types::PreferencesAction::SelectTab(clicked));
-    }
+    body.sidebar_tabs_tagged(
+        &SIDEBAR_TABS_TAGGED,
+        params.active_tab,
+        Some(PREF_TAG_CONTENT_VIEW),
+    )
+    .clicked_tab
+    .into_iter()
+    .for_each(|clicked| actions.push(super::types::PreferencesAction::SelectTab(clicked)));
 
-    let divider_color = body.theme().divider;
-    body.vertical_divider(content_h, divider_color);
-
-    let current_scroll = body.scroll_offset(PREF_TAG_CONTENT_VIEW);
+    body.vertical_divider_themed(content_h);
 
     body.container_tagged(
         "PreferencesContentArea",
@@ -322,7 +291,7 @@ pub fn build_preferences_view(
             .width(content_w)
             .height(content_h)
             .clip_children(true)
-            .scroll_offset_y(current_scroll)
+            .scroll_offset_y(body.scroll_offset(PREF_TAG_CONTENT_VIEW))
             .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
         WidgetRole::ScrollAreaViewport,
         PREF_TAG_CONTENT_VIEW,
@@ -356,162 +325,83 @@ pub fn build_preferences_view(
     );
 }
 
-impl IrisEditorOverlay {
-    /// Builds the Preferences panel content when hosted as a standard dockable tab or floating window.
-    ///
-    /// Resolves panel rect from `scope.parent_rect()`, sets up active number input and caret blinking,
-    /// renders sidebar navigation and active tab sections, and handles scrolling.
-    pub(crate) fn build_preferences_panel_if_active(
+impl PreferencesDialogState {
+    /// Builds the Preferences panel content directly using mutable preferences references and `UiScope`.
+    pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
-        params: &OverlayUpdateParams<'_>,
+        params: &mut OverlayUpdateParams<'_>,
+        current_theme: crate::ui::iris_bridge::theme::ThemePreset,
+        (cursor_pos, blink_caret): (Point, bool),
     ) {
-        let panel_rect = scope.parent_rect();
-        if panel_rect.width <= 20.0 || panel_rect.height <= 20.0 {
+        if scope.is_collapsed() {
             return;
         }
 
-        let blink_caret = scope.is_caret_visible(&self.text_system);
-        let mut caret_buf = String::new();
-        let active_number_input =
-            if let Some((t, ref s, is_all_selected)) = self.preferences.active_number_input {
-                let text_with_caret = if !is_all_selected && blink_caret {
-                    caret_buf.push_str(s);
-                    caret_buf.push('|');
-                    caret_buf.as_str()
-                } else {
-                    s.as_str()
-                };
-                Some((t, text_with_caret, is_all_selected))
-            } else {
-                None
-            };
-
-        let content_w = (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0);
-        let content_h = panel_rect.height;
-
-        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
-        let current_theme = self.chrome.theme_preset;
-        let mut gs = params.preferences.graphics_settings.clone();
-        let mut snap = *params.preferences.snapping_settings;
-        let mut cfg = params.preferences.editor_config.clone();
-        let mut live_updates = params.context.enable_live_updates;
-
-        let mut pref_params = PreferencesParams {
-            screen_width: panel_rect.width,
-            screen_height: panel_rect.height,
-            window_pos: None,
-            active_tab: &mut self.preferences.tab,
-            collapsed_sections: &self.preferences.collapsed_sections,
-            active_number_input,
+        scope.with_scoped_text_input_blink(
+            self.active_number_input
+                .as_ref()
+                .map(|(tag, text, selected)| (*tag, text.as_str(), *selected)),
             blink_caret,
-            cursor_pos,
-            zoom_factor: params.context.zoom_factor,
-            graphics_settings: &mut gs,
-            snapping_settings: &mut snap,
-            editor_config: &mut cfg,
-            enable_live_updates: &mut live_updates,
-            enabled_modules: params.preferences.enabled_modules,
-            events: &self.preferences.pending_interaction_events,
-            current_theme,
-        };
-
-        let panel_bg = scope.theme().panel_bg;
-        scope.container_named(
-            "PreferencesPanelBody",
-            Style::new()
-                .flex_row()
-                .width(panel_rect.width)
-                .height(content_h)
-                .background(panel_bg),
-            |body| {
-                build_preferences_view(
-                    body,
-                    &mut pref_params,
-                    &mut self.preferences.interactions.actions,
-                    content_w,
-                    content_h,
+            |scoped_scope| {
+                scoped_scope.container_named(
+                    "PreferencesPanelBody",
+                    Style::new()
+                        .flex_row()
+                        .width(scoped_scope.parent_rect().width)
+                        .height(scoped_scope.parent_rect().height)
+                        .background(scoped_scope.theme().panel_bg),
+                    |body| {
+                        build_preferences_view(
+                            body,
+                            &mut PreferencesParams {
+                                screen_width: body.parent_rect().width,
+                                screen_height: body.parent_rect().height,
+                                window_pos: None,
+                                active_tab: &mut self.tab,
+                                collapsed_sections: &self.collapsed_sections,
+                                active_number_input: self
+                                    .active_number_input
+                                    .as_ref()
+                                    .map(|(tag, text, selected)| (*tag, text.as_str(), *selected)),
+                                blink_caret,
+                                cursor_pos: body.resolved_cursor_pos(cursor_pos),
+                                zoom_factor: params.context.zoom_factor,
+                                graphics_settings: &mut *params.preferences.graphics_settings,
+                                snapping_settings: &mut *params.preferences.snapping_settings,
+                                editor_config: &mut *params.preferences.editor_config,
+                                enable_live_updates: &mut *params.preferences.enable_live_updates,
+                                enabled_modules: params.preferences.enabled_modules,
+                                events: &self.pending_interaction_events,
+                                current_theme,
+                            },
+                            &mut self.interactions.actions,
+                            (body.parent_rect().width - SIDEBAR_WIDTH - 1.0).max(100.0),
+                            body.parent_rect().height,
+                        );
+                    },
                 );
             },
         );
-        self.preferences.pending_interaction_events.clear();
+        self.pending_interaction_events.clear();
 
-        if gs != *params.preferences.graphics_settings {
-            self.pending_actions
-                .push(crate::ui::types::EngineUiAction::UpdateGraphicsSettings(
-                    gs.clone(),
-                ));
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
-        }
-        if snap != *params.preferences.snapping_settings {
-            self.pending_actions
-                .push(crate::ui::types::EngineUiAction::UpdateSnapSettings(snap));
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
-        }
-        if cfg != *params.preferences.editor_config {
-            self.pending_actions
-                .push(crate::ui::types::EngineUiAction::UpdateEditorConfig(
-                    cfg.clone(),
-                ));
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
-        }
-        if live_updates != params.context.enable_live_updates {
-            self.pending_actions
-                .push(crate::ui::types::EngineUiAction::SetLiveEditorUpdates(
-                    live_updates,
-                ));
-            self.notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
-        }
-
-        let current_scroll = scope.scroll_offset(PREF_TAG_CONTENT_VIEW);
-        let measured_total_h = scope
-            .node_id_tagged(PREF_TAG_SCROLL_CONTAINER)
-            .and_then(|id| scope.node_ref(id))
-            .map(|node| {
-                node.children
-                    .iter()
-                    .filter_map(|&cid| scope.node_ref(cid))
-                    .map(|child| child.computed_rect.bottom() + current_scroll - panel_rect.y)
-                    .fold(0.0_f32, f32::max)
-            })
-            .unwrap_or(0.0);
-
-        let total_h = measured_total_h
-            .max(tab_virtual_height(self.preferences.tab))
-            .max(content_h);
-        let max_scroll_y = (total_h - content_h).max(0.0);
-        let safe_scroll = current_scroll.clamp(0.0, max_scroll_y);
-
-        scope.set_content_size_tagged(PREF_TAG_CONTENT_VIEW, content_w, total_h);
-        scope.set_max_scroll(PREF_TAG_CONTENT_VIEW, max_scroll_y);
-        scope.set_scroll_offset(PREF_TAG_CONTENT_VIEW, safe_scroll);
-
-        if total_h > content_h {
-            let style = preferences_scroll_style();
-            let content_rect = Rect::new(
-                panel_rect.x + SIDEBAR_WIDTH + 1.0,
-                panel_rect.y,
-                content_w,
-                content_h,
-            );
-            if let Some(geom) =
-                ScrollBarGeometry::compute_vertical(content_rect, total_h, safe_scroll, &style)
-            {
-                let is_scrollbar_dragging = scope.is_tag_captured(PREF_TAG_SCROLLBAR_THUMB);
-
-                scope.scrollbar_vertical(
-                    geom,
-                    panel_rect,
-                    is_scrollbar_dragging,
-                    Some(self.cursor_pos()),
-                    PREF_TAG_SCROLLBAR_TRACK,
-                    PREF_TAG_SCROLLBAR_THUMB,
-                );
-            }
-        }
+        scope.sync_and_render_vertical_scrollbar(
+            VerticalScrollbarSpec::new(
+                PREF_TAG_CONTENT_VIEW,
+                PREF_TAG_SCROLL_CONTAINER,
+                PREF_TAG_SCROLLBAR_TRACK,
+                PREF_TAG_SCROLLBAR_THUMB,
+                Rect::new(
+                    scope.parent_rect().x + SIDEBAR_WIDTH + 1.0,
+                    scope.parent_rect().y,
+                    (scope.parent_rect().width - SIDEBAR_WIDTH - 1.0).max(100.0),
+                    scope.parent_rect().height,
+                ),
+            )
+            .host(scope.parent_rect(), None)
+            .min_virtual_height(tab_virtual_height(self.tab))
+            .cursor(Some(cursor_pos))
+            .style(preferences_scroll_style()),
+        );
     }
 }

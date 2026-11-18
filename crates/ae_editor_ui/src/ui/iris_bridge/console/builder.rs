@@ -9,94 +9,96 @@
 use super::panel::build_console_panel;
 use super::types::{
     CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_VIEWPORT, ConsoleAction,
-    ConsolePanelParams,
+    ConsolePanelParams, ConsolePanelState,
 };
-use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
 use irisui::prelude::*;
+use irisui::widgets::controls::{FocusState, FocusTarget};
 
-impl IrisEditorOverlay {
-    /// Builds the Developer Console panel if active in either docked or floating mode.
-    ///
-    /// Manages the full lifecycle of the log viewport:
-    /// 1. Resolves physical panel bounds directly from the unified [`UiScope`] docking hierarchy.
-    /// 2. Assembles log level filters, search query filtering, and auto-scrolling log table in unified coordinates.
-    /// 3. Processes clear logs, search clear, and log copy triggers.
-    pub(crate) fn build_console_panel_if_active(
+impl ConsolePanelState {
+    /// Builds the Developer Console panel directly using typed console state and `UiScope`.
+    pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
-        params: &OverlayUpdateParams<'_>,
+        entries: &[crate::ui::types::ConsoleEntry],
+        focus_manager: &mut FocusManager,
+        focus_state: &mut FocusState<FocusTarget>,
+        notifier: &mut DeferredPanelNotifier<'_>,
+        (cursor_pos, blink_caret): (Point, bool),
     ) {
         if scope.is_collapsed() {
             return;
         }
 
-        scope.auto_sync_core_focus(&mut self.focus_manager);
-        scope.auto_sync_focus_state(&mut self.focus_state);
-        scope.auto_sync_text_input(
+        scope.auto_sync_search_input(
             CONSOLE_TAG_SEARCH_INPUT,
             Some(CONSOLE_TAG_SEARCH_CLEAR),
-            &mut self.console.search_input,
+            &mut self.interactions.search_input,
+            focus_manager,
+            focus_state,
         );
 
-        let mut actions = Vec::new();
+        self.interactions.actions.clear();
         build_console_panel(
             scope,
             &mut ConsolePanelParams {
                 panel_rect: scope.parent_rect(),
-                entries: params.panel_data.console_entries,
-                filter: self.console.filter,
-                search_query: self.console.interactions.search_input.text(),
-                auto_scroll: &mut self.console.auto_scroll,
-                cursor_pos: scope.cursor_pos().unwrap_or(self.chrome.last_cursor_pos),
-                blink_caret: scope.is_caret_visible(&self.text_system),
-                focus_state: &self.focus_state,
-                cursor_byte_idx: self.console.interactions.search_input.cursor_byte_idx,
-                active_tab: self.console.active_tab,
+                entries,
+                filter: self.filter,
+                search_query: self.interactions.search_input.text(),
+                auto_scroll: &mut self.auto_scroll,
+                cursor_pos: scope.resolved_cursor_pos(cursor_pos),
+                blink_caret,
+                focus_state,
+                cursor_byte_idx: self.interactions.search_input.cursor_byte_idx,
+                active_tab: self.active_tab,
             },
-            &mut self.console.scratchpad_state,
-            &mut actions,
+            &mut self.scratchpad_state,
+            &mut self.interactions.actions,
         );
 
-        if !actions.is_empty() {
-            for action in actions {
-                self.dispatch_console_action(scope, action);
-            }
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+        if !self.interactions.actions.is_empty() {
+            std::mem::take(&mut self.interactions.actions)
+                .into_iter()
+                .for_each(|action| self.dispatch_action(scope, focus_manager, focus_state, action));
+            notifier.tag_redraw(crate::ui::panel_layout::PanelId::Console);
         }
     }
 
-    /// Dispatches a console action triggered by interactive controls in the console panel.
-    fn dispatch_console_action(&mut self, scope: &mut UiScope<'_>, action: ConsoleAction) {
+    fn dispatch_action(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        focus_manager: &mut FocusManager,
+        focus_state: &mut FocusState<FocusTarget>,
+        action: ConsoleAction,
+    ) {
         match action {
             ConsoleAction::ClearLogs => {
                 ae_editor::editor_logger::LOGGER.clear();
                 scope.set_scroll_offset(CONSOLE_TAG_VIEWPORT, 0.0);
             }
             ConsoleAction::SetFilter(level) => {
-                self.console.filter = level;
+                self.filter = level;
             }
             ConsoleAction::ToggleAutoScroll => {
-                self.console.auto_scroll = !self.console.auto_scroll;
+                self.auto_scroll = !self.auto_scroll;
             }
             ConsoleAction::FocusSearch => {
-                self.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+                scope.assign_focus_with(CONSOLE_TAG_SEARCH_INPUT, focus_manager, focus_state);
             }
             ConsoleAction::ClearSearch => {
-                self.console.search_input.clear();
-                self.clear_focus();
-                scope.clear_text_edit();
+                self.interactions.search_input.clear();
+                scope.clear_focus_with(focus_manager, focus_state);
             }
             ConsoleAction::CopyLog(_) => {}
             ConsoleAction::SelectTab(tab) => {
-                self.console.active_tab = tab;
+                self.active_tab = tab;
             }
             ConsoleAction::ClearScratchpad => {
-                self.console.scratchpad_state.clear();
+                self.scratchpad_state.clear();
             }
             ConsoleAction::ResetScratchpad => {
-                self.console
-                    .scratchpad_state
+                self.scratchpad_state
                     .set_text(super::types::DEFAULT_SCRATCHPAD_TEXT);
             }
         }

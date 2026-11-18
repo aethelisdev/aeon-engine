@@ -194,6 +194,12 @@ pub fn update_oscilloscope_texts(
     scope: &mut UiScope<'_>,
     stats: &ae_core::telemetry::FramePacingStats,
 ) -> bool {
+    if scope
+        .node_id_tagged(super::types::STATS_TAG_AVG_FPS)
+        .is_none()
+    {
+        return false;
+    }
     scope.update_live_text(
         super::types::STATS_TAG_AVG_FPS,
         &format!(
@@ -221,6 +227,9 @@ pub fn refresh_live_oscilloscope(
     pacing: &FrameRingBuffer,
     stats: &ae_core::telemetry::FramePacingStats,
 ) -> bool {
+    if scope.node_id_tagged(STATS_TAG_CANVAS).is_none() {
+        return false;
+    }
     scope.update_live_canvas(STATS_TAG_CANVAS, |canvas| {
         draw_oscilloscope_canvas(canvas, Some(pacing));
     }) | update_oscilloscope_texts(scope, stats)

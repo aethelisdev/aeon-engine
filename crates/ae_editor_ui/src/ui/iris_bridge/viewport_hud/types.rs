@@ -359,9 +359,19 @@ pub struct ViewportHudState {
     pub camera_angles: (f32, f32),
     /// Active 3D camera world position `(x, y, z)` for real-time telemetry HUD updating.
     pub camera_pos: (f32, f32, f32),
+    /// Cached quantized signature `(pos_tenths, pitch_deg, yaw_deg, viewport_rect)` for skipping unchanged Camera HUD updates.
+    pub last_camera_hud_key: Option<([i32; 3], i32, i32, Rect)>,
+    /// Cached quantized signature `(pitch_mrad, yaw_mrad, viewport_rect)` for skipping unchanged Compass updates.
+    pub last_compass_key: Option<(i32, i32, Rect)>,
 }
 
 impl ViewportHudState {
+    /// Clears cached live-canvas telemetry signatures so the next `InPlaceRefresh` pass re-evaluates them.
+    #[inline]
+    pub fn reset_live_cache(&mut self) {
+        self.last_camera_hud_key = None;
+        self.last_compass_key = None;
+    }
     /// Dispatches a user interaction action directly onto the pending Viewport HUD action queue.
     #[inline]
     pub fn dispatch(&mut self, action: ViewportHudAction) {

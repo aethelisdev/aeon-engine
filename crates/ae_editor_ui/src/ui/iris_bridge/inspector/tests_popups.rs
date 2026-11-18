@@ -616,10 +616,9 @@ fn test_inspector_color_picker_popup_outside_click() {
 #[test]
 fn test_inspector_real_panel_popups_open_on_right_side() {
     use crate::ui::panel_layout::PanelId;
-    use irisui::dock::UiNotifier;
     use irisui::workbench::{
-        SubtreeEngines, Workbench, WorkbenchDescriptor, WorkbenchExternalContext,
-        WorkbenchFrameUpdateParams, WorkbenchPanelRegistry,
+        Workbench, WorkbenchDescriptor, WorkbenchExternalContext, WorkbenchFrameUpdateParams,
+        WorkbenchPanelRegistry,
     };
 
     let mut world = hecs::World::new();
@@ -643,11 +642,6 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     .with_menubar_height(36.0)
     .with_statusbar_height(22.0)
     .with_screen_size((1920.0, 1080.0));
-
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = irisui::text::TextSystem::new();
-    let mut notifier = UiNotifier::clean();
 
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
@@ -705,64 +699,47 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     };
 
     // Frame 0: initial build
-    {
-        let mut engines = SubtreeEngines {
-            tree: &mut tree,
-            layout_engine: &mut layout,
-            text_system: &mut text,
-        };
-        wb.update_frame_live_with_registry(
-            &mut engines,
-            WorkbenchFrameUpdateParams {
-                dock: &dock,
-                notifier: &mut notifier,
-                scale_factor: 1.0,
-                selection_id: None,
-                domain_revision: 0,
-                is_cursor_occluded: false,
-            },
-            WorkbenchExternalContext {
-                registry: &mut registry,
-                context: &mut ctx,
-            },
-            |i| i,
-            |_s, _c, _sz| {},
-            |_s, _c| {},
-        )
-        .expect("frame 0");
-    }
+    wb.update_frame_live_with_registry(
+        WorkbenchFrameUpdateParams {
+            dock: &dock,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+            is_cursor_occluded: false,
+        },
+        WorkbenchExternalContext {
+            registry: &mut registry,
+            context: &mut ctx,
+        },
+        |i| i,
+        |_s, _c, _sz| {},
+        |_s, _c| {},
+    )
+    .expect("frame 0");
 
     // Frame 1: open Add Component menu
-    tree.open_popup(footer::TAG_INSPECTOR_ADD_COMPONENT);
-    notifier.tag_redraw(PanelId::Inspector);
-    {
-        let mut engines = SubtreeEngines {
-            tree: &mut tree,
-            layout_engine: &mut layout,
-            text_system: &mut text,
-        };
-        wb.update_frame_live_with_registry(
-            &mut engines,
-            WorkbenchFrameUpdateParams {
-                dock: &dock,
-                notifier: &mut notifier,
-                scale_factor: 1.0,
-                selection_id: None,
-                domain_revision: 0,
-                is_cursor_occluded: false,
-            },
-            WorkbenchExternalContext {
-                registry: &mut registry,
-                context: &mut ctx,
-            },
-            |i| i.with_popup_active(true),
-            |_s, _c, _sz| {},
-            |_s, _c| {},
-        )
-        .expect("frame 1");
-    }
+    wb.tree.open_popup(footer::TAG_INSPECTOR_ADD_COMPONENT);
+    wb.notifier.tag_redraw(PanelId::Inspector);
+    wb.update_frame_live_with_registry(
+        WorkbenchFrameUpdateParams {
+            dock: &dock,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+            is_cursor_occluded: false,
+        },
+        WorkbenchExternalContext {
+            registry: &mut registry,
+            context: &mut ctx,
+        },
+        |i| i.with_popup_active(true),
+        |_s, _c, _sz| {},
+        |_s, _c| {},
+    )
+    .expect("frame 1");
 
-    let add_menu_rect = tree
+    let add_menu_rect = wb
+        .tree
         .node_rect("AddComponentMenu")
         .expect("AddComponentMenu must exist");
     assert!(
@@ -772,42 +749,35 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     );
 
     // Frame 2: close AddComponentMenu, open RigidBody Type ComboBox via GranularPanels
-    tree.close_all_popups();
-    let rb_combo_tag = tree
+    wb.tree.close_all_popups();
+    let rb_combo_tag = wb
+        .tree
         .iter()
         .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
         .map(|(_, n)| n.tag)
         .expect("RigidBody ComboPill must exist");
-    tree.active_combobox_tag = Some(rb_combo_tag);
-    notifier.tag_redraw(PanelId::Inspector);
-    {
-        let mut engines = SubtreeEngines {
-            tree: &mut tree,
-            layout_engine: &mut layout,
-            text_system: &mut text,
-        };
-        wb.update_frame_live_with_registry(
-            &mut engines,
-            WorkbenchFrameUpdateParams {
-                dock: &dock,
-                notifier: &mut notifier,
-                scale_factor: 1.0,
-                selection_id: None,
-                domain_revision: 0,
-                is_cursor_occluded: false,
-            },
-            WorkbenchExternalContext {
-                registry: &mut registry,
-                context: &mut ctx,
-            },
-            |i| i.with_popup_active(false),
-            |_s, _c, _sz| {},
-            |_s, _c| {},
-        )
-        .expect("frame 2");
-    }
+    wb.tree.active_combobox_tag = Some(rb_combo_tag);
+    wb.notifier.tag_redraw(PanelId::Inspector);
+    wb.update_frame_live_with_registry(
+        WorkbenchFrameUpdateParams {
+            dock: &dock,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+            is_cursor_occluded: false,
+        },
+        WorkbenchExternalContext {
+            registry: &mut registry,
+            context: &mut ctx,
+        },
+        |i| i.with_popup_active(false),
+        |_s, _c, _sz| {},
+        |_s, _c| {},
+    )
+    .expect("frame 2");
 
-    let combo_rect = tree
+    let combo_rect = wb
+        .tree
         .node_rect("ComboBoxPopup")
         .expect("ComboBoxPopup must exist");
     assert!(
@@ -817,35 +787,27 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     );
 
     // Frame 3: clear active combobox with a clean rebuild, then click the second ComboPill (Collider Shape)
-    tree.active_combobox_tag = None;
-    notifier.tag_redraw(PanelId::Inspector);
-    {
-        let mut engines = SubtreeEngines {
-            tree: &mut tree,
-            layout_engine: &mut layout,
-            text_system: &mut text,
-        };
-        wb.update_frame_live_with_registry(
-            &mut engines,
-            WorkbenchFrameUpdateParams {
-                dock: &dock,
-                notifier: &mut notifier,
-                scale_factor: 1.0,
-                selection_id: None,
-                domain_revision: 0,
-                is_cursor_occluded: false,
-            },
-            WorkbenchExternalContext {
-                registry: &mut registry,
-                context: &mut ctx,
-            },
-            |i| i.with_popup_active(false),
-            |_s, _c, _sz| {},
-            |_s, _c| {},
-        )
-        .expect("frame 2.5 clear");
-    }
-    let collider_pill_rect = tree
+    wb.tree.active_combobox_tag = None;
+    wb.notifier.tag_redraw(PanelId::Inspector);
+    wb.update_frame_live_with_registry(
+        WorkbenchFrameUpdateParams {
+            dock: &dock,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+            is_cursor_occluded: false,
+        },
+        WorkbenchExternalContext {
+            registry: &mut registry,
+            context: &mut ctx,
+        },
+        |i| i.with_popup_active(false),
+        |_s, _c, _sz| {},
+        |_s, _c| {},
+    )
+    .expect("frame 2.5 clear");
+    let collider_pill_rect = wb
+        .tree
         .iter()
         .filter(|(_, n)| n.name.as_deref() == Some("ComboPill"))
         .nth(1)
@@ -889,7 +851,6 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         &mut win,
         &UiEvent::MouseMove { point: click_pt },
         &mut dock_mut,
-        Some(&mut tree),
     );
     let _ = wb.handle_event_full(
         &mut win,
@@ -898,7 +859,6 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
             button: MouseButton::Left,
         },
         &mut dock_mut,
-        Some(&mut tree),
     );
     let _ = wb.handle_event_full(
         &mut win,
@@ -907,37 +867,28 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
             button: MouseButton::Left,
         },
         &mut dock_mut,
-        Some(&mut tree),
     );
-    notifier.tag_redraw(PanelId::Inspector);
-    {
-        let mut engines = SubtreeEngines {
-            tree: &mut tree,
-            layout_engine: &mut layout,
-            text_system: &mut text,
-        };
-        wb.update_frame_live_with_registry(
-            &mut engines,
-            WorkbenchFrameUpdateParams {
-                dock: &dock_mut,
-                notifier: &mut notifier,
-                scale_factor: 1.0,
-                selection_id: None,
-                domain_revision: 0,
-                is_cursor_occluded: false,
-            },
-            WorkbenchExternalContext {
-                registry: &mut registry,
-                context: &mut ctx,
-            },
-            |i| i.with_popup_active(false),
-            |_s, _c, _sz| {},
-            |_s, _c| {},
-        )
-        .expect("frame 3");
-    }
+    wb.notifier.tag_redraw(PanelId::Inspector);
+    wb.update_frame_live_with_registry(
+        WorkbenchFrameUpdateParams {
+            dock: &dock_mut,
+            scale_factor: 1.0,
+            selection_id: None,
+            domain_revision: 0,
+            is_cursor_occluded: false,
+        },
+        WorkbenchExternalContext {
+            registry: &mut registry,
+            context: &mut ctx,
+        },
+        |i| i.with_popup_active(false),
+        |_s, _c, _sz| {},
+        |_s, _c| {},
+    )
+    .expect("frame 3");
 
-    let collider_popup_rect = tree
+    let collider_popup_rect = wb
+        .tree
         .node_rect("ComboBoxPopup")
         .expect("Collider ComboBoxPopup must exist after click");
     assert!(

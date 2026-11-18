@@ -13,7 +13,7 @@
 
 use super::types::{TAG_PLAY_CROSSHAIR, TAG_PLAY_GUIDE_BADGE, ViewportHudParams};
 use irisui::prelude::*;
-use irisui::wgpu_backend::{DrawCommandList, QuadInstance};
+use irisui::widgets::canvas::ImmediateCanvas;
 
 /// Builds the Play Mode HUD overlay (reticle canvas, quick control badge, in-game UI, and pause menu).
 ///
@@ -70,22 +70,22 @@ pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     };
 
     // 2. Center Crosshair Reticle Canvas (Only rendered when not paused and character has CharacterAction)
-    // Emits a single declarative canvas widget without allocating dummy tree nodes for lines/dots.
+    // Emits centered retained CanvasPrimitives resolved relative to node center on first layout pass.
     if has_action {
-        let ch_size = 32.0;
-        let ch_style = Style::new()
-            .position_absolute()
-            .left((params.viewport_rect.width - ch_size) * 0.5)
-            .top((params.viewport_rect.height - ch_size) * 0.5)
-            .width(ch_size)
-            .height(ch_size);
-
-        scope.canvas_named(
-            "PlayReticleCanvas",
-            ch_style,
-            WidgetRole::OscilloscopeCanvas,
-            TAG_PLAY_CROSSHAIR,
-            None,
+        scope.immediate_canvas_with(
+            ImmediateCanvasSpec::new(
+                "PlayReticleCanvas",
+                TAG_PLAY_CROSSHAIR,
+                Style::new()
+                    .position_absolute()
+                    .left((params.viewport_rect.width - 32.0) * 0.5)
+                    .top((params.viewport_rect.height - 32.0) * 0.5)
+                    .width(32.0)
+                    .height(32.0),
+            )
+            .origin(CanvasOrigin::NodeCenter)
+            .interactive(false),
+            draw_crosshair_primitives,
         );
     }
 
@@ -132,61 +132,35 @@ pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     );
 }
 
-/// Appends hardware SDF quad commands for the center reticle crosshair in Play Mode.
+/// Populates node-centered crosshair primitives directly inside the reticle [`ImmediateCanvas`].
 ///
 /// Draws 1 center aim point and 4 cardinal crosshair ticks (North, South, West, East)
-/// directly into the GPU command batch with zero intermediate layout nodes.
-pub fn append_crosshair_quads(command_list: &mut DrawCommandList, rect: Rect) {
-    let center_x = rect.x + rect.width * 0.5;
-    let center_y = rect.y + rect.height * 0.5;
-    let dot_size = 4.0;
+/// using [`CanvasOrigin::NodeCenter`] so coordinates automatically track the resolved canvas center.
+fn draw_crosshair_primitives(canvas: &mut ImmediateCanvas<'_>) {
+    canvas.fill_styled_rect(
+        Rect::new(-2.0, -2.0, 4.0, 4.0),
+        Color::rgba(1.0, 1.0, 1.0, 0.90),
+        Color::rgba(0.0, 0.0, 0.0, 0.60),
+        1.0,
+        2.0,
+    );
 
-    // 1. Center Aim Dot
-    command_list.push_quad(QuadInstance {
-        rect: [
-            center_x - dot_size * 0.5,
-            center_y - dot_size * 0.5,
-            dot_size,
-            dot_size,
-        ],
-        color: [1.0, 1.0, 1.0, 0.90],
-        border_color: [0.0, 0.0, 0.0, 0.60],
-        border_width: [1.0, 1.0, 1.0, 1.0],
-        corner_radii: [
-            dot_size * 0.5,
-            dot_size * 0.5,
-            dot_size * 0.5,
-            dot_size * 0.5,
-        ],
-        ..Default::default()
+    [
+        Rect::new(-1.0, -12.0, 2.0, 8.0), // North
+        Rect::new(-1.0, 4.0, 2.0, 8.0),   // South
+        Rect::new(-12.0, -1.0, 8.0, 2.0), // West
+        Rect::new(4.0, -1.0, 8.0, 2.0),   // East
+    ]
+    .into_iter()
+    .for_each(|rect| {
+        canvas.fill_styled_rect(
+            rect,
+            Color::rgba(1.0, 1.0, 1.0, 0.85),
+            Color::rgba(0.0, 0.0, 0.0, 0.50),
+            0.5,
+            1.0,
+        );
     });
-
-    // 2. Reticle Crosshairs (North, South, West, East)
-    let len = 8.0;
-    let gap = 4.0;
-    let thick = 2.0;
-
-    let lines = [
-        // North
-        [center_x - thick * 0.5, center_y - gap - len, thick, len],
-        // South
-        [center_x - thick * 0.5, center_y + gap, thick, len],
-        // West
-        [center_x - gap - len, center_y - thick * 0.5, len, thick],
-        // East
-        [center_x + gap, center_y - thick * 0.5, len, thick],
-    ];
-
-    for line_rect in lines {
-        command_list.push_quad(QuadInstance {
-            rect: line_rect,
-            color: [1.0, 1.0, 1.0, 0.85],
-            border_color: [0.0, 0.0, 0.0, 0.50],
-            border_width: [0.5, 0.5, 0.5, 0.5],
-            corner_radii: [1.0, 1.0, 1.0, 1.0],
-            ..Default::default()
-        });
-    }
 }
 
 #[cfg(test)]
@@ -279,9 +253,20 @@ mod tests {
             "Badge label must contain quick controls text"
         );
 
-        // Verify hardware SDF crosshair quad batch generation
-        let mut cmd_list = DrawCommandList::new();
-        append_crosshair_quads(&mut cmd_list, Rect::new(400.0, 300.0, 32.0, 32.0));
+        // Verify hardware SDF crosshair quad compilation from retained CanvasOrigin::NodeCenter primitives
+        let mut layout_engine = LayoutEngine::new();
+        let _ = layout_engine.compute_layout(&mut tree, Size::new(800.0, 600.0));
+        let reticle_id = tree
+            .find_node_by_tag(TAG_PLAY_CROSSHAIR)
+            .expect("Play reticle canvas node must exist");
+        let reticle_node = tree.get(reticle_id).expect("Reticle node must exist");
+        assert!(
+            !reticle_node.interactive,
+            "Reticle must pass pointer clicks through"
+        );
+        let mut opts = irisui::wgpu_backend::TreeCompilerOptions::new();
+        let cmd_list =
+            irisui::wgpu_backend::compile_tree_draw_commands(&tree, reticle_id, &mut opts);
         assert_eq!(cmd_list.quads.len(), 5);
 
         // Pause menu elements must NOT be present

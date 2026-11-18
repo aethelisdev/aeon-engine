@@ -7,99 +7,86 @@
 //! buffer synchronization with [`EventState`], caret blinking, and action handling.
 
 use super::panel::build_hierarchy_panel;
-use super::types::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams};
-use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use super::types::{
+    HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams,
+    HierarchyPanelState,
+};
+use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use irisui::prelude::*;
+use irisui::widgets::controls::{FocusState, FocusTarget};
 
-impl IrisEditorOverlay {
-    /// Builds the Scene Hierarchy panel if active in either docked or floating mode.
-    ///
-    /// Manages the full lifecycle of the Scene Hierarchy tree:
-    /// 1. Resolves physical panel bounds directly from the unified [`UiScope`] docking hierarchy.
-    /// 2. Assembles declarative entity tree nodes, selection highlights, and folder collapsing.
-    /// 3. Processes hierarchy user actions (search filter updates, selection changes).
-    pub(crate) fn build_hierarchy_panel_if_active(
+impl HierarchyPanelState {
+    /// Builds the Scene Hierarchy panel directly using typed hierarchy state and `UiScope`.
+    pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
+        focus_manager: &mut FocusManager,
+        focus_state: &mut FocusState<FocusTarget>,
+        (ctrl_held, shift_held): (bool, bool),
+        (cursor_pos, blink_caret): (Point, bool),
     ) {
-        let panel_rect = scope.parent_rect();
-        if panel_rect.width <= 20.0 || panel_rect.height <= 20.0 {
+        if scope.is_collapsed() {
             return;
         }
 
         if scope.popups_dismissed() {
-            self.hierarchy.active_submenu = None;
-            self.hierarchy.active_sub_submenu = None;
-            self.hierarchy.active_context_menu = None;
+            self.active_submenu = None;
+            self.active_sub_submenu = None;
+            self.active_context_menu = None;
         }
 
-        scope.auto_sync_core_focus(&mut self.focus_manager);
-        scope.auto_sync_focus_state(&mut self.focus_state);
-
-        if let Some(buf) = scope.text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT) {
-            self.hierarchy.interactions.search_input.set_text(buf);
-            if let Some(cur) = scope.text_edit_cursor(HIERARCHY_TAG_SEARCH_INPUT) {
-                self.hierarchy.interactions.search_input.cursor_byte_idx = cur;
-            }
-        } else if scope.is_tag_clicked(HIERARCHY_TAG_SEARCH_CLEAR) {
-            self.hierarchy.interactions.search_input.clear();
-            self.clear_focus();
-            scope.clear_text_edit();
-        }
-
-        let cursor_pos = scope.cursor_pos().unwrap_or_else(|| self.cursor_pos());
-        let ctrl_held = self.chrome.ctrl_held;
-        let shift_held = self.chrome.shift_held;
-        let focus_state = &self.focus_state;
-        let cursor_byte_idx = self.hierarchy.interactions.search_input.cursor_byte_idx;
-
-        let hier_params = HierarchyPanelParams {
-            panel_rect,
-            world: params.scene.world,
-            selected_entity: params.scene.selected_entity,
-            search_query: self.hierarchy.interactions.search_input.text(),
-            is_editing: params.context.is_editing,
-            is_2d: params.context.is_2d_mode,
-            active_submenu: self.hierarchy.active_submenu,
-            active_sub_submenu: self.hierarchy.active_sub_submenu,
-            active_context_menu: self.hierarchy.active_context_menu,
-            cursor_pos,
-            blink_caret: scope.is_caret_visible(&self.text_system),
+        scope.auto_sync_search_input(
+            HIERARCHY_TAG_SEARCH_INPUT,
+            Some(HIERARCHY_TAG_SEARCH_CLEAR),
+            &mut self.interactions.search_input,
+            focus_manager,
             focus_state,
-            cursor_byte_idx,
-            ctrl_held,
-            shift_held,
-        };
+        );
 
         build_hierarchy_panel(
             scope,
-            &hier_params,
-            &mut self.hierarchy.rows_cache,
-            &mut self.hierarchy.interactions.actions,
-            &mut self.hierarchy.tree_state,
+            &HierarchyPanelParams {
+                panel_rect: scope.parent_rect(),
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                search_query: self.interactions.search_input.text(),
+                is_editing: params.context.is_editing,
+                is_2d: params.context.is_2d_mode,
+                active_submenu: self.active_submenu,
+                active_sub_submenu: self.active_sub_submenu,
+                active_context_menu: self.active_context_menu,
+                cursor_pos: scope.resolved_cursor_pos(cursor_pos),
+                blink_caret,
+                focus_state: &*focus_state,
+                cursor_byte_idx: self.interactions.search_input.cursor_byte_idx,
+                ctrl_held,
+                shift_held,
+            },
+            &mut self.rows_cache,
+            &mut self.interactions.actions,
+            &mut self.tree_state,
         );
 
-        let mut should_clear = false;
-        let mut set_query = None;
-        for action in &self.hierarchy.interactions.actions {
-            match action {
-                super::types::HierarchyAction::ClearSearchQuery => {
-                    should_clear = true;
-                }
-                super::types::HierarchyAction::SetSearchQuery(q) => {
-                    set_query = Some(q.clone());
-                }
-                _ => {}
-            }
-        }
-
-        if should_clear {
-            self.hierarchy.interactions.search_input.clear();
-            self.clear_focus();
-            scope.clear_text_edit();
-        } else if let Some(q) = set_query {
-            self.hierarchy.interactions.search_input.set_text(&q);
+        if self
+            .interactions
+            .actions
+            .iter()
+            .any(|action| matches!(action, super::types::HierarchyAction::ClearSearchQuery))
+        {
+            self.interactions.search_input.clear();
+            scope.clear_focus_with(focus_manager, focus_state);
+        } else {
+            self.interactions
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    super::types::HierarchyAction::SetSearchQuery(query) => Some(query.as_str()),
+                    _ => None,
+                })
+                .next_back()
+                .into_iter()
+                .for_each(|query| self.interactions.search_input.set_text(query));
         }
     }
 }

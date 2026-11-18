@@ -58,4 +58,21 @@ impl InspectorPanelState {
             self.rename_input = Some((ent, input));
         }
     }
+
+    /// Synchronizes cached entity tracking fields after building the inspector view.
+    pub(crate) fn sync_after_build(
+        &mut self,
+        selected_entity: Option<hecs::Entity>,
+        inspector_euler: [f32; 3],
+        world: &hecs::World,
+    ) {
+        self.inspected_entity = selected_entity;
+        self.inspector_euler = inspector_euler;
+        self.inspected_entity_name.clear();
+        if let Some(entity) = selected_entity
+            && let Ok(name) = world.get::<&ae_core::ecs::Name>(entity)
+        {
+            self.inspected_entity_name.push_str(name.0.as_str());
+        }
+    }
 }
