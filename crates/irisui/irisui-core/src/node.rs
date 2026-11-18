@@ -295,6 +295,9 @@ pub struct WidgetNode {
     pub tag: u64,
     /// Optional debug name for inspection and profiling.
     pub name: Option<String>,
+    /// Coordinate origin mode applied to [`CanvasPrimitive`](crate::canvas::CanvasPrimitive) items
+    /// attached to this node during rendering.
+    pub canvas_origin: crate::canvas::CanvasOrigin,
     /// Whether this node acts as an invalidation boundary for layout and dirty propagation.
     ///
     /// When a child node is marked dirty, upward propagation halts at the first ancestor where
@@ -339,6 +342,7 @@ impl WidgetNode {
             cursor: None,
             tag: 0,
             name: None,
+            canvas_origin: crate::canvas::CanvasOrigin::Screen,
             is_boundary: false,
         }
     }

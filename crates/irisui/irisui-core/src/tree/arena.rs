@@ -52,6 +52,9 @@ pub struct UiTree {
     pub live_node_tags: std::collections::HashSet<u64>,
     /// Accumulated `(needs_text_prepare, needs_quad_reupload)` flags from live widget updates.
     pub pending_live_refresh: (bool, bool),
+    /// Flag raised when an existing static node is newly promoted to `live_node_tags`,
+    /// signaling a one-time static text layer re-collection so duplicate text is cleared.
+    pub pending_static_text_sync: bool,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -78,6 +81,7 @@ impl UiTree {
             volatile_canvas_commands: HashMap::new(),
             live_node_tags: std::collections::HashSet::new(),
             pending_live_refresh: (false, false),
+            pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
         }
     }
@@ -106,6 +110,7 @@ impl UiTree {
             volatile_canvas_commands: HashMap::new(),
             live_node_tags: std::collections::HashSet::new(),
             pending_live_refresh: (false, false),
+            pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
         }
     }
@@ -136,6 +141,7 @@ impl UiTree {
         self.volatile_canvas_commands.clear();
         self.live_node_tags.clear();
         self.pending_live_refresh = (false, false);
+        self.pending_static_text_sync = false;
         self.event_state.clear_arena_ids();
     }
 
@@ -508,6 +514,18 @@ impl UiTree {
         self.volatile_canvas_commands.remove(&id);
     }
 
+    /// Removes and returns the volatile canvas commands for a specific widget node, if any.
+    ///
+    /// Used by retained live canvas updaters to compare previous primitives against newly emitted
+    /// primitives and avoid marking unchanged canvases dirty.
+    #[inline]
+    pub fn take_canvas_primitives_for(
+        &mut self,
+        id: WidgetId,
+    ) -> Option<Vec<crate::canvas::CanvasPrimitive>> {
+        self.volatile_canvas_commands.remove(&id)
+    }
+
     /// Clears all volatile canvas commands across the entire tree.
     #[inline]
     pub fn clear_all_canvas_primitives(&mut self) {
@@ -569,6 +587,14 @@ impl UiTree {
         std::mem::take(&mut self.pending_live_refresh)
     }
 
+    /// Atomically returns and clears whether a newly promoted live tag requires a one-time
+    /// static text layer refresh.
+    #[inline]
+    #[must_use]
+    pub fn take_static_text_sync_needed(&mut self) -> bool {
+        std::mem::replace(&mut self.pending_static_text_sync, false)
+    }
+
     /// Updates the retained text of the node tagged `tag` in place without mutating layout.
     ///
     /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` and records live text + quad refresh flags
@@ -577,6 +603,9 @@ impl UiTree {
         let Some(id) = self.node_tagged(tag).map(|n| n.id) else {
             return false;
         };
+        if tag != 0 && self.live_node_tags.insert(tag) {
+            self.pending_static_text_sync = true;
+        }
         let Some(node) = self.nodes.get_mut(id) else {
             return false;
         };

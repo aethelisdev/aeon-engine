@@ -541,3 +541,74 @@ fn test_tree_layer_portal_and_propagation() {
     assert!(modal_nodes.contains(&modal_portal));
     assert!(modal_nodes.contains(&modal_child));
 }
+
+#[test]
+fn test_hover_affects_text_distinguishes_static_panels_from_hover_labels() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let static_panel = tree.create_node();
+    let static_label = tree.create_node();
+    let button = tree.create_node();
+    let button_label = tree.create_node();
+    let dock_tab = tree.create_node();
+    let dock_label = tree.create_node();
+
+    tree.add_child(root, static_panel).unwrap();
+    tree.add_child(static_panel, static_label).unwrap();
+    tree.add_child(root, button).unwrap();
+    tree.add_child(button, button_label).unwrap();
+    tree.add_child(root, dock_tab).unwrap();
+    tree.add_child(dock_tab, dock_label).unwrap();
+
+    if let Some(n) = tree.get_mut(static_label) {
+        n.text = Some("Position".to_owned());
+        n.text_color = crate::color::Color::rgb(0.5, 0.5, 0.5);
+    }
+    if let Some(n) = tree.get_mut(button) {
+        n.tag = 0xB001;
+        n.role = WidgetRole::Button;
+    }
+    if let Some(n) = tree.get_mut(button_label) {
+        n.text = Some("Reset".to_owned());
+        n.text_color = crate::color::Color::rgb(0.5, 0.5, 0.5);
+        n.hover_text_color = Some(crate::color::Color::WHITE);
+    }
+    if let Some(n) = tree.get_mut(dock_tab) {
+        n.role = WidgetRole::DockTab;
+    }
+    if let Some(n) = tree.get_mut(dock_label) {
+        n.text = Some("Inspector".to_owned());
+        n.text_color = crate::color::Color::rgb(0.5, 0.5, 0.5);
+        n.hover_text_color = Some(crate::color::Color::WHITE);
+    }
+
+    assert!(!tree.node_hover_affects_text(static_panel));
+    assert!(!tree.node_hover_affects_text(static_label));
+    assert!(tree.node_hover_affects_text(button));
+    assert!(tree.tag_hover_affects_text(0xB001));
+    assert!(tree.node_hover_affects_text(dock_tab));
+    assert!(tree.node_hover_affects_text(dock_label));
+}
+
+#[test]
+fn test_update_live_text_promotes_static_tag_once() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let label = tree.create_node();
+    if let Some(n) = tree.get_mut(label) {
+        n.tag = 0x5555;
+        n.text = Some("Initial".to_owned());
+    }
+    tree.add_child(root, label).unwrap();
+    assert!(!tree.is_live_tag(0x5555));
+    assert!(!tree.take_static_text_sync_needed());
+
+    // First update_live_text promotes tag into live_node_tags and triggers static sync once
+    assert!(tree.update_live_text_by_tag(0x5555, "60 FPS"));
+    assert!(tree.is_live_tag(0x5555));
+    assert!(tree.take_static_text_sync_needed());
+
+    // Subsequent updates keep tag in volatile layer with zero static sync
+    assert!(tree.update_live_text_by_tag(0x5555, "120 FPS"));
+    assert!(!tree.take_static_text_sync_needed());
+}

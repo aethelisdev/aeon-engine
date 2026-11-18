@@ -17,9 +17,11 @@ pub mod dirty;
 pub mod dispatch;
 pub mod error;
 pub mod event;
+pub mod frame_sync;
 pub mod geometry;
 pub mod id;
 pub mod measurer;
+pub mod memo;
 pub mod node;
 pub mod platform;
 pub mod response;
@@ -27,7 +29,7 @@ pub mod style;
 pub mod theme;
 pub mod tree;
 
-pub use canvas::CanvasPrimitive;
+pub use canvas::{CanvasOrigin, CanvasPrimitive};
 pub use color::Color;
 pub use dirty::DirtyFlags;
 pub use dispatch::{
@@ -39,9 +41,11 @@ pub use event::{
     EventDispatcher, FileDropTarget, FocusManager, HitTestResult, ImeEvent, InteractionEvent,
     KeyCode, MouseButton, UiEvent, WidgetState,
 };
+pub use frame_sync::{IrisSurfaceFrameFlags, SurfaceRefreshMode};
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
 pub use measurer::TextMeasurer;
+pub use memo::MemoCache;
 pub use node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 pub use platform::{ClipboardProvider, InMemoryClipboard};
 pub use response::{ResponseFlags, WidgetResponse};
@@ -56,11 +60,12 @@ pub use tree::{HitTargetInfo, UiTree};
 /// Designed to be imported via wildcard `use irisui_core::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     pub use crate::{
-        AlignItems, Border, BoxShadow, CanvasPrimitive, ClipboardProvider, Color, CornerRadii,
-        DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId, FileDropTarget,
-        FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult, ImeEvent,
-        InMemoryClipboard, Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode,
-        MouseButton, Point, PopupMenuState, Position, Rect, ResponseFlags, Size, Style, TextAlign,
+        AlignItems, Border, BoxShadow, CanvasOrigin, CanvasPrimitive, ClipboardProvider, Color,
+        CornerRadii, DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId,
+        FileDropTarget, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
+        ImeEvent, InMemoryClipboard, Insets, InteractionEvent, IrisCoreError,
+        IrisSurfaceFrameFlags, JustifyContent, KeyCode, MemoCache, MouseButton, Point,
+        PopupMenuState, Position, Rect, ResponseFlags, Size, Style, SurfaceRefreshMode, TextAlign,
         TextMeasurer, TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId,
         WidgetNode, WidgetResponse, WidgetRole, WidgetState,
     };

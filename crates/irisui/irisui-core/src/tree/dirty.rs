@@ -127,4 +127,71 @@ impl UiTree {
     pub fn has_dirty_nodes(&self, flags: DirtyFlags) -> bool {
         self.nodes.values().any(|n| n.dirty.intersects(flags))
     }
+
+    /// Returns `true` when hovering `id` can alter visible text color in the text collection pass.
+    ///
+    /// Inspects `id` (or its enclosing [`crate::node::WidgetRole::DockTab`] ancestor) and descendants
+    /// inheriting hover state (`tag == 0`) with zero heap allocation.
+    #[must_use]
+    pub fn node_hover_affects_text(&self, id: WidgetId) -> bool {
+        let Some(node) = self.nodes.get(id) else {
+            return false;
+        };
+        if !node.visible {
+            return false;
+        }
+        let mut effective_root = id;
+        let mut curr = node.parent;
+        while let Some(anc_id) = curr {
+            let Some(anc) = self.nodes.get(anc_id) else {
+                break;
+            };
+            if anc.role == crate::node::WidgetRole::DockTab {
+                effective_root = anc_id;
+                break;
+            }
+            curr = anc.parent;
+        }
+        let root_tag = self.nodes.get(effective_root).map_or(0, |n| n.tag);
+        self.subtree_hover_affects_text(effective_root, true, root_tag)
+    }
+
+    /// Returns `true` when hovering a node tagged `tag` can alter visible text color.
+    #[must_use]
+    pub fn tag_hover_affects_text(&self, tag: u64) -> bool {
+        tag != 0
+            && self
+                .find_node_by_tag(tag)
+                .is_some_and(|id| self.node_hover_affects_text(id))
+    }
+
+    fn subtree_hover_affects_text(&self, current: WidgetId, is_root: bool, root_tag: u64) -> bool {
+        let Some(node) = self.nodes.get(current) else {
+            return false;
+        };
+        if !node.visible {
+            return false;
+        }
+        if !is_root && node.tag != 0 && node.tag != root_tag {
+            return false;
+        }
+        if node.text.as_deref().is_some_and(|t| !t.is_empty()) {
+            if let Some(hc) = node.hover_text_color {
+                if hc != node.text_color {
+                    return true;
+                }
+            } else if matches!(
+                node.role,
+                crate::node::WidgetRole::Button
+                    | crate::node::WidgetRole::MenuBarItem
+                    | crate::node::WidgetRole::DropdownItem
+            ) && node.text_color != crate::color::Color::WHITE
+            {
+                return true;
+            }
+        }
+        node.children
+            .iter()
+            .any(|&child| self.subtree_hover_affects_text(child, false, root_tag))
+    }
 }
