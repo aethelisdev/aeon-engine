@@ -79,6 +79,10 @@ fn dispatch_menubar_with_descriptor(
             scope.open_modal(0x5001);
             Some(0x5001)
         }
+        Some(0x1006) => {
+            scope.open_modal(crate::ui::iris_bridge::export_modal::EXPORT_MODAL_TAG);
+            Some(0x1006)
+        }
         other => other,
     }
 }
@@ -179,6 +183,8 @@ fn file_menu_descriptor() -> MenuSectionDescriptor {
         .with_separator()
         .with_action_full("🖫", "Save Scene", Some("Ctrl S"), 0x1003)
         .with_action_full("🖫", "Save Scene As", Some("Ctrl Shift S"), 0x1004)
+        .with_separator()
+        .with_action_with_icon("📦", "Export Project...", 0x1006)
         .with_separator()
         .with_action_full("⏻", "Exit", Some("Alt F4"), 0x1005)
 }

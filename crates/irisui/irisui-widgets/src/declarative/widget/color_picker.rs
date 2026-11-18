@@ -326,9 +326,10 @@ impl<'a> Widget for ColorPicker<'a> {
 
         // Saturation-Value Ring Indicator
         let ring_size = 10.0;
-        let ring_x = (self.state.saturation * sv_w - ring_size * 0.5).clamp(0.0, sv_w - ring_size);
-        let ring_y =
-            ((1.0 - self.state.value) * sv_h - ring_size * 0.5).clamp(0.0, sv_h - ring_size);
+        let ring_x = (self.state.saturation * sv_w - ring_size * 0.5)
+            .clamp(0.0, (sv_w - ring_size).max(0.0));
+        let ring_y = ((1.0 - self.state.value) * sv_h - ring_size * 0.5)
+            .clamp(0.0, (sv_h - ring_size).max(0.0));
         let ring_style = Style::new()
             .position_absolute()
             .left(ring_x)
@@ -362,7 +363,8 @@ impl<'a> Widget for ColorPicker<'a> {
         }
 
         let ind_h = 4.0;
-        let ind_y = (self.state.hue / 360.0 * sv_h - ind_h * 0.5).clamp(0.0, sv_h - ind_h);
+        let ind_y =
+            (self.state.hue / 360.0 * sv_h - ind_h * 0.5).clamp(0.0, (sv_h - ind_h).max(0.0));
         let ind_style = Style::new()
             .position_absolute()
             .left(0.0)

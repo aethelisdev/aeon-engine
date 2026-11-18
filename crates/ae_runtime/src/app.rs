@@ -5,10 +5,10 @@
 //! or workspace folders using the shared [`crate::simulation`] runtime loop.
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use crate::hud::InGameHudState;
+use crate::hud::{InGameHudState, RuntimeHudOverlay, RuntimePauseAction};
 use crate::simulation::{
-    SaveLoadDispatchContext, process_save_load_requests, update_play_camera,
-    update_skeletal_animations,
+    SaveLoadDispatchContext, process_save_load_requests, step_play_state_and_pause,
+    update_play_camera, update_skeletal_animations,
 };
 use crate::static_plugin::attach_static_game_logic;
 use crate::streaming::{RuntimeStreamingManager, bind_entity_assets_from_binding};
@@ -30,7 +30,7 @@ use ae_plugin_host::PluginManager;
 use ae_renderer::asset::{AssetHandle, AssetManager, AssetStorage};
 use ae_renderer::render::types::{LightUniform, RenderScene};
 use ae_renderer::render::{
-    OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
+    OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset, ViewportRect,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -57,6 +57,7 @@ pub struct RuntimeSession {
     event_bus: DynamicEventBus,
     state_manager: StateManager,
     hud: InGameHudState,
+    hud_overlay: RuntimeHudOverlay,
     plugin_manager: PluginManager,
     dimension_mode: ActiveDimensionMode,
     sprite_2d: Option<(
@@ -68,6 +69,7 @@ pub struct RuntimeSession {
     physics_sync_dirty: bool,
     start_instant: std::time::Instant,
     is_cursor_grabbed: bool,
+    should_exit: bool,
 }
 
 impl RuntimeSession {
@@ -81,7 +83,10 @@ impl RuntimeSession {
         args: &RuntimeLaunchArgs,
         embedded_pak: Option<&'static [u8]>,
     ) -> Result<Self, String> {
-        let (render_state, mut camera) = RenderState::new(Arc::clone(&window)).await?;
+        let (mut render_state, mut camera) = RenderState::new(Arc::clone(&window)).await?;
+        render_state.graphics_settings.fps_limit =
+            ae_renderer::graphics_settings::FpsLimit::Limit60;
+        render_state.apply_settings_changes();
         let (vfs, entry_world, save_games_dir) = discover_vfs_and_entry(args, embedded_pak)?;
 
         let mut audio_manager = AudioManager::new();
@@ -133,12 +138,38 @@ impl RuntimeSession {
         let mut plugin_manager = PluginManager::new();
         attach_static_game_logic(&mut plugin_manager);
 
+        let mut input = InputManager::new();
+        if let Ok(raw_input) = streaming.vfs().read_bytes("Config/input.json") {
+            match std::str::from_utf8(&raw_input)
+                .map_err(|e| e.to_string())
+                .and_then(ae_core::action_map::ActionMap::from_json)
+            {
+                Ok(action_map) => {
+                    log::info!(
+                        "Loaded custom ActionMap '{}' from Config/input.json",
+                        action_map.name
+                    );
+                    input.action_map = action_map;
+                }
+                Err(err) => {
+                    log::warn!("Invalid Config/input.json in VFS, using default ActionMap: {err}");
+                }
+            }
+        }
+
+        let hud_overlay = RuntimeHudOverlay::new(
+            &render_state.device,
+            render_state.config.format,
+            (render_state.size.width, render_state.size.height),
+            window.scale_factor() as f32,
+        );
+
         Ok(Self {
             render_state,
             window,
             camera,
             time: Time::new(),
-            input: InputManager::new(),
+            input,
             mouse_delta: (0.0, 0.0),
             mouse_sensitivity: 0.005,
             ecs,
@@ -150,6 +181,7 @@ impl RuntimeSession {
             event_bus: DynamicEventBus::new(),
             state_manager: StateManager::new(),
             hud: InGameHudState::new(),
+            hud_overlay,
             plugin_manager,
             dimension_mode,
             sprite_2d,
@@ -158,6 +190,7 @@ impl RuntimeSession {
             physics_sync_dirty: false,
             start_instant: std::time::Instant::now(),
             is_cursor_grabbed: false,
+            should_exit: false,
         })
     }
 
@@ -183,10 +216,36 @@ impl RuntimeSession {
         }
         self.time.tick();
 
+        let (was_paused, is_paused) = step_play_state_and_pause(
+            &mut self.state_manager,
+            &mut self.ecs,
+            &mut self.event_bus,
+            &self.input,
+            self.time.delta_time,
+        );
+        if is_paused && !was_paused {
+            self.set_cursor_grab(false);
+            self.mouse_delta = (0.0, 0.0);
+            self.input.clear_pressed_keys();
+        } else if !is_paused && was_paused {
+            if !self.world_info.is_2d {
+                self.set_cursor_grab(true);
+            }
+            self.mouse_delta = (0.0, 0.0);
+        }
+
         if self.event_bus.is_module_enabled(EngineModule::Physics) {
             while self.time.consume_fixed_step() {
                 if !self.state_manager.is_paused() {
                     self.ecs.update(self.time.fixed_time_step);
+                    crate::simulation::step_player_movement(
+                        &self.input,
+                        &mut self.ecs,
+                        &mut self.physics_world,
+                        &self.camera,
+                        self.world_info.is_2d,
+                        self.time.fixed_time_step,
+                    );
                     self.physics_world.step(
                         &mut self.ecs.world,
                         |handle| {
@@ -424,6 +483,27 @@ impl RuntimeSession {
             is_2d_mode: is_2d,
         };
 
+        let is_paused = self.state_manager.is_paused();
+        let pause_action = self.hud_overlay.prepare_and_poll_action(
+            &self.ecs.world,
+            is_paused,
+            &self.render_state.device,
+            &self.render_state.queue,
+        );
+
+        let hud_overlay = &mut self.hud_overlay;
+        let mut ui_cb = |device: &wgpu::Device,
+                         queue: &wgpu::Queue,
+                         encoder: &mut wgpu::CommandEncoder,
+                         _window: &Window,
+                         surface_view: &wgpu::TextureView,
+                         _viewport_view: Option<&wgpu::TextureView>| {
+            hud_overlay.render(device, queue, encoder, surface_view);
+            // Return zero rect so RenderState does not allocate an offscreen viewport_texture
+            // and renders the 3D/2D scene directly onto surface_view behind the HUD.
+            ViewportRect::default()
+        };
+
         let _ = self.render_state.render(RenderFrameParams {
             scene,
             camera: &self.camera,
@@ -432,11 +512,26 @@ impl RuntimeSession {
             asset_manager: &self.asset_manager,
             enabled_modules: &self.event_bus.enabled_modules,
             options: &options,
-            ui_renderer: None,
+            ui_renderer: Some(&mut ui_cb),
         });
 
-        let should_grab = !self.state_manager.is_paused() && !is_2d;
-        self.set_cursor_grab(should_grab);
+        match pause_action {
+            RuntimePauseAction::Resume => {
+                self.state_manager.pop();
+                let mut cmd = ae_core::commands::EntityCommandBuffer::new();
+                self.state_manager
+                    .update(&mut self.ecs.world, &mut self.event_bus, &mut cmd, 0.0);
+                cmd.apply(&mut self.ecs.world);
+                if !is_2d {
+                    self.set_cursor_grab(true);
+                }
+                self.mouse_delta = (0.0, 0.0);
+            }
+            RuntimePauseAction::Exit => {
+                self.should_exit = true;
+            }
+            RuntimePauseAction::None => {}
+        }
     }
 }
 
@@ -459,6 +554,7 @@ struct DesktopPlayerApp {
     args: RuntimeLaunchArgs,
     embedded_pak: Option<&'static [u8]>,
     session: Option<RuntimeSession>,
+    last_frame_time: std::time::Instant,
 }
 
 impl ApplicationHandler for DesktopPlayerApp {
@@ -492,10 +588,16 @@ impl ApplicationHandler for DesktopPlayerApp {
         let Some(session) = self.session.as_mut() else {
             return;
         };
+        let is_paused = session.state_manager.is_paused();
+        session.hud_overlay.handle_window_event(&event, is_paused);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 session.render_state.resize(size);
+                session.hud_overlay.resize(
+                    (size.width, size.height),
+                    session.window.scale_factor() as f32,
+                );
                 if size.height > 0 {
                     session.camera.aspect = size.width as f32 / size.height as f32;
                 }
@@ -510,9 +612,22 @@ impl ApplicationHandler for DesktopPlayerApp {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
+                if button == winit::event::MouseButton::Left
+                    && state == ElementState::Pressed
+                    && !session.is_cursor_grabbed
+                    && !session.world_info.is_2d
+                    && !is_paused
+                {
+                    session.set_cursor_grab(true);
+                }
                 session.input.process_mouse_button_event(button, state);
             }
-            WindowEvent::RedrawRequested => session.step_frame(),
+            WindowEvent::RedrawRequested => {
+                session.step_frame();
+                if session.should_exit {
+                    event_loop.exit();
+                }
+            }
             _ => {}
         }
     }
@@ -533,6 +648,24 @@ impl ApplicationHandler for DesktopPlayerApp {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(session) = self.session.as_ref() {
+            match session.render_state.graphics_settings.fps_limit {
+                ae_renderer::graphics_settings::FpsLimit::Limit60 => {
+                    let target = std::time::Duration::from_secs_f32(1.0 / 60.0);
+                    let elapsed = self.last_frame_time.elapsed();
+                    if elapsed < target {
+                        spin_sleep::sleep(target - elapsed);
+                    }
+                }
+                ae_renderer::graphics_settings::FpsLimit::Limit120 => {
+                    let target = std::time::Duration::from_secs_f32(1.0 / 120.0);
+                    let elapsed = self.last_frame_time.elapsed();
+                    if elapsed < target {
+                        spin_sleep::sleep(target - elapsed);
+                    }
+                }
+                ae_renderer::graphics_settings::FpsLimit::Uncapped => {}
+            }
+            self.last_frame_time = std::time::Instant::now();
             session.window.request_redraw();
         }
     }
@@ -552,6 +685,7 @@ pub fn run_desktop_player(
         args,
         embedded_pak,
         session: None,
+        last_frame_time: std::time::Instant::now(),
     };
     event_loop
         .run_app(&mut app)

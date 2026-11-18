@@ -36,6 +36,11 @@ ae_animation = { path = "../ae_animation" }
 ae_texture = { path = "../ae_texture" }
 ae_renderer = { path = "../ae_renderer" }
 ae_world = { workspace = true }
+irisui-core = { workspace = true }
+irisui-layout = { workspace = true }
+irisui-text = { workspace = true }
+irisui-wgpu = { workspace = true }
+irisui-widgets = { workspace = true, default-features = false }
 game_logic = { path = "../game_logic", optional = true }
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]

@@ -13,12 +13,14 @@ serde_json = "1.0.145"
 postcard = { workspace = true }
 ae_core = { path = "../ae_core" }
 ae_world = { workspace = true }
+ae_export = { workspace = true }
 ae_editor = { path = "../ae_editor" }
 ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
 ae_texture = { path = "../ae_texture" }
 ae_uidesign = { path = "../ae_uidesign" }
+ae_runtime = { path = "../ae_runtime" }
 ae_2d = { workspace = true }
 image = { version = "0.25.10", default-features = false, features = [
     "png",

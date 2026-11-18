@@ -12,6 +12,8 @@ use ae_core::ecs::{
 use ae_core::events::{
     DynamicEventBus, LoadGameCompleted, LoadGameRequest, SaveGameCompleted, SaveGameRequest,
 };
+use ae_core::input::InputManager;
+use ae_physics::world::PhysicsWorld;
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
 use ae_world::{
@@ -21,6 +23,112 @@ use ae_world::{
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Advances built-in Play-mode player movement (2D top-down/planar `PlayerTag` translation and
+/// 3D `CharacterController` WASD + Sprint + Jump + Gravity kinematics) for one fixed timestep.
+///
+/// Shared between `ae_engine` Play mode and the standalone `ae_runtime` executable so exported
+/// builds exhibit identical player controls without duplicating movement logic.
+pub fn step_player_movement(
+    input: &InputManager,
+    ecs: &mut EcsManager,
+    physics_world: &mut PhysicsWorld,
+    camera: &ae_core::camera::Camera,
+    is_2d: bool,
+    dt: f32,
+) {
+    let fwd_axis = input.get_axis("MoveForward");
+    let right_axis = input.get_axis("MoveRight");
+    let is_running = input.is_action_pressed("Run");
+
+    if is_2d {
+        let speed = if is_running { 10.0 } else { 5.0 };
+        let move_x = right_axis * speed * dt;
+        let move_y = fwd_axis * speed * dt;
+        if move_x.abs() > 0.0001 || move_y.abs() > 0.0001 {
+            for (_tag, pos) in ecs.world.query::<(&PlayerTag, &mut Position)>().iter() {
+                pos.x += move_x;
+                pos.y += move_y;
+                pos.z = 0.0;
+            }
+        }
+    }
+
+    let kcc_entities: Vec<hecs::Entity> = ecs
+        .world
+        .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
+        .iter()
+        .map(|(ent, _)| ent)
+        .collect();
+    if kcc_entities.is_empty() {
+        return;
+    }
+
+    use ae_physics::glam::{Quat, Vec3};
+    let fwd_vec = camera.get_forward();
+    let right_vec = camera.get_right();
+    let cam_fwd_xz = Vec3::new(fwd_vec.x, 0.0, fwd_vec.z).normalize_or_zero();
+    let cam_right_xz = Vec3::new(right_vec.x, 0.0, right_vec.z).normalize_or_zero();
+
+    let dir = cam_fwd_xz * fwd_axis + cam_right_xz * right_axis;
+    let speed = if is_running { 10.0 } else { 6.0 };
+    let move_dir = dir.normalize_or_zero();
+
+    if move_dir.length_squared() > 0.001 {
+        let rot_quat = Quat::from_rotation_y(move_dir.x.atan2(move_dir.z));
+        for &ent in &kcc_entities {
+            if let Ok(mut r) = ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
+                r.x = rot_quat.x;
+                r.y = rot_quat.y;
+                r.z = rot_quat.z;
+                r.w = rot_quat.w;
+            }
+            if let Some(&handle) = physics_world.entity_to_body.get(&ent)
+                && let Some(body) = physics_world.rigid_body_set.get_mut(handle)
+            {
+                body.set_rotation(rot_quat, true);
+            }
+        }
+    }
+
+    let jump_pressed = input.is_action_pressed("Jump");
+    for ent in kcc_entities {
+        let is_grounded = ecs
+            .world
+            .get::<&ae_core::ecs::CharacterController>(ent)
+            .is_ok_and(|c| c.is_grounded);
+        let mut vert_vel = ecs
+            .world
+            .get::<&ae_core::ecs::Velocity>(ent)
+            .map_or(0.0, |v| v.y);
+
+        if is_grounded {
+            if jump_pressed {
+                vert_vel = 9.0;
+                if let Ok(mut ctrl) = ecs.world.get::<&mut ae_core::ecs::CharacterController>(ent) {
+                    ctrl.is_grounded = false;
+                }
+            } else {
+                vert_vel = 0.0;
+            }
+        } else {
+            vert_vel -= 20.0 * dt;
+        }
+
+        if let Ok(mut vel) = ecs.world.get::<&mut ae_core::ecs::Velocity>(ent) {
+            vel.x = 0.0;
+            vel.y = vert_vel;
+            vel.z = 0.0;
+        }
+
+        let translation = Vec3::new(
+            move_dir.x * speed * dt,
+            vert_vel * dt,
+            move_dir.z * speed * dt,
+        );
+        physics_world.move_character(&mut ecs.world, ent, translation, dt);
+    }
+}
 
 /// Updates Play-mode camera tracking (orthographic 2D follow or 3D orbit rig) without editor state.
 ///
@@ -368,6 +476,38 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
     world_changed
 }
 
+/// Ticks the runtime [`GameStateManager`](ae_core::state::GameStateManager) and toggles
+/// [`InGamePauseState`](crate::hud::InGamePauseState) when the `"Pause"` action is just pressed.
+///
+/// Returns `(was_paused, is_paused)` so callers can synchronize cursor grab and skip
+/// gameplay camera/simulation updates while paused.
+pub fn step_play_state_and_pause(
+    state_manager: &mut ae_core::state::StateManager,
+    ecs: &mut ae_core::ecs::EcsManager,
+    event_bus: &mut DynamicEventBus,
+    input: &InputManager,
+    dt: f32,
+) -> (bool, bool) {
+    let was_paused = state_manager.is_paused();
+
+    let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
+    state_manager.update(&mut ecs.world, event_bus, &mut state_cmd_buffer, dt);
+    state_cmd_buffer.apply(&mut ecs.world);
+
+    if input.is_action_just_pressed("Pause") {
+        if state_manager.is_paused() {
+            state_manager.pop();
+        } else {
+            state_manager.push(crate::hud::InGamePauseState::new());
+        }
+        let mut toggle_cmd = ae_core::commands::EntityCommandBuffer::new();
+        state_manager.update(&mut ecs.world, event_bus, &mut toggle_cmd, 0.0);
+        toggle_cmd.apply(&mut ecs.world);
+    }
+
+    (was_paused, state_manager.is_paused())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -438,5 +578,56 @@ mod tests {
         assert!((restored_pos.z + 18.0).abs() < 1e-5);
 
         let _ = std::fs::remove_dir_all(&save_dir);
+    }
+
+    #[test]
+    fn test_step_play_state_and_pause_toggles_pause_via_action_map() {
+        let mut state_manager = ae_core::state::StateManager::new();
+        let mut ecs = ae_core::ecs::EcsManager::new();
+        let mut event_bus = DynamicEventBus::new();
+        let mut input = InputManager::new();
+
+        let (was_paused, is_paused) =
+            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        assert!(!was_paused);
+        assert!(!is_paused);
+
+        input.process_key_event(
+            ae_core::input::KeyCode::KeyP,
+            winit::event::ElementState::Pressed,
+        );
+        let (was_paused, is_paused) =
+            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        assert!(!was_paused);
+        assert!(is_paused);
+        assert!(
+            ecs.world
+                .query::<&ae_core::ui::PauseMenuUiTag>()
+                .iter()
+                .next()
+                .is_some()
+        );
+
+        input.end_frame();
+        input.process_key_event(
+            ae_core::input::KeyCode::KeyP,
+            winit::event::ElementState::Released,
+        );
+        input.end_frame();
+        input.process_key_event(
+            ae_core::input::KeyCode::KeyP,
+            winit::event::ElementState::Pressed,
+        );
+        let (was_paused, is_paused) =
+            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        assert!(was_paused);
+        assert!(!is_paused);
+        assert!(
+            ecs.world
+                .query::<&ae_core::ui::PauseMenuUiTag>()
+                .iter()
+                .next()
+                .is_none()
+        );
     }
 }

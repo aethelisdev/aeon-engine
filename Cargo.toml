@@ -20,6 +20,7 @@ members = [
     "crates/ae_2d/ae_2d",
     "crates/ae_launcher",
     "crates/ae_mcp",
+    "crates/ae_export",
     "crates/ae_runtime",
     "crates/ae_engine",
     "crates/irisui/irisui-core",
@@ -84,6 +85,7 @@ ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
 ae_2d = { path = "crates/ae_2d/ae_2d" }
 ae_mcp = { path = "crates/ae_mcp" }
+ae_export = { path = "crates/ae_export" }
 ae_runtime = { path = "crates/ae_runtime" }
 ae_world = { path = "crates/ae_world" }
 

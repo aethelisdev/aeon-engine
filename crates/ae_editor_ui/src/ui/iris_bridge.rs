@@ -9,6 +9,7 @@
 pub mod assets;
 pub mod console;
 pub mod cursor;
+pub mod export_modal;
 pub mod floating_layer;
 pub mod hierarchy;
 pub mod icons;

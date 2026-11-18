@@ -11,9 +11,7 @@
 //! Crosshair reticle rendering is delegated directly to hardware SDF command lists without dummy layout nodes.
 //! Button interactions are 100% semantic tag-driven ([`TAG_PLAY_RESUME`], [`TAG_PLAY_EXIT`]).
 
-use super::types::{
-    TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME, ViewportHudParams,
-};
+use super::types::{TAG_PLAY_CROSSHAIR, TAG_PLAY_GUIDE_BADGE, ViewportHudParams};
 use irisui::prelude::*;
 use irisui::wgpu_backend::{DrawCommandList, QuadInstance};
 
@@ -29,12 +27,17 @@ pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
         .is_some();
 
     if is_paused {
-        build_in_game_pause_menu(scope, params);
+        ae_runtime::hud::build_in_game_pause_menu(scope, params.viewport_rect, "⏹  Exit to Editor");
         return;
     }
 
     // 1. Render in-game ECS UI elements (health bar, score text, custom HUD) if present
-    render_ingame_ecs_ui(scope, params);
+    ae_runtime::hud::build_ingame_ecs_ui(
+        scope,
+        params.world,
+        params.viewport_rect,
+        params.cursor_pos,
+    );
 
     // Check whether the active player character has `CharacterAction` (aiming/shooting ability)
     let has_action = if let Some(sel) = params.selected_entity
@@ -186,218 +189,9 @@ pub fn append_crosshair_quads(command_list: &mut DrawCommandList, rect: Rect) {
     }
 }
 
-/// Builds the centered, interactive In-Game Pause Menu overlay when gameplay is paused.
-///
-/// Constructed entirely using declarative [`UiScope`] modal primitives:
-/// [`UiScope::container`], [`UiScope::modal_confirm_button`], and [`UiScope::modal_danger_button`].
-/// Button click events are dispatched 100% via semantic tags ([`TAG_PLAY_RESUME`], [`TAG_PLAY_EXIT`]).
-fn build_in_game_pause_menu(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    let card_w = 320.0;
-    let card_h = 220.0;
-
-    // 1. Full-viewport darkened translucent backdrop
-    let backdrop_style = Style::new()
-        .position_absolute()
-        .left(0.0)
-        .top(0.0)
-        .width(params.viewport_rect.width)
-        .height(params.viewport_rect.height)
-        .background(Color::rgba(0.04, 0.05, 0.08, 0.70));
-
-    let card_rect = Rect {
-        x: (params.viewport_rect.width - card_w) * 0.5,
-        y: (params.viewport_rect.height - card_h) * 0.5,
-        width: card_w,
-        height: card_h,
-    };
-
-    scope.container_named("InGamePauseBackdrop", backdrop_style, |card_scope| {
-        build_pause_card(card_scope, card_rect);
-    });
-}
-
-/// Builds the pause menu modal card widget.
-fn build_pause_card(scope: &mut UiScope, card_rect: Rect) {
-    let card_style = Style::new()
-        .position_absolute()
-        .left(card_rect.x)
-        .top(card_rect.y)
-        .flex_col()
-        .align_items(AlignItems::Center)
-        .padding_insets(Insets::new(24.0, 20.0, 20.0, 20.0))
-        .gap(10.0)
-        .width(card_rect.width)
-        .height(card_rect.height)
-        .background(Color::rgba(0.09, 0.11, 0.15, 0.96))
-        .border(1.5, Color::rgba(0.0, 0.80, 1.0, 0.60))
-        .border_radius(8.0)
-        .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
-
-    scope.container_named("InGamePauseCard", card_style, |card| {
-        card.container_named("InGamePauseTitle", Style::new(), |title| {
-            title.label_custom(
-                "GAME PAUSED",
-                20.0,
-                Color::rgba(1.0, 1.0, 1.0, 1.0),
-                TextAlign::Center,
-            );
-        });
-
-        card.label_custom(
-            "Press P or choose an option below",
-            11.0,
-            Color::rgba(0.60, 0.68, 0.78, 1.0),
-            TextAlign::Center,
-        );
-
-        let btn_group_style = Style::new()
-            .flex_col()
-            .align_items(AlignItems::Center)
-            .gap(12.0)
-            .width(230.0);
-
-        card.container(btn_group_style, |btns| {
-            let btn_style = Style::new()
-                .width(180.0)
-                .height(26.0)
-                .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
-                .background(Color::rgba(0.0, 0.30, 0.42, 0.60))
-                .border(1.0, Color::rgba(0.0, 0.75, 0.95, 0.60))
-                .border_radius(4.0)
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center);
-
-            btns.add(
-                Button::new("▶  Resume Game")
-                    .name("InGamePauseResumeButton")
-                    .style(btn_style)
-                    .tag(TAG_PLAY_RESUME),
-            );
-            btns.add(
-                Button::new("⏹  Exit to Editor")
-                    .name("InGamePauseExitButton")
-                    .style(btn_style)
-                    .tag(TAG_PLAY_EXIT),
-            );
-        });
-    });
-}
-
-/// Renders active in-game ECS UI components (e.g. Health Bars, Score text) into declarative nodes.
-fn render_ingame_ecs_ui(scope: &mut UiScope, params: &ViewportHudParams<'_>) {
-    let screen_w = params.viewport_rect.width;
-    let screen_h = params.viewport_rect.height;
-    if screen_w <= 10.0 || screen_h <= 10.0 {
-        return;
-    }
-
-    let mouse_pos = Some([
-        params.cursor_pos.x - params.viewport_rect.x,
-        params.cursor_pos.y - params.viewport_rect.y,
-    ]);
-
-    let draw_commands = ae_core::ui::UiLayoutResolver::resolve_draw_commands(
-        params.world,
-        screen_w,
-        screen_h,
-        mouse_pos,
-        false,
-    );
-
-    if draw_commands.is_empty() {
-        return;
-    }
-
-    for cmd in &draw_commands {
-        match cmd {
-            ae_core::ui::UiDrawCommand::Rect {
-                rect,
-                fill_color,
-                border_color,
-                border_width,
-                border_radius,
-                ..
-            } => {
-                let mut style = Style::new()
-                    .position_absolute()
-                    .left(rect.min_x)
-                    .top(rect.min_y)
-                    .width(rect.width())
-                    .height(rect.height())
-                    .background(Color::rgba(
-                        fill_color[0],
-                        fill_color[1],
-                        fill_color[2],
-                        fill_color[3],
-                    ));
-                if border_color[3] > 0.01 && *border_width > 0.0 {
-                    style = style.border(
-                        *border_width,
-                        Color::rgba(
-                            border_color[0],
-                            border_color[1],
-                            border_color[2],
-                            border_color[3],
-                        ),
-                    );
-                }
-                if *border_radius > 0.0 {
-                    style = style.border_radius(*border_radius);
-                }
-                scope.empty_box(style);
-            }
-            ae_core::ui::UiDrawCommand::Text {
-                pos,
-                text,
-                font_size,
-                color,
-                alignment,
-                ..
-            } => {
-                let approx_w = (text.len() as f32) * (*font_size * 0.65);
-                let approx_h = *font_size * 1.3;
-                let text_x = match alignment {
-                    ae_core::ui::UiTextAlignment::Left => pos[0],
-                    ae_core::ui::UiTextAlignment::Center => pos[0] - approx_w * 0.5,
-                    ae_core::ui::UiTextAlignment::Right => pos[0] - approx_w,
-                };
-                let text_y = pos[1] - approx_h * 0.5;
-                let iris_align = match alignment {
-                    ae_core::ui::UiTextAlignment::Left => TextAlign::Left,
-                    ae_core::ui::UiTextAlignment::Center => TextAlign::Center,
-                    ae_core::ui::UiTextAlignment::Right => TextAlign::Right,
-                };
-                let style = Style::new()
-                    .position_absolute()
-                    .left(text_x)
-                    .top(text_y)
-                    .width(approx_w)
-                    .height(approx_h);
-                scope.container(style, |tc| {
-                    tc.label_custom(
-                        text,
-                        *font_size,
-                        Color::rgba(color[0], color[1], color[2], color[3]),
-                        iris_align,
-                    );
-                });
-            }
-            ae_core::ui::UiDrawCommand::Image { rect, tint, .. } => {
-                let style = Style::new()
-                    .position_absolute()
-                    .left(rect.min_x)
-                    .top(rect.min_y)
-                    .width(rect.width())
-                    .height(rect.height())
-                    .background(Color::rgba(tint[0], tint[1], tint[2], tint[3]));
-                scope.empty_box(style);
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::types::{TAG_PLAY_EXIT, TAG_PLAY_RESUME};
     use super::*;
     use ae_editor::gizmo::{GizmoMode, GizmoSpace};
     use ae_editor::snapping::SnapSettings;

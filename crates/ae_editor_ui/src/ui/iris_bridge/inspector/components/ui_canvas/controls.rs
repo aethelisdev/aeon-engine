@@ -57,7 +57,7 @@ pub fn draw_ui_slider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity:
         |card, s| {
             card.prop_f32("Min:", &mut s.min, -100_000.0..=100_000.0, 0.1);
             card.prop_f32("Max:", &mut s.max, -100_000.0..=100_000.0, 0.1);
-            card.prop_f32("Value:", &mut s.value, s.min..=s.max, 0.05);
+            card.prop_f32("Value:", &mut s.value, s.min..=s.max.max(s.min), 0.05);
         },
     );
 }

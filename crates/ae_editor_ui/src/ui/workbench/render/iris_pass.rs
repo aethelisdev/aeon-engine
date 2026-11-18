@@ -259,6 +259,11 @@ impl EngineUi {
                         },
                         &mut menubar_bus,
                     );
+                    iris_bridge::export_modal::render_export_project_modal(
+                        scope,
+                        &mut ctx.overlay.export_modal,
+                        &mut menubar_bus,
+                    );
                     if ctx.overlay.assets.dialog_host.is_active() {
                         iris_bridge::assets::panel::render_assets_dialog_host(
                             scope,

@@ -132,6 +132,41 @@ pub enum EngineUiAction {
     ModifyLodThresholds(hecs::Entity, f32, f32),
     ModifyLodModel(hecs::Entity, u8, Option<ae_renderer::asset::AssetHandle>),
     SpawnPhase1TestSandbox,
+    /// Launches standalone project export using the configured request parameters.
+    StartProjectExport(ae_export::ExportRequest),
+}
+
+/// UI state model backing the declarative `File -> Export Project...` modal dialog.
+#[derive(Debug, Clone)]
+pub struct ExportDialogState {
+    /// Selected target platform (`Linux`, `Windows GNU`, `Windows MSVC`).
+    pub target: ae_export::ExportTarget,
+    /// Block compression strategy for `game.aepak`.
+    pub compression: ae_export::CookCompressionProfile,
+    /// Destination directory path entered by the user.
+    pub output_dir: String,
+    /// Whether to compile `ae_runtime --release` alongside `game.aepak`.
+    pub build_binary: bool,
+    /// `true` while background export worker is active.
+    pub is_running: bool,
+    /// Normalized progress `[0.0, 1.0]` displayed by the live progress bar.
+    pub progress: f32,
+    /// Latest human-readable stage or completion/error diagnostic.
+    pub status_message: String,
+}
+
+impl Default for ExportDialogState {
+    fn default() -> Self {
+        Self {
+            target: ae_export::ExportTarget::LinuxX86_64,
+            compression: ae_export::CookCompressionProfile::FastLz4,
+            output_dir: "dist_export/standalone".to_string(),
+            build_binary: true,
+            is_running: false,
+            progress: 0.0,
+            status_message: "Ready to package game.aepak and standalone runtime.".to_string(),
+        }
+    }
 }
 
 impl EngineUiAction {

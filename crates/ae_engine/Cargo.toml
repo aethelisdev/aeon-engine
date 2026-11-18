@@ -42,6 +42,7 @@ ae_editor = { path = "../ae_editor" }
 ae_editor_ui = { path = "../ae_editor_ui" }
 ae_runtime = { workspace = true }
 ae_world = { workspace = true }
+ae_export = { workspace = true }
 ae_mcp = { workspace = true, optional = true }
 slotmap = { version = "1.1.1", features = ["serde"] }
 rayon = "1.12.0"

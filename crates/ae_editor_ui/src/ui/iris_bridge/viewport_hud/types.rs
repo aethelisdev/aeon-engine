@@ -48,9 +48,9 @@ pub const TAG_COMPASS_CANVAS: u64 = 2036;
 /// Semantic tag for the Viewport camera telemetry info HUD immediate canvas.
 pub const TAG_CAMERA_HUD: u64 = 2038;
 /// Semantic tag for the In-Game Pause Resume Game button.
-pub const TAG_PLAY_RESUME: u64 = 2040;
+pub const TAG_PLAY_RESUME: u64 = ae_runtime::hud::TAG_PLAY_RESUME;
 /// Semantic tag for the In-Game Pause Exit to Editor button.
-pub const TAG_PLAY_EXIT: u64 = 2041;
+pub const TAG_PLAY_EXIT: u64 = ae_runtime::hud::TAG_PLAY_EXIT;
 /// Semantic tag for the Play Mode aiming crosshair canvas.
 pub const TAG_PLAY_CROSSHAIR: u64 = 2050;
 /// Semantic tag for the Play Mode bottom-left quick controls guide badge immediate canvas.

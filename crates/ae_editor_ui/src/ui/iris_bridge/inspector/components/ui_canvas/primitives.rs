@@ -132,7 +132,7 @@ pub fn draw_ui_progress_bar_card(
         |card, pb| {
             card.prop_f32("Min:", &mut pb.min, -100_000.0..=100_000.0, 1.0);
             card.prop_f32("Max:", &mut pb.max, -100_000.0..=100_000.0, 1.0);
-            card.prop_f32("Value:", &mut pb.value, pb.min..=pb.max, 1.0);
+            card.prop_f32("Value:", &mut pb.value, pb.min..=pb.max.max(pb.min), 1.0);
             card.progress_bar_named(
                 "MiniBarTrack",
                 "MiniBarFill",
@@ -302,6 +302,26 @@ mod tests {
             tree.iter()
                 .any(|(_, n)| n.name.as_deref() == Some("MiniBarTrack")),
             "MiniBarTrack must be rendered"
+        );
+    }
+
+    #[test]
+    fn test_ui_progress_bar_inverted_min_max_does_not_panic() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::UiProgressBar {
+            value: 50.0,
+            min: 141.0,
+            max: 100.0,
+            ..Default::default()
+        },));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+
+        let mut scope = UiScope::new(&mut tree, root);
+        draw_ui_progress_bar_card(&mut scope, &world, entity);
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("UiProgressBarCard"))
         );
     }
 

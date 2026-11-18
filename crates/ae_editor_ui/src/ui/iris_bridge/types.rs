@@ -397,6 +397,8 @@ pub struct IrisEditorOverlay {
     pub focus_state: FocusState<FocusTarget>,
     /// Centralized queue of pending engine UI actions emitted by panels and overlays.
     pub pending_actions: Vec<EngineUiAction>,
+    /// Declarative state for the `File -> Export Project...` modal dialog.
+    pub export_modal: crate::ui::types::ExportDialogState,
 }
 
 impl IrisEditorOverlay {
@@ -561,6 +563,7 @@ impl IrisEditorOverlay {
             focus_manager: FocusManager::new(),
             focus_state: FocusState::new(),
             pending_actions: Vec::new(),
+            export_modal: crate::ui::types::ExportDialogState::default(),
         }
     }
 }

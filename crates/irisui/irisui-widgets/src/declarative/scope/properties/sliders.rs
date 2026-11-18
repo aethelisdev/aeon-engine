@@ -251,7 +251,8 @@ impl<'a> UiScope<'a> {
             }
 
             let norm_now = ((*value - options.min) / (options.max - options.min)).clamp(0.0, 1.0);
-            let current_fill_w = (norm_now * (track_w - 4.0)).clamp(0.0, track_w - 4.0);
+            let fill_max = (track_w - 4.0_f32).max(0.0);
+            let current_fill_w = (norm_now * fill_max).clamp(0.0, fill_max);
 
             let display_str_now = if let Some(edit) = options.inline_edit {
                 edit.to_owned()
@@ -696,5 +697,27 @@ impl<'a> UiScope<'a> {
         }
 
         resp
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::declarative::UiScope;
+    use irisui_core::{Rect, UiTree};
+
+    #[test]
+    fn test_property_slider_narrow_track_does_not_panic_on_clamp() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let track_tag = {
+            let scope = UiScope::new(&mut tree, root);
+            scope.tag_for("Exposure_slider_track")
+        };
+        tree.tag_rects
+            .insert(track_tag, Rect::new(0.0, 0.0, 1.0, 18.0));
+
+        let mut val = 0.5_f32;
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.property_slider("Exposure", &mut val, 0.0, 1.0, 0.01);
     }
 }

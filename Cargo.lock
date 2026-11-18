@@ -156,7 +156,9 @@ dependencies = [
  "ae_audio",
  "ae_core",
  "ae_editor",
+ "ae_export",
  "ae_renderer",
+ "ae_runtime",
  "ae_texture",
  "ae_uidesign",
  "ae_world",
@@ -186,6 +188,7 @@ dependencies = [
  "ae_core",
  "ae_editor",
  "ae_editor_ui",
+ "ae_export",
  "ae_mcp",
  "ae_physics",
  "ae_plugin_api",
@@ -215,6 +218,24 @@ dependencies = [
  "spin_sleep",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "ae_export"
+version = "0.1.0"
+dependencies = [
+ "ae_audio",
+ "ae_renderer",
+ "ae_texture",
+ "ae_world",
+ "bytemuck",
+ "env_logger",
+ "image",
+ "log",
+ "rayon",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -322,6 +343,11 @@ dependencies = [
  "env_logger",
  "game_logic",
  "hecs",
+ "irisui-core",
+ "irisui-layout",
+ "irisui-text",
+ "irisui-wgpu",
+ "irisui-widgets",
  "jemallocator",
  "log",
  "pollster 1.0.1",

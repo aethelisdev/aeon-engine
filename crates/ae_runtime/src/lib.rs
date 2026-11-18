@@ -17,7 +17,8 @@ pub use behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
 pub use hud::{InGameHudState, InGamePauseState};
 pub use simulation::{
     SaveLoadDispatchContext, apply_runtime_save_snapshot, capture_runtime_save_snapshot,
-    process_save_load_requests, save_slot_path, update_play_camera, update_skeletal_animations,
+    process_save_load_requests, save_slot_path, step_play_state_and_pause, step_player_movement,
+    update_play_camera, update_skeletal_animations,
 };
 pub use static_plugin::{StaticGameLogicBackend, StaticUpdateFn, attach_static_game_logic};
 pub use streaming::{

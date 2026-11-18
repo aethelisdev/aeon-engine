@@ -387,6 +387,26 @@ fn append_decoded_audio_to_sink(
     Ok(())
 }
 
+/// Decodes raw WAV/OGG/MP3/FLAC bytes (or passes through an existing [`CookedAudio`] envelope)
+/// into a `16`-byte aligned [`CookedAudio`] PCM buffer for offline asset cooking.
+///
+/// # Errors
+/// Returns a descriptive error string when `bytes` cannot be decoded as audio.
+pub fn decode_audio_bytes_to_cooked(bytes: &[u8]) -> Result<CookedAudio, String> {
+    if bytes.starts_with(&COOKED_AUDIO_MAGIC) {
+        return CookedAudio::decode(bytes).map_err(|e| e.to_string());
+    }
+    let decoder = rodio::Decoder::new(Cursor::new(bytes.to_vec())).map_err(|e| e.to_string())?;
+    let sample_rate = decoder.sample_rate().max(1);
+    let channels = decoder.channels().max(1);
+    let samples: Vec<i16> = decoder.collect();
+    Ok(CookedAudio::from_samples_i16(
+        sample_rate,
+        channels,
+        &samples,
+    ))
+}
+
 #[cfg(test)]
 mod vfs_tests {
     use super::*;

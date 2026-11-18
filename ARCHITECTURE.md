@@ -160,8 +160,9 @@ Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-anima
 * **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
 * **`ae_editor` & `ae_editor_ui`:** 3D transform gizmos, raycast selection, Undo/Redo, binary prefabs (`.aeprefab`), content scanner, and pure declarative `UiScope` views.
 
-### 4.8. `ae_mcp` & `ae_engine` & `ae_launcher`
+### 4.8. `ae_mcp` & `ae_export` & `ae_engine` & `ae_launcher`
 * **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).
+* **`ae_export`:** Dependency graph scanner (`dependency_graph`), parallel `Intermediate/<target>/` cooker (`CookedMesh`, `CookedTexture`, `CookedAudio`), `16`-byte aligned `game.aepak` packer, and Linux/Windows `ae_runtime` standalone bundler (`ae_export_cli` + Editor `File -> Export Project...` modal).
 * **`ae_launcher`:** Project hub creating and opening modular workspaces.
 * **`ae_engine`:** Full editor IDE host composing `ae_runtime`, `ae_editor_ui`, `ae_uidesign`, optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), dirty-only parallel `save_scene`, and periodic non-blocking background `EditorAutosaveState` snapshots into `Saved/Autosaves/`.
 

@@ -93,6 +93,8 @@ pub struct AeEngine {
     pub active_vfs: Option<Arc<dyn ae_world::VfsProvider>>,
     /// Runtime spatial chunk streaming coordinator and cross-cell GUID resolver.
     pub streaming: Option<crate::streaming::RuntimeStreamingManager>,
+    /// Asynchronous project export progress and completion receiver.
+    pub export_rx: Option<std::sync::mpsc::Receiver<ae_export::ExportPipelineEvent>>,
 }
 
 impl AeEngine {
@@ -378,6 +380,7 @@ impl AeEngine {
             autosave: crate::autosave::EditorAutosaveState::default(),
             active_vfs: Some(active_vfs),
             streaming: None,
+            export_rx: None,
         };
 
         let is_2d = dimension_mode.is_2d();

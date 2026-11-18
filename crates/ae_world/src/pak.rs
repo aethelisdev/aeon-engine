@@ -591,7 +591,7 @@ fn compress_pending_item(
     ))
 }
 
-pub(crate) fn normalize_pak_path(path: &str) -> String {
+pub fn normalize_pak_path(path: &str) -> String {
     path.trim()
         .replace('\\', "/")
         .trim_start_matches("./")

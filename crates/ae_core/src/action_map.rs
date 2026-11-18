@@ -60,6 +60,8 @@ impl ActionMap {
         );
         map.actions
             .insert("Reload".to_string(), vec![KeyCode::KeyR]);
+        map.actions.insert("Pause".to_string(), vec![KeyCode::KeyP]);
+        map.actions.insert("Pause".to_string(), vec![KeyCode::KeyP]);
 
         // Axes
         map.axes.insert(
@@ -228,6 +230,7 @@ mod tests {
 
         assert_eq!(map.name, restored.name);
         assert!(restored.actions.contains_key("Jump"));
+        assert!(restored.actions.contains_key("Pause"));
         assert!(restored.axes.contains_key("MoveForward"));
     }
 }

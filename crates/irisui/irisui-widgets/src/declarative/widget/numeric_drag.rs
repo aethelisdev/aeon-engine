@@ -329,6 +329,13 @@ impl<'a> NumericDrag<'a> {
         max_val: f32,
         box_w: f32,
     ) -> (WidgetResponse, f32) {
+        let (min_val, max_val) = if min_val <= max_val {
+            (min_val, max_val)
+        } else if min_val.is_nan() || max_val.is_nan() {
+            (-f32::MAX, f32::MAX)
+        } else {
+            (max_val, min_val)
+        };
         let initial_val = *self.value;
         if let Some(node) = scope.tree.get_mut(pill_id) {
             node.set_name(self.name.unwrap_or("NumericDrag"));
@@ -547,7 +554,8 @@ impl<'a> NumericDrag<'a> {
                 if min_b < max_b {
                     let start_offset = irisui_text::measure_text_advance(&raw[..min_b], font_size);
                     let end_offset = irisui_text::measure_text_advance(&raw[..max_b], font_size);
-                    let sel_x = (text_start_x + start_offset - 1.5).clamp(2.0, box_w - 4.0);
+                    let sel_x =
+                        (text_start_x + start_offset - 1.5).clamp(2.0, (box_w - 4.0).max(2.0));
                     let sel_w = (end_offset - start_offset + 3.0).min(box_w - 2.0 - sel_x);
                     let sel_style = Style::new()
                         .position_absolute()
@@ -578,7 +586,7 @@ impl<'a> NumericDrag<'a> {
             let text_start_x = ((box_w - text_w) * 0.5).max(0.0);
             let caret_offset =
                 irisui_text::measure_text_advance(&raw[..cur_idx.min(raw.len())], font_size);
-            let caret_x = (text_start_x + caret_offset - 0.75).clamp(2.0, box_w - 3.0);
+            let caret_x = (text_start_x + caret_offset - 0.75).clamp(2.0, (box_w - 3.0).max(2.0));
             let caret_id = scope.tree.create_node();
             let caret_color = scope.theme().text_caret;
             if let Some(node) = scope.tree.get_mut(caret_id) {

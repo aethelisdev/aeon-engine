@@ -4,7 +4,6 @@
 use crate::engine::AeEngine;
 use ae_core::input::KeyCode;
 use ae_core::modules::EngineMode;
-use cgmath::Rotation3;
 
 impl AeEngine {
     /// Core per-frame update: ticks time, processes async imports, purges stale entities,
@@ -179,6 +178,7 @@ impl AeEngine {
         } else {
             self.update_edit_mode();
         }
+        self.poll_async_export();
 
         if self.editor.enable_live_editor_updates {
             // Live Update Path: hot-reload enabled, active file watches
@@ -276,189 +276,24 @@ impl AeEngine {
         );
         state_cmd_buffer.apply(&mut self.ecs.world);
 
-        let dt = self.time.fixed_time_step;
-
-        // Process 2D player movement when in 2D mode
-        if self.dimension_mode.is_2d() {
-            let fwd_axis = self.input.get_axis("MoveForward");
-            let right_axis = self.input.get_axis("MoveRight");
-
-            let speed = if self.input.is_action_pressed("Run") {
-                10.0f32
-            } else {
-                5.0f32
-            };
-
-            let move_x = right_axis * speed * dt;
-            let move_y = fwd_axis * speed * dt;
-
-            if move_x.abs() > 0.0001 || move_y.abs() > 0.0001 {
-                for (_tag, pos) in self
-                    .ecs
-                    .world
-                    .query::<(&ae_core::ecs::PlayerTag, &mut ae_core::ecs::Position)>()
-                    .iter()
-                {
-                    pos.x += move_x;
-                    pos.y += move_y;
-                    pos.z = 0.0;
-                }
-            }
-        }
-
-        let mut kcc_entities = Vec::new();
-        for (ent, _ctrl) in self
-            .ecs
-            .world
-            .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
-            .iter()
-        {
-            kcc_entities.push(ent);
-        }
-
-        if !kcc_entities.is_empty() {
-            use ae_physics::glam::Vec3;
-
-            // Calculate camera-relative forward and right vectors on the XZ ground plane
-            let fwd_vec = self.camera.get_forward();
-            let right_vec = self.camera.get_right();
-            let cam_fwd_xz = Vec3::new(fwd_vec.x, 0.0, fwd_vec.z).normalize();
-            let cam_right_xz = Vec3::new(right_vec.x, 0.0, right_vec.z).normalize();
-
-            let fwd_axis = self.input.get_axis("MoveForward");
-            let right_axis = self.input.get_axis("MoveRight");
-
-            let dir = cam_fwd_xz * fwd_axis + cam_right_xz * right_axis;
-            let speed = if self.input.is_action_pressed("Run") {
-                10.0f32
-            } else {
-                6.0f32
-            };
-
-            let move_dir = if dir.length_squared() > 0.001 {
-                dir.normalize()
-            } else {
-                Vec3::ZERO
-            };
-
-            // Rotate character entity transform and physics body to face movement direction if moving
-            if move_dir.length_squared() > 0.001 {
-                let target_yaw = move_dir.x.atan2(move_dir.z);
-                let rot_quat = cgmath::Quaternion::from_angle_y(cgmath::Rad(target_yaw));
-                for &ent in &kcc_entities {
-                    if let Ok(mut r) = self.ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
-                        r.x = rot_quat.v.x;
-                        r.y = rot_quat.v.y;
-                        r.z = rot_quat.v.z;
-                        r.w = rot_quat.s;
-                    }
-                    if let Some(&handle) = self.physics_world.entity_to_body.get(&ent)
-                        && let Some(body) = self.physics_world.rigid_body_set.get_mut(handle)
-                    {
-                        let rot_glam = ae_physics::glam::Quat::from_xyzw(
-                            rot_quat.v.x,
-                            rot_quat.v.y,
-                            rot_quat.v.z,
-                            rot_quat.s,
-                        );
-                        body.set_rotation(rot_glam, true);
-                    }
-                }
-            }
-
-            let jump_pressed = self.input.is_action_pressed("Jump");
-
-            for ent in kcc_entities {
-                let is_grounded = self
-                    .ecs
-                    .world
-                    .get::<&ae_core::ecs::CharacterController>(ent)
-                    .map(|c| c.is_grounded)
-                    .unwrap_or(false);
-                let mut vert_vel = self
-                    .ecs
-                    .world
-                    .get::<&ae_core::ecs::Velocity>(ent)
-                    .map(|v| v.y)
-                    .unwrap_or(0.0);
-
-                if is_grounded {
-                    if jump_pressed {
-                        vert_vel = 9.0; // Jump impulse velocity (1.8m high jump)
-                        if let Ok(mut ctrl) = self
-                            .ecs
-                            .world
-                            .get::<&mut ae_core::ecs::CharacterController>(ent)
-                        {
-                            ctrl.is_grounded = false;
-                        }
-                    } else {
-                        vert_vel = 0.0; // Grounded: zero vertical velocity; snap_to_ground handles slopes/steps
-                    }
-                } else {
-                    vert_vel -= 20.0 * dt; // Gravity
-                }
-
-                if let Ok(mut vel) = self.ecs.world.get::<&mut ae_core::ecs::Velocity>(ent) {
-                    vel.x = 0.0;
-                    vel.y = vert_vel;
-                    vel.z = 0.0;
-                }
-
-                let translation = Vec3::new(
-                    move_dir.x * speed * dt,
-                    vert_vel * dt,
-                    move_dir.z * speed * dt,
-                );
-
-                self.physics_world
-                    .move_character(&mut self.ecs.world, ent, translation, dt);
-            }
-        }
+        ae_runtime::step_player_movement(
+            &self.input,
+            &mut self.ecs,
+            &mut self.physics_world,
+            &self.camera,
+            self.dimension_mode.is_2d(),
+            self.time.fixed_time_step,
+        );
     }
 
     pub fn update_play_mode(&mut self) {
-        let was_paused = self.state_manager.is_paused();
-
-        // 1. Tick stack-based GameStateManager
-        let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
-        self.state_manager.update(
-            &mut self.ecs.world,
+        let (was_paused, is_paused) = ae_runtime::step_play_state_and_pause(
+            &mut self.state_manager,
+            &mut self.ecs,
             &mut self.event_bus,
-            &mut state_cmd_buffer,
+            &self.input,
             self.time.delta_time,
         );
-        state_cmd_buffer.apply(&mut self.ecs.world);
-
-        // 2. Toggle In-Game Pause overlay with 'P' key
-        if self
-            .input
-            .is_key_just_pressed(ae_editor::input::KeyCode::KeyP)
-        {
-            if self.state_manager.is_paused() {
-                self.state_manager.pop();
-                let mut pop_cmd = ae_core::commands::EntityCommandBuffer::new();
-                self.state_manager.update(
-                    &mut self.ecs.world,
-                    &mut self.event_bus,
-                    &mut pop_cmd,
-                    0.0,
-                );
-                pop_cmd.apply(&mut self.ecs.world);
-            } else {
-                self.state_manager.push(crate::hud::InGamePauseState::new());
-                let mut push_cmd = ae_core::commands::EntityCommandBuffer::new();
-                self.state_manager.update(
-                    &mut self.ecs.world,
-                    &mut self.event_bus,
-                    &mut push_cmd,
-                    0.0,
-                );
-                push_cmd.apply(&mut self.ecs.world);
-            }
-        }
-
-        let is_paused = self.state_manager.is_paused();
 
         // Cursor grab synchronization with pause state
         if is_paused && !was_paused {
@@ -548,6 +383,29 @@ impl AeEngine {
     pub fn process_ui_actions(&mut self, actions: Vec<ae_editor_ui::ui::EngineUiAction>) {
         self.profiler.begin_ui();
         for action in &actions {
+            if let ae_editor_ui::ui::EngineUiAction::StartProjectExport(req) = action
+                && self.export_rx.is_none()
+            {
+                let mut resolved_req = req.clone();
+                if resolved_req.selected_worlds.is_empty() {
+                    if let Some(ref world_dir) = self.saved_world_dir {
+                        let manifest = world_dir.join("world.aeworld");
+                        if manifest.is_file() {
+                            resolved_req.selected_worlds.push(manifest);
+                        }
+                    } else if !self.ui.active_scene_path.is_empty() {
+                        let scene_path = std::path::PathBuf::from(&self.ui.active_scene_path);
+                        if scene_path.is_file() {
+                            resolved_req.selected_worlds.push(scene_path);
+                        }
+                    }
+                }
+                self.ui.iris_overlay.export_modal.is_running = true;
+                self.ui.iris_overlay.export_modal.progress = 0.0;
+                self.ui.iris_overlay.export_modal.status_message =
+                    format!("Exporting to {}...", resolved_req.output_dir.display());
+                self.export_rx = Some(ae_export::spawn_export_pipeline(resolved_req));
+            }
             if let ae_editor_ui::ui::EngineUiAction::ResumeGame = action
                 && self.state_manager.is_paused()
             {
@@ -614,5 +472,40 @@ impl AeEngine {
 
     pub fn focus_selected(&mut self) {
         ae_editor::interactions::focus_selected(&mut self.camera, &self.editor, &self.ecs.world);
+    }
+
+    fn poll_async_export(&mut self) {
+        let Some(ref rx) = self.export_rx else {
+            return;
+        };
+        let mut finished = false;
+        while let Ok(evt) = rx.try_recv() {
+            match evt {
+                ae_export::ExportPipelineEvent::Progress(prog) => {
+                    self.ui.iris_overlay.export_modal.progress = prog.fraction;
+                    self.ui.iris_overlay.export_modal.status_message = prog.message;
+                }
+                ae_export::ExportPipelineEvent::Finished(outcome) => {
+                    self.ui.iris_overlay.export_modal.is_running = false;
+                    self.ui.iris_overlay.export_modal.progress = 1.0;
+                    self.ui.iris_overlay.export_modal.status_message = format!(
+                        "Exported {} worlds ({} assets) to {}",
+                        outcome.worlds_packed,
+                        outcome.summary.total_assets,
+                        outcome.output_dir.display()
+                    );
+                    finished = true;
+                }
+                ae_export::ExportPipelineEvent::Error(err) => {
+                    self.ui.iris_overlay.export_modal.is_running = false;
+                    self.ui.iris_overlay.export_modal.status_message =
+                        format!("Export failed: {err}");
+                    finished = true;
+                }
+            }
+        }
+        if finished {
+            self.export_rx = None;
+        }
     }
 }
