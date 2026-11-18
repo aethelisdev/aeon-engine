@@ -115,7 +115,6 @@ impl InputArbiter {
         // Synchronize keyboard modifier flags to editor UI
         engine.ui.iris_overlay.chrome.ctrl_held = engine.winit_state.modifiers().ctrl();
         engine.ui.iris_overlay.chrome.shift_held = engine.winit_state.modifiers().shift();
-        engine.ui.iris_overlay.chrome.alt_held = engine.winit_state.modifiers().alt();
 
         let Some(ui_event) = ui_event else {
             return false;
@@ -140,14 +139,13 @@ impl InputArbiter {
     /// Returns `true` when the UI consumed the event.
     pub fn dispatch_ui_event(engine: &mut AeEngine, ui_event: &irisui::prelude::UiEvent) -> bool {
         let mut window = &engine.render_state.window;
-        let outcome = engine.ui.workbench.handle_event_full(
-            &mut window,
-            ui_event,
-            &mut engine.ui.layout_state.dock_state,
-            Some(&mut engine.ui.iris_overlay.tree),
-        );
+        let outcome = engine.ui.workbench.handle_event(&mut window, ui_event);
 
-        apply_hover_outcome(&outcome, &mut engine.ui.iris_overlay.chrome);
+        engine.ui.surface.apply_hover_flags(
+            outcome.is_hover_target_changed(),
+            outcome.hover_affects_text,
+            outcome.hover_requires_full_upload,
+        );
         if !outcome.actions.is_empty() {
             engine.ui.pending_actions.extend(outcome.actions);
         }
@@ -163,9 +161,10 @@ impl InputArbiter {
         if outcome.toggle_preferences {
             engine.ui.toggle_preferences();
         }
-        if outcome.layout_changed {
-            engine.ui.iris_overlay.chrome.needs_layout_rebuild = true;
-            engine.ui.iris_overlay.notifier.tag_all();
+        if outcome.shell_dirty {
+            engine.ui.workbench.notifier.tag_all();
+        } else if let Some(panel) = outcome.invalidated_panel {
+            engine.ui.workbench.notifier.tag_redraw(panel);
         }
 
         outcome.consumed
@@ -311,20 +310,5 @@ impl AeEngine {
         let mut arbiter = std::mem::take(&mut self.input_arbiter);
         arbiter.dispatch(self, event);
         self.input_arbiter = arbiter;
-    }
-}
-
-/// Applies resolved hover target telemetry from [`irisui::workbench::WorkbenchOutcome`]
-/// onto the editor UI chrome state, requesting text and quad updates when hover changes.
-#[inline]
-pub(crate) fn apply_hover_outcome<Action>(
-    outcome: &irisui::workbench::WorkbenchOutcome<Action, ae_editor_ui::ui::PanelId>,
-    chrome: &mut ae_editor_ui::ui::iris_bridge::IrisChromeState,
-) {
-    chrome.hovered_tag = outcome.hovered_tag;
-    chrome.hovered_panel = outcome.hovered_panel;
-    if outcome.is_hover_target_changed() {
-        chrome.needs_text_prepare = true;
-        chrome.needs_full_quad_upload = true;
     }
 }

@@ -431,6 +431,7 @@ impl RuntimeHudOverlay {
             renderer: &mut self.renderer,
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
+            volatile_text_renderer: None,
             screen_size: logical_screen_size,
             dirty_boundaries: None,
         });

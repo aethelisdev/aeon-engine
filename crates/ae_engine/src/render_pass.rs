@@ -380,7 +380,7 @@ impl AeEngine {
         let mode = &self.mode;
         let editor = &self.editor;
         let camera = &self.camera;
-        let graphics_settings = self.render_state.graphics_settings.clone();
+        let graphics_settings = self.render_state.graphics_settings;
         let snapping = &self.editor.snapping;
         let asset_manager = &self.asset_manager;
         let event_bus = &self.event_bus;
@@ -396,40 +396,13 @@ impl AeEngine {
              viewport_texture_view: Option<&wgpu::TextureView>| {
                 ui.sync_console();
                 let win_size = window.inner_size();
+                let prev_theme = ui.iris_overlay.chrome.theme_preset;
+                let prev_scale = ui.scale_factor();
                 crate::events::handlers::sync_workbench_theme_and_screen_size(
                     ui,
                     win_size.width,
                     win_size.height,
                 );
-                let signals = ui.iris_overlay.lifecycle_signals(
-                    ui.layout_state
-                        .is_panel_visible(ae_editor_ui::ui::PanelId::Preferences),
-                );
-                let scale_factor = ui.scale_factor();
-                let selection_id = ui.selected_entity.map(|e| e.to_bits().get());
-                let is_drag_active = ui.asset_browser.drag_payload.is_some();
-                let frame_sync = ui.workbench.sync_frame_state(
-                    &mut ui.iris_overlay.text_system,
-                    &mut ui.iris_overlay.tree,
-                    irisui::workbench::WorkbenchFrameSyncParams {
-                        dock: &ui.layout_state.dock_state,
-                        notifier: &mut ui.iris_overlay.notifier,
-                        scale_factor,
-                        selection_id,
-                        domain_revision: editor.history_revision,
-                    },
-                    |inputs| {
-                        inputs
-                            .with_menu_active(signals.is_menu_active)
-                            .with_modal_active(signals.is_modal_active)
-                            .with_popup_active(signals.is_popup_active)
-                            .with_drag_active(is_drag_active)
-                            .with_surface_revision(u64::from(viewport_texture_view.is_some()))
-                            .with_overlay_revision(signals.overlay_revision)
-                    },
-                );
-                ui.iris_overlay
-                    .apply_caret_blink_update(frame_sync.caret_blink);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
@@ -453,11 +426,15 @@ impl AeEngine {
                     is_2d_mode: self.dimension_mode.is_2d(),
                     ui_actions: &mut ui_actions,
                 });
-                crate::events::handlers::sync_workbench_theme_and_screen_size(
-                    ui,
-                    win_size.width,
-                    win_size.height,
-                );
+                if ui.iris_overlay.chrome.theme_preset != prev_theme
+                    || (ui.scale_factor() - prev_scale).abs() > f32::EPSILON
+                {
+                    crate::events::handlers::sync_workbench_theme_and_screen_size(
+                        ui,
+                        win_size.width,
+                        win_size.height,
+                    );
+                }
                 #[cfg(feature = "mcp")]
                 if let Some(session) = mcp.as_mut() {
                     session.render_overlay(

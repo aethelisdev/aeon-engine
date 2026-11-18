@@ -109,7 +109,7 @@ impl SkyQuality {
 /// sky atmosphere, sun parameters, and fog. Modified at runtime via
 /// `EngineUiAction::UpdateGraphicsSettings`. All changes take effect
 /// on the next frame without requiring pipeline recreation.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct GraphicsSettings {
     pub shadow_enabled: bool,
     pub shadow_resolution: ShadowResolution,

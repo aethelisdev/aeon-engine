@@ -27,13 +27,13 @@ impl McpHost for AeEngine {
     }
 
     fn ui_tree(&self) -> &UiTree {
-        &self.ui.iris_overlay.tree
+        self.ui.workbench.tree()
     }
 
     fn floating_windows(&self) -> Vec<McpFloatingWindow> {
         self.ui
-            .layout_state
-            .dock_state
+            .workbench
+            .dock_state()
             .floating_windows
             .iter()
             .map(|w| McpFloatingWindow {
@@ -64,7 +64,7 @@ impl McpHost for AeEngine {
 
     fn invalidate_ui(&mut self, mark_all: bool) {
         if mark_all {
-            self.ui.iris_overlay.notifier.tag_all();
+            self.ui.workbench.notifier.tag_all();
         }
         self.render_state.window.request_redraw();
     }
@@ -89,13 +89,26 @@ impl McpHost for AeEngine {
         physical_size: (u32, u32),
         scale_factor: f32,
     ) {
-        self.ui.iris_overlay.render(
+        ae_editor_ui::ui::iris_bridge::icons::ensure_editor_icon_atlas(
+            &mut self.ui.surface,
             &self.render_state.device,
             &self.render_state.queue,
-            encoder,
-            target_view,
-            physical_size,
-            scale_factor,
+        );
+        let hovered_tag = self.ui.workbench.hovered_tag();
+        self.ui.surface.render_to_view(
+            &mut self.ui.workbench.tree,
+            &mut self.ui.workbench.text_system,
+            hovered_tag,
+            irisui::IrisSurfaceRenderParams {
+                device: &self.render_state.device,
+                queue: &self.render_state.queue,
+                encoder,
+                target_view,
+                physical_screen_size: physical_size,
+                zoom_factor: scale_factor,
+                focused_tag_override: self.ui.iris_overlay.focus_manager.focused_tag,
+                extra_text_occluders: &[],
+            },
         );
     }
 
@@ -120,11 +133,11 @@ impl McpHost for AeEngine {
         self.editor.selected_entities_set.insert(entity);
         self.ui.selected_entity = Some(entity);
         self.ui
-            .iris_overlay
+            .workbench
             .notifier
             .tag_redraw(ae_editor_ui::ui::PanelId::Inspector);
         self.ui
-            .iris_overlay
+            .workbench
             .notifier
             .tag_redraw(ae_editor_ui::ui::PanelId::Hierarchy);
         self.render_state.window.request_redraw();

@@ -24,8 +24,10 @@ pub struct IrisRenderPassParams<'a> {
     pub renderer: &'a mut IrisRenderer,
     /// Active frame drawing command list.
     pub command_list: &'a DrawCommandList,
-    /// Optional GPU text atlas and typography renderer.
+    /// Optional GPU text atlas and typography renderer for static UI panels.
     pub text_renderer: Option<&'a TextRenderer>,
+    /// Optional isolated GPU text renderer for high-frequency volatile/live HUD & stats labels.
+    pub volatile_text_renderer: Option<&'a TextRenderer>,
     /// Target window resolution in physical pixels.
     pub screen_size: (u32, u32),
     /// Optional invalidation boundaries that mutated this frame for partial GPU buffer uploads.
@@ -45,12 +47,13 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
         renderer,
         command_list,
         text_renderer,
+        volatile_text_renderer,
         screen_size,
         dirty_boundaries,
     } = params;
 
     let has_quads = !command_list.commands.is_empty() || !command_list.quads.is_empty();
-    if !has_quads && text_renderer.is_none() {
+    if !has_quads && text_renderer.is_none() && volatile_text_renderer.is_none() {
         return;
     }
 
@@ -89,5 +92,8 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
 
     if let Some(txt_renderer) = text_renderer {
         txt_renderer.render(&mut render_pass);
+    }
+    if let Some(volatile_txt) = volatile_text_renderer {
+        volatile_txt.render(&mut render_pass);
     }
 }

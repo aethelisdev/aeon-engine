@@ -230,7 +230,12 @@ pub(crate) fn sync_workbench_screen_size(
 
 /// Synchronizes active editor theme tokens and dock chrome styles onto [`irisui::workbench::Workbench`].
 pub(crate) fn sync_workbench_theme(ui: &mut ae_editor_ui::ui::EngineUi) {
-    let tokens = ui.iris_overlay.chrome.theme_preset.tokens();
+    let preset = ui.iris_overlay.chrome.theme_preset;
+    if ui.iris_overlay.chrome.last_synced_workbench_theme == Some(preset) {
+        return;
+    }
+    ui.iris_overlay.chrome.last_synced_workbench_theme = Some(preset);
+    let tokens = preset.tokens();
     ui.workbench.set_theme(tokens.to_iris_theme());
     ui.workbench
         .set_dock_style(ae_editor_ui::ui::iris_bridge::editor_dock_style_with_tokens(&tokens));

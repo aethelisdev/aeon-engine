@@ -219,13 +219,7 @@ impl ApplicationHandler for AeApp {
 
                     // If an external file drag/drop interaction is active, bypass sleep pacing
                     // to immediately service X11 XDnD status queries and avoid compositor cursor stalls
-                    let is_dnd_active = engine
-                        .ui
-                        .iris_overlay
-                        .tree
-                        .event_state
-                        .hovered_file
-                        .is_some();
+                    let is_dnd_active = engine.ui.workbench.tree.event_state.hovered_file.is_some();
 
                     // Measure elapsed time since the previous frame
                     let elapsed = self.last_frame_time.elapsed();
