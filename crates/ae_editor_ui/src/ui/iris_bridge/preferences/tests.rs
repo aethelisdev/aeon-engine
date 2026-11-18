@@ -1268,3 +1268,153 @@ fn test_preferences_modules_tab_toggle_module_action() {
         "Clicking physics module checkbox MUST dispatch PreferencesAction::Toggle(Module(Physics))"
     );
 }
+
+#[test]
+fn test_preferences_build_view_uses_outer_panel_rect_for_content_area() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let panel_rect = Rect::new(100.0, 80.0, 760.0, 504.0);
+    let panel_id = {
+        let mut root_scope = UiScope::new(&mut tree, root);
+        root_scope.container_tagged(
+            "MockPrefsPanel",
+            Style::new()
+                .position_absolute()
+                .left(panel_rect.x)
+                .top(panel_rect.y)
+                .width(panel_rect.width)
+                .height(panel_rect.height),
+            WidgetRole::Default,
+            9999,
+            |panel| {
+                panel.empty_box_passive_named("PrefHostSeed", Style::new().width(1.0).height(1.0));
+            },
+        );
+        root_scope.finish_layout(Rect::new(0.0, 0.0, 1280.0, 720.0));
+        root_scope.node_id_tagged(9999).unwrap()
+    };
+
+    let world = hecs::World::new();
+    let mut gfx = GraphicsSettings::default();
+    let mut snap = SnapSettings::default();
+    let mut cfg = EditorConfig::default();
+    let mut live_updates = true;
+    let enabled_modules = HashSet::new();
+    let fp = ae_core::telemetry::FrameRingBuffer::default();
+    let fp_stats = ae_core::telemetry::FramePacingStats::default();
+    let cpu = ae_core::telemetry::CpuSyncTimings::default();
+    let pass = ae_core::telemetry::RenderPassRecordingTimings::default();
+    let dc = ae_core::telemetry::DrawCallBreakdown::default();
+    let vram = ae_core::telemetry::VramStats::default();
+    let ui_designer = ae_uidesign::UiDesignerState::default();
+    let asset_browser = crate::assets::AssetBrowserState::default();
+    let textures = ae_renderer::asset::AssetStorage::new();
+    let models = ae_renderer::asset::AssetStorage::new();
+    let euler = [0.0; 3];
+    let camera = ae_renderer::camera::Camera {
+        position: cgmath::Point3::new(0.0, 2.0, 5.0),
+        yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
+        pitch: cgmath::Rad(0.0),
+        aspect: 16.0 / 9.0,
+        fovy: 45.0,
+        znear: 0.1,
+        zfar: 100.0,
+        mode: ae_renderer::camera::ProjectionMode::Perspective,
+        ortho_scale: 1.0,
+        target: cgmath::Point3::new(0.0, 0.0, 0.0),
+    };
+    let mut params = crate::ui::iris_bridge::types::OverlayUpdateParams {
+        context: crate::ui::iris_bridge::params::EditorContextParams {
+            dimensions: (1280.0, 720.0),
+            zoom_factor: 1.0,
+            is_editing: true,
+            is_2d_mode: false,
+            view_panel_mask: 0,
+            can_undo: false,
+            can_redo: false,
+            enable_live_updates: true,
+            status_spans: None,
+            history_revision: 0,
+        },
+        viewport: crate::ui::iris_bridge::params::ViewportParams {
+            has_viewport_texture: false,
+            viewport_rect: Rect::ZERO,
+            camera: &camera,
+            wireframe_enabled: false,
+            grid_enabled: true,
+            gizmo_mode: ae_editor::gizmo::GizmoMode::Translate,
+            gizmo_space: ae_editor::gizmo::GizmoSpace::World,
+        },
+        scene: crate::ui::iris_bridge::params::SceneParams {
+            world: &world,
+            selected_entity: None,
+            active_entities_count: 0,
+        },
+        dialogs: crate::ui::iris_bridge::params::DialogParams {
+            show_preferences: false,
+            delete_target: None,
+            new_folder_parent: None,
+            rename_target: None,
+            is_loading_assets: false,
+        },
+        preferences: crate::ui::iris_bridge::params::OverlayPreferencesParams {
+            graphics_settings: &mut gfx,
+            snapping_settings: &mut snap,
+            editor_config: &mut cfg,
+            enable_live_updates: &mut live_updates,
+            enabled_modules: &enabled_modules,
+        },
+        telemetry: crate::ui::iris_bridge::params::TelemetryParams {
+            fps: 60.0,
+            frame_pacing: &fp,
+            frame_pacing_stats: &fp_stats,
+            cpu_timings: &cpu,
+            pass_recording_timings: &pass,
+            draw_call_stats: &dc,
+            vram_stats: &vram,
+            render_triangles: 0,
+            render_vertices: 0,
+            gpu_adapter_name: "MockGPU",
+            gpu_backend: "Vulkan",
+        },
+        panel_data: crate::ui::iris_bridge::params::OverlayPanelData {
+            ui_designer_state: &ui_designer,
+            asset_browser: &asset_browser,
+            console_entries: &[],
+            textures: &textures,
+            models: &models,
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &[],
+        },
+        dialog_host: None,
+        action_bus: None,
+    };
+
+    let mut state = super::types::PreferencesDialogState::default();
+    {
+        let mut scope = UiScope::new(&mut tree, panel_id);
+        state.build_view(
+            &mut scope,
+            &mut params,
+            Default::default(),
+            (Point::ZERO, false),
+        );
+        scope.finish_layout(panel_rect);
+    }
+
+    let content_id = tree
+        .find_node_by_name("PreferencesContentArea")
+        .expect("PreferencesContentArea must exist");
+    let content_rect = tree.get(content_id).unwrap().computed_rect;
+    assert!(
+        (content_rect.width - (panel_rect.width - super::builder::SIDEBAR_WIDTH - 1.0)).abs() < 1.0,
+        "PreferencesContentArea width must fill remaining panel width, got {}",
+        content_rect.width
+    );
+    assert!(
+        (content_rect.height - panel_rect.height).abs() < 1.0,
+        "PreferencesContentArea height must match panel height, got {}",
+        content_rect.height
+    );
+}

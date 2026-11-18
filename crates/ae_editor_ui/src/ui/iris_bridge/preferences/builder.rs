@@ -338,6 +338,23 @@ impl PreferencesDialogState {
             return;
         }
 
+        self.build_view_in_rect(
+            scope,
+            scope.parent_rect(),
+            params,
+            current_theme,
+            (cursor_pos, blink_caret),
+        );
+    }
+
+    fn build_view_in_rect(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        panel_rect: Rect,
+        params: &mut OverlayUpdateParams<'_>,
+        current_theme: crate::ui::iris_bridge::theme::ThemePreset,
+        (cursor_pos, blink_caret): (Point, bool),
+    ) {
         scope.with_scoped_text_input_blink(
             self.active_number_input
                 .as_ref()
@@ -348,15 +365,15 @@ impl PreferencesDialogState {
                     "PreferencesPanelBody",
                     Style::new()
                         .flex_row()
-                        .width(scoped_scope.parent_rect().width)
-                        .height(scoped_scope.parent_rect().height)
+                        .width(panel_rect.width)
+                        .height(panel_rect.height)
                         .background(scoped_scope.theme().panel_bg),
                     |body| {
                         build_preferences_view(
                             body,
                             &mut PreferencesParams {
-                                screen_width: body.parent_rect().width,
-                                screen_height: body.parent_rect().height,
+                                screen_width: panel_rect.width,
+                                screen_height: panel_rect.height,
                                 window_pos: None,
                                 active_tab: &mut self.tab,
                                 collapsed_sections: &self.collapsed_sections,
@@ -376,8 +393,8 @@ impl PreferencesDialogState {
                                 current_theme,
                             },
                             &mut self.interactions.actions,
-                            (body.parent_rect().width - SIDEBAR_WIDTH - 1.0).max(100.0),
-                            body.parent_rect().height,
+                            (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0),
+                            panel_rect.height,
                         );
                     },
                 );
@@ -392,13 +409,13 @@ impl PreferencesDialogState {
                 PREF_TAG_SCROLLBAR_TRACK,
                 PREF_TAG_SCROLLBAR_THUMB,
                 Rect::new(
-                    scope.parent_rect().x + SIDEBAR_WIDTH + 1.0,
-                    scope.parent_rect().y,
-                    (scope.parent_rect().width - SIDEBAR_WIDTH - 1.0).max(100.0),
-                    scope.parent_rect().height,
+                    panel_rect.x + SIDEBAR_WIDTH + 1.0,
+                    panel_rect.y,
+                    (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0),
+                    panel_rect.height,
                 ),
             )
-            .host(scope.parent_rect(), None)
+            .host(panel_rect, None)
             .min_virtual_height(tab_virtual_height(self.tab))
             .cursor(Some(cursor_pos))
             .style(preferences_scroll_style()),
