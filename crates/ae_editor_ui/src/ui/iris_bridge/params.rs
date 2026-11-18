@@ -6,7 +6,6 @@
 //! Encapsulates editor context, 3D viewport canvas bounds, ECS scene graph, modal dialogues,
 //! configuration preferences, performance telemetry, and panel subsystem caches.
 
-use crate::ui::panel_layout::PanelLayoutState;
 use ae_core::modules::EngineModule;
 use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
@@ -25,8 +24,8 @@ pub struct EditorContextParams<'a> {
     pub is_editing: bool,
     /// Whether the editor and project are running in 2D dimension mode.
     pub is_2d_mode: bool,
-    /// Active panel layout state reference.
-    pub layout_state: &'a PanelLayoutState,
+    /// 64-bit panel visibility mask computed via `Workbench::tab_visibility_mask`.
+    pub view_panel_mask: u64,
     /// Whether undo is available.
     pub can_undo: bool,
     /// Whether redo is available.
@@ -98,6 +97,8 @@ pub struct OverlayPreferencesParams<'a> {
     pub snapping_settings: &'a mut SnapSettings,
     /// Mutable reference to editor configuration for Preferences rendering and two-way data binding.
     pub editor_config: &'a mut EditorConfig,
+    /// Mutable reference to live hot-reload editor updates flag for two-way data binding.
+    pub enable_live_updates: &'a mut bool,
     /// Set of enabled engine core modules for Preferences rendering.
     pub enabled_modules: &'a HashSet<EngineModule>,
 }
@@ -175,13 +176,6 @@ pub struct OverlayUpdateParams<'a> {
 }
 
 impl<'a> OverlayUpdateParams<'a> {
-    /// Returns the active panel docking layout state reference.
-    #[inline]
-    #[must_use]
-    pub fn layout_state(&self) -> &PanelLayoutState {
-        self.context.layout_state
-    }
-
     /// Returns the logical screen dimensions `(width, height)`.
     #[inline]
     #[must_use]

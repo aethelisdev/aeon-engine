@@ -1,339 +1,204 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Autonomous Editor Workbench Panels
+//! # Editor Workbench Panel Registry & Direct Typed Panel Bindings
 //!
-//! Provides concrete implementations of [`irisui::workbench::WorkbenchPanel`] for all
-//! built-in tool panels of the Aeon Engine editor interface, decoupling individual
-//! tool views from monolithic parameters and enabling granular $O(M)$ dock invalidation.
+//! Binds all 10 built-in editor panels directly to their own typed state renderers
+//! (`ViewportHudState`, `HierarchyPanelState`, `InspectorPanelState`, etc.) through a single
+//! data-driven [`ScopedWorkbenchPanel`] descriptor anchored to [`PanelId`] metadata (SSOT).
 
-use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::iris_bridge::panel_views::IrisPanelViews;
+use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use crate::ui::panel_layout::PanelId;
+use irisui::dock::TabPlacement;
 use irisui::prelude::UiScope;
-use irisui::workbench::{WorkbenchPanel, WorkbenchPanelRegistry};
+use irisui::workbench::{ScopedPanelContext, ScopedPanelRegistry, ScopedWorkbenchPanel};
 
-/// Execution context passed to autonomous editor workbench panels during rendering.
+/// Execution context passed to editor workbench panels during rendering.
 pub struct EditorPanelContext<'a> {
-    /// Mutable reference to the parent Iris editor overlay subsystem.
-    pub overlay: &'a mut IrisEditorOverlay,
-    /// Immutable reference to the per-frame overlay parameters.
-    pub params: &'a OverlayUpdateParams<'a>,
+    /// Disjoint mutable view into active editor overlay panel and chrome state.
+    pub overlay: IrisPanelViews<'a>,
+    /// Mutable reference to the per-frame overlay parameters.
+    pub params: &'a mut OverlayUpdateParams<'a>,
 }
 
-/// Autonomous 3D Viewport workbench panel.
+/// Lifetime scope marker projecting to [`EditorPanelContext`] for persistent panel registration.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ViewportWorkbenchPanel;
+pub struct EditorPanelScope;
 
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for ViewportWorkbenchPanel {
+impl ScopedPanelContext for EditorPanelScope {
+    type Context<'frame> = EditorPanelContext<'frame>;
+}
+
+type EditorPanelDrawerFn = for<'frame> fn(&mut UiScope<'_>, &mut EditorPanelContext<'frame>);
+
+struct EditorWorkbenchPanel {
+    id: PanelId,
+    drawer: EditorPanelDrawerFn,
+}
+
+impl ScopedWorkbenchPanel<PanelId, EditorPanelScope> for EditorWorkbenchPanel {
     fn id(&self) -> PanelId {
-        PanelId::Viewport
+        self.id
     }
 
     fn title(&self) -> &str {
-        "Viewport"
+        self.id.title()
     }
 
     fn icon(&self) -> Option<&'static str> {
-        Some("🎥")
-    }
-
-    fn closeable(&self) -> bool {
-        false
-    }
-
-    fn clear_background(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        let vp_rect = if scope.parent_rect().width > 20.0 {
-            scope.parent_rect()
-        } else {
-            state.params.viewport.viewport_rect
-        };
-        if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
-            state
-                .overlay
-                .build_viewport_content(scope, vp_rect, state.params);
-        }
-    }
-}
-
-/// Autonomous Scene Hierarchy outliner workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HierarchyWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for HierarchyWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Hierarchy
-    }
-
-    fn title(&self) -> &str {
-        "Hierarchy"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("🏗️")
-    }
-
-    fn is_domain_bound(&self) -> bool {
-        true
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_hierarchy_panel_if_active(scope, state.params);
-    }
-}
-
-/// Autonomous Entity Inspector workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct InspectorWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for InspectorWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Inspector
-    }
-
-    fn title(&self) -> &str {
-        "Inspector"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("⚙️")
-    }
-
-    fn is_domain_bound(&self) -> bool {
-        true
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_inspector_panel_if_active(scope, state.params);
-    }
-}
-
-/// Autonomous Developer Log & Diagnostics Console workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ConsoleWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for ConsoleWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Console
-    }
-
-    fn title(&self) -> &str {
-        "Console"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("📜")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_console_panel_if_active(scope, state.params);
-    }
-}
-
-/// Autonomous Content & Asset Browser workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct AssetsWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for AssetsWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Assets
-    }
-
-    fn title(&self) -> &str {
-        "Assets"
+        self.id.atlas_icon().is_none().then(|| self.id.icon())
     }
 
     fn atlas_icon(&self) -> Option<[f32; 4]> {
-        Some(crate::ui::iris_bridge::icons::ICON_FOLDER)
+        self.id.atlas_icon()
+    }
+
+    fn is_domain_bound(&self) -> bool {
+        matches!(
+            self.id,
+            PanelId::Hierarchy
+                | PanelId::Inspector
+                | PanelId::MaterialEditor
+                | PanelId::AnimationTimeline
+        )
     }
 
     fn closeable(&self) -> bool {
-        true
+        !matches!(self.id, PanelId::Viewport)
     }
 
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_assets_panel_if_active(scope, state.params);
-    }
-}
-
-/// Autonomous CPU & GPU Profiler Telemetry Stats workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct StatsWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for StatsWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Stats
+    fn clear_background(&self) -> bool {
+        matches!(self.id, PanelId::Viewport)
     }
 
-    fn title(&self) -> &str {
-        "Stats"
+    fn placement(&self) -> Option<TabPlacement<PanelId>> {
+        Some(self.id.placement())
     }
 
-    fn icon(&self) -> Option<&'static str> {
-        Some("📊")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_stats_panel_if_active(scope, state.params);
+    fn render<'frame>(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+        (self.drawer)(scope, state);
     }
 }
 
-/// Autonomous Material & Texture Studio workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MaterialEditorWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for MaterialEditorWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::MaterialEditor
-    }
-
-    fn title(&self) -> &str {
-        "Material Editor"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("🌐")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_material_panel_if_active(scope, state.params);
-    }
+fn draw_viewport_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.viewport_hud.build_view(
+        scope,
+        if scope.parent_rect().width > 20.0 {
+            scope.parent_rect()
+        } else {
+            state.params.viewport.viewport_rect
+        },
+        state.params,
+        state.overlay.cursor_pos,
+    );
 }
 
-/// Autonomous Skeletal Animation Timeline Studio workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TimelineWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for TimelineWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::AnimationTimeline
-    }
-
-    fn title(&self) -> &str {
-        "Timeline"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("🎬")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_timeline_panel_if_active(scope, state.params);
-    }
+fn draw_hierarchy_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.hierarchy.build_view(
+        scope,
+        state.params,
+        state.overlay.focus_manager,
+        state.overlay.focus_state,
+        (
+            state.overlay.chrome.ctrl_held,
+            state.overlay.chrome.shift_held,
+        ),
+        (state.overlay.cursor_pos, state.overlay.blink_caret),
+    );
 }
 
-/// Autonomous 2D UI Canvas Designer workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UiDesignerWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for UiDesignerWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::UiDesigner
-    }
-
-    fn title(&self) -> &str {
-        "UI Designer"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("📐")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_ui_designer_panel_if_active(scope, state.params);
-    }
+fn draw_inspector_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.inspector.build_view(
+        scope,
+        state.params,
+        state.overlay.cursor_pos,
+        state.overlay.pending_actions,
+        &mut state.overlay.notifier,
+    );
 }
 
-/// Autonomous Global Engine & Editor Preferences workbench panel.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PreferencesWorkbenchPanel;
-
-impl<'a> WorkbenchPanel<PanelId, EditorPanelContext<'a>> for PreferencesWorkbenchPanel {
-    fn id(&self) -> PanelId {
-        PanelId::Preferences
-    }
-
-    fn title(&self) -> &str {
-        "Preferences"
-    }
-
-    fn icon(&self) -> Option<&'static str> {
-        Some("⚙️")
-    }
-
-    fn closeable(&self) -> bool {
-        true
-    }
-
-    fn render(&mut self, scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'a>) {
-        state
-            .overlay
-            .build_preferences_panel_if_active(scope, state.params);
-    }
+fn draw_console_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.console.build_view(
+        scope,
+        state.params.panel_data.console_entries,
+        state.overlay.focus_manager,
+        state.overlay.focus_state,
+        &mut state.overlay.notifier,
+        (state.overlay.cursor_pos, state.overlay.blink_caret),
+    );
 }
 
-/// Constructs and populates a [`WorkbenchPanelRegistry`] with all built-in editor workbench panels.
+fn draw_assets_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.assets.build_view(
+        scope,
+        state.params,
+        state.overlay.focus_manager,
+        state.overlay.focus_state,
+        &mut state.overlay.notifier,
+        (state.overlay.cursor_pos, state.overlay.blink_caret),
+    );
+}
+
+fn draw_stats_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state
+        .overlay
+        .stats
+        .build_view(scope, state.params, state.overlay.cursor_pos);
+}
+
+fn draw_material_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state
+        .overlay
+        .material
+        .build_view(scope, state.params, state.overlay.cursor_pos);
+}
+
+fn draw_timeline_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state
+        .overlay
+        .timeline
+        .build_view(scope, state.params, state.overlay.cursor_pos);
+}
+
+fn draw_ui_designer_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.ui_designer.build_view(
+        scope,
+        state.params,
+        state.overlay.cursor_pos,
+        &mut state.overlay.notifier,
+    );
+}
+
+fn draw_preferences_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state.overlay.preferences.build_view(
+        scope,
+        state.params,
+        state.overlay.chrome.theme_preset,
+        (state.overlay.cursor_pos, state.overlay.blink_caret),
+    );
+}
+
+const EDITOR_PANEL_DRAWERS: &[(PanelId, EditorPanelDrawerFn)] = &[
+    (PanelId::Viewport, draw_viewport_panel),
+    (PanelId::Hierarchy, draw_hierarchy_panel),
+    (PanelId::Inspector, draw_inspector_panel),
+    (PanelId::Console, draw_console_panel),
+    (PanelId::Assets, draw_assets_panel),
+    (PanelId::Stats, draw_stats_panel),
+    (PanelId::MaterialEditor, draw_material_panel),
+    (PanelId::AnimationTimeline, draw_timeline_panel),
+    (PanelId::UiDesigner, draw_ui_designer_panel),
+    (PanelId::Preferences, draw_preferences_panel),
+];
+
+/// Constructs and populates a persistent [`ScopedPanelRegistry`] with all built-in editor workbench panels.
 #[must_use]
-pub fn create_editor_panel_registry<'a>() -> WorkbenchPanelRegistry<PanelId, EditorPanelContext<'a>>
-{
-    let mut registry = WorkbenchPanelRegistry::new();
-    registry.register(ViewportWorkbenchPanel);
-    registry.register(HierarchyWorkbenchPanel);
-    registry.register(InspectorWorkbenchPanel);
-    registry.register(ConsoleWorkbenchPanel);
-    registry.register(AssetsWorkbenchPanel);
-    registry.register(StatsWorkbenchPanel);
-    registry.register(MaterialEditorWorkbenchPanel);
-    registry.register(TimelineWorkbenchPanel);
-    registry.register(UiDesignerWorkbenchPanel);
-    registry.register(PreferencesWorkbenchPanel);
+pub fn create_editor_panel_registry() -> ScopedPanelRegistry<PanelId, EditorPanelScope> {
+    let mut registry = ScopedPanelRegistry::new();
+    for &(id, drawer) in EDITOR_PANEL_DRAWERS {
+        registry.register(EditorWorkbenchPanel { id, drawer });
+    }
     registry
 }
 

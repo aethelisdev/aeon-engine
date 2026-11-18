@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
-use crate::ui::panel_layout::{PanelId, PanelLayoutState};
+use crate::ui::panel_layout::{PanelId, create_default_dock_state};
 use crate::ui::types::{ConsoleEntry, EngineUiAction};
 use irisui::prelude::{Color, Rect};
 use winit::window::Window;
@@ -39,8 +39,6 @@ pub struct EngineUi {
     pub pending_load_path: Option<std::path::PathBuf>,
     pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
     pub should_exit: bool,
-    /// Modular docking panel and tab layout state.
-    pub layout_state: PanelLayoutState,
     pub hierarchy_search_query: String,
     /// Snapshot of log entries (updated at most once per frame, only when count changed).
     pub(crate) console_entries: Vec<ConsoleEntry>,
@@ -48,6 +46,10 @@ pub struct EngineUi {
     pub(crate) console_last_count: u64,
     /// All UI rects from the last frame (panels + floating windows)
     pub(crate) ui_rects: Vec<Rect>,
+    /// Cached key `(dock_revision, floating_hash, workspace_rect, is_maximized)` for skipping redundant per-frame dock layout passes.
+    pub(crate) cached_dock_layout_key: Option<(u64, u64, Rect, bool)>,
+    /// Cached 3D viewport screen rectangle paired with `cached_dock_layout_key`.
+    pub(crate) cached_viewport_rect: Rect,
     /// Profiler snapshot (ms) – updated by engine before render
     pub profiler_ecs_ms: f32,
     pub profiler_physics_ms: f32,
@@ -94,9 +96,16 @@ pub struct EngineUi {
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
     pub pending_actions: Vec<EngineUiAction>,
-    /// Autonomous workbench orchestrator coordinating dock hierarchy, frameless window border resize, and modal dialogs.
+    /// Autonomous workbench orchestrator coordinating dock hierarchy, retained UI tree, layout, and modal dialogs.
     pub workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
-    /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
+    /// Persistent scoped panel registry retaining all 10 editor panel drawers across frames with zero allocation.
+    pub panel_registry:
+        irisui::workbench::ScopedPanelRegistry<PanelId, crate::ui::workbench::EditorPanelScope>,
+    /// Reusable scratch buffer collecting panel redraw requests emitted mid-pass.
+    pub(crate) deferred_panels: Vec<PanelId>,
+    /// Framework-owned GPU surface host coordinating SDF quads, layered typography, and WGPU render passes.
+    pub surface: irisui::IrisSurfaceHost,
+    /// Editor overlay panel/modal state bag (transitional until panel views move into direct panel structs).
     pub iris_overlay: IrisEditorOverlay,
 }
 
@@ -107,12 +116,12 @@ impl EngineUi {
         output_color_format: wgpu::TextureFormat,
         _window: &Window,
     ) -> Self {
-        let iris_overlay = IrisEditorOverlay::init(device, output_color_format);
-        let layout_state = PanelLayoutState::new_default();
+        let iris_overlay = IrisEditorOverlay::new();
+        let surface = irisui::IrisSurfaceHost::new(device, output_color_format);
 
         let workbench_desc = irisui::workbench::WorkbenchDescriptor::new(
             "Aeon Engine Studio",
-            layout_state.dock_state.clone(),
+            create_default_dock_state(),
         )
         .with_menubar(irisui::workbench::MenuBarDescriptor::new())
         .with_statusbar(irisui::workbench::StatusBarDescriptor::new());
@@ -129,18 +138,22 @@ impl EngineUi {
                 .with_zoom_action(EngineUiAction::SetUiScale)
                 .with_preferences_action(|| EngineUiAction::OpenPreferences);
 
-        for panel in PanelId::all() {
-            let mut meta = irisui::workbench::PanelMetadata::new(*panel, panel.title())
-                .with_icon(panel.icon());
-            if let Some(atlas) = panel.atlas_icon() {
-                meta = meta.with_atlas_icon(atlas);
-            }
-            workbench.panel_registry.register_metadata(meta);
-        }
+        let panel_registry = crate::ui::workbench::create_editor_panel_registry();
+        workbench
+            .panel_registry
+            .catalog_mut()
+            .import_metadata_from(panel_registry.catalog());
+        panel_registry.sync_domain_panels_to_notifier(&mut workbench.notifier);
+        workbench
+            .tree
+            .set_theme(crate::ui::iris_bridge::theme::EditorThemeTokens::default().to_iris_theme());
 
         Self {
             iris_overlay,
+            surface,
             workbench,
+            panel_registry,
+            deferred_panels: Vec::new(),
             pending_actions: Vec::new(),
             selected_entity: None,
             status_message: None,
@@ -170,11 +183,12 @@ impl EngineUi {
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
-            layout_state,
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
             ui_rects: Vec::new(),
+            cached_dock_layout_key: None,
+            cached_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             profiler_ecs_ms: 0.0,
             profiler_physics_ms: 0.0,
             profiler_render_ms: 0.0,
@@ -227,7 +241,7 @@ impl EngineUi {
     /// is instantly reflected in the bottom status bar.
     pub fn set_status_message(&mut self, text: impl Into<String>, color: Color) {
         self.status_message = Some((vec![(text.into(), color)], std::time::Instant::now()));
-        self.iris_overlay.notifier.tag_all();
+        self.workbench.notifier.tag_all();
     }
 
     /// Checks status message expiration and clears it if 2.5 seconds have elapsed.
@@ -239,13 +253,15 @@ impl EngineUi {
             && is_status_message_expired(timestamp)
         {
             self.status_message = None;
-            self.iris_overlay.notifier.tag_all();
+            self.workbench.notifier.tag_all();
         }
     }
 
     /// Returns whether any modal dialog, search input, or inspector field currently captures keyboard events.
     pub fn wants_keyboard_input(&self) -> bool {
-        self.iris_overlay.is_any_text_input_focused()
+        self.workbench.wants_keyboard_input()
+            || self.iris_overlay.focus_manager.has_focus()
+            || self.iris_overlay.inspector.rename_input.is_some()
     }
 
     /// Polls asynchronous native file dialog receivers and applies their actions.
@@ -278,9 +294,22 @@ impl EngineUi {
         }
     }
 
+    /// Returns the authoritative docking hierarchy and floating windows owned by [`Self::workbench`].
+    #[inline]
+    #[must_use]
+    pub fn dock_state(&self) -> &irisui::dock::DockState<PanelId> {
+        self.workbench.dock_state()
+    }
+
+    /// Returns a mutable reference to the authoritative docking hierarchy owned by [`Self::workbench`].
+    #[inline]
+    pub fn dock_state_mut(&mut self) -> &mut irisui::dock::DockState<PanelId> {
+        self.workbench.dock_state_mut()
+    }
+
     /// Called once per frame before rendering to snapshot the global log buffer.
     pub fn sync_console(&mut self) {
-        if !self.layout_state.is_panel_visible(PanelId::Console) {
+        if !self.workbench.is_panel_open(&PanelId::Console) {
             return;
         }
 
@@ -314,25 +343,17 @@ impl EngineUi {
     #[must_use]
     #[inline]
     pub fn wants_pointer_input(&self) -> bool {
-        self.workbench.wants_pointer_input(
-            Some(self.iris_overlay.cursor_pos()),
-            &self.layout_state.dock_state,
-            Some(&self.iris_overlay.tree),
-        )
+        self.workbench.wants_pointer_self()
     }
 
     /// Evaluates whether the specified screen-space coordinate lands over active workbench UI elements
     /// rather than the interactive 3D viewport canvas.
     ///
-    /// Delegates directly to [`irisui::workbench::Workbench::wants_pointer_at`].
+    /// Delegates directly to [`irisui::workbench::Workbench::wants_pointer_at_self`].
     #[must_use]
     #[inline]
     pub fn wants_pointer_at(&self, pos: [f32; 2]) -> bool {
-        self.workbench.wants_pointer_at(
-            pos,
-            &self.layout_state.dock_state,
-            Some(&self.iris_overlay.tree),
-        )
+        self.workbench.wants_pointer_at_self(pos)
     }
 
     /// Compatibility alias forwarding to [`Self::wants_pointer_at`].

@@ -3,20 +3,7 @@
 
 //! Retained UI update loop, always-rebuild and typography collection tests.
 
-use super::IrisEditorOverlay;
-use super::types::IrisChromeState;
 use irisui::prelude::{Button, Color, FocusManager, Rect, UiScope, UiTree};
-
-#[test]
-fn test_always_rebuild_default_and_setter() {
-    let mut chrome = IrisChromeState::default();
-    assert!(
-        !chrome.always_rebuild,
-        "always_rebuild must default to false for retained solo-tree architecture"
-    );
-    chrome.always_rebuild = true;
-    assert!(chrome.always_rebuild);
-}
 
 #[test]
 fn test_collect_text_sections_with_hover_state() {
@@ -31,12 +18,12 @@ fn test_collect_text_sections_with_hover_state() {
     }
 
     // Without hover
-    let normal = IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &[], &[]);
+    let normal = irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &[], &[]);
     assert_eq!(normal.len(), 1);
     assert_eq!(normal[0].color, tree.theme().text_secondary);
 
     // With hover on btn_tag
-    let hovered = IrisEditorOverlay::collect_text_sections_from_tree_with_hover(
+    let hovered = irisui::IrisSurfaceHost::collect_text_sections_from_tree_with_hover(
         &tree,
         &[],
         &[],
@@ -223,20 +210,6 @@ fn test_focus_manager_auto_sync_lifecycle_with_ui_scope() {
 }
 
 #[test]
-fn test_pointer_capture_state_machine() {
-    use crate::ui::panel_layout::PanelId;
-
-    let mut chrome = IrisChromeState::default();
-    assert_eq!(chrome.pointer_capture, None);
-
-    chrome.pointer_capture = Some(PanelId::AnimationTimeline);
-    assert_eq!(chrome.pointer_capture, Some(PanelId::AnimationTimeline));
-
-    chrome.pointer_capture = None;
-    assert_eq!(chrome.pointer_capture, None);
-}
-
-#[test]
 fn test_panel_tree_resolution_and_hit_testing() {
     use irisui::prelude::{Button, Color, Point, Rect, UiScope, UiTree};
 
@@ -262,41 +235,6 @@ fn test_panel_tree_resolution_and_hit_testing() {
     // Hit-test outside screen bounds
     let outside_point = Point::new(50.0, 20.0);
     assert!(!panel_bounds.contains_point(outside_point));
-}
-
-#[test]
-fn test_chrome_is_dirty_state_machine() {
-    let mut chrome = IrisChromeState {
-        last_dimensions: (1920.0, 1080.0),
-        last_zoom_factor: 1.0,
-        last_floating_count: 0,
-        last_has_drag_payload: false,
-        ..Default::default()
-    };
-
-    // Clean state
-    assert!(!chrome.is_dirty((1920.0, 1080.0), 1.0, 0, false));
-
-    // Dimension delta
-    assert!(chrome.is_dirty((2560.0, 1440.0), 1.0, 0, false));
-
-    // Zoom delta
-    assert!(chrome.is_dirty((1920.0, 1080.0), 1.25, 0, false));
-
-    // Floating count delta
-    assert!(chrome.is_dirty((1920.0, 1080.0), 1.0, 1, false));
-
-    // Drag payload
-    assert!(chrome.is_dirty((1920.0, 1080.0), 1.0, 0, true));
-
-    // Explicit layout rebuild
-    chrome.needs_layout_rebuild = true;
-    assert!(chrome.is_dirty((1920.0, 1080.0), 1.0, 0, false));
-    chrome.needs_layout_rebuild = false;
-
-    // Always rebuild override
-    chrome.always_rebuild = true;
-    assert!(chrome.is_dirty((1920.0, 1080.0), 1.0, 0, false));
 }
 
 #[test]
@@ -663,10 +601,12 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
 
 #[test]
 fn test_overlay_params_accessors_and_invariants() {
+    use super::menubar::VIEW_PANEL_IDS;
     use super::params::*;
     use crate::ui::panel_layout::PanelLayoutState;
 
     let layout_state = PanelLayoutState::default();
+    let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
     let mut world = hecs::World::new();
     let entity_a = world.spawn((123u32,));
     let _entity_b = world.spawn((456u32,));
@@ -696,6 +636,7 @@ fn test_overlay_params_accessors_and_invariants() {
     let models = ae_renderer::asset::AssetStorage::new();
     let euler = [0.0; 3];
     let swatches = Vec::new();
+    let mut live_updates = true;
 
     let camera = ae_renderer::camera::Camera {
         position: cgmath::Point3::new(0.0, 2.0, 5.0),
@@ -716,7 +657,7 @@ fn test_overlay_params_accessors_and_invariants() {
             zoom_factor: 1.25,
             is_editing: true,
             is_2d_mode: false,
-            layout_state: &layout_state,
+            view_panel_mask,
             can_undo: false,
             can_redo: false,
             enable_live_updates: true,
@@ -744,6 +685,7 @@ fn test_overlay_params_accessors_and_invariants() {
             graphics_settings: &mut gfx,
             snapping_settings: &mut snap,
             editor_config: &mut cfg,
+            enable_live_updates: &mut live_updates,
             enabled_modules: &enabled_modules,
         },
         telemetry: TelemetryParams {

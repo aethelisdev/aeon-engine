@@ -18,7 +18,6 @@ ae_editor = { path = "../ae_editor" }
 ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
-ae_texture = { path = "../ae_texture" }
 ae_uidesign = { path = "../ae_uidesign" }
 ae_runtime = { path = "../ae_runtime" }
 ae_2d = { workspace = true }

@@ -43,13 +43,15 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 system::handle_toggle_module(ctx, module)
             }
             crate::ui::EngineUiAction::OpenPanel(panel) => {
-                ctx.ui.layout_state.activate_or_open(panel)
+                ctx.ui.workbench.open_or_focus_panel(panel);
             }
             crate::ui::EngineUiAction::TogglePanel(panel) => {
-                ctx.ui.layout_state.toggle_panel(panel);
+                ctx.ui.workbench.toggle_panel(panel);
             }
             crate::ui::EngineUiAction::ResetLayout => {
-                ctx.ui.layout_state.reset_to_default();
+                ctx.ui
+                    .workbench
+                    .reset_dock_state(crate::ui::panel_layout::create_default_dock_state());
             }
             crate::ui::EngineUiAction::OpenPreferences => {
                 ctx.ui.open_preferences();
@@ -333,21 +335,21 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                     ctx.ui.asset_browser.selected_asset = None;
                 }
                 ctx.ui
-                    .iris_overlay
+                    .workbench
                     .notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::CreateSubfolder { parent, name } => {
                 let _ = crate::assets::file_ops::create_subfolder(&parent, &name);
                 ctx.ui
-                    .iris_overlay
+                    .workbench
                     .notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::RenameAssetOrFolder { target, new_name } => {
                 let _ = crate::assets::file_ops::rename_asset_or_folder(&target, &new_name);
                 ctx.ui
-                    .iris_overlay
+                    .workbench
                     .notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
@@ -360,7 +362,6 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
     // overlay as dirty so the subsequent frame unconditionally rebuilds the retained tree
     // with the freshly mutated data, even if the mouse cursor remains completely motionless.
     if had_actions {
-        ctx.ui.iris_overlay.chrome.needs_layout_rebuild = true;
-        ctx.ui.iris_overlay.notifier.tag_all();
+        ctx.ui.workbench.notifier.tag_all();
     }
 }

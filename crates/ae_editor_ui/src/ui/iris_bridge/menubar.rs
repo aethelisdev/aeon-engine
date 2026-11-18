@@ -8,7 +8,7 @@
 //! declarative [`irisui::workbench::MenuBarDescriptor`] and [`irisui::workbench::ActionBus`].
 
 use crate::ui::EngineUiAction;
-use crate::ui::panel_layout::{PanelId, PanelLayoutState};
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 use irisui::workbench::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuSectionDescriptor, WorkbenchUiScopeExt,
@@ -19,6 +19,18 @@ pub const MENUBAR_HEIGHT: f32 = 36.0;
 
 /// Default width of floating dropdown popup menus in physical pixels.
 pub const DROPDOWN_WIDTH: f32 = 260.0;
+
+/// Ordered panel identifiers matching bit indices in [`MenuBarParams::view_panel_mask`].
+pub const VIEW_PANEL_IDS: [PanelId; 8] = [
+    PanelId::Hierarchy,
+    PanelId::Inspector,
+    PanelId::Assets,
+    PanelId::Console,
+    PanelId::MaterialEditor,
+    PanelId::AnimationTimeline,
+    PanelId::Stats,
+    PanelId::UiDesigner,
+];
 
 /// Semantic panel definitions mapped to their display labels and interaction tags.
 const VIEW_PANELS: [(PanelId, &str, u64); 8] = [
@@ -34,11 +46,11 @@ const VIEW_PANELS: [(PanelId, &str, u64); 8] = [
 
 /// Configuration descriptor passed to [`build_top_menu_bar`] and [`build_top_menu_bar_scope`].
 #[derive(Debug, Clone, Copy)]
-pub struct MenuBarParams<'a> {
+pub struct MenuBarParams {
     /// Screen width constraint in physical pixels.
     pub screen_width: f32,
-    /// Reference to the active panel layout and visibility manager.
-    pub layout_state: &'a PanelLayoutState,
+    /// 64-bit visibility mask over [`VIEW_PANEL_IDS`] computed by `Workbench::tab_visibility_mask`.
+    pub view_panel_mask: u64,
     /// Whether the editor command stack supports undo operations.
     pub can_undo: bool,
     /// Whether the editor command stack supports redo operations.
@@ -50,7 +62,7 @@ pub struct MenuBarParams<'a> {
 /// Declaratively constructs the top application menu bar inside the provided [`UiScope`].
 pub fn build_top_menu_bar(
     scope: &mut UiScope<'_>,
-    params: &MenuBarParams<'_>,
+    params: &MenuBarParams,
     action_bus: &mut irisui::workbench::ActionBus<EngineUiAction>,
 ) -> Option<u64> {
     (
@@ -69,7 +81,7 @@ pub fn build_top_menu_bar(
 fn dispatch_menubar_with_descriptor(
     scope: &mut UiScope<'_>,
     descriptor: &irisui::workbench::MenuBarDescriptor,
-    params: &MenuBarParams<'_>,
+    params: &MenuBarParams,
     action_bus: &mut irisui::workbench::ActionBus<EngineUiAction>,
 ) -> Option<u64> {
     match descriptor.render_with_action_bus(scope, params.screen_width, action_bus, |tag| {
@@ -157,7 +169,7 @@ pub fn map_menubar_tag(tag: u64, is_editing: bool) -> Option<EngineUiAction> {
 }
 
 /// Constructs a declarative [`irisui::workbench::MenuBarDescriptor`] representing the engine's application menu bar.
-pub fn build_workbench_menubar_descriptor(params: &MenuBarParams<'_>) -> MenuBarDescriptor {
+pub fn build_workbench_menubar_descriptor(params: &MenuBarParams) -> MenuBarDescriptor {
     attach_right_controls(
         MenuBarDescriptor::new()
             .with_height(MENUBAR_HEIGHT)
@@ -168,8 +180,8 @@ pub fn build_workbench_menubar_descriptor(params: &MenuBarParams<'_>) -> MenuBar
             ))
             .with_menu(file_menu_descriptor())
             .with_menu(edit_menu_descriptor(params.can_undo, params.can_redo))
-            .with_menu(view_menu_descriptor(params.layout_state))
-            .with_menu(window_menu_descriptor(params.layout_state))
+            .with_menu(view_menu_descriptor(params.view_panel_mask))
+            .with_menu(window_menu_descriptor(params.view_panel_mask))
             .with_menu(help_menu_descriptor()),
         params.is_editing,
     )
@@ -218,39 +230,26 @@ fn attach_redo_action(menu: MenuSectionDescriptor, can_redo: bool) -> MenuSectio
 }
 
 /// Constructs the declarative 'View' menu section descriptor.
-fn view_menu_descriptor(layout_state: &PanelLayoutState) -> MenuSectionDescriptor {
-    VIEW_PANELS.iter().fold(
+fn view_menu_descriptor(view_panel_mask: u64) -> MenuSectionDescriptor {
+    VIEW_PANELS.iter().enumerate().fold(
         MenuSectionDescriptor::new("View", 0x3000),
-        |menu, &(pid, label, tag)| {
-            menu.with_action_with_icon(
-                if layout_state.is_panel_visible(pid) {
-                    "✓"
-                } else {
-                    " "
-                },
-                label,
-                tag,
-            )
+        |menu, (idx, &(_pid, label, tag))| {
+            let visible = (view_panel_mask & (1u64 << idx)) != 0;
+            menu.with_action_with_icon(if visible { "✓" } else { " " }, label, tag)
         },
     )
 }
 
 /// Constructs the declarative 'Window' menu section descriptor.
-fn window_menu_descriptor(layout_state: &PanelLayoutState) -> MenuSectionDescriptor {
+fn window_menu_descriptor(view_panel_mask: u64) -> MenuSectionDescriptor {
     VIEW_PANELS
         .iter()
+        .enumerate()
         .fold(
             MenuSectionDescriptor::new("Window", 0x4000),
-            |menu, &(pid, label, tag)| {
-                menu.with_action_with_icon(
-                    if layout_state.is_panel_visible(pid) {
-                        "✓"
-                    } else {
-                        " "
-                    },
-                    label,
-                    tag + 0x1000,
-                )
+            |menu, (idx, &(_pid, label, tag))| {
+                let visible = (view_panel_mask & (1u64 << idx)) != 0;
+                menu.with_action_with_icon(if visible { "✓" } else { " " }, label, tag + 0x1000)
             },
         )
         .with_separator()
@@ -288,7 +287,8 @@ mod tests {
     fn test_top_menu_bar_declarative_build_and_roles() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = PanelLayoutState::default();
+        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
+        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
         let mut scope = UiScope::new(&mut tree, root);
 
@@ -296,7 +296,7 @@ mod tests {
             &mut scope,
             &MenuBarParams {
                 screen_width: 1920.0,
-                layout_state: &layout_state,
+                view_panel_mask,
                 can_undo: true,
                 can_redo: false,
                 is_editing: true,
@@ -313,7 +313,8 @@ mod tests {
     fn test_menu_bar_click_activates_dropdown() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = PanelLayoutState::default();
+        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
+        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         let file_tag = hash_label_with_seed(0, "File");
@@ -324,7 +325,7 @@ mod tests {
             &mut scope,
             &MenuBarParams {
                 screen_width: 1920.0,
-                layout_state: &layout_state,
+                view_panel_mask,
                 can_undo: true,
                 can_redo: false,
                 is_editing: true,
@@ -343,7 +344,8 @@ mod tests {
     fn test_top_menu_bar_button_widths_and_gaps() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = PanelLayoutState::default();
+        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
+        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         {
@@ -352,7 +354,7 @@ mod tests {
                 &mut scope,
                 &MenuBarParams {
                     screen_width: 1920.0,
-                    layout_state: &layout_state,
+                    view_panel_mask,
                     can_undo: true,
                     can_redo: false,
                     is_editing: true,
@@ -425,7 +427,8 @@ mod tests {
     fn test_menu_bar_action_emission_to_action_bus() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = PanelLayoutState::default();
+        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
+        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         // Simulate active File menu dropdown and clicking Exit (0x1005)
@@ -438,7 +441,7 @@ mod tests {
             &mut scope,
             &MenuBarParams {
                 screen_width: 1920.0,
-                layout_state: &layout_state,
+                view_panel_mask,
                 can_undo: true,
                 can_redo: false,
                 is_editing: true,
@@ -464,7 +467,8 @@ mod tests {
     fn test_top_menu_bar_about_modal_opens_and_renders() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = PanelLayoutState::default();
+        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
+        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         // 1. Initially About modal is closed
@@ -481,7 +485,7 @@ mod tests {
                 &mut scope,
                 &MenuBarParams {
                     screen_width: 1920.0,
-                    layout_state: &layout_state,
+                    view_panel_mask,
                     can_undo: true,
                     can_redo: false,
                     is_editing: true,

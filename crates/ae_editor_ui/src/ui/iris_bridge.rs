@@ -8,7 +8,6 @@
 
 pub mod assets;
 pub mod console;
-pub mod cursor;
 pub mod export_modal;
 pub mod floating_layer;
 pub mod hierarchy;
@@ -17,9 +16,9 @@ pub mod inspector;
 pub mod material;
 pub mod menubar;
 pub mod modals;
+pub mod panel_views;
 pub mod params;
 pub mod preferences;
-pub mod render;
 pub mod stats;
 pub mod status_bar;
 pub mod theme;
@@ -58,9 +57,9 @@ pub use timeline::{
     handle_timeline_click,
 };
 pub use types::{
-    ActiveMenu, DialogParams, EditorContextParams, IrisChromeState, IrisEditorOverlay,
-    IrisOverlayEventResult, MenubarOverlayState, OverlayPanelData, OverlayPreferencesParams,
-    OverlayUpdateParams, PanelInteractionState, SceneParams, TelemetryParams, ViewportParams,
+    DialogParams, EditorContextParams, IrisChromeState, IrisEditorOverlay, OverlayPanelData,
+    OverlayPreferencesParams, OverlayUpdateParams, PanelInteractionState, SceneParams,
+    TelemetryParams, ViewportParams,
 };
 pub use ui_designer::{
     CanvasAspectRatio, UiDesignerAction, UiDesignerCanvasMetrics, UiDesignerPanelParams,

@@ -7,8 +7,10 @@
 //! providing zero-allocation panel membership queries, workspace boundary constraints,
 //! and content rectangle resolution.
 
-use crate::ui::panel_layout::{PanelId, PanelLayoutState};
-use irisui::dock::{FloatingWindowClampBounds, FloatingWindowStyle, MIN_VISIBLE_TITLE_BAR};
+use crate::ui::panel_layout::PanelId;
+use irisui::dock::{
+    DockState, FloatingWindowClampBounds, FloatingWindowStyle, MIN_VISIBLE_TITLE_BAR,
+};
 use irisui::prelude::Rect;
 
 /// Constructs standard editor floating window clamp bounds constraining windows within visible screen extents.
@@ -31,8 +33,8 @@ pub fn editor_floating_clamp_bounds(screen_w: f32, screen_h: f32) -> FloatingWin
 /// Performs the lookup with zero heap allocations by searching each floating window's dock tree directly.
 #[inline]
 #[must_use]
-pub fn is_panel_in_floating_window(layout_state: &PanelLayoutState, panel: PanelId) -> bool {
-    layout_state.dock_state.is_tab_in_floating_window(&panel)
+pub fn is_panel_in_floating_window(dock: &DockState<PanelId>, panel: PanelId) -> bool {
+    dock.is_tab_in_floating_window(&panel)
 }
 
 /// Returns the Iris content rectangle assigned to an active panel in a floating window.
@@ -41,15 +43,13 @@ pub fn is_panel_in_floating_window(layout_state: &PanelLayoutState, panel: Panel
 /// ensuring their content begins below the native title and tab strip rather than covering it.
 #[inline]
 #[must_use]
-pub fn active_panel_content_rect(layout_state: &PanelLayoutState, panel: PanelId) -> Option<Rect> {
-    layout_state
-        .dock_state
-        .find_floating_tab_content_rect(&panel, FloatingWindowStyle::DEFAULT_TITLE_BAR_HEIGHT)
+pub fn active_panel_content_rect(dock: &DockState<PanelId>, panel: PanelId) -> Option<Rect> {
+    dock.find_floating_tab_content_rect(&panel, FloatingWindowStyle::DEFAULT_TITLE_BAR_HEIGHT)
 }
 
 /// Resolves the content rectangle of the 3D viewport when detached in a floating window.
 #[inline]
 #[must_use]
-pub fn resolve_floating_viewport_rect(layout_state: &PanelLayoutState) -> Option<Rect> {
-    active_panel_content_rect(layout_state, PanelId::Viewport)
+pub fn resolve_floating_viewport_rect(dock: &DockState<PanelId>) -> Option<Rect> {
+    active_panel_content_rect(dock, PanelId::Viewport)
 }

@@ -60,8 +60,7 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::OpenCreateSubfolder(_) => {
                     // Handled declaratively via Assets panel dialog host on UiScope
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
-                    self.iris_overlay.notifier.tag_all();
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::SpawnAsset(path, cat) => match cat {
                     crate::assets::types::AssetCategory::Models3D => {
@@ -93,13 +92,11 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::OpenRename(..) => {
                     // Handled declaratively via Assets panel dialog host on UiScope
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
-                    self.iris_overlay.notifier.tag_all();
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::OpenDelete(_) => {
                     // Handled declaratively via Assets panel dialog host on UiScope
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
-                    self.iris_overlay.notifier.tag_all();
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::AssetsPanelAction::CopyPath(path) => {
                     log::info!("Asset file path copied: {}", path.display());
@@ -133,7 +130,7 @@ impl EngineUi {
                     }
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
-                    let cursor_pos = self.iris_overlay.cursor_pos();
+                    let cursor_pos = self.workbench.effective_cursor_pos();
                     let is_over_viewport = cursor_pos.x >= self.last_viewport_rect.x
                         && cursor_pos.x <= self.last_viewport_rect.right()
                         && cursor_pos.y >= self.last_viewport_rect.y
@@ -272,7 +269,9 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::ToggleEngineContent => {
                     self.asset_browser.show_engine_content =
                         !self.asset_browser.show_engine_content;
-                    self.iris_overlay.notifier.tag_all();
+                    self.workbench
+                        .notifier
+                        .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
                 }
                 _ => {}
             }

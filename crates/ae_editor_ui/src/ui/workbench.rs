@@ -11,6 +11,6 @@ pub mod preferences;
 pub mod render;
 pub mod state;
 
-pub use panels::{EditorPanelContext, create_editor_panel_registry};
+pub use panels::{EditorPanelContext, EditorPanelScope, create_editor_panel_registry};
 pub use render::EditorUiRenderParams;
 pub use state::{EngineUi, SceneDialogAction};

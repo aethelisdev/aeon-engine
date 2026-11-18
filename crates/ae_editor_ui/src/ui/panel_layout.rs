@@ -89,6 +89,39 @@ impl PanelId {
         }
     }
 
+    /// Returns the declarative library docking/floating placement rule for this panel.
+    #[inline]
+    #[must_use]
+    pub const fn placement(self) -> irisui::dock::TabPlacement<Self> {
+        match self {
+            Self::Preferences => irisui::dock::TabPlacement::FloatingCentered {
+                size: irisui::prelude::Size::new(760.0, 540.0),
+            },
+            Self::Hierarchy | Self::Stats => irisui::dock::TabPlacement::Docked {
+                partner: Some(ideal_partner_for(self)),
+                anchor: Some(Self::Viewport),
+                zone: irisui::dock::DropZone::Left,
+            },
+            Self::Inspector | Self::MaterialEditor => irisui::dock::TabPlacement::Docked {
+                partner: Some(ideal_partner_for(self)),
+                anchor: Some(Self::Viewport),
+                zone: irisui::dock::DropZone::Right,
+            },
+            Self::Assets | Self::Console | Self::AnimationTimeline => {
+                irisui::dock::TabPlacement::Docked {
+                    partner: Some(ideal_partner_for(self)),
+                    anchor: Some(Self::Viewport),
+                    zone: irisui::dock::DropZone::Bottom,
+                }
+            }
+            Self::Viewport | Self::UiDesigner => irisui::dock::TabPlacement::Docked {
+                partner: Some(ideal_partner_for(self)),
+                anchor: Some(Self::Viewport),
+                zone: irisui::dock::DropZone::Center,
+            },
+        }
+    }
+
     /// Parses a string identifier into its corresponding [`PanelId`] if recognized.
     ///
     /// Returns `None` if the provided string does not match any built-in panel identifier.
@@ -235,38 +268,19 @@ impl PanelLayoutState {
 
     /// Checks if a panel currently exists anywhere in the docking tree or in an active floating window.
     pub fn is_panel_visible(&self, panel: PanelId) -> bool {
-        self.dock_state.tree.find_tab(&panel).is_some()
-            || self.dock_state.is_tab_in_floating_window(&panel)
+        self.dock_state.contains_tab(&panel)
     }
 
     /// Closes a tab at the specified leaf and index, collapsing any emptied leaf containers.
     pub fn close_tab(&mut self, leaf: irisui::dock::DockNodeId, tab_idx: usize) {
-        let _ = self.dock_state.tree.remove_tab(leaf, tab_idx);
-        self.dock_state.tree.collapse_empty_leaves();
+        let _ = self.dock_state.close_tab(leaf, tab_idx);
     }
 
     /// Closes a panel whether it is currently docked in the workspace tree or hosted in a detached floating window.
     ///
     /// Returns `true` if the panel was found and closed, or `false` if it was not open.
     pub fn close_panel(&mut self, panel: PanelId) -> bool {
-        if let Some(win_id) = self
-            .dock_state
-            .floating_windows
-            .iter()
-            .find(|w| w.tree.find_tab(&panel).is_some())
-            .map(|w| w.id)
-        {
-            let _ = self.dock_state.close_floating_window(win_id);
-            return true;
-        }
-
-        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
-            let _ = self.dock_state.tree.remove_tab(leaf, idx);
-            self.dock_state.tree.collapse_empty_leaves();
-            return true;
-        }
-
-        false
+        self.dock_state.close_tab_by_id(&panel)
     }
 
     /// Toggles a panel's visibility, closing it if currently visible (docked or floating),
@@ -274,10 +288,12 @@ impl PanelLayoutState {
     ///
     /// If the panel is [`PanelId::Preferences`], opens it as a detached floating window.
     pub fn toggle_panel(&mut self, panel: PanelId) {
-        if self.close_panel(panel) {
-            return;
-        }
-        self.activate_or_open(panel);
+        self.dock_state.toggle_tab(
+            panel,
+            panel.title(),
+            &panel.placement(),
+            Some(irisui::prelude::Size::new(1920.0, 1080.0)),
+        );
     }
 
     /// Focuses an existing panel tab in the tree or opens it relative to its canonical partner/anchor.
@@ -285,108 +301,25 @@ impl PanelLayoutState {
     /// If the panel is already open in a detached floating window, brings that floating window to the front.
     /// If the panel is [`PanelId::Preferences`], opens it as a detached floating window centered on screen.
     pub fn activate_or_open(&mut self, panel: PanelId) {
-        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
-            let _ = self.dock_state.tree.set_active_tab(leaf, idx);
-            self.dock_state.tree.set_focused_leaf(Some(leaf));
-            return;
-        }
-
-        if let Some(win_id) = self
-            .dock_state
-            .floating_windows
-            .iter()
-            .find(|w| w.tree.find_tab(&panel).is_some())
-            .map(|w| w.id)
-        {
-            self.dock_state.bring_floating_to_front(win_id);
-            return;
-        }
-
-        if panel == PanelId::Preferences {
-            self.open_preferences_floating(1920.0, 1080.0);
-            return;
-        }
-
-        let ideal_partner = match panel {
-            PanelId::Hierarchy => PanelId::Stats,
-            PanelId::Stats => PanelId::Hierarchy,
-            PanelId::Inspector => PanelId::MaterialEditor,
-            PanelId::MaterialEditor => PanelId::Inspector,
-            PanelId::Assets => PanelId::Console,
-            PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
-            PanelId::Viewport => PanelId::UiDesigner,
-            PanelId::UiDesigner => PanelId::Viewport,
-            PanelId::Preferences => PanelId::Inspector,
-        };
-
-        // 1. Try docking as a tab alongside ideal partner leaf
-        if let Some((partner_leaf, _)) = self.dock_state.tree.find_tab(&ideal_partner)
-            && let Ok(idx) = self.dock_state.tree.add_tab(partner_leaf, panel)
-        {
-            let _ = self.dock_state.tree.set_active_tab(partner_leaf, idx);
-            self.dock_state.tree.set_focused_leaf(Some(partner_leaf));
-            return;
-        }
-
-        // 2. Try docking relative to Viewport (the central anchor of the editor)
-        if let Some((viewport_leaf, _)) = self.dock_state.tree.find_tab(&PanelId::Viewport) {
-            let res = match panel {
-                PanelId::Hierarchy | PanelId::Stats => {
-                    self.dock_state.tree.split_left(viewport_leaf, panel)
-                }
-                PanelId::Inspector | PanelId::MaterialEditor | PanelId::Preferences => {
-                    self.dock_state.tree.split_right(viewport_leaf, panel)
-                }
-                PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
-                    self.dock_state.tree.split_below(viewport_leaf, panel)
-                }
-                PanelId::Viewport | PanelId::UiDesigner => self
-                    .dock_state
-                    .tree
-                    .add_tab(viewport_leaf, panel)
-                    .map(|_| viewport_leaf),
-            };
-            if let Ok(new_leaf) = res {
-                self.dock_state.tree.set_focused_leaf(Some(new_leaf));
-                return;
-            }
-        }
-
-        // 3. Fallback to focused leaf or root
-        let _ = self.dock_state.tree.push_to_focused_leaf(panel);
+        self.dock_state.open_or_focus_tab(
+            panel,
+            panel.title(),
+            &panel.placement(),
+            Some(irisui::prelude::Size::new(1920.0, 1080.0)),
+        );
     }
 
     /// Opens the Preferences panel as a detached floating window or brings it to the front.
-    ///
-    /// If the Preferences panel is currently docked as a tab in the workspace tree, focuses
-    /// that docked leaf and activates the Preferences tab. If it is already hosted within
-    /// a floating window, elevates that floating window to the top of the z-order.
-    /// Otherwise, creates a new centered floating window using default preference card dimensions.
     pub fn open_preferences_floating(&mut self, screen_width: f32, screen_height: f32) {
-        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&PanelId::Preferences) {
-            let _ = self.dock_state.tree.set_active_tab(leaf, idx);
-            self.dock_state.tree.set_focused_leaf(Some(leaf));
-            return;
-        }
-
-        let width = 760.0_f32.min(screen_width.max(300.0));
-        let height = 540.0_f32.min(screen_height.max(200.0));
-        let x = ((screen_width - width) * 0.5).max(10.0);
-        let y = ((screen_height - height) * 0.5).max(36.0);
-        let rect = irisui::prelude::Rect::new(x, y, width, height);
-
-        let _ =
-            self.dock_state
-                .open_or_focus_floating_tab(PanelId::Preferences, "Preferences", rect);
+        self.dock_state.open_or_focus_centered_floating(
+            PanelId::Preferences,
+            PanelId::Preferences.title(),
+            irisui::prelude::Size::new(760.0, 540.0),
+            Some(irisui::prelude::Size::new(screen_width, screen_height)),
+        );
     }
 
-    /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
-    ///
-    /// Constrains vertical coordinates so floating panel title bars never get pushed underneath
     /// Constrains all detached floating windows to stay within user-accessible viewport boundaries.
-    ///
-    /// Delegates directly to the core Iris UI docking framework (`self.dock_state.clamp_floating_windows`),
-    /// ensuring that title bars remain accessible below the top menubar and grab handles remain visible.
     #[inline]
     pub fn clamp_floating_windows(&mut self, bounds: &FloatingWindowClampBounds) {
         self.dock_state.clamp_floating_windows(bounds);
@@ -394,66 +327,25 @@ impl PanelLayoutState {
 
     /// Docks a floating window back to its canonical home leaf in the tree.
     pub fn smart_dock_back_panel(&mut self, win_id: u64) {
-        let target_panel = self
-            .dock_state
-            .floating_windows
-            .iter()
-            .find(|w| w.id == win_id)
-            .and_then(|w| w.tree.all_tabs().first().copied());
+        self.dock_state
+            .dock_floating_by_placement(win_id, |panel| panel.placement());
+    }
+}
 
-        let Some(panel) = target_panel else {
-            let _ = self.dock_state.close_floating_window(win_id);
-            return;
-        };
-
-        let ideal_partner = match panel {
-            PanelId::Hierarchy => PanelId::Stats,
-            PanelId::Stats => PanelId::Hierarchy,
-            PanelId::Inspector => PanelId::MaterialEditor,
-            PanelId::MaterialEditor => PanelId::Inspector,
-            PanelId::Assets => PanelId::Console,
-            PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
-            PanelId::Viewport => PanelId::UiDesigner,
-            PanelId::UiDesigner => PanelId::Viewport,
-            PanelId::Preferences => PanelId::Inspector,
-        };
-
-        // 1. Try docking as a tab alongside ideal partner leaf
-        if let Some((partner_leaf, _)) = self.dock_state.tree.find_tab(&ideal_partner) {
-            let _ = self.dock_state.dock_floating_window(
-                win_id,
-                partner_leaf,
-                irisui::dock::DropZone::Center,
-            );
-            return;
-        }
-
-        // 2. Try docking relative to Viewport (the central anchor of the editor)
-        if let Some((viewport_leaf, _)) = self.dock_state.tree.find_tab(&PanelId::Viewport) {
-            let target_zone = match panel {
-                PanelId::Hierarchy | PanelId::Stats => irisui::dock::DropZone::Left,
-                PanelId::Inspector | PanelId::MaterialEditor | PanelId::Preferences => {
-                    irisui::dock::DropZone::Right
-                }
-                PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
-                    irisui::dock::DropZone::Bottom
-                }
-                PanelId::Viewport | PanelId::UiDesigner => irisui::dock::DropZone::Center,
-            };
-            let _ = self
-                .dock_state
-                .dock_floating_window(win_id, viewport_leaf, target_zone);
-            return;
-        }
-
-        // 3. Fallback to any existing leaf in the tree
-        if let Some(fallback_leaf) = self.dock_state.tree.find_first_leaf() {
-            let _ = self.dock_state.dock_floating_window(
-                win_id,
-                fallback_leaf,
-                irisui::dock::DropZone::Center,
-            );
-        }
+/// Returns the canonical sibling/partner panel paired with `panel` for opening or docking back.
+#[inline]
+#[must_use]
+pub const fn ideal_partner_for(panel: PanelId) -> PanelId {
+    match panel {
+        PanelId::Hierarchy => PanelId::Stats,
+        PanelId::Stats => PanelId::Hierarchy,
+        PanelId::Inspector => PanelId::MaterialEditor,
+        PanelId::MaterialEditor => PanelId::Inspector,
+        PanelId::Assets => PanelId::Console,
+        PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
+        PanelId::Viewport => PanelId::UiDesigner,
+        PanelId::UiDesigner => PanelId::Viewport,
+        PanelId::Preferences => PanelId::Inspector,
     }
 }
 

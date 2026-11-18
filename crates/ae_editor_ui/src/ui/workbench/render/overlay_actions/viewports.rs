@@ -53,7 +53,7 @@ impl EngineUi {
                             iris_bridge::ViewportHudAction::SetGridSnapSize(size) => {
                                 snapping.grid_size = size;
                                 *snap_changed = true;
-                                self.iris_overlay
+                                self.workbench
                                     .notifier
                                     .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                             }
@@ -94,19 +94,19 @@ impl EngineUi {
                 }
                 iris_bridge::ViewportHudAction::ToggleWireframe => {
                     self.wireframe_enabled = !self.wireframe_enabled;
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
                 iris_bridge::ViewportHudAction::SetGizmoMode(gmode) => {
                     self.gizmo_mode = gmode;
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
                 iris_bridge::ViewportHudAction::ToggleGizmoSpace => {
                     self.gizmo_space = self.gizmo_space.toggle();
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
@@ -118,20 +118,20 @@ impl EngineUi {
                     snapping.current_enabled =
                         snapping.mode == ae_editor::snapping::SnapMode::Toggle;
                     *snap_changed = true;
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
                 iris_bridge::ViewportHudAction::SetGridSnapSize(size) => {
                     snapping.grid_size = size;
                     *snap_changed = true;
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
                 iris_bridge::ViewportHudAction::ToggleDropdown(dd) => {
                     self.iris_overlay.viewport_hud.dropdown = dd;
-                    self.iris_overlay
+                    self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Viewport);
                 }
@@ -214,36 +214,30 @@ impl EngineUi {
                     self.iris_overlay.hierarchy.is_add_menu_open = true;
                     self.iris_overlay.hierarchy.active_submenu = None;
                     self.iris_overlay.hierarchy.active_sub_submenu = None;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::HierarchyAction::CloseAddMenu => {
                     self.iris_overlay.hierarchy.is_add_menu_open = false;
                     self.iris_overlay.hierarchy.active_submenu = None;
                     self.iris_overlay.hierarchy.active_sub_submenu = None;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::HierarchyAction::OpenSubmenu(sub) => {
                     self.iris_overlay.hierarchy.activate_submenu(sub);
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::HierarchyAction::CloseSubmenu => {
                     self.iris_overlay.hierarchy.active_submenu = None;
                     self.iris_overlay.hierarchy.active_sub_submenu = None;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::HierarchyAction::OpenSubSubmenu(sub) => {
                     self.iris_overlay.hierarchy.activate_submenu(sub);
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::HierarchyAction::CloseSubSubmenu => {
                     self.iris_overlay.hierarchy.active_sub_submenu = None;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 _ => {}
             }

@@ -13,8 +13,8 @@ pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMod
 
             // Automatically switch active tab to 3D Viewport for gameplay immersion
             ctx.ui
-                .layout_state
-                .activate_or_open(crate::ui::panel_layout::PanelId::Viewport);
+                .workbench
+                .open_or_focus_panel(crate::ui::panel_layout::PanelId::Viewport);
 
             // Clean up asset browser & UI designer active selection, modals, and drag state to prevent gameplay input interception
             ctx.ui.asset_browser.selected_asset = None;

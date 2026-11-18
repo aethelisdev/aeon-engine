@@ -38,42 +38,23 @@ impl EngineUi {
         while let Some(act) = self.pending_preferences_actions.pop() {
             match act {
                 iris_bridge::PreferencesAction::Close => {
-                    if let Some(win_id) = self
-                        .layout_state
-                        .dock_state
-                        .floating_windows
-                        .iter()
-                        .find(|w| w.tree.find_tab(&crate::ui::PanelId::Preferences).is_some())
-                        .map(|w| w.id)
-                    {
-                        let _ = self.layout_state.dock_state.close_floating_window(win_id);
-                    } else if let Some((leaf, idx)) = self
-                        .layout_state
-                        .dock_state
-                        .tree
-                        .find_tab(&crate::ui::PanelId::Preferences)
-                    {
-                        let _ = self.layout_state.dock_state.tree.remove_tab(leaf, idx);
-                        self.layout_state.dock_state.tree.collapse_empty_leaves();
-                    }
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    let _ = self.workbench.close_panel(&crate::ui::PanelId::Preferences);
                 }
                 iris_bridge::PreferencesAction::SelectTab(t) => {
                     self.preferences_tab = t;
                     self.iris_overlay.preferences.tab = t;
                     self.iris_overlay.preferences.reset_scroll();
-                    self.iris_overlay.tree.set_scroll_offset(
+                    self.workbench.tree.set_scroll_offset(
                         crate::ui::iris_bridge::preferences::PREF_TAG_CONTENT_VIEW,
                         0.0,
                     );
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench
+                        .notifier
+                        .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
                 }
                 iris_bridge::PreferencesAction::Move(new_pos) => {
                     self.iris_overlay.preferences.floating.pos = Some(new_pos);
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::PreferencesAction::SetUiScale(s) => {
                     self.ui_zoom_factor = s.clamp(0.6, 2.0);
@@ -91,8 +72,7 @@ impl EngineUi {
                 iris_bridge::PreferencesAction::ToggleSection(_) => {}
                 iris_bridge::PreferencesAction::SetTheme(t) => {
                     self.iris_overlay.chrome.theme_preset = t;
-                    self.iris_overlay.notifier.tag_all();
-                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    self.workbench.notifier.tag_all();
                 }
             }
         }

@@ -27,7 +27,7 @@ pub struct IrisPassParams<'a> {
     pub graphics_settings: &'a mut ae_renderer::graphics_settings::GraphicsSettings,
     pub snapping_settings: &'a mut ae_editor::snapping::SnapSettings,
     pub editor_config: &'a mut ae_editor::editor_state::EditorConfig,
-    pub enable_live_updates: bool,
+    pub enable_live_updates: &'a mut bool,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub camera: &'a ae_renderer::camera::Camera,
     pub world: &'a hecs::World,
@@ -40,23 +40,9 @@ pub struct IrisPassParams<'a> {
 impl EngineUi {
     /// Updates Iris UI overlays (Menubar, Toolbar, Inspector, Hierarchy, Modals) and renders them to WGPU.
     pub fn execute_iris_pass(&mut self, params: IrisPassParams<'_>) {
-        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing (zero allocation)
-        self.layout_state
-            .dock_state
-            .sync_floating_window_rects(&mut self.iris_overlay.chrome.floating_window_rects);
-
-        // Resolve active window cursor icon
-        let active_widget_cursor = self.iris_overlay.active_cursor();
-        if active_widget_cursor != irisui::prelude::WidgetCursor::Default {
-            params
-                .window
-                .set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
-        } else if self
-            .iris_overlay
-            .is_point_over_overlay(self.iris_overlay.cursor_pos())
-        {
-            params.window.set_cursor(winit::window::CursorIcon::Default);
-        }
+        // Resolve and synchronize OS cursor icon through Workbench (cached to suppress redundant OS IPC)
+        let mut win = params.window;
+        self.workbench.sync_cursor(&mut win);
 
         let win_size = params.window.inner_size();
         if win_size.width == 0 || win_size.height == 0 {
@@ -69,12 +55,21 @@ impl EngineUi {
         let logical_w = win_size.width as f32 / zoom;
         let logical_h = win_size.height as f32 / zoom;
 
-        self.iris_overlay
-            .ensure_tools_texture(params.device, params.queue);
-        self.iris_overlay
-            .ensure_asset_thumbnails(params.queue, &self.asset_browser.cached_items);
-        self.iris_overlay
-            .set_viewport_texture(params.device, params.viewport_texture_view);
+        iris_bridge::icons::ensure_editor_icon_atlas(
+            &mut self.surface,
+            params.device,
+            params.queue,
+        );
+        self.iris_overlay.assets.ensure_thumbnails(
+            &self.surface,
+            params.queue,
+            &self.asset_browser.cached_items,
+        );
+        self.surface.set_external_texture(
+            params.device,
+            iris_bridge::VIEWPORT_TEXTURE_ID,
+            params.viewport_texture_view,
+        );
 
         let status_spans = self
             .status_message
@@ -115,33 +110,45 @@ impl EngineUi {
             }
         }
 
+        let view_panel_mask = self
+            .workbench
+            .tab_visibility_mask(&iris_bridge::menubar::VIEW_PANEL_IDS);
         let signals = self.iris_overlay.lifecycle_signals(
-            self.layout_state
-                .is_panel_visible(crate::ui::panel_layout::PanelId::Preferences),
+            &self.workbench.tree,
+            self.workbench
+                .is_panel_open(&crate::ui::panel_layout::PanelId::Preferences),
         );
         let is_assets_search_focused = self
             .iris_overlay
-            .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
-        let is_cursor_occluded = self
-            .iris_overlay
-            .is_point_over_overlay(self.iris_overlay.cursor_pos())
+            .focus_manager
+            .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT)
             || self
-                .layout_state
-                .dock_state
-                .is_point_over_floating_window(self.iris_overlay.cursor_pos());
+                .iris_overlay
+                .focus_state
+                .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT)
+            || self
+                .workbench
+                .tree
+                .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
+        let cursor_pos = self.workbench.effective_cursor_pos();
+        let is_cursor_occluded = self.workbench.is_point_over_overlay(cursor_pos)
+            || self
+                .workbench
+                .dock_state()
+                .is_point_over_floating_window(cursor_pos);
         let selection_id = self.selected_entity.map(|e| e.to_bits().get());
         let is_drag_active = self.asset_browser.drag_payload.is_some();
 
-        let overlay_params = iris_bridge::OverlayUpdateParams {
+        let mut overlay_params = iris_bridge::OverlayUpdateParams {
             context: iris_bridge::EditorContextParams {
                 dimensions: (logical_w, logical_h),
                 zoom_factor: zoom,
                 is_editing: params.is_editing,
                 is_2d_mode: params.is_2d_mode,
-                layout_state: &self.layout_state,
+                view_panel_mask,
                 can_undo: !params.undo_stack.is_empty(),
                 can_redo: !params.redo_stack.is_empty(),
-                enable_live_updates: params.enable_live_updates,
+                enable_live_updates: *params.enable_live_updates,
                 status_spans,
                 history_revision: params.history_revision,
             },
@@ -170,6 +177,7 @@ impl EngineUi {
                 graphics_settings: params.graphics_settings,
                 snapping_settings: params.snapping_settings,
                 editor_config: params.editor_config,
+                enable_live_updates: params.enable_live_updates,
                 enabled_modules: params.enabled_modules,
             },
             telemetry: iris_bridge::TelemetryParams {
@@ -199,43 +207,36 @@ impl EngineUi {
             action_bus: None,
         };
 
-        let mut tree = std::mem::take(&mut self.iris_overlay.tree);
-        let mut layout_engine = std::mem::take(&mut self.iris_overlay.layout_engine);
-        let mut text_system = std::mem::take(&mut self.iris_overlay.text_system);
-        let mut notifier = std::mem::replace(
-            &mut self.iris_overlay.notifier,
-            irisui::dock::UiNotifier::clean(),
-        );
         self.iris_overlay.assets.sync_dirty_invalidation(
             &self.asset_browser,
             params.is_2d_mode,
             is_assets_search_focused,
-            &mut notifier,
+            &mut self.workbench.notifier,
         );
         let mut menubar_bus = std::mem::take(&mut self.workbench.action_bus);
+        self.deferred_panels.clear();
+        let mut deferred_tag_all = false;
+        let blink_caret = self.workbench.text_system.is_caret_visible();
         let frame_outcome = {
-            let mut registry = crate::ui::workbench::create_editor_panel_registry();
+            let panel_views = self.iris_overlay.as_panel_views(
+                blink_caret,
+                cursor_pos,
+                &mut self.deferred_panels,
+                &mut deferred_tag_all,
+            );
             let mut panel_ctx = crate::ui::workbench::EditorPanelContext {
-                overlay: &mut self.iris_overlay,
-                params: &overlay_params,
+                overlay: panel_views,
+                params: &mut overlay_params,
             };
-            let mut engines = irisui::workbench::SubtreeEngines {
-                tree: &mut tree,
-                layout_engine: &mut layout_engine,
-                text_system: &mut text_system,
-            };
-            self.workbench.update_frame_live_with_registry(
-                &mut engines,
-                irisui::workbench::WorkbenchFrameUpdateParams {
-                    dock: &self.layout_state.dock_state,
-                    notifier: &mut notifier,
+            self.workbench.update_frame_with_registry(
+                irisui::workbench::WorkbenchOwnedFrameParams {
                     scale_factor: zoom,
                     selection_id,
                     domain_revision: params.history_revision,
                     is_cursor_occluded,
                 },
                 irisui::workbench::WorkbenchExternalContext {
-                    registry: &mut registry,
+                    registry: &mut self.panel_registry,
                     context: &mut panel_ctx,
                 },
                 |inputs| {
@@ -252,7 +253,7 @@ impl EngineUi {
                         scope,
                         &iris_bridge::menubar::MenuBarParams {
                             screen_width: size.width,
-                            layout_state: ctx.params.context.layout_state,
+                            view_panel_mask: ctx.params.context.view_panel_mask,
                             can_undo: ctx.params.context.can_undo,
                             can_redo: ctx.params.context.can_redo,
                             is_editing: ctx.params.context.is_editing,
@@ -261,7 +262,7 @@ impl EngineUi {
                     );
                     iris_bridge::export_modal::render_export_project_modal(
                         scope,
-                        &mut ctx.overlay.export_modal,
+                        ctx.overlay.export_modal,
                         &mut menubar_bus,
                     );
                     if ctx.overlay.assets.dialog_host.is_active() {
@@ -292,47 +293,103 @@ impl EngineUi {
                     );
                 },
                 |scope, ctx| {
-                    iris_bridge::viewport_hud::camera_hud::update_camera_hud(
-                        scope,
-                        ctx.params.viewport.camera,
-                        ctx.params.viewport.viewport_rect,
+                    let cam = ctx.params.viewport.camera;
+                    let vp_rect = ctx.params.viewport.viewport_rect;
+                    let cam_hud_key = (
+                        [
+                            (cam.position.x * 10.0).round() as i32,
+                            (cam.position.y * 10.0).round() as i32,
+                            (cam.position.z * 10.0).round() as i32,
+                        ],
+                        cam.pitch.0.to_degrees().round() as i32,
+                        cam.yaw.0.to_degrees().round() as i32,
+                        vp_rect,
                     );
-                    iris_bridge::viewport_hud::compass::update_compass_canvas(
-                        scope,
-                        ctx.params.viewport.camera,
-                        ctx.params.viewport.viewport_rect,
+                    if ctx.overlay.viewport_hud.last_camera_hud_key != Some(cam_hud_key) {
+                        ctx.overlay.viewport_hud.last_camera_hud_key = Some(cam_hud_key);
+                        iris_bridge::viewport_hud::camera_hud::update_camera_hud(
+                            scope, cam, vp_rect,
+                        );
+                    }
+                    let compass_key = (
+                        (cam.pitch.0 * 1000.0).round() as i32,
+                        (cam.yaw.0 * 1000.0).round() as i32,
+                        vp_rect,
                     );
-                    iris_bridge::stats::graph::refresh_live_oscilloscope(
-                        scope,
-                        ctx.params.telemetry.frame_pacing,
-                        ctx.params.telemetry.frame_pacing_stats,
-                    );
-                    iris_bridge::stats::cpu_breakdown::update_cpu_breakdown_texts(
-                        scope,
-                        ctx.params.telemetry.cpu_timings,
-                    );
+                    if ctx.overlay.viewport_hud.last_compass_key != Some(compass_key) {
+                        ctx.overlay.viewport_hud.last_compass_key = Some(compass_key);
+                        iris_bridge::viewport_hud::compass::update_compass_canvas(
+                            scope, cam, vp_rect,
+                        );
+                    }
+                    if scope
+                        .node_id_tagged(iris_bridge::stats::STATS_TAG_CANVAS)
+                        .is_some()
+                        && ctx
+                            .overlay
+                            .chrome
+                            .last_stats_refresh
+                            .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(33))
+                    {
+                        ctx.overlay.chrome.last_stats_refresh = Some(std::time::Instant::now());
+                        iris_bridge::stats::graph::refresh_live_oscilloscope(
+                            scope,
+                            ctx.params.telemetry.frame_pacing,
+                            ctx.params.telemetry.frame_pacing_stats,
+                        );
+                        iris_bridge::stats::cpu_breakdown::update_cpu_breakdown_texts(
+                            scope,
+                            ctx.params.telemetry.cpu_timings,
+                        );
+                    }
                 },
             )
         };
-        self.iris_overlay.tree = tree;
-        self.iris_overlay.layout_engine = layout_engine;
-        self.iris_overlay.text_system = text_system;
-        self.iris_overlay.notifier = notifier;
+        if deferred_tag_all {
+            self.workbench.notifier.tag_all();
+        }
+        for pid in self.deferred_panels.drain(..) {
+            self.workbench.notifier.tag_redraw(pid);
+        }
         for action in menubar_bus.drain() {
             self.workbench.action_bus.emit(action);
         }
-        if let Ok(outcome) = frame_outcome {
-            self.iris_overlay
-                .apply_workbench_frame_outcome(&outcome, &self.frame_pacing);
+        if let Ok(ref outcome) = frame_outcome {
+            if outcome.is_full_shell_rebuild()
+                || matches!(
+                    outcome.lifecycle_branch,
+                    irisui::workbench::LifecycleBranch::GranularPanels(_)
+                )
+            {
+                self.iris_overlay.viewport_hud.reset_live_cache();
+                self.iris_overlay.chrome.last_stats_refresh = None;
+            }
+            let hovered_tag = self.workbench.hovered_tag();
+            let blink_caret = self.workbench.text_system.is_caret_visible();
+            self.surface.apply_frame_flags(
+                &mut self.workbench.tree,
+                blink_caret,
+                hovered_tag,
+                outcome.to_surface_frame_flags(),
+                None,
+            );
         }
 
-        self.iris_overlay.render(
-            params.device,
-            params.queue,
-            params.encoder,
-            params.window_surface_view,
-            (win_size.width, win_size.height),
-            zoom,
+        let hovered_tag = self.workbench.hovered_tag();
+        self.surface.render_to_view(
+            &mut self.workbench.tree,
+            &mut self.workbench.text_system,
+            hovered_tag,
+            irisui::IrisSurfaceRenderParams {
+                device: params.device,
+                queue: params.queue,
+                encoder: params.encoder,
+                target_view: params.window_surface_view,
+                physical_screen_size: (win_size.width, win_size.height),
+                zoom_factor: zoom,
+                focused_tag_override: self.iris_overlay.focus_manager.focused_tag,
+                extra_text_occluders: &[],
+            },
         );
     }
 }

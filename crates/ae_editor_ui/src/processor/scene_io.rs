@@ -263,10 +263,9 @@ pub fn handle_import_dropped_files(
     if imported_count > 0 {
         ctx.ui.asset_browser.cached_items.clear();
         ctx.ui
-            .iris_overlay
+            .workbench
             .notifier
             .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
-        ctx.ui.iris_overlay.chrome.needs_layout_rebuild = true;
     }
 
     if is_over_viewport {

@@ -18,9 +18,12 @@ fn test_editor_panel_registry_contains_all_panels_and_metadata() {
             registry.is_registered(&panel_id),
             "Panel {panel_id:?} must be registered in workbench panel registry"
         );
+        let meta = registry
+            .panel_metadata(&panel_id)
+            .expect("Metadata for panel must be present");
         assert!(
-            registry.panel_metadata(&panel_id).is_some(),
-            "Metadata for panel {panel_id:?} must be present"
+            meta.placement.is_some(),
+            "Placement rule for panel {panel_id:?} must be present"
         );
     }
 
@@ -66,6 +69,14 @@ fn test_editor_panel_registry_contains_all_panels_and_metadata() {
         "Inspector must be subscribed to domain mutations"
     );
     assert!(registry.is_domain_panel(&PanelId::Inspector));
+    assert!(registry.is_domain_panel(&PanelId::MaterialEditor));
+    assert!(registry.is_domain_panel(&PanelId::AnimationTimeline));
+    assert!(!registry.is_domain_panel(&PanelId::Viewport));
+    assert!(!registry.is_domain_panel(&PanelId::Console));
+    assert!(!registry.is_domain_panel(&PanelId::Stats));
+    assert!(!registry.is_domain_panel(&PanelId::Assets));
+    assert!(!registry.is_domain_panel(&PanelId::UiDesigner));
+    assert!(!registry.is_domain_panel(&PanelId::Preferences));
 
     // 5. Verify RegistryTabViewer integration
     let viewer = registry.tab_viewer();

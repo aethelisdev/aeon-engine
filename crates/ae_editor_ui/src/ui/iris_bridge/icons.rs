@@ -88,6 +88,52 @@ pub const ICON_SNAP_GRID: [f32; 4] = [0.0, 0.0, 1.0, 21.0];
 /// Viewport angle/rotation transform snapping toggle icon - Layer 22.
 pub const ICON_SNAP_ROTATE: [f32; 4] = [0.0, 0.0, 1.0, 22.0];
 
+const EDITOR_ATLAS_TILE_SIZE: u32 = 64;
+const EDITOR_ATLAS_LAYERS: u32 = 256;
+const EDITOR_LOGO_LAYER: u32 = 20;
+
+/// Ensures the editor icon sheet (`editor_atlas.png`) and engine logo (`aeon_logo.png`) are
+/// decoded and uploaded into `surface`'s managed 2D texture array atlas.
+pub fn ensure_editor_icon_atlas(
+    surface: &mut irisui::IrisSurfaceHost,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) {
+    if surface.has_texture_atlas() {
+        return;
+    }
+
+    const TOOLS_ICON_BYTES: &[u8] = include_bytes!("../../../../../assets/icons/editor_atlas.png");
+    let Ok(img) = image::load_from_memory(TOOLS_ICON_BYTES) else {
+        log::warn!("Failed to decode editor_atlas.png texture atlas");
+        return;
+    };
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+
+    let atlas = surface.ensure_texture_atlas(
+        device,
+        EDITOR_ATLAS_TILE_SIZE,
+        EDITOR_ATLAS_LAYERS,
+        Some("Iris UI Editor Tools Texture Array"),
+    );
+    atlas.upload_sprite_sheet_tiles(queue, width, height, rgba.as_raw(), 0);
+
+    const LOGO_ICON_BYTES: &[u8] = include_bytes!("../../../../../assets/icons/aeon_logo.png");
+    if let Ok(logo_img) = image::load_from_memory(LOGO_ICON_BYTES) {
+        let logo_bytes = logo_img
+            .crop_imm(45, 65, 930, 900)
+            .resize_exact(
+                EDITOR_ATLAS_TILE_SIZE,
+                EDITOR_ATLAS_TILE_SIZE,
+                image::imageops::FilterType::Lanczos3,
+            )
+            .to_rgba8()
+            .into_raw();
+        atlas.upload_rgba_layer(queue, EDITOR_LOGO_LAYER, &logo_bytes);
+    }
+}
+
 /// Open folder icon representing expandable asset collections and directories - Layer 23.
 pub const ICON_FOLDER_OPEN: [f32; 4] = [0.0, 0.0, 1.0, 23.0];
 
