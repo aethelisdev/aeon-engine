@@ -14,7 +14,6 @@ use crate::hooks::overlay::{OverlayHook, OverlayId};
 use irisui_core::WidgetRole;
 use irisui_core::event::{KeyCode, UiEvent};
 use irisui_core::geometry::{Rect, Size};
-use irisui_core::tree::UiTree;
 use irisui_dock::state::DockState;
 use irisui_dock::tree::DockTree;
 use irisui_widgets::declarative::scope::core::UiScope;
@@ -130,7 +129,7 @@ fn create_mock_workbench() -> Workbench<MockTab, MockAction, MockAppState> {
 #[test]
 fn test_workbench_escape_key_dismisses_dialog_host_modal() {
     let mut wb = create_mock_workbench();
-    assert!(!wb.can_handle_escape(None, None));
+    assert!(!wb.can_handle_escape(None));
 
     // Open a confirm modal dialog on DialogHost
     let dialog = ConfirmationDialogDescriptor::new(
@@ -142,10 +141,10 @@ fn test_workbench_escape_key_dismisses_dialog_host_modal() {
 
     wb.dialog_host.open(dialog);
     assert!(wb.dialog_host.is_active());
-    assert!(wb.can_handle_escape(None, None));
+    assert!(wb.can_handle_escape(None));
 
     // Handle Escape key
-    let handled = wb.handle_escape_key(None, None);
+    let handled = wb.handle_escape_key(None);
     assert!(handled, "Escape key must be handled by active DialogHost");
     assert!(!wb.dialog_host.is_active(), "Modal must be dismissed");
 
@@ -157,59 +156,57 @@ fn test_workbench_escape_key_dismisses_dialog_host_modal() {
 #[test]
 fn test_workbench_escape_key_dismisses_tree_tagged_modal() {
     let mut wb = create_mock_workbench();
-    let mut tree = UiTree::new();
 
     const ABOUT_MODAL_TAG: u64 = 0x5001;
-    tree.open_modal(ABOUT_MODAL_TAG);
-    assert!(tree.is_any_modal_open());
-    assert!(wb.can_handle_escape(Some(&tree), None));
+    wb.tree.open_modal(ABOUT_MODAL_TAG);
+    assert!(wb.tree.is_any_modal_open());
+    assert!(wb.can_handle_escape(None));
 
     // Handle Escape key
-    let handled = wb.handle_escape_key(Some(&mut tree), None);
+    let handled = wb.handle_escape_key(None);
     assert!(handled, "Escape key must be handled by open tagged modal");
-    assert!(!tree.is_any_modal_open(), "Tagged modal must be closed");
+    assert!(!wb.tree.is_any_modal_open(), "Tagged modal must be closed");
 }
 
 #[test]
 fn test_workbench_escape_key_dismisses_open_popup_and_tooltip() {
     let mut wb = create_mock_workbench();
-    let mut tree = UiTree::new();
 
     // Create an active combobox popup in tree
-    tree.set_active_combobox(Some(0x1234));
-    assert!(tree.has_open_popup());
-    assert!(wb.can_handle_escape(Some(&tree), None));
+    wb.tree.set_active_combobox(Some(0x1234));
+    assert!(wb.tree.has_open_popup());
+    assert!(wb.can_handle_escape(None));
 
     // Handle Escape key
-    let handled = wb.handle_escape_key(Some(&mut tree), None);
+    let handled = wb.handle_escape_key(None);
     assert!(handled, "Escape key must dismiss open popups");
-    assert!(!tree.has_open_popup(), "All popups must be closed");
+    assert!(!wb.tree.has_open_popup(), "All popups must be closed");
 }
 
 #[test]
 fn test_workbench_escape_key_clears_text_edit_and_focus() {
     let mut wb = create_mock_workbench();
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root node must be created");
+    let root = wb.tree.create_root().expect("Root node must be created");
 
     // Create a text input node
-    let input_id = tree.create_node();
-    if let Some(node) = tree.get_mut(input_id) {
+    let input_id = wb.tree.create_node();
+    if let Some(node) = wb.tree.get_mut(input_id) {
         node.set_role(WidgetRole::TextInput);
     }
-    let _ = tree.add_child(root, input_id);
+    let _ = wb.tree.add_child(root, input_id);
 
     // Set focus and active text edit
-    tree.event_state
+    wb.tree
+        .event_state
         .start_text_edit(Some(input_id), 0x9999, "draft text", 5, None);
-    assert!(tree.event_state.has_text_input_focus());
-    assert!(wb.can_handle_escape(Some(&tree), None));
+    assert!(wb.tree.event_state.has_text_input_focus());
+    assert!(wb.can_handle_escape(None));
 
     // Handle Escape key
-    let handled = wb.handle_escape_key(Some(&mut tree), None);
+    let handled = wb.handle_escape_key(None);
     assert!(handled, "Escape key must clear active text edit and focus");
-    assert!(!tree.event_state.has_text_input_focus());
-    assert_eq!(tree.event_state.focused, None);
+    assert!(!wb.tree.event_state.has_text_input_focus());
+    assert_eq!(wb.tree.event_state.focused, None);
 }
 
 #[test]
@@ -221,10 +218,10 @@ fn test_workbench_escape_key_dismisses_registered_overlay_hook() {
         overlay_active: true,
         overlay_dismissed: false,
     };
-    assert!(wb.can_handle_escape(None, Some(&state)));
+    assert!(wb.can_handle_escape(Some(&state)));
 
     // Handle Escape key with AppState
-    let handled = wb.handle_escape_key(None, Some(&mut state));
+    let handled = wb.handle_escape_key(Some(&mut state));
     assert!(handled, "Escape key must dismiss active overlay hook");
     assert!(!state.overlay_active);
     assert!(state.overlay_dismissed);
@@ -237,14 +234,13 @@ fn test_workbench_escape_key_dismisses_registered_overlay_hook() {
 fn test_workbench_handle_event_full_auto_consumes_escape() {
     let mut wb = create_mock_workbench();
     let mut window = MockWindow::default();
-    let mut tree = UiTree::new();
     let mut dock_tree = DockTree::new();
     let root = dock_tree.create_leaf(vec![MockTab::Viewport]);
     dock_tree.set_root(root);
     let mut dock_state = DockState::new(dock_tree);
 
     // Open a modal tag on tree
-    tree.open_modal(0xCAFE);
+    wb.tree.open_modal(0xCAFE);
 
     let escape_event = UiEvent::KeyboardInput {
         key: KeyCode::Escape,
@@ -254,20 +250,18 @@ fn test_workbench_handle_event_full_auto_consumes_escape() {
         shift_held: false,
     };
 
-    let outcome =
-        wb.handle_event_full(&mut window, &escape_event, &mut dock_state, Some(&mut tree));
+    let outcome = wb.handle_event_full(&mut window, &escape_event, &mut dock_state);
 
     assert!(outcome.consumed, "Outcome must be consumed");
     assert!(outcome.escape_handled, "Escape must be marked as handled");
     assert!(outcome.layout_changed, "Layout must be marked dirty");
-    assert!(!tree.is_any_modal_open(), "Tree modal must be closed");
+    assert!(!wb.tree.is_any_modal_open(), "Tree modal must be closed");
 }
 
 #[test]
 fn test_workbench_idle_escape_not_swallowed_when_nothing_active() {
     let mut wb = create_mock_workbench();
     let mut window = MockWindow::default();
-    let mut tree = UiTree::new();
     let mut dock_tree = DockTree::new();
     let root = dock_tree.create_leaf(vec![MockTab::Viewport]);
     dock_tree.set_root(root);
@@ -281,8 +275,7 @@ fn test_workbench_idle_escape_not_swallowed_when_nothing_active() {
         shift_held: false,
     };
 
-    let outcome =
-        wb.handle_event_full(&mut window, &escape_event, &mut dock_state, Some(&mut tree));
+    let outcome = wb.handle_event_full(&mut window, &escape_event, &mut dock_state);
 
     assert!(
         !outcome.escape_handled,

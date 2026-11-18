@@ -17,11 +17,16 @@ use crate::layout_sync::dual_layout::DualLayoutEliminator;
 use crate::lifecycle::WorkbenchLifecycle;
 use crate::workbench::pointer::PointerState;
 use irisui_core::geometry::{Point, Rect, Size};
+use irisui_core::node::{UiLayer, WidgetCursor};
 use irisui_core::theme::Theme;
+use irisui_core::tree::UiTree;
+use irisui_dock::UiNotifier;
 use irisui_dock::chrome::DockChromeFrame;
 use irisui_dock::state::DockState;
 use irisui_dock::style::DockChromeStyle;
-use irisui_winit::frameless::{FramelessWindowHost, WindowDragHost};
+use irisui_layout::LayoutEngine;
+use irisui_text::TextSystem;
+use irisui_winit::frameless::{FramelessWindowHost, WindowDragHost, WindowInterface};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::PathBuf;
@@ -35,7 +40,11 @@ use std::path::PathBuf;
 /// - Framework-level modal dialogues and confirmations (`DialogHost<Action>`).
 /// - Decoupled asynchronous action bus (`ActionBus<Action>`).
 /// - Autonomous panel registry delegating content drawing (`WorkbenchPanelRegistry<TabId, AppState>`).
-pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, AppState> {
+pub struct Workbench<
+    TabId: Eq + Hash + Copy + Send + Sync + 'static,
+    Action: 'static + Send + Sync,
+    AppState,
+> {
     /// Declarative configuration descriptor governing application shell chrome.
     pub descriptor: WorkbenchDescriptor<TabId>,
     /// Autonomous modal dialog host managing confirmations, text inputs, and focus traps.
@@ -120,11 +129,29 @@ pub struct Workbench<TabId: Eq + Hash + Clone, Action: 'static + Send + Sync, Ap
 
     /// Registry of volatile in-place canvas/telemetry refresh hooks executed during `InPlaceRefresh`.
     pub volatile_hooks: VolatileHookRegistry<AppState>,
+
+    /// Retained UI widget tree owned directly by this workbench.
+    pub tree: UiTree,
+
+    /// Persistent flexbox layout solver synchronized with [`Self::tree`].
+    pub layout_engine: LayoutEngine,
+
+    /// Persistent typography shaping and caret blink engine owned by this workbench.
+    pub text_system: TextSystem,
+
+    /// Selective panel and shell invalidation notifier owned by this workbench.
+    pub notifier: UiNotifier<TabId>,
+
+    /// Last widget cursor dispatched to the platform window to suppress redundant OS IPC.
+    last_synced_window_cursor: Option<WidgetCursor>,
+
+    /// Scratch buffer storing active floating window bounds for zero-allocation cursor evaluation.
+    cached_floating_rects: Vec<Rect>,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
-    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
     /// Creates a new autonomous workbench shell with default configurations.
@@ -164,6 +191,12 @@ where
             last_selection_id: None,
             last_domain_revision: 0,
             volatile_hooks: VolatileHookRegistry::new(),
+            tree: UiTree::new(),
+            layout_engine: LayoutEngine::new(),
+            text_system: TextSystem::new(),
+            notifier: UiNotifier::new(),
+            last_synced_window_cursor: None,
+            cached_floating_rects: Vec::new(),
         }
     }
 
@@ -395,11 +428,125 @@ where
     }
 
     /// Evaluates whether the workbench currently requires active text keyboard focus
-    /// (e.g. when a modal dialog text input is active).
+    /// (e.g. when a modal dialog text input or retained tree text input is active).
     #[inline]
     #[must_use]
     pub fn wants_keyboard_input(&self) -> bool {
-        self.dialog_host.is_active()
+        self.dialog_host.is_active() || self.tree.is_text_input_focused()
+    }
+
+    /// Returns an immutable reference to the owned retained [`UiTree`].
+    #[inline]
+    #[must_use]
+    pub const fn tree(&self) -> &UiTree {
+        &self.tree
+    }
+
+    /// Returns a mutable reference to the owned retained [`UiTree`].
+    #[inline]
+    pub fn tree_mut(&mut self) -> &mut UiTree {
+        &mut self.tree
+    }
+
+    /// Returns an immutable reference to the owned [`UiNotifier`].
+    #[inline]
+    #[must_use]
+    pub const fn notifier(&self) -> &UiNotifier<TabId> {
+        &self.notifier
+    }
+
+    /// Returns a mutable reference to the owned [`UiNotifier`].
+    #[inline]
+    pub fn notifier_mut(&mut self) -> &mut UiNotifier<TabId> {
+        &mut self.notifier
+    }
+
+    /// Returns an immutable reference to the owned [`TextSystem`].
+    #[inline]
+    #[must_use]
+    pub const fn text_system(&self) -> &TextSystem {
+        &self.text_system
+    }
+
+    /// Returns the effective logical pointer coordinate resolved from the retained tree
+    /// or last tracked pointer position.
+    #[inline]
+    #[must_use]
+    pub fn effective_cursor_pos(&self) -> Point {
+        self.tree
+            .cursor_position()
+            .or(self.last_cursor_pos)
+            .unwrap_or_default()
+    }
+
+    /// Returns `true` if `point` hits an elevated overlay node (`UiLayer::Floating` or higher).
+    #[inline]
+    #[must_use]
+    pub fn is_point_over_overlay(&self, point: Point) -> bool {
+        self.tree
+            .hit_test_layered(point)
+            .is_some_and(|id| self.tree.effective_layer(id) >= UiLayer::Floating)
+    }
+
+    /// Resolves the desired OS widget cursor across elevated overlays, floating resize borders,
+    /// and retained tree widgets for the supplied docking state without heap allocation.
+    ///
+    /// Returns `None` when the pointer rests over unoccluded transparent/non-UI canvas.
+    pub fn resolve_window_cursor(&mut self, dock: &DockState<TabId>) -> Option<WidgetCursor> {
+        let p = self.effective_cursor_pos();
+        let is_overlay_hit = self.is_point_over_overlay(p);
+
+        if is_overlay_hit {
+            let tree_cursor = self.tree.cursor_at(p);
+            if tree_cursor != WidgetCursor::Default {
+                return Some(tree_cursor);
+            }
+        }
+
+        if p.y > self.menubar_height && !is_overlay_hit {
+            dock.sync_floating_window_rects(&mut self.cached_floating_rects);
+            if let Some(cur) = irisui_dock::evaluate_floating_resize_cursor(
+                &self.cached_floating_rects,
+                p,
+                irisui_dock::floating::DEFAULT_RESIZE_MARGIN,
+            ) {
+                return Some(cur.to_widget_cursor());
+            }
+        }
+
+        let tree_cursor = self.tree.cursor_at(p);
+        if tree_cursor != WidgetCursor::Default {
+            Some(tree_cursor)
+        } else if is_overlay_hit {
+            Some(WidgetCursor::Default)
+        } else {
+            None
+        }
+    }
+
+    /// Synchronizes the platform window cursor using the workbench's owned docking state,
+    /// suppressing redundant OS IPC calls when the resolved cursor shape is unchanged.
+    pub fn sync_cursor<W: WindowInterface>(&mut self, window: &mut W) {
+        let dock = std::mem::take(&mut self.descriptor.dock_state);
+        self.sync_window_cursor(window, &dock);
+        self.descriptor.dock_state = dock;
+    }
+
+    /// Synchronizes the platform window cursor only when the resolved cursor icon changes.
+    pub fn sync_window_cursor<W: WindowInterface>(
+        &mut self,
+        window: &mut W,
+        dock: &DockState<TabId>,
+    ) {
+        let target = self.resolve_window_cursor(dock);
+        if let Some(cursor) = target {
+            if self.last_synced_window_cursor != Some(cursor) {
+                window.set_widget_cursor(cursor);
+                self.last_synced_window_cursor = Some(cursor);
+            }
+        } else {
+            self.last_synced_window_cursor = None;
+        }
     }
 
     /// Returns a mutable reference to the underlying docking state.

@@ -27,6 +27,9 @@ pub use irisui_widgets as widgets;
 pub use irisui_winit as winit;
 pub use irisui_workbench as workbench;
 
+pub use irisui_wgpu::{
+    IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, SurfaceRefreshMode,
+};
 pub use irisui_widgets::{SubtreeSession, rebuild_leaf_subtree};
 
 /// Fluent, comprehensive umbrella prelude re-exporting all standard Iris UI primitives from subcrates.

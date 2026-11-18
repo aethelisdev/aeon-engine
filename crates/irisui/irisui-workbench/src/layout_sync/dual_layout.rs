@@ -6,7 +6,7 @@
 //! Autonomous synchronization pipeline eliminating visual jitter between coarse initial
 //! tree passes and granular Taffy CSS flexbox boundary solvers.
 
-use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
+use crate::descriptors::panel_catalog::PanelRegistryTarget;
 use irisui_core::{DirtyFlags, UiTree, WidgetId};
 use irisui_dock::{TabViewer, UiNotifier};
 use irisui_layout::{LayoutEngine, LayoutError};
@@ -329,15 +329,16 @@ impl DualLayoutEliminator {
     ///
     /// # Errors
     /// Returns [`LayoutError`] if boundary layout computation fails or registry drawing encounters an error.
-    pub fn rebuild_panel<TabId, Context>(
+    pub fn rebuild_panel<TabId, Context, R>(
         engines: &mut SubtreeEngines<'_>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         panel_id: TabId,
         leaf_id: WidgetId,
     ) -> Result<bool, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
     {
         Self::rebuild_single_panel_leaf_fallible(
             engines.tree,
@@ -379,16 +380,17 @@ impl DualLayoutEliminator {
     }
 
     /// Atomically rebuilds an individual registered dock panel and records text preparation on this instance.
-    pub fn rebuild_panel_instance<TabId, Context>(
+    pub fn rebuild_panel_instance<TabId, Context, R>(
         &mut self,
         engines: &mut SubtreeEngines<'_>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         panel_id: TabId,
         leaf_id: WidgetId,
     ) -> Result<bool, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
     {
         let rebuilt = Self::rebuild_panel(engines, registry, context, panel_id, leaf_id)?;
         if rebuilt {
@@ -400,17 +402,18 @@ impl DualLayoutEliminator {
     /// Rebuilds an individual registered dock panel in-place under `leaf_id`, clearing its dirty state in `notifier`.
     ///
     /// Delegates directly to [`Self::rebuild_panel`] and flags typography preparation on this eliminator instance.
-    pub fn rebuild_single_panel_notified<TabId, Context>(
+    pub fn rebuild_single_panel_notified<TabId, Context, R>(
         &mut self,
         engines: &mut SubtreeEngines<'_>,
         notifier: &mut UiNotifier<TabId>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         panel_id: TabId,
         leaf_id: WidgetId,
     ) -> Result<bool, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
     {
         let rebuilt = Self::rebuild_panel(engines, registry, context, panel_id, leaf_id)?;
         if rebuilt {
@@ -467,16 +470,17 @@ impl DualLayoutEliminator {
     ///
     /// # Errors
     /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
-    pub fn rebuild_dirty_panels<TabId, Context, F>(
+    pub fn rebuild_dirty_panels<TabId, Context, R, F>(
         &mut self,
         engines: &mut SubtreeEngines<'_>,
         notifier: &mut UiNotifier<TabId>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         mut leaf_resolver: F,
     ) -> Result<usize, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
         F: FnMut(TabId) -> Option<WidgetId>,
     {
         if !notifier.is_any_dirty() {
@@ -542,15 +546,16 @@ impl DualLayoutEliminator {
 
     /// Granularly rebuilds all dirty docking leaf panels flagged in [`UiNotifier`] without requiring an instance.
     #[inline]
-    pub fn rebuild_dirty_panels_direct<TabId, Context, F>(
+    pub fn rebuild_dirty_panels_direct<TabId, Context, R, F>(
         engines: &mut SubtreeEngines<'_>,
         notifier: &mut UiNotifier<TabId>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         leaf_resolver: F,
     ) -> Result<usize, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
         F: FnMut(TabId) -> Option<WidgetId>,
     {
         Self::new().rebuild_dirty_panels(engines, notifier, registry, context, leaf_resolver)
@@ -595,17 +600,18 @@ impl DualLayoutEliminator {
     ///
     /// # Errors
     /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
-    pub fn rebuild_dirty_panels_with_boundaries<TabId, Context, F, B>(
+    pub fn rebuild_dirty_panels_with_boundaries<TabId, Context, R, F, B>(
         &mut self,
         engines: &mut SubtreeEngines<'_>,
         notifier: &mut UiNotifier<TabId>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         leaf_resolver: F,
         boundary_resolver: B,
     ) -> Result<usize, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
         F: FnMut(TabId) -> Option<WidgetId>,
         B: FnMut(WidgetId) -> Option<TabId>,
     {

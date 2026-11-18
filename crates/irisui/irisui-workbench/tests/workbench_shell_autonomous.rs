@@ -9,15 +9,10 @@
 //! - Granular dock leaf invalidation routing via [`UiNotifier`].
 //! - Deterministic shell rebuild forcing via [`Workbench::force_shell_rebuild`].
 
-use irisui_core::tree::UiTree;
-use irisui_dock::UiNotifier;
 use irisui_dock::state::DockState;
 use irisui_dock::tree::DockTree;
-use irisui_layout::LayoutEngine;
-use irisui_text::TextSystem;
 use irisui_workbench::descriptors::panel_registry::WorkbenchPanelRegistry;
 use irisui_workbench::descriptors::workbench::WorkbenchDescriptor;
-use irisui_workbench::layout_sync::dual_layout::SubtreeEngines;
 use irisui_workbench::lifecycle::{LifecycleBranch, LifecycleInputs};
 use irisui_workbench::workbench::runner::Workbench;
 
@@ -41,10 +36,6 @@ enum TestAction {}
 
 #[test]
 fn test_autonomous_shell_lifecycle_branches() {
-    let mut tree = UiTree::new();
-    let mut layout_engine = LayoutEngine::new();
-    let mut text_system = TextSystem::new();
-    let mut notifier = UiNotifier::<TestPanelId>::new();
     let mut context = TestAppState::default();
 
     // 1. Initialize workbench with 2 docked tabs
@@ -69,9 +60,8 @@ fn test_autonomous_shell_lifecycle_branches() {
 
     // 2. Turn 1: Cold start -> Full Shell Rebuild (Branch 1)
     {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
         let branch = workbench
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
+            .update_shell(&mut context, &inputs, false)
             .expect("Turn 1 shell update must succeed");
 
         assert_eq!(branch, LifecycleBranch::FullShellRebuild);
@@ -83,9 +73,8 @@ fn test_autonomous_shell_lifecycle_branches() {
 
     // 3. Turn 2: Steady state without changes -> Dormant (Branch 3)
     {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
         let branch = workbench
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
+            .update_shell(&mut context, &inputs, false)
             .expect("Turn 2 shell update must succeed");
 
         assert_eq!(branch, LifecycleBranch::Dormant);
@@ -94,11 +83,10 @@ fn test_autonomous_shell_lifecycle_branches() {
     }
 
     // 4. Turn 3: Mark Viewport dirty via notifier -> Granular Subtree Invalidation (Branch 2)
-    notifier.tag_redraw(TestPanelId::Viewport);
+    workbench.notifier.tag_redraw(TestPanelId::Viewport);
     {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
         let branch = workbench
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
+            .update_shell(&mut context, &inputs, false)
             .expect("Turn 3 shell update must succeed");
 
         match branch {
@@ -114,9 +102,8 @@ fn test_autonomous_shell_lifecycle_branches() {
     // 5. Turn 4: Force shell rebuild -> Full Shell Rebuild (Branch 1)
     workbench.force_shell_rebuild();
     {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
         let branch = workbench
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
+            .update_shell(&mut context, &inputs, false)
             .expect("Turn 4 shell update must succeed");
 
         assert_eq!(branch, LifecycleBranch::FullShellRebuild);

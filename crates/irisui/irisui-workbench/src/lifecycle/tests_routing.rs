@@ -276,6 +276,7 @@ fn test_workbench_route_event_invalidation_lifecycle_and_notifier() {
 
     let descriptor = WorkbenchDescriptor::new("Test Workbench", DockState::new(DockTree::new()));
     let mut workbench: Workbench<TestTab, (), ()> = Workbench::new(descriptor);
+    workbench.tree = tree;
     workbench.dock_frame = Some(dock_frame);
 
     let mut dispatch = DispatchResult::ignored();
@@ -285,15 +286,13 @@ fn test_workbench_route_event_invalidation_lifecycle_and_notifier() {
         point: Point::new(100.0, 100.0),
     };
 
-    let mut notifier = UiNotifier::new();
-    notifier.clear_all();
+    workbench.notifier.clear_all();
 
-    let route =
-        workbench.route_event_invalidation_with_notifier(&tree, &event, &dispatch, &mut notifier);
+    let route = workbench.route_event_invalidation_with_notifier(&event, &dispatch);
 
     assert_eq!(route, EventInvalidationRoute::Panel(TestTab::Hierarchy));
     assert!(workbench.lifecycle.is_tab_dirty(&TestTab::Hierarchy));
-    assert!(notifier.is_dirty(TestTab::Hierarchy));
+    assert!(workbench.notifier.is_dirty(TestTab::Hierarchy));
 }
 
 #[test]
@@ -309,6 +308,7 @@ fn test_workbench_handle_event_full_routes_invalidation_outcome_to_panel() {
 
     let descriptor = WorkbenchDescriptor::new("Test Workbench", DockState::new(DockTree::new()));
     let mut workbench: Workbench<TestTab, (), ()> = Workbench::new(descriptor);
+    workbench.tree = tree;
     workbench.dock_frame = Some(dock_frame);
 
     let mut win = MockWindow::default();
@@ -318,7 +318,7 @@ fn test_workbench_handle_event_full_routes_invalidation_outcome_to_panel() {
         point: Point::new(60.0, 60.0),
     };
 
-    let outcome = workbench.handle_event_full(&mut win, &event, &mut dock_state, Some(&mut tree));
+    let outcome = workbench.handle_event_full(&mut win, &event, &mut dock_state);
 
     assert_eq!(outcome.invalidated_panel(), Some(&TestTab::Hierarchy));
     assert!(!outcome.is_shell_dirty());
@@ -343,6 +343,7 @@ fn test_workbench_handle_event_full_routes_shell_invalidation() {
 
     let descriptor = WorkbenchDescriptor::new("Test Workbench", DockState::new(DockTree::new()));
     let mut workbench: Workbench<TestTab, (), ()> = Workbench::new(descriptor);
+    workbench.tree = tree;
     let mut win = MockWindow::default();
     let mut dock_state = workbench.descriptor.dock_state.clone();
 
@@ -351,7 +352,7 @@ fn test_workbench_handle_event_full_routes_shell_invalidation() {
         point: Point::new(210.0, 20.0),
     };
 
-    let outcome = workbench.handle_event_full(&mut win, &event, &mut dock_state, Some(&mut tree));
+    let outcome = workbench.handle_event_full(&mut win, &event, &mut dock_state);
 
     assert_eq!(outcome.invalidated_panel(), None);
     assert!(outcome.is_shell_dirty());
@@ -379,6 +380,7 @@ fn test_workbench_handle_event_with_tree_routes_invalidation() {
 
     let descriptor = WorkbenchDescriptor::new("Test Workbench", DockState::new(DockTree::new()));
     let mut workbench: Workbench<TestTab, (), ()> = Workbench::new(descriptor);
+    workbench.tree = tree;
     workbench.dock_frame = Some(dock_frame);
 
     let mut win = MockWindow::default();
@@ -387,7 +389,7 @@ fn test_workbench_handle_event_with_tree_routes_invalidation() {
         point: Point::new(60.0, 60.0),
     };
 
-    let outcome = workbench.handle_event_with_tree(&mut win, &event, &mut tree);
+    let outcome = workbench.handle_event(&mut win, &event);
 
     assert_eq!(outcome.invalidated_panel(), Some(&TestTab::Inspector));
     assert_eq!(
@@ -409,6 +411,7 @@ fn test_workbench_handle_event_with_content_tree_routes_invalidation() {
 
     let descriptor = WorkbenchDescriptor::new("Test Workbench", DockState::new(DockTree::new()));
     let mut workbench: Workbench<TestTab, (), ()> = Workbench::new(descriptor);
+    workbench.tree = tree;
     workbench.dock_frame = Some(dock_frame);
 
     let mut win = MockWindow::default();
@@ -418,13 +421,9 @@ fn test_workbench_handle_event_with_content_tree_routes_invalidation() {
         point: Point::new(60.0, 60.0),
     };
 
-    let outcome = workbench.handle_event_with_content_tree(
-        &mut win,
-        &event,
-        &mut dock_state,
-        Some(&mut tree),
-        |_| (true, None, Vec::new()),
-    );
+    let outcome = workbench.handle_event_with_content(&mut win, &event, &mut dock_state, |_| {
+        (true, None, Vec::new())
+    });
 
     assert_eq!(outcome.invalidated_panel(), Some(&TestTab::Console));
     assert_eq!(

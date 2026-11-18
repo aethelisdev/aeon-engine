@@ -11,18 +11,13 @@
 use super::runner::Workbench;
 use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
-use crate::layout_sync::dual_layout::SubtreeEngines;
 use crate::lifecycle::{LifecycleBranch, LifecycleInputs};
 use irisui_core::color::Color;
 use irisui_core::geometry::Size;
 use irisui_core::theme::Theme;
-use irisui_core::tree::UiTree;
-use irisui_dock::UiNotifier;
 use irisui_dock::state::DockState;
 use irisui_dock::style::DockChromeStyle;
 use irisui_dock::tree::DockTree;
-use irisui_layout::LayoutEngine;
-use irisui_text::TextSystem;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ThemeTestTab {
@@ -139,10 +134,6 @@ fn test_workbench_set_screen_size_variants_clamping_and_nan_guard() {
 #[test]
 fn test_workbench_update_shell_propagates_theme_and_screen_size_to_tree() {
     let mut wb = create_theme_test_workbench();
-    let mut tree = UiTree::new();
-    let mut layout_engine = LayoutEngine::new();
-    let mut text_system = TextSystem::new();
-    let mut notifier = UiNotifier::<ThemeTestTab>::new();
     let mut context = ();
 
     let initial_theme = custom_theme(Color::rgb(0.0, 0.83, 0.7), Color::rgb(0.07, 0.08, 0.1));
@@ -150,53 +141,35 @@ fn test_workbench_update_shell_propagates_theme_and_screen_size_to_tree() {
     let inputs = LifecycleInputs::new((1440.0, 900.0), 1.0, 1);
 
     // Turn 1: initial build applies initial_theme and records rendered screen size
-    {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
-        let branch = wb
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
-            .expect("Initial update_shell must succeed");
-        assert_eq!(branch, LifecycleBranch::FullShellRebuild);
-    }
-    assert_eq!(tree.theme(), initial_theme);
+    let branch = wb
+        .update_shell(&mut context, &inputs, false)
+        .expect("Initial update_shell must succeed");
+    assert_eq!(branch, LifecycleBranch::FullShellRebuild);
+    assert_eq!(wb.tree.theme(), initial_theme);
     assert_eq!(wb.screen_size(), Some(Size::new(1440.0, 900.0)));
 
     // Turn 2: steady state remains Dormant
-    {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
-        let branch = wb
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
-            .expect("Dormant update_shell must succeed");
-        assert_eq!(branch, LifecycleBranch::Dormant);
-    }
+    let branch = wb
+        .update_shell(&mut context, &inputs, false)
+        .expect("Dormant update_shell must succeed");
+    assert_eq!(branch, LifecycleBranch::Dormant);
 
     // Turn 3: calling set_theme alone automatically forces shell rebuild and updates UiTree theme
     let updated_theme = custom_theme(Color::rgb(0.95, 0.6, 0.1), Color::rgb(0.18, 0.19, 0.22));
     wb.set_theme(updated_theme);
-    {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
-        let branch = wb
-            .update_shell(&mut engines, &mut notifier, &mut context, &inputs, false)
-            .expect("Theme change update_shell must succeed");
-        assert_eq!(branch, LifecycleBranch::FullShellRebuild);
-    }
-    assert_eq!(tree.theme(), updated_theme);
+    let branch = wb
+        .update_shell(&mut context, &inputs, false)
+        .expect("Theme change update_shell must succeed");
+    assert_eq!(branch, LifecycleBranch::FullShellRebuild);
+    assert_eq!(wb.tree.theme(), updated_theme);
 
     // Turn 4: calling set_screen_size alone forces shell rebuild even before LifecycleInputs dims change
     wb.set_screen_size((1024.0, 768.0));
     let resized_inputs = LifecycleInputs::new((1024.0, 768.0), 1.0, 1);
-    {
-        let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
-        let branch = wb
-            .update_shell(
-                &mut engines,
-                &mut notifier,
-                &mut context,
-                &resized_inputs,
-                false,
-            )
-            .expect("Resize update_shell must succeed");
-        assert_eq!(branch, LifecycleBranch::FullShellRebuild);
-    }
+    let branch = wb
+        .update_shell(&mut context, &resized_inputs, false)
+        .expect("Resize update_shell must succeed");
+    assert_eq!(branch, LifecycleBranch::FullShellRebuild);
     assert_eq!(wb.screen_size(), Some(Size::new(1024.0, 768.0)));
-    assert_eq!(tree.theme(), updated_theme);
+    assert_eq!(wb.tree.theme(), updated_theme);
 }

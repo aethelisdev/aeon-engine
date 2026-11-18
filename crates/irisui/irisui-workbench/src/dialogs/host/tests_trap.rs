@@ -320,7 +320,7 @@ fn test_dialog_host_pointer_capture_and_3d_viewport_occlusion() {
     // Canvas center is in the interactive 3D viewport, so wants_pointer_at_full returns false
     // (meaning 3D camera / orbit / entity selection receives the pointer).
     assert!(
-        !wb.wants_pointer_at_full(canvas_center, None, &dock_state, None),
+        !wb.wants_pointer_at_full(canvas_center, None, &dock_state),
         "Interactive 3D canvas must receive pointer when no modal is active"
     );
 
@@ -336,7 +336,7 @@ fn test_dialog_host_pointer_capture_and_3d_viewport_occlusion() {
     // CRITICAL FOCUS TRAP INVARIANT:
     // When modal is active, the entire canvas center MUST be occluded and captured by the UI layer (true).
     assert!(
-        wb.wants_pointer_at_full(canvas_center, None, &dock_state, None),
+        wb.wants_pointer_at_full(canvas_center, None, &dock_state),
         "Interactive 3D canvas must be occluded by modal dialog scrim"
     );
 
@@ -349,7 +349,7 @@ fn test_dialog_host_pointer_capture_and_3d_viewport_occlusion() {
 
     // Canvas center immediately becomes transparent to 3D pointer events again
     assert!(
-        !wb.wants_pointer_at_full(canvas_center, None, &dock_state, None),
+        !wb.wants_pointer_at_full(canvas_center, None, &dock_state),
         "Interactive 3D canvas must receive pointer again once modal is dismissed"
     );
 }

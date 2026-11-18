@@ -3,10 +3,8 @@
 
 //! Regression tests ensuring popups and comboboxes align across displays exceeding 1920x1080.
 
-use irisui_core::{Rect, Style, UiTree, WidgetRole};
-use irisui_dock::{DockState, DockTree, SplitDirection, UiNotifier};
-use irisui_layout::LayoutEngine;
-use irisui_text::TextSystem;
+use irisui_core::{Rect, Style, WidgetRole};
+use irisui_dock::{DockState, DockTree, SplitDirection};
 use irisui_widgets::declarative::PopupPlacement;
 
 use super::Workbench;
@@ -14,7 +12,6 @@ use super::frame::{WorkbenchExternalContext, WorkbenchFrameUpdateParams};
 use crate::descriptors::PanelMetadata;
 use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
 use crate::descriptors::workbench::WorkbenchDescriptor;
-use crate::layout_sync::SubtreeEngines;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum PopupTestTab {
@@ -50,10 +47,6 @@ fn run_inspector_popup_scenario(screen_w: f32, screen_h: f32) -> (Rect, Rect, Re
     wb.panel_registry
         .register_metadata(PanelMetadata::new(PopupTestTab::Inspector, "Inspector"));
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut registry = WorkbenchPanelRegistry::<PopupTestTab, bool>::new();
     registry.register_domain_panel(PopupTestTab::Viewport, |scope, _| {
         scope.label("Viewport");
@@ -96,16 +89,9 @@ fn run_inspector_popup_scenario(screen_w: f32, screen_h: f32) -> (Rect, Rect, Re
     });
 
     let mut is_open = false;
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -121,34 +107,29 @@ fn run_inspector_popup_scenario(screen_w: f32, screen_h: f32) -> (Rect, Rect, Re
     )
     .expect("frame 0");
 
-    let root_id = tree.root().expect("root node");
-    let root_rect = tree.get(root_id).expect("root node").computed_rect;
+    let root_id = wb.tree.root().expect("root node");
+    let root_rect = wb.tree.get(root_id).expect("root node").computed_rect;
 
-    let combo_tag = tree
+    let combo_tag = wb
+        .tree
         .iter()
         .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
         .map(|(_, n)| n.tag)
         .expect("ComboPill tag");
-    let combo_anchor = tree.tag_rect(combo_tag).expect("ComboPill tag_rect");
-    let footer_anchor = tree
+    let combo_anchor = wb.tree.tag_rect(combo_tag).expect("ComboPill tag_rect");
+    let footer_anchor = wb
+        .tree
         .resolve_anchor_rect(FOOTER_ANCHOR_TAG)
         .expect("footer anchor rect");
 
     is_open = true;
-    tree.active_combobox_tag = Some(combo_tag);
-    tree.open_popup(FOOTER_ANCHOR_TAG);
-    notifier.tag_redraw(PopupTestTab::Inspector);
+    wb.tree.active_combobox_tag = Some(combo_tag);
+    wb.tree.open_popup(FOOTER_ANCHOR_TAG);
+    wb.notifier.tag_redraw(PopupTestTab::Inspector);
 
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -164,10 +145,14 @@ fn run_inspector_popup_scenario(screen_w: f32, screen_h: f32) -> (Rect, Rect, Re
     )
     .expect("frame 1");
 
-    let combo_popup_rect = tree
+    let combo_popup_rect = wb
+        .tree
         .node_rect("ComboBoxPopup")
         .expect("ComboBoxPopup must exist");
-    let footer_popup_rect = tree.node_rect(POPUP_NAME).expect("footer popup must exist");
+    let footer_popup_rect = wb
+        .tree
+        .node_rect(POPUP_NAME)
+        .expect("footer popup must exist");
 
     (
         root_rect,

@@ -4,14 +4,11 @@
 //! Unit tests for [`VolatileHookRegistry`] and `Workbench::update_shell` `InPlaceRefresh` hooks.
 
 use irisui_core::UiTree;
-use irisui_dock::{DockState, DockTree, UiNotifier};
-use irisui_layout::LayoutEngine;
-use irisui_text::TextSystem;
+use irisui_dock::{DockState, DockTree};
 
 use super::overlay::OverlayId;
 use super::volatile::{VolatileHookRegistry, VolatileRefreshResult};
 use crate::descriptors::workbench::WorkbenchDescriptor;
-use crate::layout_sync::SubtreeEngines;
 use crate::lifecycle::{LifecycleBranch, LifecycleInputs};
 use crate::workbench::Workbench;
 
@@ -66,29 +63,18 @@ fn test_workbench_update_shell_runs_volatile_hooks_only_on_in_place_refresh() {
         VolatileRefreshResult::text_and_quads()
     });
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::<VolatileTab>::clean();
     let mut state = VolatileAppState::default();
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
 
     // 1. Cold start -> FullShellRebuild (volatile hook not invoked)
     let base = LifecycleInputs::new((1280.0, 720.0), 1.0, 0);
     let b0 = wb
-        .update_shell(&mut engines, &mut notifier, &mut state, &base, false)
+        .update_shell(&mut state, &base, false)
         .expect("cold start");
     assert_eq!(b0, LifecycleBranch::FullShellRebuild);
     assert_eq!(state.ticks, 0);
 
     // 2. Dormant -> volatile hook skipped
-    let b1 = wb
-        .update_shell(&mut engines, &mut notifier, &mut state, &base, false)
-        .expect("dormant");
+    let b1 = wb.update_shell(&mut state, &base, false).expect("dormant");
     assert_eq!(b1, LifecycleBranch::Dormant);
     assert_eq!(state.ticks, 0);
 
@@ -96,13 +82,7 @@ fn test_workbench_update_shell_runs_volatile_hooks_only_on_in_place_refresh() {
     let volatile_inputs = base.with_volatile_updates(true);
     let _ = wb.take_needs_text_prepare();
     let b2 = wb
-        .update_shell(
-            &mut engines,
-            &mut notifier,
-            &mut state,
-            &volatile_inputs,
-            false,
-        )
+        .update_shell(&mut state, &volatile_inputs, false)
         .expect("in-place refresh");
     assert_eq!(b2, LifecycleBranch::InPlaceRefresh);
     assert_eq!(state.ticks, 1);

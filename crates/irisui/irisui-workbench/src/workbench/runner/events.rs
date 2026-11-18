@@ -13,8 +13,6 @@ use crate::workbench::outcome::WorkbenchOutcome;
 use irisui_core::dispatch::DispatchResult;
 use irisui_core::event::{MouseButton, UiEvent};
 use irisui_core::geometry::Rect;
-use irisui_core::tree::UiTree;
-use irisui_dock::UiNotifier;
 use irisui_dock::area::runner::{DockArea, DockInteractionConfig};
 use irisui_dock::floating::{
     DEFAULT_RESIZE_MARGIN, FloatingInteractionResponse, FloatingWindowClampBounds,
@@ -30,6 +28,8 @@ struct TreeAndContentResult<TabId, Action> {
     needs_redraw: bool,
     wants_keyboard_input: bool,
     hover_target_changed: bool,
+    hover_affects_text: bool,
+    hover_requires_full_upload: bool,
     route: Option<EventInvalidationRoute<TabId>>,
     extra_actions: Vec<Action>,
 }
@@ -42,6 +42,8 @@ impl<TabId, Action> Default for TreeAndContentResult<TabId, Action> {
             needs_redraw: false,
             wants_keyboard_input: false,
             hover_target_changed: false,
+            hover_affects_text: false,
+            hover_requires_full_upload: false,
             route: None,
             extra_actions: Vec::new(),
         }
@@ -50,7 +52,7 @@ impl<TabId, Action> Default for TreeAndContentResult<TabId, Action> {
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
-    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
@@ -61,29 +63,28 @@ where
         event: &UiEvent,
     ) -> WorkbenchOutcome<Action, TabId> {
         let mut dock_state = std::mem::take(&mut self.descriptor.dock_state);
-        let outcome = self.handle_event_full(window, event, &mut dock_state, None);
+        let outcome = self.handle_event_full(window, event, &mut dock_state);
         self.descriptor.dock_state = dock_state;
         outcome
     }
 
-    /// Dispatches a platform [`UiEvent`] into the [`UiTree`], processes autonomous [`DialogHost`]
+    /// Dispatches a platform [`UiEvent`] into [`Self::tree`], processes autonomous [`DialogHost`]
     /// modal tag clicks into `action_bus`, resolves hover targets, and computes the invalidation route.
     fn dispatch_tree_with_modals(
         &mut self,
-        tree: &mut UiTree,
         event: &UiEvent,
     ) -> TreeAndContentResult<TabId, Action> {
         // Preserve previous tree pointer position across MouseMove so motion handlers compute accurate drag deltas.
         if !matches!(event, UiEvent::MouseMove { .. })
             && let Some(pos) = self.last_cursor_pos
         {
-            tree.set_cursor_position(pos);
+            self.tree.set_cursor_position(pos);
         }
-        let dispatch = tree.dispatch_event(event);
+        let dispatch = self.tree.dispatch_event(event);
         let is_dock_chrome_hit = irisui_dock::is_dock_chrome_tag(dispatch.target_tag)
             || dispatch
                 .target
-                .and_then(|id| tree.get(id))
+                .and_then(|id| self.tree.get(id))
                 .is_some_and(|n| {
                     matches!(
                         n.role,
@@ -93,11 +94,12 @@ where
                     )
                 });
         if is_dock_chrome_hit && matches!(event, UiEvent::MouseDown { .. }) {
-            tree.event_state.clear_pressed();
-            tree.event_state.pointer_capture = None;
-            tree.event_state.pointer_capture_tag = None;
+            self.tree.event_state.clear_pressed();
+            self.tree.event_state.pointer_capture = None;
+            self.tree.event_state.pointer_capture_tag = None;
         }
-        let modal_click_consumed = tree
+        let modal_click_consumed = self
+            .tree
             .event_state
             .frame_clicked_tag
             .filter(|&tag| tag != 0)
@@ -106,14 +108,34 @@ where
                     .handle_clicked_tag(tag, &mut self.action_bus)
             });
         if modal_click_consumed {
-            tree.event_state.frame_clicked_tag = None;
+            self.tree.event_state.frame_clicked_tag = None;
         }
         let route = if modal_click_consumed {
             EventInvalidationRoute::Shell
         } else {
-            self.route_event_invalidation(tree, event, &dispatch)
+            self.route_event_invalidation(event, &dispatch)
         };
-        let hover = self.resolve_hover_targets(tree, self.last_cursor_pos);
+        let prev_widget = self.last_hit_widget;
+        let prev_tag = self.last_hovered_tag;
+        let hover = self.resolve_hover_targets(self.last_cursor_pos);
+        if hover.hover_target_changed {
+            for widget_opt in [prev_widget, hover.hit_widget] {
+                if let Some(id) = widget_opt
+                    && self.tree.get(id).is_some()
+                {
+                    self.tree
+                        .mark_dirty(id, irisui_core::dirty::DirtyFlags::PAINT);
+                }
+            }
+            for tag_opt in [prev_tag, hover.hovered_tag] {
+                if let Some(tag) = tag_opt
+                    && let Some(id) = self.tree.find_node_by_tag(tag)
+                {
+                    self.tree
+                        .mark_dirty(id, irisui_core::dirty::DirtyFlags::PAINT);
+                }
+            }
+        }
         let consumed_by_content = if is_dock_chrome_hit
             && matches!(event, UiEvent::MouseDown { .. } | UiEvent::MouseUp { .. })
         {
@@ -125,8 +147,10 @@ where
             consumed: consumed_by_content,
             cursor: dispatch.cursor,
             needs_redraw: dispatch.needs_redraw || modal_click_consumed,
-            wants_keyboard_input: tree.is_text_input_focused(),
+            wants_keyboard_input: self.tree.is_text_input_focused(),
             hover_target_changed: hover.hover_target_changed,
+            hover_affects_text: hover.hover_affects_text,
+            hover_requires_full_upload: hover.hover_requires_full_upload,
             route: Some(route),
             extra_actions: Vec::new(),
         }
@@ -156,6 +180,8 @@ where
             hovered_tag: self.hovered_tag,
             hovered_panel: self.hovered_panel,
             hover_target_changed: false,
+            hover_affects_text: false,
+            hover_requires_full_upload: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -242,6 +268,8 @@ where
             outcome.layout_changed = true;
         }
         outcome.hover_target_changed = content.hover_target_changed;
+        outcome.hover_affects_text = content.hover_affects_text;
+        outcome.hover_requires_full_upload = content.hover_requires_full_upload;
         if outcome.cursor.is_none() {
             outcome.cursor = content.cursor;
         }
@@ -339,7 +367,7 @@ where
         if let Some(outcome) = self.handle_modal_keyboard_event(event) {
             return outcome;
         }
-        if let Some(outcome) = self.handle_escape_event(event, None, None) {
+        if let Some(outcome) = self.handle_escape_event(event, None) {
             return outcome;
         }
 
@@ -488,45 +516,16 @@ where
         res
     }
 
-    /// Dispatches an event through both content and shell layers in industry-standard sequence.
+    /// Dispatches an event through both content and shell layers in industry-standard sequence
+    /// using [`Self::tree`] for automatic targeted panel invalidation routing.
     ///
-    /// Evaluates content first. If content produces actions, requests cursor change, or consumes the event,
-    /// those actions are aggregated and shell dragging/dock interaction is bypassed.
-    ///
-    /// Automatically forwards to [`Self::handle_event_with_content_tree`] with `tree = None`.
+    /// Evaluates content first. If content produces actions, requests cursor change, or consumes
+    /// the event, those actions are aggregated and shell dragging/dock interaction is bypassed.
     pub fn handle_event_with_content<W, F>(
         &mut self,
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
-        content_dispatcher: F,
-    ) -> WorkbenchOutcome<Action, TabId>
-    where
-        W: WindowInterface,
-        F: FnOnce(&UiEvent) -> (bool, Option<irisui_core::node::WidgetCursor>, Vec<Action>),
-    {
-        self.handle_event_with_content_tree(window, event, dock_state, None, content_dispatcher)
-    }
-
-    /// Dispatches an event through both content and shell layers, optionally accepting an active [`UiTree`]
-    /// for automatic targeted panel invalidation routing and lifecycle reconciliation.
-    ///
-    /// # Arguments
-    /// * `window` - Host window implementing [`WindowInterface`] for cursor updates.
-    /// * `event` - The platform [`UiEvent`] being processed.
-    /// * `dock_state` - Mutable reference to the active docking layout state.
-    /// * `tree` - Optional mutable reference to the active [`UiTree`] for cursor sync and invalidation routing.
-    /// * `content_dispatcher` - Callback closure evaluating inner panel/overlay interaction.
-    ///
-    /// # Returns
-    /// A complete [`WorkbenchOutcome`] including consumption, cursor requests, emitted actions,
-    /// and targeted panel or shell invalidation routing.
-    pub fn handle_event_with_content_tree<W, F>(
-        &mut self,
-        window: &mut W,
-        event: &UiEvent,
-        dock_state: &mut DockState<TabId>,
-        mut tree: Option<&mut UiTree>,
         content_dispatcher: F,
     ) -> WorkbenchOutcome<Action, TabId>
     where
@@ -542,11 +541,11 @@ where
             return outcome;
         }
 
-        if let Some(outcome) = self.handle_escape_event(event, tree.as_deref_mut(), None) {
+        if let Some(outcome) = self.handle_escape_event(event, None) {
             return outcome;
         }
 
-        if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
+        if let Some(outcome) = self.handle_outside_click_event(event) {
             return outcome;
         }
 
@@ -554,11 +553,7 @@ where
             return outcome;
         }
 
-        let mut result = if let Some(t) = tree {
-            self.dispatch_tree_with_modals(t, event)
-        } else {
-            TreeAndContentResult::default()
-        };
+        let mut result = self.dispatch_tree_with_modals(event);
 
         let (content_consumed, content_cursor, content_actions) = content_dispatcher(event);
         result.consumed = result.consumed || content_consumed;
@@ -587,26 +582,12 @@ where
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
     ) -> WorkbenchOutcome<Action, TabId> {
-        self.handle_event_full(window, event, dock_state, None)
-    }
-
-    /// Dispatches a platform [`UiEvent`] with an explicit [`UiTree`], providing complete
-    /// event dispatch and automatic targeted panel invalidation routing in the returned outcome.
-    pub fn handle_event_with_tree<W: WindowInterface>(
-        &mut self,
-        window: &mut W,
-        event: &UiEvent,
-        tree: &mut UiTree,
-    ) -> WorkbenchOutcome<Action, TabId> {
-        let mut dock_state = std::mem::take(&mut self.descriptor.dock_state);
-        let outcome = self.handle_event_full(window, event, &mut dock_state, Some(tree));
-        self.descriptor.dock_state = dock_state;
-        outcome
+        self.handle_event_full(window, event, dock_state)
     }
 
     /// Dispatches a platform [`UiEvent`] through the autonomous workbench interaction pipeline
     /// coordinating frameless window management, titlebar dragging, modal dialogs, docking splitters,
-    /// and declarative [`UiTree`] event routing in a single unified retained pass.
+    /// and declarative [`Self::tree`] event routing in a single unified retained pass.
     ///
     /// Automatically routes discrete gestures and click events to their owning dock panel leaf
     /// container via [`Self::route_event_invalidation`], attaching the resulting [`EventInvalidationRoute`]
@@ -616,7 +597,6 @@ where
         window: &mut W,
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
-        mut tree: Option<&mut UiTree>,
     ) -> WorkbenchOutcome<Action, TabId> {
         self.pointer_state.update_from_event(event);
         self.last_cursor_pos = self.pointer_state.position;
@@ -625,11 +605,11 @@ where
             return outcome;
         }
 
-        if let Some(outcome) = self.handle_escape_event(event, tree.as_deref_mut(), None) {
+        if let Some(outcome) = self.handle_escape_event(event, None) {
             return outcome;
         }
 
-        if let Some(outcome) = self.handle_outside_click_event(event, tree.as_deref_mut()) {
+        if let Some(outcome) = self.handle_outside_click_event(event) {
             return outcome;
         }
 
@@ -637,12 +617,7 @@ where
             return outcome;
         }
 
-        let result = if let Some(t) = tree {
-            self.dispatch_tree_with_modals(t, event)
-        } else {
-            TreeAndContentResult::default()
-        };
-
+        let result = self.dispatch_tree_with_modals(event);
         self.finalize_shell_outcome(window, event, dock_state, result)
     }
 
@@ -654,12 +629,11 @@ where
     /// [`crate::lifecycle::WorkbenchLifecycle::mark_shell_dirty`].
     pub fn route_event_invalidation(
         &mut self,
-        tree: &UiTree,
         event: &UiEvent,
         dispatch: &DispatchResult,
     ) -> EventInvalidationRoute<TabId> {
         let route = crate::lifecycle::route_event_invalidation(
-            tree,
+            &self.tree,
             self.dock_frame.as_ref(),
             event,
             dispatch,
@@ -676,19 +650,17 @@ where
         route
     }
 
-    /// Same as [`Self::route_event_invalidation`], but also synchronizes an external [`UiNotifier`].
+    /// Same as [`Self::route_event_invalidation`], but also synchronizes [`Self::notifier`].
     pub fn route_event_invalidation_with_notifier(
         &mut self,
-        tree: &UiTree,
         event: &UiEvent,
         dispatch: &DispatchResult,
-        notifier: &mut UiNotifier<TabId>,
     ) -> EventInvalidationRoute<TabId>
     where
         TabId: Send + Sync,
     {
-        let route = self.route_event_invalidation(tree, event, dispatch);
-        route.apply_to_notifier(notifier);
+        let route = self.route_event_invalidation(event, dispatch);
+        route.apply_to_notifier(&mut self.notifier);
         route
     }
 
@@ -700,7 +672,6 @@ where
     /// [`crate::lifecycle::WorkbenchLifecycle::mark_shell_dirty`].
     pub fn route_event_invalidation_with_fallback<F>(
         &mut self,
-        tree: &UiTree,
         event: &UiEvent,
         dispatch: &DispatchResult,
         custom_resolver: F,
@@ -709,7 +680,7 @@ where
         F: FnOnce(&DispatchResult, &UiEvent) -> Option<TabId>,
     {
         let route = crate::lifecycle::route_event_invalidation_with_fallback(
-            tree,
+            &self.tree,
             self.dock_frame.as_ref(),
             event,
             dispatch,

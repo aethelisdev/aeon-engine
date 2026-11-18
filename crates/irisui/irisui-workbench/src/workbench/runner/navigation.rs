@@ -12,7 +12,7 @@ use std::hash::Hash;
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
-    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
     /// Returns the active UI scale factor clamped to the valid range `[0.6, 2.0]`.

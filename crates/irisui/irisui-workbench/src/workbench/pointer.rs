@@ -35,6 +35,10 @@ pub struct HoverTargetResolution<TabId> {
     pub is_over_overlay: bool,
     /// Whether `hovered_tag` differs from the previously recorded hover tag.
     pub hover_target_changed: bool,
+    /// Whether the hover transition affects any label or button text color.
+    pub hover_affects_text: bool,
+    /// Whether the hover transition involves a live node without an invalidation boundary.
+    pub hover_requires_full_upload: bool,
     /// Whether `hovered_panel` differs from the previously recorded hovered panel.
     pub hovered_panel_changed: bool,
 }
@@ -48,6 +52,8 @@ impl<TabId> Default for HoverTargetResolution<TabId> {
             hovered_panel: None,
             is_over_overlay: false,
             hover_target_changed: false,
+            hover_affects_text: false,
+            hover_requires_full_upload: false,
             hovered_panel_changed: false,
         }
     }
@@ -92,6 +98,8 @@ pub fn resolve_hover_targets<TabId: Copy + PartialEq>(
         hovered_panel,
         is_over_overlay,
         hover_target_changed: false,
+        hover_affects_text: false,
+        hover_requires_full_upload: false,
         hovered_panel_changed: false,
     }
 }
@@ -203,7 +211,7 @@ impl PointerState {
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
 where
-    TabId: Clone + Copy + Eq + Hash + Debug + 'static,
+    TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
     /// Returns an immutable reference to the autonomous pointer state tracker.
@@ -218,79 +226,80 @@ where
     pub fn pointer_state_mut(&mut self) -> &mut PointerState {
         &mut self.pointer_state
     }
-    fn commit_hover_resolution(
-        &mut self,
-        mut resolution: HoverTargetResolution<TabId>,
-    ) -> HoverTargetResolution<TabId> {
-        resolution.hover_target_changed = resolution.hovered_tag != self.last_hovered_tag
-            || (resolution.hovered_tag.is_none() && resolution.hit_widget != self.last_hit_widget);
-        resolution.hovered_panel_changed = resolution.hovered_panel != self.last_hovered_panel;
-        self.hovered_tag = resolution.hovered_tag;
-        self.hovered_panel = resolution.hovered_panel;
-        self.last_hovered_tag = resolution.hovered_tag;
-        self.last_hit_widget = resolution.hit_widget;
-        self.last_hovered_panel = resolution.hovered_panel;
-        resolution
-    }
-
     /// Resolves and records hovered UI tags and dock panel targets at `point`
-    /// using the workbench's retained docking frame.
-    ///
-    /// Falls back to [`Self::cursor_pos`] when `point` is `None`. When no coordinate
-    /// is available, clears active hover targets and reports any transition from previous state.
-    pub fn resolve_hover_targets(
-        &mut self,
-        tree: &UiTree,
-        point: Option<Point>,
-    ) -> HoverTargetResolution<TabId> {
-        self.resolve_hover_targets_with_frame(tree, None, point)
+    /// using the workbench's retained widget tree and docking frame.
+    pub fn resolve_hover_targets(&mut self, point: Option<Point>) -> HoverTargetResolution<TabId> {
+        self.resolve_hover_targets_with_frame(None, point)
     }
 
     /// Resolves and records hovered UI tags and dock panel targets using an explicit
     /// docking chrome frame (falling back to [`Self::active_dock_frame`] when `None`).
     pub fn resolve_hover_targets_with_frame(
         &mut self,
-        tree: &UiTree,
         dock_frame: Option<&DockChromeFrame<TabId>>,
         point: Option<Point>,
     ) -> HoverTargetResolution<TabId> {
         let resolved_point = point.or(self.last_cursor_pos);
         let effective_frame = dock_frame.or(self.dock_frame.as_ref());
         let resolution = match resolved_point {
-            Some(pt) => resolve_hover_targets(tree, effective_frame, self.non_ui_tab, pt),
+            Some(pt) => resolve_hover_targets(&self.tree, effective_frame, self.non_ui_tab, pt),
             None => HoverTargetResolution::default(),
         };
-        self.commit_hover_resolution(resolution)
+        let tree_ref = &self.tree;
+        let mut last_hovered_tag = self.last_hovered_tag;
+        let mut last_hit_widget = self.last_hit_widget;
+        let mut last_hovered_panel = self.last_hovered_panel;
+        let committed = commit_hover_resolution_state(
+            resolution,
+            tree_ref,
+            &mut self.hovered_tag,
+            &mut self.hovered_panel,
+            &mut last_hovered_tag,
+            &mut last_hit_widget,
+            &mut last_hovered_panel,
+        );
+        self.last_hovered_tag = last_hovered_tag;
+        self.last_hit_widget = last_hit_widget;
+        self.last_hovered_panel = last_hovered_panel;
+        committed
+    }
+
+    /// Evaluates whether the UI currently captures the pointer or if the pointer rests over any
+    /// active workbench UI element using the workbench's owned docking state.
+    #[inline]
+    #[must_use]
+    pub fn wants_pointer_self(&self) -> bool {
+        self.wants_pointer_input(
+            Some(self.effective_cursor_pos()),
+            &self.descriptor.dock_state,
+        )
+    }
+
+    /// Evaluates whether `pos` rests over active workbench UI elements using the workbench's owned
+    /// docking state rather than the interactive viewport canvas.
+    #[inline]
+    #[must_use]
+    pub fn wants_pointer_at_self(&self, pos: [f32; 2]) -> bool {
+        self.wants_pointer_at(pos, &self.descriptor.dock_state)
     }
 
     /// Evaluates whether the UI currently captures the pointer or if the pointer is positioned over
     /// any active workbench UI element (menubar, statusbar, panels, floating windows, popups).
-    ///
-    /// Returns `false` if the pointer is positioned over the interactive non-UI viewport canvas
-    /// without any occluding UI layers.
     #[must_use]
     pub fn wants_pointer_input(
         &self,
         cursor_pos: Option<Point>,
         dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
     ) -> bool {
         let pt = cursor_pos.or(self.last_cursor_pos);
         let Some(point) = pt else {
             return false;
         };
-        self.wants_pointer_at_full(
-            [point.x, point.y],
-            self.interactive_viewport,
-            dock_state,
-            tree,
-        )
+        self.wants_pointer_at_full([point.x, point.y], self.interactive_viewport, dock_state)
     }
 
     /// Evaluates whether the specified point is positioned over active workbench UI elements,
     /// modal dialogs, or the top menubar rather than transparent canvas/viewport areas.
-    ///
-    /// Uses the internal dock state from the descriptor and the configured interactive viewport.
     #[must_use]
     pub fn wants_pointer_at_default(&self, pos: [f32; 2], non_ui_viewport: Option<Rect>) -> bool {
         self.wants_pointer_at_with_dock(pos, non_ui_viewport, &self.descriptor.dock_state)
@@ -299,13 +308,8 @@ where
     /// Evaluates whether the specified point is positioned over active workbench UI elements,
     /// modal dialogs, floating windows, or elevated UI tree layers using the configured interactive viewport.
     #[must_use]
-    pub fn wants_pointer_at(
-        &self,
-        pos: [f32; 2],
-        dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
-    ) -> bool {
-        self.wants_pointer_at_full(pos, self.interactive_viewport, dock_state, tree)
+    pub fn wants_pointer_at(&self, pos: [f32; 2], dock_state: &DockState<TabId>) -> bool {
+        self.wants_pointer_at_full(pos, self.interactive_viewport, dock_state)
     }
 
     /// Evaluates whether the specified point is positioned over active workbench UI elements,
@@ -317,7 +321,7 @@ where
         non_ui_viewport: Option<Rect>,
         dock_state: &DockState<TabId>,
     ) -> bool {
-        self.wants_pointer_at_full(pos, non_ui_viewport, dock_state, None)
+        self.wants_pointer_at_full(pos, non_ui_viewport, dock_state)
     }
 
     /// Evaluates whether the specified point is positioned over active workbench UI elements,
@@ -328,11 +332,9 @@ where
         pos: [f32; 2],
         non_ui_viewport: Option<Rect>,
         dock_state: &DockState<TabId>,
-        tree: Option<&UiTree>,
     ) -> bool {
         let point = Point::new(pos[0], pos[1]);
 
-        // 1. Top menubar & bottom statusbar & active modal dialogs (always highest priority chrome)
         let is_over_statusbar = if self.descriptor.statusbar.is_some() {
             if let Some(win_size) = self.last_window_size {
                 pos[1] >= (win_size.height - self.statusbar_height).max(0.0)
@@ -351,7 +353,6 @@ where
             return true;
         }
 
-        // 2. Floating windows check (excluding floating window hosting the non_ui_tab)
         let in_occluding_floating = dock_state.floating_windows.iter().any(|w| {
             if let Some(non_ui) = self.non_ui_tab
                 && w.tree.all_tabs().contains(&non_ui)
@@ -361,20 +362,15 @@ where
             w.rect.contains_point(point)
         });
 
-        // 3. Interactive non-UI viewport exclusion
         let effective_viewport = non_ui_viewport.or(self.interactive_viewport);
         if let Some(vp) = effective_viewport
             && vp.contains_point(point)
         {
-            // If another floating window occludes this viewport point, UI captures pointer
             if in_occluding_floating {
                 return true;
             }
 
-            // If elevated popups, dropdowns, modals, or captured widgets in UiTree land over this point, UI captures pointer
-            if let Some(t) = tree
-                && t.wants_pointer_at(point)
-            {
+            if self.tree.wants_pointer_at(point) {
                 return true;
             }
 
@@ -387,4 +383,43 @@ where
 
         true
     }
+}
+
+pub(super) fn commit_hover_resolution_state<TabId: Copy + PartialEq>(
+    mut resolution: HoverTargetResolution<TabId>,
+    tree: &UiTree,
+    hovered_tag: &mut Option<u64>,
+    hovered_panel: &mut Option<TabId>,
+    last_hovered_tag: &mut Option<u64>,
+    last_hit_widget: &mut Option<WidgetId>,
+    last_hovered_panel: &mut Option<TabId>,
+) -> HoverTargetResolution<TabId> {
+    resolution.hover_target_changed = resolution.hovered_tag != *last_hovered_tag
+        || (resolution.hovered_tag.is_none() && resolution.hit_widget != *last_hit_widget);
+    if resolution.hover_target_changed {
+        let target_affects_text = |widget: Option<WidgetId>, tag: Option<u64>| {
+            widget.is_some_and(|id| tree.node_hover_affects_text(id))
+                || tag.is_some_and(|t| tree.tag_hover_affects_text(t))
+        };
+        let target_lacks_boundary = |widget: Option<WidgetId>, tag: Option<u64>| {
+            widget.is_some_and(|id| {
+                tree.get(id).is_some() && tree.find_invalidation_boundary(id).is_none()
+            }) || tag.is_some_and(|t| {
+                tree.find_node_by_tag(t)
+                    .is_some_and(|id| tree.find_invalidation_boundary(id).is_none())
+            })
+        };
+        resolution.hover_affects_text = target_affects_text(*last_hit_widget, *last_hovered_tag)
+            || target_affects_text(resolution.hit_widget, resolution.hovered_tag);
+        resolution.hover_requires_full_upload =
+            target_lacks_boundary(*last_hit_widget, *last_hovered_tag)
+                || target_lacks_boundary(resolution.hit_widget, resolution.hovered_tag);
+    }
+    resolution.hovered_panel_changed = resolution.hovered_panel != *last_hovered_panel;
+    *hovered_tag = resolution.hovered_tag;
+    *hovered_panel = resolution.hovered_panel;
+    *last_hovered_tag = resolution.hovered_tag;
+    *last_hit_widget = resolution.hit_widget;
+    *last_hovered_panel = resolution.hovered_panel;
+    resolution
 }

@@ -67,6 +67,12 @@ pub struct WorkbenchOutcome<Action, TabId = ()> {
     /// Whether the resolved hovered semantic tag transitioned during this dispatch pass.
     pub hover_target_changed: bool,
 
+    /// Whether the hover target transition alters any visible text color.
+    pub hover_affects_text: bool,
+
+    /// Whether the hover target transition requires a full quad upload due to lacking boundaries.
+    pub hover_requires_full_upload: bool,
+
     /// Optional targeted dock panel leaf container invalidated by an interaction event.
     pub invalidated_panel: Option<TabId>,
 
@@ -95,6 +101,8 @@ impl<Action, TabId> Default for WorkbenchOutcome<Action, TabId> {
             hovered_tag: None,
             hovered_panel: None,
             hover_target_changed: false,
+            hover_affects_text: false,
+            hover_requires_full_upload: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -129,6 +137,8 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             hovered_tag: None,
             hovered_panel: None,
             hover_target_changed: false,
+            hover_affects_text: false,
+            hover_requires_full_upload: false,
             invalidated_panel: None,
             shell_dirty: false,
             invalidation_route: None,
@@ -322,6 +332,8 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             hovered_tag: self.hovered_tag,
             hovered_panel: None,
             hover_target_changed: self.hover_target_changed,
+            hover_affects_text: self.hover_affects_text,
+            hover_requires_full_upload: self.hover_requires_full_upload,
             invalidated_panel: None,
             shell_dirty: self.shell_dirty,
             invalidation_route: match self.invalidation_route {

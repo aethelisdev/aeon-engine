@@ -9,9 +9,10 @@
 pub use crate::action_bus::ActionBus;
 pub use crate::descriptors::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
-    MenuSectionDescriptor, PanelDrawFn, PanelMetadata, RegistryTabViewer, StatusBarDescriptor,
-    StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanel,
-    WorkbenchPanelRegistry,
+    MenuSectionDescriptor, PanelCatalog, PanelDrawFn, PanelMetadata, PanelRegistryTarget,
+    RegistryActiveTabViewer, RegistryTabViewer, ScopedPanelContext, ScopedPanelDrawFn,
+    ScopedPanelRegistry, ScopedWorkbenchPanel, StatusBarDescriptor, StatusPillDescriptor,
+    StatusPillStyle, WorkbenchDescriptor, WorkbenchPanel, WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
     ActiveDialog, ConfirmDialogDescriptor, ConfirmationDialogDescriptor, CustomDialogDescriptor,
@@ -38,5 +39,5 @@ pub use crate::lifecycle::{
 };
 pub use crate::workbench::{
     PointerState, Workbench, WorkbenchExternalContext, WorkbenchFrameOutcome,
-    WorkbenchFrameUpdateParams, WorkbenchOutcome,
+    WorkbenchFrameUpdateParams, WorkbenchOutcome, WorkbenchOwnedFrameParams,
 };

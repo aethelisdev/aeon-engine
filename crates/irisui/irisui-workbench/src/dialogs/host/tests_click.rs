@@ -15,7 +15,6 @@ use crate::dialogs::descriptor::input::PromptDialogDescriptor;
 use crate::workbench::Workbench;
 use irisui_core::event::{MouseButton, UiEvent};
 use irisui_core::geometry::{Point, Rect, Size};
-use irisui_core::tree::UiTree;
 use irisui_dock::{DockState, DockTree};
 use irisui_widgets::modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CARD, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER,
@@ -208,13 +207,12 @@ fn test_workbench_modal_click_dispatches_action_into_outcome() {
             .with_cancel_action(MockModalAction::Cancelled),
     );
 
-    let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
-    let btn = tree.create_node();
-    let _ = tree.add_child(root, btn);
+    let root = workbench.tree.create_node();
+    let _ = workbench.tree.set_root(root);
+    let btn = workbench.tree.create_node();
+    let _ = workbench.tree.add_child(root, btn);
     {
-        let node = tree.get_mut(btn).expect("modal button node");
+        let node = workbench.tree.get_mut(btn).expect("modal button node");
         node.tag = MODAL_TAG_CONFIRM;
         node.interactive = true;
         node.computed_rect = Rect::new(500.0, 400.0, 100.0, 32.0);
@@ -224,32 +222,24 @@ fn test_workbench_modal_click_dispatches_action_into_outcome() {
         point: Point::new(520.0, 415.0),
         button: MouseButton::Left,
     };
-    let _ = workbench.handle_event_with_content_tree(
-        &mut window,
-        &down,
-        &mut dock_state,
-        Some(&mut tree),
-        |_| (false, None, Vec::new()),
-    );
+    let _ = workbench.handle_event_with_content(&mut window, &down, &mut dock_state, |_| {
+        (false, None, Vec::new())
+    });
 
     let up = UiEvent::MouseUp {
         point: Point::new(520.0, 415.0),
         button: MouseButton::Left,
     };
-    let outcome = workbench.handle_event_with_content_tree(
-        &mut window,
-        &up,
-        &mut dock_state,
-        Some(&mut tree),
-        |_| (false, None, Vec::new()),
-    );
+    let outcome = workbench.handle_event_with_content(&mut window, &up, &mut dock_state, |_| {
+        (false, None, Vec::new())
+    });
 
     assert!(outcome.consumed);
     assert!(outcome.layout_changed);
     assert!(!workbench.dialog_host.is_active());
     assert_eq!(outcome.actions, vec![MockModalAction::Confirmed]);
     assert!(
-        tree.event_state.frame_clicked_tag.is_none(),
+        workbench.tree.event_state.frame_clicked_tag.is_none(),
         "Consumed modal click tag must be cleared to prevent double-firing on render"
     );
 }

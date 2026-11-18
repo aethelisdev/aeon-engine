@@ -3,16 +3,13 @@
 
 //! Unit tests for [`Workbench::update_frame`] and [`Workbench::update_frame_with`].
 
-use irisui_core::{Rect, UiTree};
-use irisui_dock::{DockState, DockTree, FloatingWindowClampBounds, UiNotifier};
-use irisui_layout::LayoutEngine;
-use irisui_text::TextSystem;
+use irisui_core::Rect;
+use irisui_dock::{DockState, DockTree, FloatingWindowClampBounds};
 
 use super::Workbench;
 use super::frame::WorkbenchFrameUpdateParams;
 use crate::descriptors::workbench::WorkbenchDescriptor;
 use crate::hooks::{OverlayId, VolatileRefreshResult};
-use crate::layout_sync::SubtreeEngines;
 use crate::lifecycle::LifecycleBranch;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,26 +56,15 @@ fn test_update_frame_with_orchestrates_all_branches_and_clamps_floating() {
         VolatileRefreshResult::quads_only()
     });
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut app = FrameAppState::default();
 
     // 1. Initial frame -> FullShellRebuild + floating window clamped into 800x600
     dock.clamp_floating_windows(&FloatingWindowClampBounds::new(800.0, 600.0));
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out0 = wb
         .update_frame_with(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -95,27 +81,20 @@ fn test_update_frame_with_orchestrates_all_branches_and_clamps_floating() {
     assert_eq!(out0.lifecycle_branch, LifecycleBranch::FullShellRebuild);
     assert!(out0.needs_text_prepare);
     assert!(out0.needs_quad_reupload);
-    assert!(notifier.dirty_panels().is_empty());
+    assert!(wb.notifier.dirty_panels().is_empty());
     assert_eq!(app.callback_calls, 0);
     let clamped_rect = dock.floating_windows[0].rect;
     assert!(clamped_rect.x <= 800.0);
     assert!(clamped_rect.y <= 600.0);
     // Simulate GPU render pass consuming dirty boundaries from FullShellRebuild.
-    tree.clear_dirty_boundaries();
+    wb.tree.clear_dirty_boundaries();
 
     // 2. Idle frame -> Dormant
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out1 = wb
         .update_frame(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -129,18 +108,11 @@ fn test_update_frame_with_orchestrates_all_branches_and_clamps_floating() {
     assert!(!out1.needs_quad_reupload);
 
     // 3. Volatile updates -> InPlaceRefresh runs both registered hook and callback
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out2 = wb
         .update_frame_with(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -164,18 +136,11 @@ fn test_update_frame_with_orchestrates_all_branches_and_clamps_floating() {
 
     // 4. Selection change -> GranularPanels rebuilds domain panel and clears notifier
     let prev_builds = app.panel_builds;
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out3 = wb
         .update_frame(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: Some(77),
                 domain_revision: 0,
@@ -191,7 +156,7 @@ fn test_update_frame_with_orchestrates_all_branches_and_clamps_floating() {
         LifecycleBranch::GranularPanels(vec![FrameTab::Inspector])
     );
     assert!(app.panel_builds > prev_builds);
-    assert!(notifier.dirty_panels().is_empty());
+    assert!(wb.notifier.dirty_panels().is_empty());
 }
 
 #[test]
@@ -226,25 +191,14 @@ fn test_update_frame_live_runs_scope_callback_without_exposing_tree() {
             ));
         });
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut app = FrameAppState::default();
 
     // 1. Initial FullShellRebuild creates live nodes
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out0 = wb
         .update_frame_live(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -255,21 +209,14 @@ fn test_update_frame_live_runs_scope_callback_without_exposing_tree() {
         )
         .expect("initial update_frame_live succeeds");
     assert_eq!(out0.lifecycle_branch, LifecycleBranch::FullShellRebuild);
-    tree.clear_dirty_boundaries();
+    wb.tree.clear_dirty_boundaries();
 
     // 2. Subsequent frame automatically triggers InPlaceRefresh because live nodes exist
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out1 = wb
         .update_frame_live(
-            &mut engines,
             &mut app,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -340,10 +287,6 @@ fn test_update_frame_live_with_registry_orchestrates_external_context() {
         ));
     });
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut ctx = ExternalCtx {
         label_prefix: "Init",
         panel_builds: 0,
@@ -352,17 +295,10 @@ fn test_update_frame_live_with_registry_orchestrates_external_context() {
     };
 
     // 1. FullShellRebuild invokes on_shell_chrome and external registry drawer
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out0 = wb
         .update_frame_live_with_registry(
-            &mut engines,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -382,20 +318,13 @@ fn test_update_frame_live_with_registry_orchestrates_external_context() {
     assert_eq!(out0.lifecycle_branch, LifecycleBranch::FullShellRebuild);
     assert_eq!(ctx.chrome_builds, 1);
     assert_eq!(ctx.panel_builds, 1);
-    tree.clear_dirty_boundaries();
+    wb.tree.clear_dirty_boundaries();
 
     // 2. InPlaceRefresh updates live canvas/text via UiScope without touching layout
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     let out1 = wb
         .update_frame_live_with_registry(
-            &mut engines,
             WorkbenchFrameUpdateParams {
                 dock: &dock,
-                notifier: &mut notifier,
                 scale_factor: 1.0,
                 selection_id: None,
                 domain_revision: 0,
@@ -446,23 +375,12 @@ fn test_empty_descriptor_chrome_does_not_occlude_external_menubar() {
             "Inspector",
         ));
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut registry = WorkbenchPanelRegistry::<FrameTab, ()>::new();
     let mut ctx = ();
 
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -483,7 +401,8 @@ fn test_empty_descriptor_chrome_does_not_occlude_external_menubar() {
     )
     .expect("update_frame_live_with_registry succeeds");
 
-    let play_rect = tree
+    let play_rect = wb
+        .tree
         .node_rect_tagged(PLAY_TAG, Point::ZERO)
         .expect("external menubar Play button must exist in UiTree");
     assert!(
@@ -492,7 +411,8 @@ fn test_empty_descriptor_chrome_does_not_occlude_external_menubar() {
         play_rect
     );
 
-    let tab_strip_rect = tree
+    let tab_strip_rect = wb
+        .tree
         .node_rect("IrisDockTabStrip")
         .expect("IrisDockTabStrip must exist in UiTree");
     assert!(
@@ -501,7 +421,8 @@ fn test_empty_descriptor_chrome_does_not_occlude_external_menubar() {
         tab_strip_rect
     );
 
-    let close_rects: Vec<Rect> = tree
+    let close_rects: Vec<Rect> = wb
+        .tree
         .iter()
         .filter(|(_, n)| n.name.as_deref() == Some("IrisDockTabCloseBtn"))
         .map(|(_, n)| n.computed_rect)
@@ -513,7 +434,8 @@ fn test_empty_descriptor_chrome_does_not_occlude_external_menubar() {
         close_rects
     );
 
-    let status_rect = tree
+    let status_rect = wb
+        .tree
         .node_rect_tagged(
             crate::descriptors::StatusBarDescriptor::STATUS_BAR_TAG,
             Point::ZERO,
@@ -566,10 +488,6 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
             "Inspector",
         ));
 
-    let mut tree = UiTree::new();
-    let mut layout = LayoutEngine::new();
-    let mut text = TextSystem::new();
-    let mut notifier = UiNotifier::clean();
     let mut registry = WorkbenchPanelRegistry::<FrameTab, bool>::new();
     registry.register_domain_panel(FrameTab::Viewport, |scope, _| {
         scope.label("Viewport");
@@ -620,16 +538,9 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     });
 
     let mut is_open = false;
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -645,7 +556,8 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     )
     .expect("frame 0");
 
-    let anchor_rect = tree
+    let anchor_rect = wb
+        .tree
         .resolve_anchor_rect(ANCHOR_TAG)
         .expect("anchor rect after frame 0");
     assert!(
@@ -655,24 +567,18 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     );
 
     is_open = true;
-    tree.open_popup(ANCHOR_TAG);
-    let combo_tag = tree
+    wb.tree.open_popup(ANCHOR_TAG);
+    let combo_tag = wb
+        .tree
         .iter()
         .find(|(_, n)| n.name.as_deref() == Some("ComboPill"))
         .map(|(_, n)| n.tag)
         .expect("ComboPill must exist");
-    tree.active_combobox_tag = Some(combo_tag);
-    notifier.tag_redraw(FrameTab::Inspector);
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
+    wb.tree.active_combobox_tag = Some(combo_tag);
+    wb.notifier.tag_redraw(FrameTab::Inspector);
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -688,7 +594,8 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     )
     .expect("frame 1");
 
-    let combo_popup_rect = tree
+    let combo_popup_rect = wb
+        .tree
         .node_rect("ComboBoxPopup")
         .expect("ComboBoxPopup must exist in tree");
     assert!(
@@ -697,7 +604,8 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
         combo_popup_rect
     );
 
-    let popup_rect = tree
+    let popup_rect = wb
+        .tree
         .node_rect(POPUP_NAME)
         .expect("popup must exist in tree");
     assert!(
@@ -707,17 +615,10 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     );
 
     // Rebuild Inspector again (simulates hover/click inside panel): popup count must stay 1
-    notifier.tag_redraw(FrameTab::Inspector);
-    let mut engines = SubtreeEngines {
-        tree: &mut tree,
-        layout_engine: &mut layout,
-        text_system: &mut text,
-    };
+    wb.notifier.tag_redraw(FrameTab::Inspector);
     wb.update_frame_live_with_registry(
-        &mut engines,
         WorkbenchFrameUpdateParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -733,9 +634,142 @@ fn test_right_dock_panel_popup_coordinates_and_dedup() {
     )
     .expect("frame 2");
 
-    let popup_count = tree
+    let popup_count = wb
+        .tree
         .iter()
         .filter(|(_, n)| n.name.as_deref() == Some(POPUP_NAME))
         .count();
     assert_eq!(popup_count, 1, "Popup must not duplicate on panel rebuilds");
+}
+
+#[test]
+fn test_update_frame_with_persistent_scoped_registry() {
+    use super::frame::{WorkbenchExternalContext, WorkbenchOwnedFrameParams};
+    use crate::descriptors::{ScopedPanelContext, ScopedPanelRegistry};
+    use irisui_core::Size;
+
+    struct FrameBorrow<'a> {
+        title_text: &'a str,
+        inspector_draws: &'a mut usize,
+        viewport_draws: &'a mut usize,
+    }
+
+    struct PersistentScope;
+    impl ScopedPanelContext for PersistentScope {
+        type Context<'frame> = FrameBorrow<'frame>;
+    }
+
+    let mut dock_tree = DockTree::new();
+    let root = dock_tree.create_leaf(vec![FrameTab::Viewport, FrameTab::Inspector]);
+    dock_tree.set_root(root);
+    let dock = DockState::new(dock_tree);
+    let mut wb: Workbench<FrameTab, (), ()> =
+        Workbench::new(WorkbenchDescriptor::new("Test", dock));
+    wb.set_screen_size(Size::new(1280.0, 720.0));
+
+    let mut registry = ScopedPanelRegistry::<FrameTab, PersistentScope>::new();
+    registry.register_panel(FrameTab::Viewport, |scope, ctx| {
+        *ctx.viewport_draws += 1;
+        scope.label(ctx.title_text);
+    });
+    registry.register_domain_panel(FrameTab::Inspector, |scope, ctx| {
+        *ctx.inspector_draws += 1;
+        scope.label(ctx.title_text);
+    });
+    wb.panel_registry
+        .catalog_mut()
+        .import_metadata_from(registry.catalog());
+    registry.sync_domain_panels_to_notifier(&mut wb.notifier);
+
+    let mut inspector_draws = 0usize;
+    let mut viewport_draws = 0usize;
+
+    {
+        let label = String::from("Boot");
+        let mut ctx = FrameBorrow {
+            title_text: &label,
+            inspector_draws: &mut inspector_draws,
+            viewport_draws: &mut viewport_draws,
+        };
+        let out = wb
+            .update_frame_with_registry(
+                WorkbenchOwnedFrameParams {
+                    scale_factor: 1.0,
+                    selection_id: None,
+                    domain_revision: 0,
+                    is_cursor_occluded: false,
+                },
+                WorkbenchExternalContext {
+                    registry: &mut registry,
+                    context: &mut ctx,
+                },
+                |i| i,
+                |_s, _c, _sz| {},
+                |_s, _c| {},
+            )
+            .expect("cold shell frame");
+        assert!(out.is_full_shell_rebuild());
+    }
+    assert_eq!(viewport_draws, 1);
+    wb.tree.clear_dirty_boundaries();
+
+    {
+        let label = String::from("Dormant");
+        let mut ctx = FrameBorrow {
+            title_text: &label,
+            inspector_draws: &mut inspector_draws,
+            viewport_draws: &mut viewport_draws,
+        };
+        let out = wb
+            .update_frame_with_registry(
+                WorkbenchOwnedFrameParams {
+                    scale_factor: 1.0,
+                    selection_id: None,
+                    domain_revision: 0,
+                    is_cursor_occluded: false,
+                },
+                WorkbenchExternalContext {
+                    registry: &mut registry,
+                    context: &mut ctx,
+                },
+                |i| i,
+                |_s, _c, _sz| {},
+                |_s, _c| {},
+            )
+            .expect("dormant frame");
+        assert_eq!(out.lifecycle_branch, LifecycleBranch::Dormant);
+    }
+    assert_eq!(viewport_draws, 1);
+
+    wb.notifier.tag_redraw(FrameTab::Viewport);
+    {
+        let label = String::from("Granular");
+        let mut ctx = FrameBorrow {
+            title_text: &label,
+            inspector_draws: &mut inspector_draws,
+            viewport_draws: &mut viewport_draws,
+        };
+        let out = wb
+            .update_frame_with_registry(
+                WorkbenchOwnedFrameParams {
+                    scale_factor: 1.0,
+                    selection_id: None,
+                    domain_revision: 0,
+                    is_cursor_occluded: false,
+                },
+                WorkbenchExternalContext {
+                    registry: &mut registry,
+                    context: &mut ctx,
+                },
+                |i| i,
+                |_s, _c, _sz| {},
+                |_s, _c| {},
+            )
+            .expect("granular frame");
+        assert!(matches!(
+            out.lifecycle_branch,
+            LifecycleBranch::GranularPanels(_)
+        ));
+    }
+    assert_eq!(viewport_draws, 2);
 }

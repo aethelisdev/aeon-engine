@@ -13,7 +13,6 @@ use irisui_core::event::{ImeEvent, KeyCode, MouseButton, UiEvent};
 use irisui_core::geometry::{Point, Rect, Size};
 use irisui_core::node::{WidgetCursor, WidgetRole};
 use irisui_core::style::Style;
-use irisui_core::tree::UiTree;
 use irisui_dock::chrome::DockChromeFrame;
 use irisui_dock::state::DockState;
 use irisui_dock::tree::DockTree;
@@ -184,25 +183,25 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         ..Default::default()
     };
 
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let leaf = tree.create_node();
-    let input = tree.create_node();
+    let root = wb.tree.create_root().expect("root node");
+    let leaf = wb.tree.create_node();
+    let input = wb.tree.create_node();
     const INPUT_TAG: u64 = 0x55AA;
-    if let Some(node) = tree.get_mut(leaf) {
+    if let Some(node) = wb.tree.get_mut(leaf) {
         node.is_boundary = true;
         node.computed_rect = Rect::new(0.0, 30.0, 400.0, 400.0);
     }
-    if let Some(node) = tree.get_mut(input) {
+    if let Some(node) = wb.tree.get_mut(input) {
         node.tag = INPUT_TAG;
         node.interactive = true;
         node.role = WidgetRole::TextInput;
         node.cursor = Some(WidgetCursor::Text);
         node.computed_rect = Rect::new(20.0, 60.0, 200.0, 28.0);
     }
-    let _ = tree.add_child(root, leaf);
-    let _ = tree.add_child(leaf, input);
-    tree.event_state
+    let _ = wb.tree.add_child(root, leaf);
+    let _ = wb.tree.add_child(leaf, input);
+    wb.tree
+        .event_state
         .start_text_edit(Some(input), INPUT_TAG, "cube", 0, None);
 
     let mut frame = DockChromeFrame::default();
@@ -217,7 +216,7 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         ctrl_held: true,
         shift_held: false,
     };
-    let out = wb.handle_event_with_tree(&mut win, &pref_shortcut, &mut tree);
+    let out = wb.handle_event(&mut win, &pref_shortcut);
     assert!(
         !out.toggle_preferences,
         "Global Ctrl+, shortcut must be suppressed while UiTree text input is focused"
@@ -228,7 +227,7 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
     );
 
     // Clicking scroll inside panel yields Panel(Inspector) route, layout_changed, and consumed
-    if let Some(node) = tree.get_mut(leaf) {
+    if let Some(node) = wb.tree.get_mut(leaf) {
         node.tag = 0x7777;
         node.style = Style::new().clip_children(true);
         node.content_size = Size::new(400.0, 1200.0);
@@ -238,7 +237,7 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         delta_y: -30.0,
         point: Point::new(100.0, 150.0),
     };
-    let scroll_out = wb.handle_event_with_tree(&mut win, &scroll_ev, &mut tree);
+    let scroll_out = wb.handle_event(&mut win, &scroll_ev);
     assert!(scroll_out.consumed);
     assert!(scroll_out.layout_changed);
     assert_eq!(scroll_out.invalidated_panel, Some(TestTab::Inspector));
@@ -252,8 +251,8 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         path: PathBuf::from("scene.json"),
         point: Point::new(100.0, 150.0),
     };
-    let _ = wb.handle_event_with_tree(&mut win, &hover_ev, &mut tree);
-    let cancel_out = wb.handle_event_with_tree(&mut win, &UiEvent::FileCancelled, &mut tree);
+    let _ = wb.handle_event(&mut win, &hover_ev);
+    let cancel_out = wb.handle_event(&mut win, &UiEvent::FileCancelled);
     assert!(
         cancel_out.layout_changed,
         "FileCancelled clearing hovered_file must mark layout_changed for redraw"
@@ -264,7 +263,7 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         paths: vec![PathBuf::from("mesh.glb")],
         point: Point::new(40.0, 70.0),
     };
-    let drop_out = wb.handle_event_with_tree(&mut win, &drop_ev, &mut tree);
+    let drop_out = wb.handle_event(&mut win, &drop_ev);
     assert!(drop_out.consumed);
     assert_eq!(
         drop_out.dropped_files,
@@ -280,14 +279,13 @@ fn test_handle_event_with_tree_preserves_shell_invalidation_when_dock_tab_change
         ..Default::default()
     };
 
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let leaf = tree.create_node();
-    if let Some(node) = tree.get_mut(leaf) {
+    let root = wb.tree.create_root().expect("root node");
+    let leaf = wb.tree.create_node();
+    if let Some(node) = wb.tree.get_mut(leaf) {
         node.is_boundary = true;
         node.computed_rect = Rect::new(0.0, 60.0, 1280.0, 640.0);
     }
-    let _ = tree.add_child(root, leaf);
+    let _ = wb.tree.add_child(root, leaf);
     let mut frame = DockChromeFrame::default();
     frame.leaf_containers.push((TestTab::Inspector, leaf));
     wb.dock_frame = Some(frame);
@@ -297,7 +295,7 @@ fn test_handle_event_with_tree_preserves_shell_invalidation_when_dock_tab_change
         button: MouseButton::Left,
         point: Point::new(140.0, 34.0),
     };
-    let out = wb.handle_event_with_tree(&mut win, &tab_click, &mut tree);
+    let out = wb.handle_event(&mut win, &tab_click);
     assert!(out.consumed);
     assert!(out.layout_changed);
     assert!(out.shell_dirty);
@@ -317,34 +315,33 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
         ..Default::default()
     };
 
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let leaf = tree.create_node();
-    let num = tree.create_node();
-    let btn = tree.create_node();
+    let root = wb.tree.create_root().expect("root node");
+    let leaf = wb.tree.create_node();
+    let num = wb.tree.create_node();
+    let btn = wb.tree.create_node();
     const NUM_TAG: u64 = 0x9001;
     const BTN_TAG: u64 = 0x9002;
-    if let Some(n) = tree.get_mut(leaf) {
+    if let Some(n) = wb.tree.get_mut(leaf) {
         n.is_boundary = true;
         n.computed_rect = Rect::new(0.0, 40.0, 1280.0, 650.0);
     }
-    if let Some(n) = tree.get_mut(num) {
+    if let Some(n) = wb.tree.get_mut(num) {
         n.tag = NUM_TAG;
         n.interactive = true;
         n.role = WidgetRole::NumericInput;
         n.cursor = Some(WidgetCursor::Default);
         n.computed_rect = Rect::new(100.0, 100.0, 60.0, 22.0);
     }
-    if let Some(n) = tree.get_mut(btn) {
+    if let Some(n) = wb.tree.get_mut(btn) {
         n.tag = BTN_TAG;
         n.interactive = true;
         n.role = WidgetRole::Button;
         n.cursor = Some(WidgetCursor::Pointer);
         n.computed_rect = Rect::new(220.0, 100.0, 80.0, 24.0);
     }
-    let _ = tree.add_child(root, leaf);
-    let _ = tree.add_child(leaf, num);
-    let _ = tree.add_child(leaf, btn);
+    let _ = wb.tree.add_child(root, leaf);
+    let _ = wb.tree.add_child(leaf, num);
+    let _ = wb.tree.add_child(leaf, btn);
 
     let mut frame = DockChromeFrame::default();
     frame.leaf_containers.push((TestTab::Inspector, leaf));
@@ -357,7 +354,6 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
             point: Point::new(240.0, 110.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(win.cursor, Some(CursorIcon::Pointer));
 
@@ -367,7 +363,6 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
             point: Point::new(500.0, 300.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(
         win.cursor,
@@ -383,25 +378,24 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
             point: Point::new(120.0, 110.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
-    tree.clear();
-    let leaf2 = tree.create_node();
-    let num2 = tree.create_node();
-    if let Some(n) = tree.get_mut(leaf2) {
+    wb.tree.clear();
+    let leaf2 = wb.tree.create_node();
+    let num2 = wb.tree.create_node();
+    if let Some(n) = wb.tree.get_mut(leaf2) {
         n.is_boundary = true;
         n.computed_rect = Rect::new(0.0, 40.0, 1280.0, 650.0);
     }
-    if let Some(n) = tree.get_mut(num2) {
+    if let Some(n) = wb.tree.get_mut(num2) {
         n.tag = NUM_TAG;
         n.interactive = true;
         n.role = WidgetRole::NumericInput;
         n.cursor = Some(WidgetCursor::Default);
         n.computed_rect = Rect::new(100.0, 100.0, 60.0, 22.0);
     }
-    let root2 = tree.create_root().expect("root2");
-    let _ = tree.add_child(root2, leaf2);
-    let _ = tree.add_child(leaf2, num2);
+    let root2 = wb.tree.create_root().expect("root2");
+    let _ = wb.tree.add_child(root2, leaf2);
+    let _ = wb.tree.add_child(leaf2, num2);
 
     let move_out = wb.handle_event_full(
         &mut win,
@@ -409,12 +403,11 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
             point: Point::new(145.0, 110.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(move_out.cursor, Some(WidgetCursor::EwResize));
     assert_eq!(win.cursor, Some(CursorIcon::EwResize));
     assert_eq!(
-        tree.event_state.frame_drag_delta,
+        wb.tree.event_state.frame_drag_delta,
         Some(Point::new(25.0, 0.0)),
         "Workbench MouseMove dispatch must preserve previous last_pointer_pos so NumericInput scrub delta is non-zero"
     );
@@ -427,7 +420,6 @@ fn test_workbench_handle_event_full_preserves_drag_delta_and_cursor_resets() {
             point: Point::new(500.0, 300.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(win.cursor, Some(CursorIcon::Default));
 }
@@ -441,8 +433,7 @@ fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
         ..Default::default()
     };
 
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root");
+    let root = wb.tree.create_root().expect("root");
     let workspace = wb.compute_workspace_rect(1280.0, 720.0);
     let viewer = wb.panel_registry.tab_viewer();
     let dock_style = wb.dock_style;
@@ -457,7 +448,7 @@ fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
         viewer: &viewer,
         style: &dock_style,
     };
-    let frame = irisui_dock::build_dock_chrome(&mut tree, root, &params);
+    let frame = irisui_dock::build_dock_chrome(&mut wb.tree, root, &params);
     assert_eq!(frame.tab_targets.len(), 2);
     let second_tab = frame.tab_targets[1];
     let tab_pt = Point::new(
@@ -470,7 +461,6 @@ fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
         &mut win,
         &UiEvent::MouseMove { point: tab_pt },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert!(irisui_dock::is_dock_tab_tag(
         hover_out.hovered_tag().unwrap_or(0)
@@ -485,7 +475,6 @@ fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
             point: tab_pt,
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert!(click_out.consumed);
     assert!(click_out.shell_dirty);

@@ -169,9 +169,10 @@ fn test_workbench_resolve_hover_targets_tracks_transitions_in_outcome() {
     dock_tree.set_root(leaf);
 
     let descriptor = WorkbenchDescriptor::new("Hover Test", DockState::new(dock_tree));
-    let (mut tree, frame) = setup_tree_with_layers();
+    let (tree, frame) = setup_tree_with_layers();
     let mut wb = Workbench::<HoverTestTab, HoverTestAction, ()>::new(descriptor)
         .with_non_ui_tab(HoverTestTab::Viewport);
+    wb.tree = tree;
     wb.dock_frame = Some(frame);
 
     let mut win = HoverMockWindow {
@@ -186,7 +187,6 @@ fn test_workbench_resolve_hover_targets_tracks_transitions_in_outcome() {
             point: Point::new(920.0, 110.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(out1.hovered_tag(), Some(0x101));
     assert_eq!(out1.hovered_panel(), Some(&HoverTestTab::Inspector));
@@ -201,7 +201,6 @@ fn test_workbench_resolve_hover_targets_tracks_transitions_in_outcome() {
             point: Point::new(930.0, 112.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(out2.hovered_tag(), Some(0x101));
     assert!(!out2.is_hover_target_changed());
@@ -213,7 +212,6 @@ fn test_workbench_resolve_hover_targets_tracks_transitions_in_outcome() {
             point: Point::new(300.0, 560.0),
         },
         &mut dock_state,
-        Some(&mut tree),
     );
     assert_eq!(out3.hovered_tag(), None);
     assert_eq!(out3.hovered_panel(), Some(&HoverTestTab::Console));
@@ -221,7 +219,167 @@ fn test_workbench_resolve_hover_targets_tracks_transitions_in_outcome() {
 
     // 4. Direct resolve_hover_targets(None) when cursor_pos is None clears hover state
     wb.set_cursor_pos(None);
-    let cleared: HoverTargetResolution<HoverTestTab> = wb.resolve_hover_targets(&tree, None);
+    let cleared: HoverTargetResolution<HoverTestTab> = wb.resolve_hover_targets(None);
     assert_eq!(cleared.hovered_tag, None);
     assert_eq!(cleared.hovered_panel, None);
+}
+
+#[test]
+fn test_workbench_hover_boundary_isolation_and_text_flags() {
+    let mut dock_tree = DockTree::new();
+    let leaf = dock_tree.create_leaf(vec![HoverTestTab::Inspector]);
+    dock_tree.set_root(leaf);
+    let descriptor = WorkbenchDescriptor::new("Hover Flags", DockState::new(dock_tree));
+    let mut wb = Workbench::<HoverTestTab, HoverTestAction, ()>::new(descriptor);
+
+    let root = wb.tree.create_root().expect("root");
+    let panel = wb.tree.create_node();
+    wb.tree.add_child(root, panel).expect("panel");
+    wb.tree.set_boundary(panel, true);
+    if let Some(n) = wb.tree.get_mut(panel) {
+        n.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
+    }
+
+    // Quad-only interactive swatch inside boundary (no hover text color)
+    let swatch = wb.tree.create_node();
+    wb.tree.add_child(panel, swatch).expect("swatch");
+    if let Some(n) = wb.tree.get_mut(swatch) {
+        n.interactive = true;
+        n.tag = 0xAA01;
+        n.computed_rect = Rect::new(10.0, 10.0, 50.0, 30.0);
+    }
+
+    // Text-reactive button inside boundary
+    let btn = wb.tree.create_node();
+    let btn_label = wb.tree.create_node();
+    wb.tree.add_child(panel, btn).expect("btn");
+    wb.tree.add_child(btn, btn_label).expect("btn_label");
+    if let Some(n) = wb.tree.get_mut(btn) {
+        n.role = WidgetRole::Button;
+        n.interactive = true;
+        n.tag = 0xAA02;
+        n.computed_rect = Rect::new(10.0, 60.0, 100.0, 30.0);
+    }
+    if let Some(n) = wb.tree.get_mut(btn_label) {
+        n.text = Some("Apply".to_owned());
+        n.text_color = irisui_core::color::Color::rgb(0.5, 0.5, 0.5);
+        n.hover_text_color = Some(irisui_core::color::Color::WHITE);
+        n.computed_rect = Rect::new(10.0, 60.0, 100.0, 30.0);
+    }
+
+    // Unboundaried widget attached directly to root
+    let root_btn = wb.tree.create_node();
+    wb.tree.add_child(root, root_btn).expect("root_btn");
+    if let Some(n) = wb.tree.get_mut(root_btn) {
+        n.interactive = true;
+        n.tag = 0xAA03;
+        n.computed_rect = Rect::new(500.0, 10.0, 60.0, 30.0);
+    }
+
+    let mut dock_state = wb.descriptor.dock_state.clone();
+    let mut win = HoverMockWindow {
+        logical_size: Size::new(800.0, 600.0),
+    };
+
+    // Hover swatch -> boundary-isolated, zero text prepare, zero full upload
+    wb.tree.clear_dirty_boundaries();
+    let out_swatch = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(25.0, 25.0),
+        },
+        &mut dock_state,
+    );
+    assert!(out_swatch.is_hover_target_changed());
+    assert!(!out_swatch.hover_affects_text);
+    assert!(!out_swatch.hover_requires_full_upload);
+    assert!(wb.tree.dirty_boundaries().contains(&panel));
+
+    // Move onto button with hover text -> still zero full upload, text prepare requested
+    wb.tree.clear_dirty_boundaries();
+    let out_btn = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(40.0, 75.0),
+        },
+        &mut dock_state,
+    );
+    assert!(out_btn.is_hover_target_changed());
+    assert!(out_btn.hover_affects_text);
+    assert!(!out_btn.hover_requires_full_upload);
+    assert!(wb.tree.dirty_boundaries().contains(&panel));
+
+    // Move onto unboundaried widget -> requires full upload fallback
+    let out_root = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(520.0, 25.0),
+        },
+        &mut dock_state,
+    );
+    assert!(out_root.is_hover_target_changed());
+    assert!(out_root.hover_requires_full_upload);
+}
+
+#[test]
+fn test_steady_state_idle_mouse_move_zero_rebuild_and_zero_reupload() {
+    let mut dock_tree = DockTree::new();
+    let leaf = dock_tree.create_leaf(vec![HoverTestTab::Inspector]);
+    dock_tree.set_root(leaf);
+    let descriptor = WorkbenchDescriptor::new("Steady State", DockState::new(dock_tree));
+    let mut wb = Workbench::<HoverTestTab, HoverTestAction, ()>::new(descriptor);
+
+    let root = wb.tree.create_root().expect("root");
+    let panel = wb.tree.create_node();
+    let child = wb.tree.create_node();
+    wb.tree.set_boundary(panel, true);
+    wb.tree.add_child(root, panel).expect("panel");
+    wb.tree.add_child(panel, child).expect("child");
+
+    if let Some(n) = wb.tree.get_mut(root) {
+        n.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+    }
+    if let Some(n) = wb.tree.get_mut(panel) {
+        n.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+    }
+    if let Some(n) = wb.tree.get_mut(child) {
+        n.interactive = true;
+        n.tag = 0xAA10;
+        n.computed_rect = Rect::new(10.0, 10.0, 120.0, 40.0);
+        n.style = irisui_core::style::Style::new()
+            .background(irisui_core::color::Color::BLUE)
+            .hover_background(irisui_core::color::Color::RED);
+    }
+
+    let mut dock_state = wb.descriptor.dock_state.clone();
+    let mut win = HoverMockWindow {
+        logical_size: Size::new(800.0, 600.0),
+    };
+
+    // Initial move enters child
+    let first = wb.handle_event_full(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(40.0, 25.0),
+        },
+        &mut dock_state,
+    );
+    assert!(first.is_hover_target_changed());
+
+    // 100 consecutive moves inside the same child -> zero hover change, zero shell dirty, zero boundary dirty
+    for i in 0..100 {
+        wb.tree.clear_dirty_boundaries();
+        let x = 20.0 + (i % 60) as f32;
+        let out = wb.handle_event_full(
+            &mut win,
+            &UiEvent::MouseMove {
+                point: Point::new(x, 25.0),
+            },
+            &mut dock_state,
+        );
+        assert!(!out.is_hover_target_changed());
+        assert!(!out.shell_dirty);
+        assert!(!out.hover_affects_text);
+        assert!(wb.tree.dirty_boundaries().is_empty());
+    }
 }

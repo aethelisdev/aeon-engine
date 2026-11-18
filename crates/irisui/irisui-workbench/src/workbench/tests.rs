@@ -100,17 +100,17 @@ fn test_workbench_wants_pointer_at() {
     let dock_state = wb.descriptor.dock_state.clone();
 
     // 1. Inside top menubar
-    assert!(wb.wants_pointer_at([100.0, 15.0], &dock_state, None));
+    assert!(wb.wants_pointer_at([100.0, 15.0], &dock_state));
 
     // 2. Inside interactive 3D viewport canvas
-    assert!(!wb.wants_pointer_at([500.0, 500.0], &dock_state, None));
+    assert!(!wb.wants_pointer_at([500.0, 500.0], &dock_state));
 
     // 3. Outside viewport canvas (docked panel area)
-    assert!(wb.wants_pointer_at([100.0, 500.0], &dock_state, None));
+    assert!(wb.wants_pointer_at([100.0, 500.0], &dock_state));
 
     // 4. Test wants_pointer_input with tracked cursor position
-    assert!(wb.wants_pointer_input(Some(Point::new(100.0, 15.0)), &dock_state, None));
-    assert!(!wb.wants_pointer_input(Some(Point::new(500.0, 500.0)), &dock_state, None));
+    assert!(wb.wants_pointer_input(Some(Point::new(100.0, 15.0)), &dock_state));
+    assert!(!wb.wants_pointer_input(Some(Point::new(500.0, 500.0)), &dock_state));
 
     // 5. Test compatibility default helper
     assert!(wb.wants_pointer_at_default([100.0, 15.0], Some(vp_rect)));
@@ -138,7 +138,7 @@ fn test_workbench_cursor_tracking_and_statusbar_hit_testing() {
     assert_eq!(wb.window_size(), Some(Size::new(1920.0, 1080.0)));
 
     // Statusbar is at bottom 24px (1056.0 to 1080.0)
-    assert!(wb.wants_pointer_at([500.0, 1060.0], &dock_state, None));
+    assert!(wb.wants_pointer_at([500.0, 1060.0], &dock_state));
 }
 
 #[test]
@@ -278,11 +278,10 @@ fn test_workbench_handle_event_full_with_ui_tree() {
     let mut win = MockWindow::default();
     let mut dock_state = wb.descriptor.dock_state.clone();
 
-    let mut tree = irisui_core::tree::UiTree::new();
-    let root = tree.create_root().expect("Root node creation succeeds");
-    let btn = tree.create_node();
-    tree.add_child(root, btn).expect("Append child succeeds");
-    if let Some(node) = tree.get_mut(btn) {
+    let root = wb.tree.create_root().expect("Root node creation succeeds");
+    let btn = wb.tree.create_node();
+    wb.tree.add_child(root, btn).expect("Append child succeeds");
+    if let Some(node) = wb.tree.get_mut(btn) {
         node.role = irisui_core::node::WidgetRole::Button;
         node.computed_rect = Rect::new(100.0, 100.0, 80.0, 30.0);
         node.cursor = Some(irisui_core::node::WidgetCursor::Pointer);
@@ -293,31 +292,32 @@ fn test_workbench_handle_event_full_with_ui_tree() {
         point: Point::new(140.0, 115.0),
         button: MouseButton::Left,
     };
-    let outcome = wb.handle_event_full(&mut win, &click_event, &mut dock_state, Some(&mut tree));
+    let outcome = wb.handle_event_full(&mut win, &click_event, &mut dock_state);
     assert!(outcome.consumed);
 }
 
 #[test]
 fn test_workbench_wants_pointer_at_full_layered_tree() {
-    let wb = create_test_workbench();
+    let mut wb = create_test_workbench();
     let dock_state = wb.descriptor.dock_state.clone();
     let vp_rect = Rect::new(200.0, 30.0, 1000.0, 800.0);
 
-    let mut tree = irisui_core::tree::UiTree::new();
-    let root = tree.create_root().expect("Root node creation succeeds");
-    let popup = tree.create_node();
-    tree.add_child(root, popup).expect("Append child succeeds");
-    if let Some(node) = tree.get_mut(popup) {
+    let root = wb.tree.create_root().expect("Root node creation succeeds");
+    let popup = wb.tree.create_node();
+    wb.tree
+        .add_child(root, popup)
+        .expect("Append child succeeds");
+    if let Some(node) = wb.tree.get_mut(popup) {
         node.role = irisui_core::node::WidgetRole::DropdownPopup;
         node.layer = irisui_core::node::UiLayer::Popup;
         node.computed_rect = Rect::new(300.0, 100.0, 150.0, 200.0);
     }
 
     // Point over popup that is positioned directly within the 3D viewport canvas
-    assert!(wb.wants_pointer_at_full([350.0, 150.0], Some(vp_rect), &dock_state, Some(&tree)));
+    assert!(wb.wants_pointer_at_full([350.0, 150.0], Some(vp_rect), &dock_state));
 
     // Point in viewport but outside popup
-    assert!(!wb.wants_pointer_at_full([600.0, 400.0], Some(vp_rect), &dock_state, Some(&tree)));
+    assert!(!wb.wants_pointer_at_full([600.0, 400.0], Some(vp_rect), &dock_state));
 }
 
 #[test]
@@ -448,57 +448,41 @@ fn test_workbench_rebuild_single_panel_leaf_and_registered() {
     let mut wb = create_test_workbench();
     wb.panel_registry.register(MockViewportPanel);
 
-    let mut tree = irisui_core::UiTree::new();
-    let mut layout_engine = irisui_layout::LayoutEngine::new();
-    let mut text_system = irisui_text::TextSystem::new();
-    let mut notifier = irisui_dock::UiNotifier::clean();
-
-    let leaf_id = tree.create_node();
+    let leaf_id = wb.tree.create_node();
     {
-        let mut scope = irisui_widgets::declarative::UiScope::new(&mut tree, leaf_id);
+        let mut scope = irisui_widgets::declarative::UiScope::new(&mut wb.tree, leaf_id);
         scope.configure_container(
             "ViewportLeaf",
             irisui_core::style::Style::new().width(800.0).height(600.0),
             false,
         );
     }
-    if let Some(node) = tree.get_mut(leaf_id) {
+    if let Some(node) = wb.tree.get_mut(leaf_id) {
         node.computed_rect = irisui_core::geometry::Rect::new(0.0, 0.0, 800.0, 600.0);
     }
 
-    let mut engines = crate::layout_sync::dual_layout::SubtreeEngines::new(
-        &mut tree,
-        &mut layout_engine,
-        &mut text_system,
-    );
-
     // 1. Direct leaf rebuilding with custom closure
     let rebuilt_leaf = wb
-        .rebuild_single_panel_leaf(&mut engines, leaf_id, |scope| {
+        .rebuild_single_panel_leaf(leaf_id, |scope| {
             scope.button("Dynamic Direct Button");
         })
         .expect("rebuild single panel leaf must succeed");
     assert!(rebuilt_leaf);
-    assert!(engines.tree.is_boundary(leaf_id));
-    let leaf_node = engines.tree.get(leaf_id).expect("node exists");
+    assert!(wb.tree.is_boundary(leaf_id));
+    let leaf_node = wb.tree.get(leaf_id).expect("node exists");
     assert_eq!(leaf_node.children.len(), 1);
 
     // 2. Rebuild via leaf resolver with panel registry
-    notifier.tag_redraw(MockTab::Viewport);
+    wb.notifier.clear_all();
+    wb.notifier.tag_redraw(MockTab::Viewport);
     let rebuilt_panel = wb
-        .rebuild_single_panel(
-            &mut engines,
-            &mut notifier,
-            &mut (),
-            MockTab::Viewport,
-            |_| Some(leaf_id),
-        )
+        .rebuild_single_panel(&mut (), MockTab::Viewport, |_| Some(leaf_id))
         .expect("rebuild single panel must succeed");
     assert!(rebuilt_panel);
-    assert!(!notifier.is_dirty(MockTab::Viewport));
-    let child = engines
+    assert!(!wb.notifier.is_dirty(MockTab::Viewport));
+    let child = wb
         .tree
-        .get(engines.tree.get(leaf_id).unwrap().children[0])
+        .get(wb.tree.get(leaf_id).unwrap().children[0])
         .expect("child exists");
     assert_eq!(child.text.as_deref(), Some("3D Viewport Render Target"));
 }
@@ -637,61 +621,49 @@ fn test_workbench_outcome_cursor_pos_export() {
 #[test]
 fn test_workbench_sync_caret_blink_updates_visibility() {
     let mut wb = create_test_workbench();
-    let mut tree = irisui_core::UiTree::new();
-    let root = tree.create_root().expect("root node");
-    let mut text_system = irisui_text::TextSystem::new();
-    text_system.set_caret_blink_interval_ms(120);
+    let root = wb.tree.create_root().expect("root node");
+    wb.text_system.set_caret_blink_interval_ms(120);
 
-    let input_id = tree.create_node();
-    if let Some(node) = tree.get_mut(input_id) {
+    let input_id = wb.tree.create_node();
+    if let Some(node) = wb.tree.get_mut(input_id) {
         node.role = irisui_core::node::WidgetRole::TextInput;
         node.tag = 888;
     }
-    tree.add_child(root, input_id).expect("child");
+    wb.tree.add_child(root, input_id).expect("child");
 
     // 1. No focus -> caret not active/visible
-    let u0 = wb.sync_caret_blink_with_delta(
-        &mut text_system,
-        &mut tree,
-        std::time::Duration::from_millis(16),
-    );
+    let u0 = wb.sync_caret_blink_with_delta(std::time::Duration::from_millis(16));
     assert!(!u0.has_text_focus);
     assert!(!wb.is_caret_visible());
 
     // 2. Focus -> caret visible and focused node marked PAINT dirty
-    tree.event_state.focused = Some(input_id);
-    tree.event_state.focused_tag = Some(888);
-    if let Some(node) = tree.get_mut(input_id) {
+    wb.tree.event_state.focused = Some(input_id);
+    wb.tree.event_state.focused_tag = Some(888);
+    if let Some(node) = wb.tree.get_mut(input_id) {
         node.clear_dirty(irisui_core::DirtyFlags::ALL);
     }
-    let u1 = wb.sync_caret_blink_with_delta(
-        &mut text_system,
-        &mut tree,
-        std::time::Duration::from_millis(16),
-    );
+    let u1 = wb.sync_caret_blink_with_delta(std::time::Duration::from_millis(16));
     assert!(u1.has_text_focus);
     assert!(wb.is_caret_visible());
     assert_eq!(wb.caret_blink_state(), u1);
     assert!(
-        tree.get(input_id)
+        wb.tree
+            .get(input_id)
             .expect("node")
             .dirty
             .contains(irisui_core::DirtyFlags::PAINT)
     );
 
     // 3. Advance past interval -> caret toggles hidden and marks PAINT dirty again
-    if let Some(node) = tree.get_mut(input_id) {
+    if let Some(node) = wb.tree.get_mut(input_id) {
         node.clear_dirty(irisui_core::DirtyFlags::ALL);
     }
-    let u2 = wb.sync_caret_blink_with_delta(
-        &mut text_system,
-        &mut tree,
-        std::time::Duration::from_millis(130),
-    );
+    let u2 = wb.sync_caret_blink_with_delta(std::time::Duration::from_millis(130));
     assert!(u2.blink_changed);
     assert!(!wb.is_caret_visible());
     assert!(
-        tree.get(input_id)
+        wb.tree
+            .get(input_id)
             .expect("node")
             .dirty
             .contains(irisui_core::DirtyFlags::PAINT)
@@ -703,28 +675,28 @@ fn test_workbench_evaluate_dock_lifecycle_tracks_dock_notifier_and_host_flags() 
     let mut wb = create_test_workbench();
     wb.set_screen_size((1280.0, 720.0));
     let dock = DockState::new(DockTree::new());
-    let mut notifier = irisui_dock::UiNotifier::clean();
 
     // 1. Cold start -> FullShellRebuild, then Dormant on steady state
+    wb.notifier.clear_all();
     assert_eq!(
-        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
         crate::lifecycle::LifecycleBranch::FullShellRebuild
     );
     assert_eq!(
-        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
         crate::lifecycle::LifecycleBranch::Dormant
     );
 
     // 2. Targeted panel redraw via notifier -> GranularPanels
-    notifier.tag_redraw(MockTab::Viewport);
+    wb.notifier.tag_redraw(MockTab::Viewport);
     assert_eq!(
-        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i),
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
         crate::lifecycle::LifecycleBranch::GranularPanels(vec![MockTab::Viewport])
     );
 
     // 3. Host flag change (e.g. popup active) -> FullShellRebuild
     assert_eq!(
-        wb.evaluate_dock_lifecycle(&dock, &notifier, 1.0, |i| i.with_popup_active(true)),
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i.with_popup_active(true)),
         crate::lifecycle::LifecycleBranch::FullShellRebuild
     );
 }
@@ -734,31 +706,30 @@ fn test_workbench_sync_selection_and_domain_revision_dirty_domain_panels() {
     let mut wb = create_test_workbench();
     wb.panel_registry
         .register_domain_panel(MockTab::Viewport, |_scope, _ctx| {});
-    let mut notifier = irisui_dock::UiNotifier::clean();
 
     // 1. Same selection (None) -> no-op
-    assert!(!wb.sync_selection_with_notifier(None, &mut notifier));
+    assert!(!wb.sync_selection_with_notifier(None));
     assert!(!wb.lifecycle.is_panel_dirty());
-    assert!(notifier.dirty_panels().is_empty());
+    assert!(wb.notifier.dirty_panels().is_empty());
 
     // 2. Changing selection -> marks registered domain panel dirty in lifecycle and notifier
-    assert!(wb.sync_selection_with_notifier(Some(42), &mut notifier));
+    assert!(wb.sync_selection_with_notifier(Some(42)));
     assert_eq!(wb.last_selection_id(), Some(42));
     assert!(wb.lifecycle.is_tab_dirty(&MockTab::Viewport));
-    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+    assert!(wb.notifier.dirty_panels().contains(&MockTab::Viewport));
 
     // 3. Idempotent on repeated selection
     wb.lifecycle.clear_all_dirty_tabs();
-    notifier.clear_all();
+    wb.notifier.clear_all();
     assert!(!wb.sync_selection(Some(42)));
     assert!(!wb.lifecycle.is_panel_dirty());
 
     // 4. Same domain revision (0) -> no-op; bumped revision -> marks domain panel dirty
-    assert!(!wb.sync_domain_revision_with_notifier(0, &mut notifier));
-    assert!(wb.sync_domain_revision_with_notifier(7, &mut notifier));
+    assert!(!wb.sync_domain_revision_with_notifier(0));
+    assert!(wb.sync_domain_revision_with_notifier(7));
     assert_eq!(wb.last_domain_revision(), 7);
     assert!(wb.lifecycle.is_tab_dirty(&MockTab::Viewport));
-    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+    assert!(wb.notifier.dirty_panels().contains(&MockTab::Viewport));
 }
 
 #[test]
@@ -768,19 +739,13 @@ fn test_workbench_sync_frame_state_unifies_blink_selection_domain_and_lifecycle(
     wb.panel_registry
         .register_domain_panel(MockTab::Viewport, |_scope, _ctx| {});
 
-    let mut tree = irisui_core::UiTree::new();
-    let _root = tree.create_root().expect("root");
-    let mut text_system = irisui_text::TextSystem::new();
+    let _root = wb.tree.create_root().expect("root");
     let dock = DockState::new(DockTree::new());
-    let mut notifier = irisui_dock::UiNotifier::clean();
 
     // 1. Cold start -> FullShellRebuild and tag_all
     let s0 = wb.sync_frame_state(
-        &mut text_system,
-        &mut tree,
         super::shell::WorkbenchFrameSyncParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -791,16 +756,13 @@ fn test_workbench_sync_frame_state_unifies_blink_selection_domain_and_lifecycle(
         s0.lifecycle_branch,
         crate::lifecycle::LifecycleBranch::FullShellRebuild
     );
-    assert!(notifier.is_global_dirty());
+    assert!(wb.notifier.is_global_dirty());
 
     // 2. Steady frame -> Dormant
-    notifier.clear_all();
+    wb.notifier.clear_all();
     let s1 = wb.sync_frame_state(
-        &mut text_system,
-        &mut tree,
         super::shell::WorkbenchFrameSyncParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: None,
             domain_revision: 0,
@@ -816,11 +778,8 @@ fn test_workbench_sync_frame_state_unifies_blink_selection_domain_and_lifecycle(
 
     // 3. Selection change -> GranularPanels and notifier dirty
     let s2 = wb.sync_frame_state(
-        &mut text_system,
-        &mut tree,
         super::shell::WorkbenchFrameSyncParams {
             dock: &dock,
-            notifier: &mut notifier,
             scale_factor: 1.0,
             selection_id: Some(99),
             domain_revision: 0,
@@ -832,5 +791,58 @@ fn test_workbench_sync_frame_state_unifies_blink_selection_domain_and_lifecycle(
         s2.lifecycle_branch,
         crate::lifecycle::LifecycleBranch::GranularPanels(vec![MockTab::Viewport])
     );
-    assert!(notifier.dirty_panels().contains(&MockTab::Viewport));
+    assert!(wb.notifier.dirty_panels().contains(&MockTab::Viewport));
+}
+
+#[test]
+fn test_workbench_sync_window_cursor_deduplicates_os_ipc() {
+    let mut wb = create_test_workbench();
+    let mut win = MockWindow::default();
+    let dock = wb.descriptor.dock_state.clone();
+    let root = wb.tree.create_root().expect("root");
+    let btn = wb.tree.create_node();
+    wb.tree.add_child(root, btn).expect("child");
+    if let Some(node) = wb.tree.get_mut(btn) {
+        node.role = irisui_core::node::WidgetRole::Button;
+        node.computed_rect = Rect::new(40.0, 40.0, 80.0, 30.0);
+        node.cursor = Some(irisui_core::node::WidgetCursor::Pointer);
+    }
+
+    // 1. Cursor over button resolves to Pointer and updates MockWindow once
+    wb.pointer_state.set_position(Some(Point::new(60.0, 50.0)));
+    wb.last_cursor_pos = Some(Point::new(60.0, 50.0));
+    assert_eq!(
+        wb.resolve_window_cursor(&dock),
+        Some(irisui_core::node::WidgetCursor::Pointer)
+    );
+    wb.sync_window_cursor(&mut win, &dock);
+    assert_eq!(win.cursor, Some(CursorIcon::Pointer));
+
+    // 2. Clear MockWindow cursor manually and re-sync same state -> deduplicated (no OS call)
+    win.cursor = None;
+    wb.sync_window_cursor(&mut win, &dock);
+    assert_eq!(win.cursor, None);
+
+    // 3. Cursor moves to unoccluded non-button space over popup overlay -> resolves Default
+    let popup = wb.tree.create_node();
+    wb.tree.add_child(root, popup).expect("popup");
+    if let Some(node) = wb.tree.get_mut(popup) {
+        node.layer = irisui_core::node::UiLayer::Popup;
+        node.computed_rect = Rect::new(200.0, 100.0, 160.0, 120.0);
+    }
+    wb.pointer_state
+        .set_position(Some(Point::new(250.0, 150.0)));
+    wb.last_cursor_pos = Some(Point::new(250.0, 150.0));
+    assert_eq!(
+        wb.resolve_window_cursor(&dock),
+        Some(irisui_core::node::WidgetCursor::Default)
+    );
+    wb.sync_window_cursor(&mut win, &dock);
+    assert_eq!(win.cursor, Some(CursorIcon::Default));
+
+    // 4. Moving into unoccluded neutral space returns None without forcing an IPC override
+    wb.pointer_state
+        .set_position(Some(Point::new(600.0, 400.0)));
+    wb.last_cursor_pos = Some(Point::new(600.0, 400.0));
+    assert_eq!(wb.resolve_window_cursor(&dock), None);
 }

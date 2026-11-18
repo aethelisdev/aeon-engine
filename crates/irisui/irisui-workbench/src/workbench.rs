@@ -34,7 +34,10 @@ mod tests_popups;
 #[cfg(test)]
 mod tests_theme_screen;
 
-pub use frame::{WorkbenchExternalContext, WorkbenchFrameOutcome, WorkbenchFrameUpdateParams};
+pub use frame::{
+    WorkbenchExternalContext, WorkbenchFrameOutcome, WorkbenchFrameUpdateParams,
+    WorkbenchOwnedFrameParams,
+};
 pub use outcome::WorkbenchOutcome;
 pub use pointer::{HoverTargetResolution, PointerState, resolve_hover_targets};
 pub use runner::Workbench;

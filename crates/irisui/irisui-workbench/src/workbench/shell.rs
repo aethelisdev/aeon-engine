@@ -28,8 +28,6 @@ pub struct WorkbenchFrameSyncParams<'a, TabId: Eq + std::hash::Hash + Copy + Sen
 {
     /// Active docking state.
     pub dock: &'a irisui_dock::DockState<TabId>,
-    /// Panel invalidation notifier updated with selection, domain, and lifecycle invalidations.
-    pub notifier: &'a mut irisui_dock::UiNotifier<TabId>,
     /// Active UI scale factor.
     pub scale_factor: f32,
     /// Current opaque domain selection identifier.
@@ -75,23 +73,12 @@ where
         Ok(root)
     }
 
-    /// Renders the complete application shell into the retained widget tree.
-    ///
-    /// Constructs:
-    /// 1. Top application menubar if configured in [`WorkbenchDescriptor`](crate::descriptors::workbench::WorkbenchDescriptor).
-    /// 2. Docking area via [`DockArea`] and registered [`WorkbenchPanelRegistry`](crate::descriptors::panel_registry::WorkbenchPanelRegistry) panels.
-    /// 3. Bottom statusbar if configured in [`WorkbenchDescriptor`](crate::descriptors::workbench::WorkbenchDescriptor).
-    /// 4. Shapes typography across the entire shell tree.
-    /// 5. Solves global Taffy flexbox layout.
-    /// 6. Synchronizes and seals all dock leaf containers as Invalidation Boundaries.
-    /// 7. Renders active modal dialogs from [`DialogHost`](crate::dialogs::host::DialogHost).
-    /// 8. Renders active overlay hooks from [`OverlayHost`](crate::hooks::overlay::OverlayHost).
+    /// Renders the complete application shell into the workbench's owned retained widget tree.
     ///
     /// # Errors
     /// Returns [`LayoutError`] if layout computation or subtree solving encounters invalid geometry.
     pub fn render_shell(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
         context: &mut AppState,
         screen_size: Size,
         cursor: Option<Point>,
@@ -103,52 +90,52 @@ where
                 screen_size.height.max(0.0),
             ));
         }
-        engines.tree.set_theme(self.theme);
+        self.tree.set_theme(self.theme);
 
-        let root = Self::create_viewport_root(engines.tree, screen_size)?;
-
-        let mut scope = UiScope::new(engines.tree, root);
-
-        // 1. Top Application Menubar
-        self.descriptor
-            .render_menubar(&mut scope, screen_size.width);
-
-        // 2. Docking Workspace Area
+        let root = Self::create_viewport_root(&mut self.tree, screen_size)?;
         let workspace_rect = self.compute_workspace_rect(screen_size.width, screen_size.height);
+
         let dock_frame = {
+            let mut scope = UiScope::new(&mut self.tree, root);
+
+            // 1. Top Application Menubar
+            self.descriptor
+                .render_menubar(&mut scope, screen_size.width);
+
+            // 2. Docking Workspace Area
             let mut tab_viewer = self.panel_registry.active_tab_viewer(context);
-            DockArea::from_ref(&self.descriptor.dock_state)
+            let dock_frame = DockArea::from_ref(&self.descriptor.dock_state)
                 .bounds(workspace_rect)
                 .style(self.dock_style)
                 .cursor_pos(cursor.unwrap_or_default())
                 .cursor_occluded(is_cursor_occluded)
-                .show(&mut scope, &mut tab_viewer)
+                .show(&mut scope, &mut tab_viewer);
+
+            // 3. Bottom Status Bar
+            self.descriptor
+                .render_statusbar(&mut scope, screen_size.width, screen_size.height);
+
+            // Finalize coarse shell bounds
+            scope.finish_layout(Rect::new(0.0, 0.0, screen_size.width, screen_size.height));
+            dock_frame
         };
 
-        // 3. Bottom Status Bar
-        self.descriptor
-            .render_statusbar(&mut scope, screen_size.width, screen_size.height);
-
-        // Finalize coarse shell bounds
-        scope.finish_layout(Rect::new(0.0, 0.0, screen_size.width, screen_size.height));
-
         // 4. Global Typography & Flexbox Layout
-        engines.text_system.measure_subtree_text(engines.tree, root);
-        engines
-            .layout_engine
-            .compute_layout(engines.tree, screen_size)?;
+        self.text_system.measure_subtree_text(&mut self.tree, root);
+        self.layout_engine
+            .compute_layout(&mut self.tree, screen_size)?;
 
         // 5. Dock Leaf Boundary Sealing & Typography Measurement
         synchronize_dock_frame(
-            engines.tree,
-            engines.layout_engine,
-            engines.text_system,
+            &mut self.tree,
+            &mut self.layout_engine,
+            &mut self.text_system,
             &dock_frame,
         )?;
 
         // 6. Active Framework Modal Dialogs
         if self.dialog_host.is_active() {
-            let mut modal_scope = UiScope::new(engines.tree, root);
+            let mut modal_scope = UiScope::new(&mut self.tree, root);
             let screen_rect = Rect::new(0.0, 0.0, screen_size.width, screen_size.height);
             self.dialog_host
                 .render(&mut modal_scope, screen_rect, false, &mut self.action_bus);
@@ -156,7 +143,7 @@ where
 
         // 7. Active Contextual Overlay Hooks
         if self.overlay_host.has_active_overlays(context) {
-            let mut overlay_scope = UiScope::new(engines.tree, root);
+            let mut overlay_scope = UiScope::new(&mut self.tree, root);
             let screen_rect = Rect::new(0.0, 0.0, screen_size.width, screen_size.height);
             self.overlay_host.render(
                 &mut overlay_scope,
@@ -172,24 +159,23 @@ where
         Ok(dock_frame)
     }
 
-    /// Autonomously rebuilds all dirty docking leaf panels flagged in [`UiNotifier`].
-    ///
-    /// Automatically detects internal boundary invalidations, maps dirty leaf containers
-    /// to active tabs via the retained [`DockChromeFrame`], and invokes [`DualLayoutEliminator`](crate::layout_sync::dual_layout::DualLayoutEliminator)
-    /// to recompute affected subtrees in $O(M)$ time with zero root destruction.
+    /// Autonomously rebuilds all dirty docking leaf panels flagged in [`Self::notifier`].
     ///
     /// # Errors
     /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
     pub fn rebuild_dirty_panels_autonomous(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
-        notifier: &mut UiNotifier<TabId>,
         context: &mut AppState,
     ) -> Result<usize, LayoutError> {
         let dock_frame_ref = self.dock_frame.as_ref();
+        let mut engines = SubtreeEngines::new(
+            &mut self.tree,
+            &mut self.layout_engine,
+            &mut self.text_system,
+        );
         self.dual_layout.rebuild_dirty_panels_with_boundaries(
-            engines,
-            notifier,
+            &mut engines,
+            &mut self.notifier,
             &mut self.panel_registry,
             context,
             |tab_id| dock_frame_ref.and_then(|df| df.leaf_container(tab_id)),
@@ -200,14 +186,10 @@ where
     /// Rebuilds an individual dirty dock leaf panel in-place using [`DualLayoutEliminator`](crate::layout_sync::dual_layout::DualLayoutEliminator)
     /// and the registered [`WorkbenchPanelRegistry`](crate::descriptors::panel_registry::WorkbenchPanelRegistry).
     ///
-    /// Clears the panel in `notifier` and flags text preparation if rebuilt.
-    ///
     /// # Errors
     /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
     pub fn rebuild_single_panel<F>(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
-        notifier: &mut UiNotifier<TabId>,
         context: &mut AppState,
         panel_id: TabId,
         mut leaf_resolver: F,
@@ -216,12 +198,17 @@ where
         F: FnMut(TabId) -> Option<WidgetId>,
     {
         let Some(leaf_id) = leaf_resolver(panel_id) else {
-            notifier.clear_panel(panel_id);
+            self.notifier.clear_panel(panel_id);
             return Ok(false);
         };
+        let mut engines = SubtreeEngines::new(
+            &mut self.tree,
+            &mut self.layout_engine,
+            &mut self.text_system,
+        );
         self.dual_layout.rebuild_single_panel_notified(
-            engines,
-            notifier,
+            &mut engines,
+            &mut self.notifier,
             &mut self.panel_registry,
             context,
             panel_id,
@@ -231,16 +218,10 @@ where
 
     /// Autonomously rebuilds an individual dirty dock leaf panel in-place.
     ///
-    /// Resolves the leaf container for `panel_id` from the retained [`DockChromeFrame`],
-    /// invokes the panel drawer via [`DualLayoutEliminator::rebuild_panel`](crate::layout_sync::dual_layout::DualLayoutEliminator::rebuild_panel),
-    /// clears the panel in `notifier`, and flags text preparation.
-    ///
     /// # Errors
     /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
     pub fn rebuild_single_panel_autonomous(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
-        notifier: &mut UiNotifier<TabId>,
         context: &mut AppState,
         panel_id: TabId,
     ) -> Result<bool, LayoutError> {
@@ -248,12 +229,17 @@ where
             return Ok(false);
         };
         let Some(leaf_id) = dock_frame.leaf_container(panel_id) else {
-            notifier.clear_panel(panel_id);
+            self.notifier.clear_panel(panel_id);
             return Ok(false);
         };
+        let mut engines = SubtreeEngines::new(
+            &mut self.tree,
+            &mut self.layout_engine,
+            &mut self.text_system,
+        );
         self.dual_layout.rebuild_single_panel_notified(
-            engines,
-            notifier,
+            &mut engines,
+            &mut self.notifier,
             &mut self.panel_registry,
             context,
             panel_id,
@@ -263,84 +249,73 @@ where
 
     /// Rebuilds an individual leaf container directly using a custom declarative drawing closure.
     ///
-    /// Delegates directly to [`DualLayoutEliminator::rebuild_single_panel_leaf`](crate::layout_sync::dual_layout::DualLayoutEliminator::rebuild_single_panel_leaf).
-    ///
     /// # Errors
     /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
     pub fn rebuild_single_panel_leaf<F>(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
         leaf_id: WidgetId,
         render_fn: F,
     ) -> Result<bool, LayoutError>
     where
         F: FnOnce(&mut UiScope<'_>),
     {
+        let mut engines = SubtreeEngines::new(
+            &mut self.tree,
+            &mut self.layout_engine,
+            &mut self.text_system,
+        );
         engines.rebuild_single_panel_leaf_with_eliminator(&mut self.dual_layout, leaf_id, render_fn)
     }
 
     /// Executes the complete autonomous 3-branch lifecycle update pass for the workbench shell.
     ///
-    /// Evaluates [`WorkbenchLifecycle`](crate::lifecycle::WorkbenchLifecycle):
-    /// - **Branch 1 (Full Shell)**: Reconstructs root, menubar, docking hierarchy, statusbar,
-    ///   modals, and overlays from scratch. Clears `notifier`.
-    /// - **Branch 2 (Granular Subtree Invalidation)**: Rebuilds dirty dock leaf panels in-place
-    ///   using $O(M)$ Taffy boundaries without touching root or clean sibling panels.
-    /// - **Branch 3 (In-Place Volatile / Dormant)**: Skips retained tree mutations.
-    ///
-    /// # Returns
-    /// The evaluated [`LifecycleBranch`].
-    ///
     /// # Errors
     /// Returns [`LayoutError`] if layout computation encounters invalid geometry.
     pub fn update_shell(
         &mut self,
-        engines: &mut SubtreeEngines<'_>,
-        notifier: &mut UiNotifier<TabId>,
         context: &mut AppState,
         inputs: &LifecycleInputs,
         is_cursor_occluded: bool,
     ) -> Result<LifecycleBranch<TabId>, LayoutError> {
-        if engines.tree.root().is_none() || self.dock_frame.is_none() {
+        if self.tree.root().is_none() || self.dock_frame.is_none() {
             self.lifecycle.mark_shell_dirty();
         }
-        self.lifecycle.ingest_notifier(notifier);
+        self.lifecycle.ingest_notifier(&self.notifier);
         let branch = self.lifecycle.evaluate(*inputs);
 
         match &branch {
             LifecycleBranch::FullShellRebuild => {
-                engines.tree.clear();
+                self.tree.clear();
                 let screen_size = Size::new(inputs.dimensions.0, inputs.dimensions.1);
                 let cursor = self.last_cursor_pos;
-                self.render_shell(engines, context, screen_size, cursor, is_cursor_occluded)?;
-                notifier.clear_all();
+                self.render_shell(context, screen_size, cursor, is_cursor_occluded)?;
+                self.notifier.clear_all();
             }
             LifecycleBranch::GranularPanels(_) => {
-                engines.tree.set_theme(self.theme);
-                let _ = self.rebuild_dirty_panels_autonomous(engines, notifier, context)?;
+                self.tree.set_theme(self.theme);
+                let _ = self.rebuild_dirty_panels_autonomous(context)?;
             }
             LifecycleBranch::InPlaceRefresh => {
-                let volatile_res = self.volatile_hooks.refresh_in_place(engines.tree, context);
+                let volatile_res = self
+                    .volatile_hooks
+                    .refresh_in_place(&mut self.tree, context);
                 if volatile_res.needs_text_prepare {
                     self.dual_layout.mark_needs_text_prepare();
                 }
             }
-            LifecycleBranch::Dormant => {
-                // Zero retained tree mutations
-            }
+            LifecycleBranch::Dormant => {}
         }
 
-        let _ = self.sync_caret_blink(engines.text_system, engines.tree);
+        let _ = self.sync_caret_blink();
 
         Ok(branch)
     }
 
-    /// Synchronizes `notifier` and evaluates [`WorkbenchLifecycle`](crate::lifecycle::WorkbenchLifecycle)
+    /// Synchronizes [`Self::notifier`] and evaluates [`WorkbenchLifecycle`](crate::lifecycle::WorkbenchLifecycle)
     /// directly from a [`irisui_dock::DockState`] plus host-provided lifecycle flags.
     pub fn evaluate_dock_lifecycle(
         &mut self,
         dock: &irisui_dock::DockState<TabId>,
-        notifier: &irisui_dock::UiNotifier<TabId>,
         scale_factor: f32,
         host_inputs: impl FnOnce(LifecycleInputs) -> LifecycleInputs,
     ) -> LifecycleBranch<TabId> {
@@ -351,35 +326,30 @@ where
             scale_factor,
             self.theme_revision,
         );
-        self.lifecycle.ingest_notifier(notifier);
+        self.lifecycle.ingest_notifier(&self.notifier);
         self.lifecycle.evaluate(host_inputs(base))
     }
 
     /// Synchronizes caret blink, opaque selection, domain revision, and dock lifecycle in a single
-    /// library call, forwarding any resulting shell or panel invalidations into `params.notifier`.
+    /// library call, recording resulting shell or panel invalidations onto [`Self::notifier`].
     pub fn sync_frame_state(
         &mut self,
-        text_system: &mut irisui_text::TextSystem,
-        tree: &mut irisui_core::UiTree,
         params: WorkbenchFrameSyncParams<'_, TabId>,
         host_inputs: impl FnOnce(LifecycleInputs) -> LifecycleInputs,
     ) -> WorkbenchFrameSync<TabId> {
-        let caret_blink = self.sync_caret_blink(text_system, tree);
-        let selection_changed =
-            self.sync_selection_with_notifier(params.selection_id, params.notifier);
+        let caret_blink = self.sync_caret_blink();
+        let selection_changed = self.sync_selection_with_notifier(params.selection_id);
         let domain_revision_changed =
-            self.sync_domain_revision_with_notifier(params.domain_revision, params.notifier);
-        let lifecycle_branch = self.evaluate_dock_lifecycle(
-            params.dock,
-            params.notifier,
-            params.scale_factor,
-            |inputs| host_inputs(inputs.with_domain_revision(params.domain_revision)),
-        );
+            self.sync_domain_revision_with_notifier(params.domain_revision);
+        let lifecycle_branch =
+            self.evaluate_dock_lifecycle(params.dock, params.scale_factor, |inputs| {
+                host_inputs(inputs.with_domain_revision(params.domain_revision))
+            });
         match &lifecycle_branch {
-            LifecycleBranch::FullShellRebuild => params.notifier.tag_all(),
+            LifecycleBranch::FullShellRebuild => self.notifier.tag_all(),
             LifecycleBranch::GranularPanels(tabs) => {
                 for &tab in tabs {
-                    params.notifier.tag_redraw(tab);
+                    self.notifier.tag_redraw(tab);
                 }
             }
             LifecycleBranch::InPlaceRefresh | LifecycleBranch::Dormant => {}
@@ -393,60 +363,52 @@ where
     }
 
     /// Synchronizes an opaque domain selection identifier (`Option<u64>`) against the workbench.
-    ///
-    /// When the selection changes, all registered domain panels (in [`Self::panel_registry`] and
-    /// [`Self::lifecycle`]) are automatically marked dirty in [`Self::lifecycle`]. Returns `true`
-    /// if the selection changed.
     pub fn sync_selection(&mut self, selection_id: Option<u64>) -> bool {
         if self.last_selection_id == selection_id {
             return false;
         }
         self.last_selection_id = selection_id;
-        self.mark_domain_tabs_dirty(None);
+        Self::mark_domain_tabs_dirty_with(&self.panel_registry, &mut self.lifecycle, None);
         true
     }
 
     /// Synchronizes an opaque domain selection identifier (`Option<u64>`) and forwards dirty
-    /// notifications for all registered domain panels into `notifier` when selection changes.
-    pub fn sync_selection_with_notifier(
-        &mut self,
-        selection_id: Option<u64>,
-        notifier: &mut irisui_dock::UiNotifier<TabId>,
-    ) -> bool {
+    /// notifications for all registered domain panels into [`Self::notifier`] when selection changes.
+    pub fn sync_selection_with_notifier(&mut self, selection_id: Option<u64>) -> bool {
         if self.last_selection_id == selection_id {
             return false;
         }
         self.last_selection_id = selection_id;
-        self.mark_domain_tabs_dirty(Some(notifier));
+        Self::mark_domain_tabs_dirty_with(
+            &self.panel_registry,
+            &mut self.lifecycle,
+            Some(&mut self.notifier),
+        );
         true
     }
 
     /// Synchronizes an external domain/history revision counter (`u64`) against the workbench.
-    ///
-    /// When the revision changes, all registered domain panels (in [`Self::panel_registry`] and
-    /// [`Self::lifecycle`]) are automatically marked dirty in [`Self::lifecycle`]. Returns `true`
-    /// if the revision changed.
     pub fn sync_domain_revision(&mut self, revision: u64) -> bool {
         if self.last_domain_revision == revision {
             return false;
         }
         self.last_domain_revision = revision;
-        self.mark_domain_tabs_dirty(None);
+        Self::mark_domain_tabs_dirty_with(&self.panel_registry, &mut self.lifecycle, None);
         true
     }
 
     /// Synchronizes an external domain/history revision counter (`u64`) and forwards dirty
-    /// notifications for all registered domain panels into `notifier` when the revision changes.
-    pub fn sync_domain_revision_with_notifier(
-        &mut self,
-        revision: u64,
-        notifier: &mut irisui_dock::UiNotifier<TabId>,
-    ) -> bool {
+    /// notifications for all registered domain panels into [`Self::notifier`] when the revision changes.
+    pub fn sync_domain_revision_with_notifier(&mut self, revision: u64) -> bool {
         if self.last_domain_revision == revision {
             return false;
         }
         self.last_domain_revision = revision;
-        self.mark_domain_tabs_dirty(Some(notifier));
+        Self::mark_domain_tabs_dirty_with(
+            &self.panel_registry,
+            &mut self.lifecycle,
+            Some(&mut self.notifier),
+        );
         true
     }
 
@@ -464,62 +426,62 @@ where
         self.last_domain_revision
     }
 
-    fn mark_domain_tabs_dirty(
-        &mut self,
-        mut notifier: Option<&mut irisui_dock::UiNotifier<TabId>>,
+    fn mark_domain_tabs_dirty_with(
+        panel_registry: &crate::descriptors::panel_registry::WorkbenchPanelRegistry<
+            TabId,
+            AppState,
+        >,
+        lifecycle: &mut crate::lifecycle::WorkbenchLifecycle<TabId>,
+        mut notifier: Option<&mut UiNotifier<TabId>>,
     ) {
-        for &tab in self.panel_registry.domain_panels() {
-            self.lifecycle.mark_tab_dirty(tab);
+        for &tab in panel_registry.domain_panels() {
+            lifecycle.mark_tab_dirty(tab);
             if let Some(ref mut n) = notifier {
                 n.tag_redraw(tab);
             }
         }
-        self.lifecycle.mark_domain_panels_dirty();
+        lifecycle.mark_domain_panels_dirty();
         if let Some(n) = notifier {
-            for &tab in self.lifecycle.domain_panels() {
+            for &tab in lifecycle.domain_panels() {
                 n.tag_redraw(tab);
             }
         }
     }
 
-    /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`
+    /// Synchronizes [`Self::text_system`]'s internal caret blink animation timer against [`Self::tree`]
     /// using the monotonic system clock, marks focused nodes dirty on visibility flips, and caches
     /// the latest [`irisui_text::CaretBlinkUpdate`].
     #[inline]
-    pub fn sync_caret_blink(
-        &mut self,
-        text_system: &mut irisui_text::TextSystem,
-        tree: &mut irisui_core::UiTree,
-    ) -> irisui_text::CaretBlinkUpdate {
-        let update = text_system.sync_caret_blink(tree);
-        self.finish_caret_blink_sync(tree, update)
+    pub fn sync_caret_blink(&mut self) -> irisui_text::CaretBlinkUpdate {
+        let update = self.text_system.sync_caret_blink(&self.tree);
+        self.finish_caret_blink_sync(update)
     }
 
-    /// Synchronizes [`irisui_text::TextSystem`]'s internal caret blink animation timer against `tree`
+    /// Synchronizes [`Self::text_system`]'s internal caret blink animation timer against [`Self::tree`]
     /// using an explicit elapsed frame `delta`, marks focused nodes dirty on visibility flips, and
     /// caches the latest [`irisui_text::CaretBlinkUpdate`].
     #[inline]
     pub fn sync_caret_blink_with_delta(
         &mut self,
-        text_system: &mut irisui_text::TextSystem,
-        tree: &mut irisui_core::UiTree,
         delta: std::time::Duration,
     ) -> irisui_text::CaretBlinkUpdate {
-        let update = text_system.sync_caret_blink_with_delta(tree, delta);
-        self.finish_caret_blink_sync(tree, update)
+        let update = self
+            .text_system
+            .sync_caret_blink_with_delta(&self.tree, delta);
+        self.finish_caret_blink_sync(update)
     }
 
     #[inline]
     fn finish_caret_blink_sync(
         &mut self,
-        tree: &mut irisui_core::UiTree,
         update: irisui_text::CaretBlinkUpdate,
     ) -> irisui_text::CaretBlinkUpdate {
         self.last_caret_blink = update;
         if update.needs_redraw() {
             self.dual_layout.mark_needs_text_prepare();
-            if let Some(focused_id) = tree.event_state.focused {
-                tree.mark_dirty(focused_id, irisui_core::DirtyFlags::PAINT);
+            if let Some(focused_id) = self.tree.event_state.focused {
+                self.tree
+                    .mark_dirty(focused_id, irisui_core::DirtyFlags::PAINT);
             }
         }
         update
@@ -553,10 +515,11 @@ where
     /// Runs all registered volatile hooks in-place and forwards text preparation needs to `dual_layout`.
     pub fn refresh_volatile_hooks(
         &mut self,
-        tree: &mut irisui_core::UiTree,
         context: &mut AppState,
     ) -> crate::hooks::VolatileRefreshResult {
-        let res = self.volatile_hooks.refresh_in_place(tree, context);
+        let res = self
+            .volatile_hooks
+            .refresh_in_place(&mut self.tree, context);
         if res.needs_text_prepare {
             self.dual_layout.mark_needs_text_prepare();
         }

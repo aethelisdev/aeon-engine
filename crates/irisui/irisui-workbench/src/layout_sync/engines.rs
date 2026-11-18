@@ -7,7 +7,7 @@
 //! [`LayoutEngine`], and [`TextSystem`] into an ergonomic container for layout passes and
 //! granular $O(M)$ subtree reconstruction cycles.
 
-use crate::descriptors::panel_registry::WorkbenchPanelRegistry;
+use crate::descriptors::panel_catalog::PanelRegistryTarget;
 use crate::layout_sync::dual_layout::DualLayoutEliminator;
 use irisui_core::{UiTree, WidgetId};
 use irisui_dock::UiNotifier;
@@ -141,31 +141,33 @@ impl<'a> SubtreeEngines<'a> {
 
     /// Atomically rebuilds an individual registered dock panel.
     #[inline]
-    pub fn rebuild_panel<TabId, Context>(
+    pub fn rebuild_panel<TabId, Context, R>(
         &mut self,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         panel_id: TabId,
         leaf_id: WidgetId,
     ) -> Result<bool, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
     {
         DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)
     }
 
     /// Atomically rebuilds an individual registered dock panel and tracks text preparation on `eliminator`.
     #[inline]
-    pub fn rebuild_panel_with_eliminator<TabId, Context>(
+    pub fn rebuild_panel_with_eliminator<TabId, Context, R>(
         &mut self,
         eliminator: &mut DualLayoutEliminator,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         panel_id: TabId,
         leaf_id: WidgetId,
     ) -> Result<bool, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
     {
         let rebuilt =
             DualLayoutEliminator::rebuild_panel(self, registry, context, panel_id, leaf_id)?;
@@ -177,17 +179,18 @@ impl<'a> SubtreeEngines<'a> {
 
     /// Rebuilds all dirty dock panels flagged in `notifier` while mapping physical dirty boundaries.
     #[inline]
-    pub fn rebuild_dirty_panels_with_boundaries<TabId, Context, F, B>(
+    pub fn rebuild_dirty_panels_with_boundaries<TabId, Context, R, F, B>(
         &mut self,
         eliminator: &mut DualLayoutEliminator,
         notifier: &mut UiNotifier<TabId>,
-        registry: &mut WorkbenchPanelRegistry<TabId, Context>,
+        registry: &mut R,
         context: &mut Context,
         leaf_resolver: F,
         boundary_resolver: B,
     ) -> Result<usize, LayoutError>
     where
         TabId: Eq + Hash + Copy + Debug + Send + Sync + 'static,
+        R: PanelRegistryTarget<TabId, Context> + ?Sized,
         F: FnMut(TabId) -> Option<WidgetId>,
         B: FnMut(WidgetId) -> Option<TabId>,
     {
