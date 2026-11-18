@@ -259,6 +259,14 @@ where
     tree.clear_canvas_primitives_for(node_id);
     let mut canvas = ImmediateCanvas::new(tree, node_id, bounds);
     draw_fn(&mut canvas);
+    let has_text = tree.canvas_primitives(node_id).is_some_and(|prims| {
+        prims
+            .iter()
+            .any(|p| matches!(p, irisui_core::CanvasPrimitive::Text { .. }))
+    });
+    if has_text {
+        tree.record_live_text_update();
+    }
     tree.mark_dirty(node_id, irisui_core::DirtyFlags::PAINT);
     true
 }

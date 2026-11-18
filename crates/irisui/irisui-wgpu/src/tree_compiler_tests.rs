@@ -335,6 +335,48 @@ fn test_tree_compiler_hardware_scissor_reset_on_elevated_layer() {
 }
 
 #[test]
+fn test_tree_compiler_culls_nested_clipped_children_outside_parent_viewport() {
+    let mut tree = UiTree::new();
+    let viewport = tree.create_node();
+    if let Some(node) = tree.get_mut(viewport) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 100.0);
+        node.style = Style::new().clip_children(true);
+        node.layer = UiLayer::Content;
+    }
+
+    let bar = tree.create_node();
+    if let Some(node) = tree.get_mut(bar) {
+        node.computed_rect = Rect::new(10.0, 300.0, 180.0, 4.0);
+        node.style = Style::new().background(Color::BLUE).clip_children(true);
+        node.layer = UiLayer::Content;
+    }
+    let _ = tree.add_child(viewport, bar);
+
+    let segment = tree.create_node();
+    if let Some(node) = tree.get_mut(segment) {
+        node.computed_rect = Rect::new(10.0, 300.0, 90.0, 4.0);
+        node.style = Style::new().background(Color::RED);
+        node.layer = UiLayer::Content;
+    }
+    let _ = tree.add_child(bar, segment);
+
+    let mut options = TreeCompilerOptions::new();
+    let cmd_list = compile_tree_draw_commands(&tree, viewport, &mut options);
+    assert!(
+        !cmd_list.quads.iter().any(|q| q.rect[2] == 90.0),
+        "Child quad inside nested clip_children container outside parent viewport must be culled instead of emitting [0,0,0,0] unclipped"
+    );
+    assert!(
+        cmd_list
+            .quads
+            .iter()
+            .filter(|q| q.rect[2] == 180.0)
+            .all(|q| q.clip_rect == [0.0, 0.0, 200.0, 100.0]),
+        "Parent bar quad must remain clipped to parent viewport bounds"
+    );
+}
+
+#[test]
 fn test_tree_compiler_immediate_canvas_primitives() {
     let mut tree = UiTree::new();
     let root = tree.create_node();

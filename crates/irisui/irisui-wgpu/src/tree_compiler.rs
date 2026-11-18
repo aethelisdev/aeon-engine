@@ -368,74 +368,77 @@ fn populate_layer_commands(
         && effective_style.border.color.a > 0.0;
 
     let target_list = &mut layer_lists[effective_layer.index()];
+    let is_clip_empty = effective_clip.is_some_and(|c| c.width <= 0.0 || c.height <= 0.0);
 
-    // 1. SDF Quad (Background, Border, Shadow)
-    if node.computed_rect.width > 0.0
-        && node.computed_rect.height > 0.0
-        && (effective_style.background_color.a > 0.0
-            || has_border
-            || effective_style.box_shadow.is_some())
-    {
-        target_list.push_quad_with_boundary(
-            QuadInstance::from_style(node.computed_rect, &effective_style, effective_clip),
-            effective_boundary,
-        );
-    }
+    if !is_clip_empty {
+        // 1. SDF Quad (Background, Border, Shadow)
+        if node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+            && (effective_style.background_color.a > 0.0
+                || has_border
+                || effective_style.box_shadow.is_some())
+        {
+            target_list.push_quad_with_boundary(
+                QuadInstance::from_style(node.computed_rect, &effective_style, effective_clip),
+                effective_boundary,
+            );
+        }
 
-    // 2. Atlas Texture Quad
-    if let Some(uv) = node.texture_uv
-        && node.computed_rect.width > 0.0
-        && node.computed_rect.height > 0.0
-    {
-        let base_tint = node.texture_tint.unwrap_or(Color::WHITE);
-        let tint = if is_hovered {
-            node.hover_texture_tint.unwrap_or(base_tint)
-        } else {
-            base_tint
-        };
-        let clip_arr = match effective_clip {
-            Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
-            None => [0.0, 0.0, 0.0, 0.0],
-        };
-        target_list.push_texture_quad(TextureQuadInstance {
-            rect: [
-                node.computed_rect.x,
-                node.computed_rect.y,
-                node.computed_rect.width,
-                node.computed_rect.height,
-            ],
-            uv_rect: uv,
-            tint: [tint.r, tint.g, tint.b, tint.a],
-            clip_rect: clip_arr,
-        });
-    }
+        // 2. Atlas Texture Quad
+        if let Some(uv) = node.texture_uv
+            && node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+        {
+            let base_tint = node.texture_tint.unwrap_or(Color::WHITE);
+            let tint = if is_hovered {
+                node.hover_texture_tint.unwrap_or(base_tint)
+            } else {
+                base_tint
+            };
+            let clip_arr = match effective_clip {
+                Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
+                None => [0.0, 0.0, 0.0, 0.0],
+            };
+            target_list.push_texture_quad(TextureQuadInstance {
+                rect: [
+                    node.computed_rect.x,
+                    node.computed_rect.y,
+                    node.computed_rect.width,
+                    node.computed_rect.height,
+                ],
+                uv_rect: uv,
+                tint: [tint.r, tint.g, tint.b, tint.a],
+                clip_rect: clip_arr,
+            });
+        }
 
-    // 3. External Texture Quad
-    if let Some(id) = node.external_texture
-        && node.computed_rect.width > 0.0
-        && node.computed_rect.height > 0.0
-    {
-        let tint = node.texture_tint.unwrap_or(Color::WHITE);
-        let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
-        target_list.push_external_texture_quad(
-            id,
-            ExternalTextureQuadInstance::with_uv(node.computed_rect, uv, tint, effective_clip),
-        );
-    }
+        // 3. External Texture Quad
+        if let Some(id) = node.external_texture
+            && node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+        {
+            let tint = node.texture_tint.unwrap_or(Color::WHITE);
+            let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
+            target_list.push_external_texture_quad(
+                id,
+                ExternalTextureQuadInstance::with_uv(node.computed_rect, uv, tint, effective_clip),
+            );
+        }
 
-    // 4. Volatile Immediate Canvas Primitives
-    if let Some(canvas_primitives) = tree.canvas_primitives(current) {
-        emit_canvas_primitives(
-            canvas_primitives,
-            target_list,
-            effective_clip,
-            effective_boundary,
-        );
-    }
+        // 4. Volatile Immediate Canvas Primitives
+        if let Some(canvas_primitives) = tree.canvas_primitives(current) {
+            emit_canvas_primitives(
+                canvas_primitives,
+                target_list,
+                effective_clip,
+                effective_boundary,
+            );
+        }
 
-    // 5. Custom Drawing Hook
-    if let Some(drawer) = ctx.custom_drawer.as_deref_mut() {
-        drawer(target_list, current, node, effective_clip);
+        // 5. Custom Drawing Hook
+        if let Some(drawer) = ctx.custom_drawer.as_deref_mut() {
+            drawer(target_list, current, node, effective_clip);
+        }
     }
 
     // 6. Traverse Children
