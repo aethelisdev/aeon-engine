@@ -55,7 +55,7 @@ impl InputBoxStyle {
             background: theme.toolbar_bg,
             hover_background: theme.button_hover_bg,
             focus_background: theme.card_bg,
-            border_color: theme.panel_border,
+            border_color: theme.card_border,
             hover_border_color: theme.button_hover_border,
             focus_border_color: theme.accent,
             text_color: theme.text_primary,

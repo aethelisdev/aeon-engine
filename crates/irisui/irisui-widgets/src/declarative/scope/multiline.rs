@@ -75,7 +75,7 @@ impl MultilineEditorProps {
             show_gutter: true,
             gutter_style: GutterStyle::default(),
             background: theme.panel_bg,
-            border_color: theme.panel_border,
+            border_color: theme.card_border,
             active_line_bg: theme.card_bg,
             caret_color: theme.text_caret,
             blink_caret: true,

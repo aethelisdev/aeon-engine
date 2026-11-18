@@ -337,9 +337,12 @@ impl AeEngine {
         self.ui.profiler_physics_ms = self.profiler.physics_time;
         // Separate true GPU render work from VSync/swapchain present blocking.
         let present_wait_ms = self.render_state.last_present_wait_secs * 1000.0;
-        self.ui.profiler_render_ms = (self.profiler.render_time - present_wait_ms).max(0.0);
+        let ui_pass_ms = self.render_state.last_recording_timings.ui_pass_record_ms;
+        self.profiler.ui_time = ui_pass_ms;
+        self.ui.profiler_render_ms =
+            (self.profiler.render_time - present_wait_ms - ui_pass_ms).max(0.0);
         self.ui.profiler_present_ms = present_wait_ms;
-        self.ui.profiler_ui_ms = self.profiler.ui_time;
+        self.ui.profiler_ui_ms = ui_pass_ms;
         self.ui.profiler_frame_ms = self.profiler.total_frame_time;
         self.ui.cpu_timings = self.profiler.get_cpu_sync_timings(present_wait_ms);
         self.ui.pass_recording_timings = self.render_state.last_recording_timings;

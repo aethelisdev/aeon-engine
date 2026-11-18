@@ -431,16 +431,7 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
             style.splitter_idle_color
         };
 
-        let visual_rect = if splitter.direction == SplitDirection::Horizontal {
-            Rect::new(
-                splitter.rect.x,
-                splitter.rect.y + style.tab_bar_height,
-                splitter.rect.width,
-                (splitter.rect.height - style.tab_bar_height).max(0.0),
-            )
-        } else {
-            splitter.rect
-        };
+        let visual_rect = splitter.rect;
 
         let s_id = add_rect_node(
             tree,

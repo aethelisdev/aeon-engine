@@ -110,7 +110,7 @@ impl Profiler {
 
     /// Extracts structured CPU execution and synchronization stage timings.
     pub fn get_cpu_sync_timings(&self, present_wait_ms: f32) -> CpuSyncTimings {
-        let render_prep_ms = (self.render_time - present_wait_ms).max(0.0);
+        let render_prep_ms = (self.render_time - present_wait_ms - self.ui_time).max(0.0);
         let total_cpu_ms =
             self.ecs_time + self.physics_time + render_prep_ms + present_wait_ms + self.ui_time;
         CpuSyncTimings {
