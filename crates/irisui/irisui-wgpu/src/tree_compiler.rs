@@ -124,19 +124,24 @@ impl<'a> TreeCompilerOptions<'a> {
     }
 }
 
+pub use crate::tree_compiler_patch::{
+    TreeCompilerScratch, compile_tree_draw_commands_with_scratch,
+    patch_dirty_boundaries_with_scratch,
+};
+
 /// Internal context holding traversal parameters during tree compilation.
-struct CompilationContext<'a, 'b> {
-    scissor_stack: ScissorStack,
-    inherited_layer: UiLayer,
-    inherited_hovered: bool,
-    inherited_focused: bool,
-    hovered_tag: Option<u64>,
-    hovered_id: Option<WidgetId>,
-    focused_tag: Option<u64>,
-    focused_id: Option<WidgetId>,
-    blink_caret: bool,
-    custom_drawer: &'b mut Option<CustomDrawCallback<'a>>,
-    current_boundary: Option<WidgetId>,
+pub(crate) struct CompilationContext<'a, 'b> {
+    pub(crate) scissor_stack: ScissorStack,
+    pub(crate) inherited_layer: UiLayer,
+    pub(crate) inherited_hovered: bool,
+    pub(crate) inherited_focused: bool,
+    pub(crate) hovered_tag: Option<u64>,
+    pub(crate) hovered_id: Option<WidgetId>,
+    pub(crate) focused_tag: Option<u64>,
+    pub(crate) focused_id: Option<WidgetId>,
+    pub(crate) blink_caret: bool,
+    pub(crate) custom_drawer: &'b mut Option<CustomDrawCallback<'a>>,
+    pub(crate) current_boundary: Option<WidgetId>,
 }
 
 /// Recursively compiles a [`UiTree`] into an existing [`DrawCommandList`],
@@ -147,72 +152,70 @@ pub fn compile_tree_draw_commands_into(
     options: &mut TreeCompilerOptions<'_>,
     output: &mut DrawCommandList,
 ) {
-    let mut layer_lists: [DrawCommandList; 6] = Default::default();
-    let mut ctx = CompilationContext {
-        scissor_stack: ScissorStack::with_initial_clip(options.initial_clip),
-        inherited_layer: UiLayer::Background,
-        inherited_hovered: false,
-        inherited_focused: false,
-        hovered_tag: options.hovered_tag,
-        hovered_id: options.hovered_id,
-        focused_tag: options.focused_tag,
-        focused_id: options.focused_id,
-        blink_caret: options.blink_caret,
-        custom_drawer: &mut options.custom_drawer,
-        current_boundary: if tree.is_boundary(root_id) {
-            Some(root_id)
-        } else {
-            None
-        },
+    let mut scratch = TreeCompilerScratch::new();
+    compile_tree_draw_commands_with_scratch(tree, root_id, options, &mut scratch, output);
+}
+
+#[inline]
+pub(crate) fn resolve_node_hover(
+    tree: &UiTree,
+    id: WidgetId,
+    node: &WidgetNode,
+    hovered_id: Option<WidgetId>,
+    hovered_tag: Option<u64>,
+    inherited_hovered: bool,
+) -> bool {
+    let direct = (hovered_id.is_some() && hovered_id == Some(id))
+        || (node.tag != 0 && hovered_tag == Some(node.tag))
+        || (node.role == WidgetRole::DockTab
+            && hovered_id.is_some_and(|hid| tree.is_descendant_of(hid, id)));
+    direct || (inherited_hovered && node.tag == 0)
+}
+
+#[inline]
+pub(crate) fn resolve_node_focus(
+    id: WidgetId,
+    node: &WidgetNode,
+    focused_id: Option<WidgetId>,
+    focused_tag: Option<u64>,
+    inherited_focused: bool,
+) -> bool {
+    if node.role == WidgetRole::TextInputCaret {
+        return inherited_focused;
+    }
+    let direct = (focused_id.is_some() && focused_id == Some(id))
+        || (node.tag != 0 && focused_tag == Some(node.tag));
+    direct || (inherited_focused && node.tag == 0)
+}
+
+#[inline]
+pub(crate) fn resolve_effective_layer(node: &WidgetNode, inherited_layer: UiLayer) -> UiLayer {
+    let explicit_or_default = if node.layer != UiLayer::Content {
+        node.layer
+    } else {
+        node.role.default_layer()
     };
-    populate_layer_commands(tree, root_id, &mut ctx, &mut layer_lists);
-    output.clear();
-
-    let mut had_scissor = false;
-    if let Some(clip) = options.initial_clip {
-        // Only apply initial hardware scissor if compiling base/content layers
-        let includes_base_layers = options
-            .layer_range
-            .is_none_or(|(min, _)| min < UiLayer::Modal);
-        if includes_base_layers {
-            let sx = clip.x.max(0.0).floor() as u32;
-            let sy = clip.y.max(0.0).floor() as u32;
-            let sw = clip.width.max(1.0).ceil() as u32;
-            let sh = clip.height.max(1.0).ceil() as u32;
-            output.push_scissor(sx, sy, sw, sh);
-            had_scissor = true;
-        }
+    if explicit_or_default > inherited_layer {
+        explicit_or_default
+    } else {
+        inherited_layer
     }
+}
 
-    for (layer_idx, list) in layer_lists.into_iter().enumerate() {
-        if let Some((min_layer, max_layer)) = options.layer_range
-            && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
-        {
-            continue;
-        }
-        if list.is_empty() {
-            continue;
-        }
-        // When transitioning to elevated overlay layers (Modal, Popup, Tooltip), ensure any
-        // hardware scissor pushed by lower content layers is reset so overlays are never cut off.
-        if layer_idx >= UiLayer::Modal.index() && had_scissor {
-            output.push_reset_scissor();
-            had_scissor = false;
-        }
-        if list
-            .commands
-            .iter()
-            .any(|c| matches!(c, crate::command::DrawCommand::SetScissor { .. }))
-        {
-            had_scissor = true;
-        }
-        output.append(list);
-    }
-
-    // Ensure hardware scissor does not leak into subsequent frame operations
-    if had_scissor {
-        output.push_reset_scissor();
-    }
+#[inline]
+pub(crate) fn is_node_elevated_root(
+    node: &WidgetNode,
+    effective_layer: UiLayer,
+    inherited_layer: UiLayer,
+) -> bool {
+    effective_layer > inherited_layer
+        || matches!(
+            node.role,
+            WidgetRole::DropdownPopup
+                | WidgetRole::ModalWindow
+                | WidgetRole::FloatingWindow
+                | WidgetRole::Tooltip
+        )
 }
 
 /// Recursively compiles a [`UiTree`] starting at `root_id` into a new [`DrawCommandList`].
@@ -227,7 +230,7 @@ pub fn compile_tree_draw_commands(
 }
 
 /// Internal recursive helper traversing the UI hierarchy and sorting into per-layer command lists.
-fn populate_layer_commands(
+pub(crate) fn populate_layer_commands(
     tree: &UiTree,
     current: WidgetId,
     ctx: &mut CompilationContext<'_, '_>,
@@ -240,38 +243,28 @@ fn populate_layer_commands(
         return;
     }
 
-    let node_matches_hover = (ctx.hovered_id.is_some() && ctx.hovered_id == Some(current))
-        || (node.tag != 0 && ctx.hovered_tag == Some(node.tag))
-        || (node.role == WidgetRole::DockTab
-            && ctx
-                .hovered_id
-                .is_some_and(|hid| tree.is_descendant_of(hid, current)));
-    let is_hovered = node_matches_hover || (ctx.inherited_hovered && node.tag == 0);
-
-    let node_matches_focus = (ctx.focused_id.is_some() && ctx.focused_id == Some(current))
-        || (node.tag != 0 && ctx.focused_tag == Some(node.tag));
-    let is_focused = if node.role == WidgetRole::TextInputCaret {
-        ctx.inherited_focused
-    } else {
-        node_matches_focus || (ctx.inherited_focused && node.tag == 0)
-    };
+    let is_hovered = resolve_node_hover(
+        tree,
+        current,
+        node,
+        ctx.hovered_id,
+        ctx.hovered_tag,
+        ctx.inherited_hovered,
+    );
+    let is_focused = resolve_node_focus(
+        current,
+        node,
+        ctx.focused_id,
+        ctx.focused_tag,
+        ctx.inherited_focused,
+    );
 
     // Skip drawing text input caret if the field is not focused or currently in blink-off phase
     if node.role == WidgetRole::TextInputCaret && (!ctx.inherited_focused || !ctx.blink_caret) {
         return;
     }
 
-    let explicit_or_default_layer = if node.layer != UiLayer::Content {
-        node.layer
-    } else {
-        node.role.default_layer()
-    };
-
-    let effective_layer = if explicit_or_default_layer > ctx.inherited_layer {
-        explicit_or_default_layer
-    } else {
-        ctx.inherited_layer
-    };
+    let effective_layer = resolve_effective_layer(node, ctx.inherited_layer);
 
     let effective_boundary = if node.is_boundary {
         Some(current)
@@ -282,14 +275,7 @@ fn populate_layer_commands(
     // A node is an elevated overlay root if its explicit or role-inferred layer exceeds the inherited layer,
     // or if its semantic role designates an independent floating/overlay container
     // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
-    let is_elevated_root = effective_layer > ctx.inherited_layer
-        || matches!(
-            node.role,
-            WidgetRole::DropdownPopup
-                | WidgetRole::ModalWindow
-                | WidgetRole::FloatingWindow
-                | WidgetRole::Tooltip
-        );
+    let is_elevated_root = is_node_elevated_root(node, effective_layer, ctx.inherited_layer);
 
     // Decouple scissor clip when transitioning into an elevated overlay layer
     // so that child popups or modal cards are not clipped by parent panel boundaries.
@@ -399,17 +385,20 @@ fn populate_layer_commands(
                 Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
                 None => [0.0, 0.0, 0.0, 0.0],
             };
-            target_list.push_texture_quad(TextureQuadInstance {
-                rect: [
-                    node.computed_rect.x,
-                    node.computed_rect.y,
-                    node.computed_rect.width,
-                    node.computed_rect.height,
-                ],
-                uv_rect: uv,
-                tint: [tint.r, tint.g, tint.b, tint.a],
-                clip_rect: clip_arr,
-            });
+            target_list.push_texture_quad_with_boundary(
+                TextureQuadInstance {
+                    rect: [
+                        node.computed_rect.x,
+                        node.computed_rect.y,
+                        node.computed_rect.width,
+                        node.computed_rect.height,
+                    ],
+                    uv_rect: uv,
+                    tint: [tint.r, tint.g, tint.b, tint.a],
+                    clip_rect: clip_arr,
+                },
+                effective_boundary,
+            );
         }
 
         // 3. External Texture Quad
@@ -419,15 +408,18 @@ fn populate_layer_commands(
         {
             let tint = node.texture_tint.unwrap_or(Color::WHITE);
             let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
-            target_list.push_external_texture_quad(
+            target_list.push_external_texture_quad_with_boundary(
                 id,
                 ExternalTextureQuadInstance::with_uv(node.computed_rect, uv, tint, effective_clip),
+                effective_boundary,
             );
         }
 
         // 4. Volatile Immediate Canvas Primitives
         if let Some(canvas_primitives) = tree.canvas_primitives(current) {
             emit_canvas_primitives(
+                node.canvas_origin,
+                node.computed_rect,
                 canvas_primitives,
                 target_list,
                 effective_clip,
@@ -495,11 +487,14 @@ fn populate_layer_commands(
 
 /// Translates volatile immediate-mode canvas primitives into instanced GPU draw quads.
 fn emit_canvas_primitives(
+    origin_mode: irisui_core::CanvasOrigin,
+    node_rect: Rect,
     primitives: &[irisui_core::CanvasPrimitive],
     target_list: &mut DrawCommandList,
     effective_clip: Option<Rect>,
     boundary: Option<WidgetId>,
 ) {
+    let origin = origin_mode.resolve_offset(node_rect);
     for primitive in primitives {
         match primitive {
             irisui_core::CanvasPrimitive::Rect {
@@ -507,11 +502,42 @@ fn emit_canvas_primitives(
                 color,
                 corner_radius,
             } => {
+                let translated = Rect::new(
+                    rect.x + origin.x,
+                    rect.y + origin.y,
+                    rect.width,
+                    rect.height,
+                );
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(
-                        *rect,
+                        translated,
                         &irisui_core::Style::new()
                             .background(*color)
+                            .border_radius(*corner_radius),
+                        effective_clip,
+                    ),
+                    boundary,
+                );
+            }
+            irisui_core::CanvasPrimitive::StyledRect {
+                rect,
+                color,
+                border_color,
+                border_width,
+                corner_radius,
+            } => {
+                let translated = Rect::new(
+                    rect.x + origin.x,
+                    rect.y + origin.y,
+                    rect.width,
+                    rect.height,
+                );
+                target_list.push_quad_with_boundary(
+                    QuadInstance::from_style(
+                        translated,
+                        &irisui_core::Style::new()
+                            .background(*color)
+                            .border(*border_width, *border_color)
                             .border_radius(*corner_radius),
                         effective_clip,
                     ),
@@ -524,9 +550,15 @@ fn emit_canvas_primitives(
                 color,
                 corner_radius,
             } => {
+                let translated = Rect::new(
+                    rect.x + origin.x,
+                    rect.y + origin.y,
+                    rect.width,
+                    rect.height,
+                );
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(
-                        *rect,
+                        translated,
                         &irisui_core::Style::new()
                             .border(*border_width, *color)
                             .border_radius(*corner_radius),
@@ -541,10 +573,14 @@ fn emit_canvas_primitives(
                 thickness,
                 color,
             } => {
-                let seg_min_x = start.x.min(end.x);
-                let seg_min_y = start.y.min(end.y);
-                let seg_w = (end.x - start.x).abs().max(*thickness);
-                let seg_h = (end.y - start.y).abs().max(*thickness);
+                let sx = start.x + origin.x;
+                let sy = start.y + origin.y;
+                let ex = end.x + origin.x;
+                let ey = end.y + origin.y;
+                let seg_min_x = sx.min(ex);
+                let seg_min_y = sy.min(ey);
+                let seg_w = (ex - sx).abs().max(*thickness);
+                let seg_h = (ey - sy).abs().max(*thickness);
 
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(

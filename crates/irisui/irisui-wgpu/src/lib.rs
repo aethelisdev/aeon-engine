@@ -18,8 +18,11 @@ pub mod layer_cache;
 pub mod quad;
 pub mod renderer;
 pub mod scissor;
+pub mod surface;
+pub mod texture_array_atlas;
 pub mod texture_pipeline;
 pub mod tree_compiler;
+mod tree_compiler_patch;
 
 pub use command::{BoundarySlice, DrawCommand, DrawCommandList};
 pub use external_texture_pipeline::{ExternalTexturePipeline, ExternalTextureQuadInstance};
@@ -28,10 +31,18 @@ pub use layer_cache::{BoundaryLayerCache, InstanceBufferTarget};
 pub use quad::QuadInstance;
 pub use renderer::{IrisRenderer, IrisTreePrepareParams, compile_tree_for_frame};
 pub use scissor::ScissorStack;
+pub use surface::{
+    IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, SurfaceRefreshMode,
+};
+pub use texture_array_atlas::{TextureArrayAtlas, compute_mip_level_count};
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};
 pub use tree_compiler::{
     CustomDrawCallback, TreeCompilerOptions, compile_tree_draw_commands,
     compile_tree_draw_commands_into,
+};
+pub use tree_compiler_patch::{
+    TreeCompilerScratch, compile_tree_draw_commands_with_scratch,
+    patch_dirty_boundaries_with_scratch,
 };
 
 /// WGPU rendering backend prelude re-exporting renderer, quad instances, and draw commands.
@@ -41,9 +52,11 @@ pub mod prelude {
     pub use crate::{
         BoundarySlice, CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
         ExternalTextureQuadInstance, ExternalTextures, InstanceBufferTarget, IrisRenderer,
-        IrisTreePrepareParams, QuadInstance, ScissorStack, TextureQuadInstance,
-        TextureQuadPipeline, TreeCompilerOptions, compile_tree_draw_commands,
-        compile_tree_draw_commands_into, compile_tree_for_frame,
+        IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, IrisTreePrepareParams,
+        QuadInstance, ScissorStack, SurfaceRefreshMode, TextureArrayAtlas, TextureQuadInstance,
+        TextureQuadPipeline, TreeCompilerOptions, TreeCompilerScratch, compile_tree_draw_commands,
+        compile_tree_draw_commands_into, compile_tree_draw_commands_with_scratch,
+        compile_tree_for_frame, patch_dirty_boundaries_with_scratch,
     };
 }
 

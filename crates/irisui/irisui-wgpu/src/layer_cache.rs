@@ -21,6 +21,8 @@ use std::collections::{HashMap, HashSet};
 pub struct BoundaryLayerCache {
     /// Cached slices mapped by boundary WidgetId.
     pub slices: HashMap<WidgetId, Vec<BoundarySlice>>,
+    /// Ordered boundary slice sequence retained across frames for zero-allocation structural matching.
+    ordered_slices: Vec<(WidgetId, BoundarySlice)>,
     /// Total number of quad instances allocated in the GPU buffer.
     pub total_instances: u32,
     /// Number of partial uploads executed since creation.
@@ -54,7 +56,13 @@ impl BoundaryLayerCache {
     /// Clears all tracked boundary slices and resets instance counts.
     pub fn clear(&mut self) {
         self.slices.clear();
+        self.ordered_slices.clear();
         self.total_instances = 0;
+    }
+
+    /// Returns the retained ordered boundary slice sequence for the active GPU instance buffer.
+    pub fn ordered_slices(&self) -> &[(WidgetId, BoundarySlice)] {
+        &self.ordered_slices
     }
 
     /// Synchronizes the GPU instanced quad buffer with CPU quad data, performing partial
@@ -144,31 +152,20 @@ impl BoundaryLayerCache {
 
     /// Tests whether the incoming boundary slice list matches the currently cached slice structure.
     fn matches_slices(&self, boundary_slices: &[(WidgetId, BoundarySlice)]) -> bool {
-        let mut count_by_id: HashMap<WidgetId, Vec<BoundarySlice>> = HashMap::new();
-        for &(id, slice) in boundary_slices {
-            count_by_id.entry(id).or_default().push(slice);
-        }
-        if count_by_id.len() != self.slices.len() {
-            return false;
-        }
-        for (id, slices) in &count_by_id {
-            if let Some(cached_slices) = self.slices.get(id) {
-                if cached_slices != slices {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        true
+        self.ordered_slices.as_slice() == boundary_slices
     }
 
     /// Rebuilds cached slice index from the compiler's output boundary slices.
     fn rebuild_slices(&mut self, boundary_slices: &[(WidgetId, BoundarySlice)], total: u32) {
-        self.slices.clear();
+        self.ordered_slices.clear();
+        self.ordered_slices.extend_from_slice(boundary_slices);
+        for slices in self.slices.values_mut() {
+            slices.clear();
+        }
         for &(id, slice) in boundary_slices {
             self.slices.entry(id).or_default().push(slice);
         }
+        self.slices.retain(|_, slices| !slices.is_empty());
         self.total_instances = total;
     }
 }
@@ -231,5 +228,91 @@ mod tests {
             ),
         ];
         assert!(!cache.matches_slices(&shifted_slices));
+    }
+
+    #[test]
+    fn test_layer_cache_ordered_slices_and_capacity_reuse() {
+        let mut cache = BoundaryLayerCache::new();
+        let mut tree = irisui_core::tree::UiTree::new();
+        let b1 = tree.create_node();
+        let b2 = tree.create_node();
+        let b3 = tree.create_node();
+
+        let initial = vec![
+            (b1, BoundarySlice { start: 0, count: 4 }),
+            (b2, BoundarySlice { start: 4, count: 8 }),
+            (
+                b1,
+                BoundarySlice {
+                    start: 12,
+                    count: 2,
+                },
+            ),
+        ];
+        cache.rebuild_slices(&initial, 14);
+        assert_eq!(cache.ordered_slices(), initial.as_slice());
+        assert!(cache.matches_slices(&initial));
+        assert_eq!(cache.slices.len(), 2);
+        let b1_cap = cache.slices.get(&b1).expect("b1 cached").capacity();
+        let ordered_cap = cache.ordered_slices.capacity();
+
+        // Rebuilding with a subset retains inner Vec capacities and prunes dropped boundaries
+        let subset = vec![(b1, BoundarySlice { start: 0, count: 6 })];
+        cache.rebuild_slices(&subset, 6);
+        assert_eq!(cache.ordered_slices(), subset.as_slice());
+        assert!(cache.matches_slices(&subset));
+        assert_eq!(cache.slices.len(), 1);
+        assert!(cache.slices.contains_key(&b1));
+        assert!(!cache.slices.contains_key(&b2));
+        assert!(
+            cache.slices.get(&b1).expect("b1 retained").capacity() >= b1_cap,
+            "Inner slice Vec capacity must be reused across rebuilds"
+        );
+        assert_eq!(
+            cache.ordered_slices.capacity(),
+            ordered_cap,
+            "Ordered slice buffer capacity must remain stable when shrinking"
+        );
+
+        // Order difference must invalidate match cleanly
+        let reordered = vec![
+            (b3, BoundarySlice { start: 0, count: 3 }),
+            (b1, BoundarySlice { start: 3, count: 6 }),
+        ];
+        let reordered_rev = vec![
+            (b1, BoundarySlice { start: 3, count: 6 }),
+            (b3, BoundarySlice { start: 0, count: 3 }),
+        ];
+        cache.rebuild_slices(&reordered, 9);
+        assert!(cache.matches_slices(&reordered));
+        assert!(!cache.matches_slices(&reordered_rev));
+
+        cache.clear();
+        assert!(cache.slices.is_empty());
+        assert!(cache.ordered_slices().is_empty());
+        assert_eq!(cache.total_instances, 0);
+    }
+
+    #[test]
+    fn test_layer_cache_matches_slices_repeated_steady_state() {
+        let mut cache = BoundaryLayerCache::new();
+        let mut tree = irisui_core::tree::UiTree::new();
+        let b1 = tree.create_node();
+        let slices = vec![(
+            b1,
+            BoundarySlice {
+                start: 0,
+                count: 16,
+            },
+        )];
+        cache.rebuild_slices(&slices, 16);
+
+        let initial_ptr = cache.ordered_slices().as_ptr();
+        let initial_cap = cache.ordered_slices.capacity();
+        for _ in 0..100 {
+            assert!(cache.matches_slices(&slices));
+        }
+        assert_eq!(cache.ordered_slices().as_ptr(), initial_ptr);
+        assert_eq!(cache.ordered_slices.capacity(), initial_cap);
     }
 }

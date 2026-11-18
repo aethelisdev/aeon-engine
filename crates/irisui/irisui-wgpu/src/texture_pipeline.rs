@@ -24,7 +24,7 @@ struct UnitVertex {
 
 /// Instance data for textured quad drawing across 2D texture array layers.
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
 pub struct TextureQuadInstance {
     /// Bounding rectangle in pixels `[x, y, width, height]`.
     pub rect: [f32; 4],
@@ -45,6 +45,8 @@ pub struct TextureQuadPipeline {
     index_buffer: wgpu::Buffer,
     sampler: wgpu::Sampler,
     bind_group_layout_tex: wgpu::BindGroupLayout,
+    screen_size: [f32; 2],
+    uniforms_dirty: bool,
 }
 
 impl TextureQuadPipeline {
@@ -239,6 +241,8 @@ impl TextureQuadPipeline {
             index_buffer,
             sampler,
             bind_group_layout_tex,
+            screen_size: [0.0, 0.0],
+            uniforms_dirty: true,
         }
     }
 
@@ -264,13 +268,20 @@ impl TextureQuadPipeline {
         })
     }
 
-    /// Updates screen dimensions uniform buffer.
-    pub fn update_globals(&self, queue: &wgpu::Queue, screen_size: [f32; 2]) {
+    /// Updates screen dimensions uniform buffer only when dimensions changed or marked dirty.
+    pub fn update_globals(&mut self, queue: &wgpu::Queue, screen_size: [f32; 2]) {
+        let size_changed = (self.screen_size[0] - screen_size[0]).abs() > f32::EPSILON
+            || (self.screen_size[1] - screen_size[1]).abs() > f32::EPSILON;
+        if !size_changed && !self.uniforms_dirty {
+            return;
+        }
         let uniforms = GlobalUniforms {
             screen_size,
             _padding: [0.0, 0.0],
         };
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+        self.screen_size = screen_size;
+        self.uniforms_dirty = false;
     }
 
     /// Prepares a single-instance buffer for the specified texture quad parameters.

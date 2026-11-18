@@ -67,6 +67,10 @@ pub struct DrawCommandList {
     pub external_texture_quads: Vec<ExternalTextureQuadInstance>,
     /// Slices of instanced quads mapped to invalidation boundaries for partial GPU uploads.
     pub boundary_slices: Vec<(irisui_core::WidgetId, BoundarySlice)>,
+    /// Slices of atlas texture quads mapped to invalidation boundaries for in-place patching.
+    pub texture_boundary_slices: Vec<(irisui_core::WidgetId, BoundarySlice)>,
+    /// Slices of external texture quads mapped to invalidation boundaries for in-place patching.
+    pub external_boundary_slices: Vec<(irisui_core::WidgetId, BoundarySlice)>,
 }
 
 impl DrawCommandList {
@@ -82,6 +86,57 @@ impl DrawCommandList {
         self.texture_quads.clear();
         self.external_texture_quads.clear();
         self.boundary_slices.clear();
+        self.texture_boundary_slices.clear();
+        self.external_boundary_slices.clear();
+    }
+
+    #[inline]
+    fn record_boundary_slice(
+        slices: &mut Vec<(irisui_core::WidgetId, BoundarySlice)>,
+        index: u32,
+        boundary: Option<irisui_core::WidgetId>,
+    ) {
+        let Some(b_id) = boundary else {
+            return;
+        };
+        if let Some((last_id, last_slice)) = slices.last_mut()
+            && *last_id == b_id
+            && last_slice.start + last_slice.count == index
+        {
+            last_slice.count += 1;
+        } else {
+            slices.push((
+                b_id,
+                BoundarySlice {
+                    start: index,
+                    count: 1,
+                },
+            ));
+        }
+    }
+
+    #[inline]
+    fn rebase_slices_drain(
+        dst: &mut Vec<(irisui_core::WidgetId, BoundarySlice)>,
+        src: &mut Vec<(irisui_core::WidgetId, BoundarySlice)>,
+        offset: u32,
+    ) {
+        for (id, slice) in src.drain(..) {
+            if let Some((last_id, last_slice)) = dst.last_mut()
+                && *last_id == id
+                && last_slice.start + last_slice.count == slice.start + offset
+            {
+                last_slice.count += slice.count;
+            } else {
+                dst.push((
+                    id,
+                    BoundarySlice {
+                        start: slice.start + offset,
+                        count: slice.count,
+                    },
+                ));
+            }
+        }
     }
 
     /// Appends an SDF quad to the active batch or begins a new batch.
@@ -111,30 +166,25 @@ impl DrawCommandList {
             });
         }
 
-        if let Some(b_id) = boundary {
-            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
-                && *last_id == b_id
-                && last_slice.start + last_slice.count == current_len
-            {
-                last_slice.count += 1;
-            } else {
-                self.boundary_slices.push((
-                    b_id,
-                    BoundarySlice {
-                        start: current_len,
-                        count: 1,
-                    },
-                ));
-            }
-        }
+        Self::record_boundary_slice(&mut self.boundary_slices, current_len, boundary);
     }
 
     /// Appends a textured quad drawing command.
     pub fn push_texture_quad(&mut self, tex_quad: TextureQuadInstance) {
+        self.push_texture_quad_with_boundary(tex_quad, None);
+    }
+
+    /// Appends a textured quad drawing command attributed to an invalidation boundary.
+    pub fn push_texture_quad_with_boundary(
+        &mut self,
+        tex_quad: TextureQuadInstance,
+        boundary: Option<irisui_core::WidgetId>,
+    ) {
         let instance_index = self.texture_quads.len() as u32;
         self.texture_quads.push(tex_quad);
         self.commands
             .push(DrawCommand::DrawTexture { instance_index });
+        Self::record_boundary_slice(&mut self.texture_boundary_slices, instance_index, boundary);
     }
 
     /// Appends an external texture quad drawing command.
@@ -143,10 +193,21 @@ impl DrawCommandList {
         id: ExternalTextureId,
         quad: ExternalTextureQuadInstance,
     ) {
+        self.push_external_texture_quad_with_boundary(id, quad, None);
+    }
+
+    /// Appends an external texture quad drawing command attributed to an invalidation boundary.
+    pub fn push_external_texture_quad_with_boundary(
+        &mut self,
+        id: ExternalTextureId,
+        quad: ExternalTextureQuadInstance,
+        boundary: Option<irisui_core::WidgetId>,
+    ) {
         let instance_index = self.external_texture_quads.len() as u32;
         self.external_texture_quads.push(quad);
         self.commands
             .push(DrawCommand::DrawExternalTexture { id, instance_index });
+        Self::record_boundary_slice(&mut self.external_boundary_slices, instance_index, boundary);
     }
 
     /// Sets the active hardware scissor rectangle for subsequent draw calls.
@@ -179,6 +240,12 @@ impl DrawCommandList {
     /// Preserves exact Z-ordering while shifting batch start indices and texture instance pointers
     /// to maintain consistency with the appended buffers.
     pub fn append(&mut self, mut other: DrawCommandList) {
+        self.append_drain(&mut other);
+    }
+
+    /// Moves all commands and instances from `other` into `self` while preserving `other`'s
+    /// allocated vector heap capacities for scratch reuse.
+    pub fn append_drain(&mut self, other: &mut DrawCommandList) {
         let quad_offset = self.quads.len() as u32;
         let tex_offset = self.texture_quads.len() as u32;
         let ext_offset = self.external_texture_quads.len() as u32;
@@ -188,24 +255,23 @@ impl DrawCommandList {
         self.external_texture_quads
             .append(&mut other.external_texture_quads);
 
-        for (id, slice) in other.boundary_slices {
-            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
-                && *last_id == id
-                && last_slice.start + last_slice.count == slice.start + quad_offset
-            {
-                last_slice.count += slice.count;
-            } else {
-                self.boundary_slices.push((
-                    id,
-                    BoundarySlice {
-                        start: slice.start + quad_offset,
-                        count: slice.count,
-                    },
-                ));
-            }
-        }
+        Self::rebase_slices_drain(
+            &mut self.boundary_slices,
+            &mut other.boundary_slices,
+            quad_offset,
+        );
+        Self::rebase_slices_drain(
+            &mut self.texture_boundary_slices,
+            &mut other.texture_boundary_slices,
+            tex_offset,
+        );
+        Self::rebase_slices_drain(
+            &mut self.external_boundary_slices,
+            &mut other.external_boundary_slices,
+            ext_offset,
+        );
 
-        for mut cmd in other.commands {
+        for mut cmd in other.commands.drain(..) {
             match &mut cmd {
                 DrawCommand::DrawSdfQuads { start, .. } => *start += quad_offset,
                 DrawCommand::DrawTexture { instance_index } => *instance_index += tex_offset,
@@ -253,5 +319,39 @@ mod tests {
             list_a.commands[1],
             DrawCommand::DrawSdfQuads { start: 2, count: 1 }
         );
+    }
+
+    #[test]
+    fn test_append_drain_preserves_scratch_capacity_and_boundary_slices() {
+        let mut tree = irisui_core::tree::UiTree::new();
+        let b1 = tree.create_node();
+        let b2 = tree.create_node();
+
+        let mut scratch = DrawCommandList::new();
+        scratch.quads.reserve(16);
+        let initial_cap = scratch.quads.capacity();
+        scratch.push_quad_with_boundary(QuadInstance::default(), Some(b1));
+        scratch.push_texture_quad_with_boundary(
+            TextureQuadInstance {
+                rect: [0.0; 4],
+                uv_rect: [0.0; 4],
+                tint: [1.0; 4],
+                clip_rect: [0.0; 4],
+            },
+            Some(b2),
+        );
+
+        let mut output = DrawCommandList::new();
+        output.push_quad_with_boundary(QuadInstance::default(), Some(b1));
+        output.append_drain(&mut scratch);
+
+        assert!(scratch.is_empty());
+        assert!(scratch.quads.capacity() >= initial_cap);
+        assert_eq!(output.quads.len(), 2);
+        assert_eq!(output.texture_quads.len(), 1);
+        assert_eq!(output.boundary_slices.len(), 1);
+        assert_eq!(output.boundary_slices[0].1.count, 2);
+        assert_eq!(output.texture_boundary_slices.len(), 1);
+        assert_eq!(output.texture_boundary_slices[0].0, b2);
     }
 }

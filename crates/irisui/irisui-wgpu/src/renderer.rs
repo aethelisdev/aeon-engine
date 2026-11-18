@@ -38,6 +38,7 @@ pub struct IrisRenderer {
     pub texture_pipeline: crate::texture_pipeline::TextureQuadPipeline,
     texture_instance_buffer: Option<wgpu::Buffer>,
     texture_instance_capacity: usize,
+    uploaded_texture_quads: Vec<crate::texture_pipeline::TextureQuadInstance>,
     /// Active texture bind group used for textured quad draw commands.
     pub texture_bind_group: Option<wgpu::BindGroup>,
     /// Dedicated external texture pipeline for compositing host-owned 2D render targets.
@@ -188,6 +189,7 @@ impl IrisRenderer {
             texture_pipeline,
             texture_instance_buffer: None,
             texture_instance_capacity: 0,
+            uploaded_texture_quads: Vec::new(),
             texture_bind_group: None,
             external_pipeline,
             external_textures,
@@ -298,6 +300,7 @@ impl IrisRenderer {
 
         if !command_list.texture_quads.is_empty() {
             let needed_capacity = command_list.texture_quads.len();
+            let mut buffer_reallocated = false;
             if self.texture_instance_capacity < needed_capacity {
                 let new_capacity = (needed_capacity * 2).max(16);
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -310,10 +313,18 @@ impl IrisRenderer {
                 });
                 self.texture_instance_buffer = Some(buffer);
                 self.texture_instance_capacity = new_capacity;
+                buffer_reallocated = true;
             }
 
-            if let Some(ref buffer) = self.texture_instance_buffer {
+            if let Some(ref buffer) = self.texture_instance_buffer
+                && (buffer_reallocated
+                    || self.uploaded_texture_quads.as_slice()
+                        != command_list.texture_quads.as_slice())
+            {
                 queue.write_buffer(buffer, 0, bytemuck::cast_slice(&command_list.texture_quads));
+                self.uploaded_texture_quads.clear();
+                self.uploaded_texture_quads
+                    .extend_from_slice(&command_list.texture_quads);
             }
         }
 
@@ -342,9 +353,11 @@ impl IrisRenderer {
 
         let mut active_pipe = ActivePipeline::None;
         let mut active_scissor: Option<(u32, u32, u32, u32)> = None;
+        let commands = &command_list.commands;
+        let mut idx = 0;
 
-        for cmd in &command_list.commands {
-            match *cmd {
+        while idx < commands.len() {
+            match commands[idx] {
                 crate::command::DrawCommand::DrawSdfQuads { start, count } => {
                     if count > 0
                         && let Some(ref instance_buf) = self.instance_buffer
@@ -362,6 +375,7 @@ impl IrisRenderer {
                         }
                         render_pass.draw_indexed(0..6, 0, start..(start + count));
                     }
+                    idx += 1;
                 }
                 crate::command::DrawCommand::SetScissor {
                     x,
@@ -378,6 +392,7 @@ impl IrisRenderer {
                             active_scissor = Some(target);
                         }
                     }
+                    idx += 1;
                 }
                 crate::command::DrawCommand::ResetScissor => {
                     let target = (0, 0, screen_size.0.max(1), screen_size.1.max(1));
@@ -385,8 +400,12 @@ impl IrisRenderer {
                         render_pass.set_scissor_rect(0, 0, target.2, target.3);
                         active_scissor = Some(target);
                     }
+                    idx += 1;
                 }
                 crate::command::DrawCommand::DrawTexture { instance_index } => {
+                    let (end, next_idx) =
+                        consecutive_texture_batch_end(commands, idx + 1, instance_index + 1);
+                    idx = next_idx;
                     if let (Some(tex_buf), Some(tex_bg)) =
                         (&self.texture_instance_buffer, &self.texture_bind_group)
                     {
@@ -409,8 +428,7 @@ impl IrisRenderer {
                             );
                             active_pipe = ActivePipeline::Texture;
                         }
-                        let inst = instance_index..(instance_index + 1);
-                        render_pass.draw_indexed(0..6, 0, inst);
+                        render_pass.draw_indexed(0..6, 0, instance_index..end);
                     }
                 }
                 crate::command::DrawCommand::DrawExternalTexture { id, instance_index } => {
@@ -422,6 +440,7 @@ impl IrisRenderer {
                         );
                         active_pipe = ActivePipeline::ExternalTexture;
                     }
+                    idx += 1;
                 }
             }
         }
@@ -490,12 +509,46 @@ pub fn compile_tree_for_frame(
     true
 }
 
+#[inline]
+fn consecutive_texture_batch_end(
+    commands: &[crate::command::DrawCommand],
+    mut idx: usize,
+    mut end: u32,
+) -> (u32, usize) {
+    while idx < commands.len() {
+        if let crate::command::DrawCommand::DrawTexture {
+            instance_index: next_index,
+        } = commands[idx]
+            && next_index == end
+        {
+            end += 1;
+            idx += 1;
+        } else {
+            break;
+        }
+    }
+    (end, idx)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::compile_tree_for_frame;
-    use crate::command::DrawCommandList;
+    use super::{compile_tree_for_frame, consecutive_texture_batch_end};
+    use crate::command::{DrawCommand, DrawCommandList};
     use crate::tree_compiler::TreeCompilerOptions;
     use irisui_core::{Color, DirtyFlags, Rect, Style, UiTree};
+
+    #[test]
+    fn test_consecutive_texture_batch_end_coalesces_contiguous_runs() {
+        let cmds = [
+            DrawCommand::DrawTexture { instance_index: 0 },
+            DrawCommand::DrawTexture { instance_index: 1 },
+            DrawCommand::DrawTexture { instance_index: 2 },
+            DrawCommand::DrawTexture { instance_index: 4 },
+            DrawCommand::ResetScissor,
+        ];
+        assert_eq!(consecutive_texture_batch_end(&cmds, 1, 1), (3, 3));
+        assert_eq!(consecutive_texture_batch_end(&cmds, 4, 5), (5, 4));
+    }
 
     #[test]
     fn test_compile_tree_for_frame_respects_dirty_boundaries_and_force() {

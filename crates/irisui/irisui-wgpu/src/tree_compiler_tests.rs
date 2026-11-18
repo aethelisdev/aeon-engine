@@ -420,6 +420,35 @@ fn test_tree_compiler_immediate_canvas_primitives() {
 }
 
 #[test]
+fn test_tree_compiler_canvas_node_center_origin_and_styled_rect() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(100.0, 50.0, 40.0, 20.0);
+        node.role = WidgetRole::ImmediateCanvas;
+        node.canvas_origin = irisui_core::CanvasOrigin::NodeCenter;
+    }
+
+    tree.add_canvas_primitive(
+        root,
+        irisui_core::CanvasPrimitive::StyledRect {
+            rect: Rect::new(-2.0, -2.0, 4.0, 4.0),
+            color: Color::WHITE,
+            border_color: Color::BLACK,
+            border_width: 1.0,
+            corner_radius: 2.0,
+        },
+    );
+
+    let mut options = TreeCompilerOptions::new();
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+    assert_eq!(cmd_list.quads.len(), 1);
+    // Center of (100, 50, 40, 20) is (120, 60); offset (-2, -2) => (118, 58)
+    assert_eq!(cmd_list.quads[0].rect, [118.0, 58.0, 4.0, 4.0]);
+    assert_eq!(cmd_list.quads[0].border_width, [1.0, 1.0, 1.0, 1.0]);
+}
+
+#[test]
 fn test_tree_compiler_role_based_layer_elevation() {
     let mut tree = UiTree::new();
     let root = tree.create_node();
@@ -581,4 +610,174 @@ fn test_tree_compiler_boundary_slices_attribution() {
         .expect("panel_b boundary slice must exist");
     assert_eq!(slice_b.count, 2);
     assert_eq!(slice_b.start, 4);
+}
+
+#[test]
+fn test_patch_dirty_boundaries_updates_only_dirty_slice_in_place() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    if let Some(n) = tree.get_mut(root) {
+        n.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        n.style = Style::new().background(Color::BLACK);
+    }
+
+    let panel_a = tree.create_node();
+    tree.set_boundary(panel_a, true);
+    tree.add_child(root, panel_a).expect("panel_a");
+    if let Some(n) = tree.get_mut(panel_a) {
+        n.computed_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
+        n.style = Style::new().background(Color::rgb(0.1, 0.1, 0.1));
+    }
+
+    let btn_a = tree.create_node();
+    tree.add_child(panel_a, btn_a).expect("btn_a");
+    if let Some(n) = tree.get_mut(btn_a) {
+        n.tag = 0xAA11;
+        n.interactive = true;
+        n.computed_rect = Rect::new(20.0, 20.0, 120.0, 30.0);
+        n.style = Style::new()
+            .background(Color::BLUE)
+            .hover_background(Color::RED);
+        n.texture_uv = Some([0.0, 0.0, 1.0, 1.0]);
+        n.texture_tint = Some(Color::rgb(0.5, 0.5, 0.5));
+        n.hover_texture_tint = Some(Color::WHITE);
+    }
+
+    let panel_b = tree.create_node();
+    tree.set_boundary(panel_b, true);
+    tree.add_child(root, panel_b).expect("panel_b");
+    if let Some(n) = tree.get_mut(panel_b) {
+        n.computed_rect = Rect::new(300.0, 0.0, 500.0, 600.0);
+        n.style = Style::new().background(Color::GREEN);
+    }
+
+    let mut scratch = TreeCompilerScratch::new();
+    let mut cmd_list = DrawCommandList::new();
+    compile_tree_draw_commands_with_scratch(
+        &tree,
+        root,
+        &mut TreeCompilerOptions::new(),
+        &mut scratch,
+        &mut cmd_list,
+    );
+    assert_eq!(cmd_list.quads.len(), 4);
+    assert_eq!(cmd_list.texture_quads.len(), 1);
+    let panel_b_quad_before = cmd_list.quads[3];
+
+    // Hover btn_a inside panel_a -> mark panel_a dirty and patch in place
+    tree.clear_dirty_boundaries();
+    tree.mark_dirty(btn_a, irisui_core::DirtyFlags::PAINT);
+    let patched = patch_dirty_boundaries_with_scratch(
+        &tree,
+        &mut TreeCompilerOptions::new().with_hovered_tag(Some(0xAA11)),
+        &mut scratch,
+        &mut cmd_list,
+    );
+    assert!(patched, "Same-count boundary mutation must patch in place");
+    assert_eq!(cmd_list.quads[2].color, Color::RED.to_linear().to_array());
+    assert_eq!(
+        cmd_list.texture_quads[0].tint,
+        [
+            Color::WHITE.r,
+            Color::WHITE.g,
+            Color::WHITE.b,
+            Color::WHITE.a
+        ]
+    );
+    assert_eq!(cmd_list.quads[3], panel_b_quad_before);
+
+    // Changing quad count inside a boundary must fail patch so caller runs full compile
+    if let Some(n) = tree.get_mut(panel_a) {
+        n.style = Style::new(); // No background -> drops 1 quad in panel_a
+    }
+    tree.mark_dirty(panel_a, irisui_core::DirtyFlags::PAINT);
+    let patched_after_count_drop = patch_dirty_boundaries_with_scratch(
+        &tree,
+        &mut TreeCompilerOptions::new(),
+        &mut scratch,
+        &mut cmd_list,
+    );
+    assert!(
+        !patched_after_count_drop,
+        "Quad count delta must safely return false for full recompile"
+    );
+}
+
+#[test]
+fn test_patch_dirty_boundaries_steady_state_zero_capacity_churn_over_100_frames() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let panel_a = tree.create_node();
+    let panel_b = tree.create_node();
+    let btn_a = tree.create_node();
+
+    tree.set_boundary(panel_a, true);
+    tree.set_boundary(panel_b, true);
+    tree.add_child(root, panel_a).expect("panel_a");
+    tree.add_child(root, panel_b).expect("panel_b");
+    tree.add_child(panel_a, btn_a).expect("btn_a");
+
+    if let Some(n) = tree.get_mut(root) {
+        n.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        n.style = Style::new().background(Color::BLACK);
+    }
+    if let Some(n) = tree.get_mut(panel_a) {
+        n.computed_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
+        n.style = Style::new().background(Color::rgb(0.1, 0.1, 0.1));
+    }
+    if let Some(n) = tree.get_mut(btn_a) {
+        n.tag = 0xBEEF;
+        n.interactive = true;
+        n.computed_rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+        n.style = Style::new()
+            .background(Color::BLUE)
+            .hover_background(Color::RED);
+    }
+    if let Some(n) = tree.get_mut(panel_b) {
+        n.computed_rect = Rect::new(300.0, 0.0, 500.0, 600.0);
+        n.style = Style::new().background(Color::GREEN);
+    }
+
+    let mut scratch = TreeCompilerScratch::new();
+    let mut cmd_list = DrawCommandList::new();
+    compile_tree_draw_commands_with_scratch(
+        &tree,
+        root,
+        &mut TreeCompilerOptions::new(),
+        &mut scratch,
+        &mut cmd_list,
+    );
+
+    // Warmup one patch cycle to establish patch scratch capacities
+    tree.clear_dirty_boundaries();
+    tree.mark_dirty(btn_a, irisui_core::DirtyFlags::PAINT);
+    assert!(patch_dirty_boundaries_with_scratch(
+        &tree,
+        &mut TreeCompilerOptions::new().with_hovered_tag(Some(0xBEEF)),
+        &mut scratch,
+        &mut cmd_list,
+    ));
+
+    let steady_quad_len = cmd_list.quads.len();
+    let steady_quad_cap = cmd_list.quads.capacity();
+    let steady_slice_cap = cmd_list.boundary_slices.capacity();
+    let steady_cmd_cap = cmd_list.commands.capacity();
+
+    for frame in 0..100 {
+        tree.clear_dirty_boundaries();
+        tree.mark_dirty(btn_a, irisui_core::DirtyFlags::PAINT);
+        let hovered = if frame % 2 == 0 { Some(0xBEEF) } else { None };
+        let patched = patch_dirty_boundaries_with_scratch(
+            &tree,
+            &mut TreeCompilerOptions::new().with_hovered_tag(hovered),
+            &mut scratch,
+            &mut cmd_list,
+        );
+        assert!(patched, "Steady-state frame {frame} must patch in place");
+    }
+
+    assert_eq!(cmd_list.quads.len(), steady_quad_len);
+    assert_eq!(cmd_list.quads.capacity(), steady_quad_cap);
+    assert_eq!(cmd_list.boundary_slices.capacity(), steady_slice_cap);
+    assert_eq!(cmd_list.commands.capacity(), steady_cmd_cap);
 }

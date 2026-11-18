@@ -90,6 +90,7 @@ pub struct ExternalTexturePipeline {
     instance_buffer: Option<wgpu::Buffer>,
     instance_capacity: usize,
     instance_count: u32,
+    uploaded_instances: Vec<ExternalTextureQuadInstance>,
     screen_size: [f32; 2],
     uniforms_dirty: bool,
 }
@@ -288,6 +289,7 @@ impl ExternalTexturePipeline {
             instance_buffer: None,
             instance_capacity: 0,
             instance_count: 0,
+            uploaded_instances: Vec::new(),
             screen_size: [0.0, 0.0],
             uniforms_dirty: true,
         }
@@ -359,6 +361,7 @@ impl ExternalTexturePipeline {
             self.uniforms_dirty = false;
         }
 
+        let mut buffer_reallocated = false;
         if instances.len() > self.instance_capacity {
             self.instance_capacity = instances.len().next_power_of_two();
             self.instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
@@ -368,12 +371,16 @@ impl ExternalTexturePipeline {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }));
+            buffer_reallocated = true;
         }
 
         if !instances.is_empty()
             && let Some(instance_buffer) = &self.instance_buffer
+            && (buffer_reallocated || self.uploaded_instances.as_slice() != instances)
         {
             queue.write_buffer(instance_buffer, 0, bytemuck::cast_slice(instances));
+            self.uploaded_instances.clear();
+            self.uploaded_instances.extend_from_slice(instances);
         }
     }
 
