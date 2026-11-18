@@ -319,6 +319,13 @@ impl<'a> UiScope<'a> {
         self.tree.cursor_position()
     }
 
+    /// Evaluates active cursor pointer coordinates or returns `fallback` when unavailable.
+    #[inline]
+    #[must_use]
+    pub fn resolved_cursor_pos(&self, fallback: Point) -> Point {
+        self.cursor_pos().unwrap_or(fallback)
+    }
+
     /// Sets or updates the active cursor pointer position on the backing [`irisui_core::UiTree`].
     ///
     /// Updates the autonomous event state on the widget tree to synchronize programmatic
@@ -516,6 +523,52 @@ impl<'a> UiScope<'a> {
             return true;
         }
         false
+    }
+
+    /// Assigns keyboard focus to `tag` across both core [`FocusManager`] and widget [`FocusState`].
+    #[inline]
+    pub fn assign_focus_with(
+        &mut self,
+        tag: u64,
+        focus_manager: &mut irisui_core::event::FocusManager,
+        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
+    ) {
+        focus_manager.set_focus_tag(tag);
+        focus_state.sync_from_core(focus_manager);
+    }
+
+    /// Clears keyboard focus on core [`FocusManager`], widget [`FocusState`], and this tree scope.
+    #[inline]
+    pub fn clear_focus_with(
+        &mut self,
+        focus_manager: &mut irisui_core::event::FocusManager,
+        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
+    ) -> bool {
+        let had_core = focus_manager.has_focus();
+        focus_manager.clear_focus();
+        let cleared_state = focus_state.clear_focus();
+        self.clear_focus();
+        self.clear_text_edit();
+        had_core || cleared_state
+    }
+
+    /// Synchronizes keyboard focus managers alongside live search text buffer and clear triggers.
+    pub fn auto_sync_search_input(
+        &mut self,
+        input_tag: u64,
+        clear_tag: Option<u64>,
+        state: &mut crate::input::TextInputState,
+        focus_manager: &mut irisui_core::event::FocusManager,
+        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
+    ) -> bool {
+        self.auto_sync_core_focus(focus_manager);
+        self.auto_sync_focus_state(focus_state);
+        if clear_tag.is_some_and(|c_tag| self.is_tag_clicked(c_tag)) {
+            state.clear();
+            self.clear_focus_with(focus_manager, focus_state);
+            return true;
+        }
+        self.auto_sync_text_input(input_tag, None, state)
     }
 }
 

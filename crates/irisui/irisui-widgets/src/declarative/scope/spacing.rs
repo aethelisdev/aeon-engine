@@ -113,6 +113,13 @@ impl<'a> UiScope<'a> {
         self.empty_box(div_style);
     }
 
+    /// Emits a 1-pixel horizontal rule divider using the active scope theme's `divider` color.
+    #[inline]
+    pub fn divider_themed(&mut self) {
+        let color = self.theme().divider;
+        self.divider(color);
+    }
+
     /// Emits a 1-pixel vertical divider container with custom height and color.
     ///
     /// # Arguments
@@ -121,6 +128,13 @@ impl<'a> UiScope<'a> {
     pub fn vertical_divider(&mut self, height: f32, color: Color) {
         let div_style = Style::new().background(color).width(1.0).height(height);
         self.empty_box(div_style);
+    }
+
+    /// Emits a 1-pixel vertical divider using the active scope theme's `divider` color.
+    #[inline]
+    pub fn vertical_divider_themed(&mut self, height: f32) {
+        let color = self.theme().divider;
+        self.vertical_divider(height, color);
     }
 
     /// Emits an empty flex-grow spacer node to expand and push subsequent items.

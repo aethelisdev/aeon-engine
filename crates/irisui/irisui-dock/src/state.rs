@@ -563,6 +563,9 @@ fn collect_all_tabs_recursive<T>(tree: &mut DockTree<T>, node_id: DockNodeId, ou
 }
 
 mod floating;
+pub mod placement;
+
+pub use placement::{TabPlacement, resolve_centered_floating_rect};
 
 #[cfg(test)]
 mod tests;

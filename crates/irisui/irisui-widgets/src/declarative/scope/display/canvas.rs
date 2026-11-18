@@ -7,8 +7,66 @@
 
 use crate::declarative::scope::core::UiScope;
 use irisui_core::{
-    Color, Point, Rect, Size, Style, TextAlign, WidgetCursor, WidgetResponse, WidgetRole,
+    CanvasOrigin, Color, Point, Rect, Size, Style, TextAlign, WidgetCursor, WidgetResponse,
+    WidgetRole,
 };
+
+/// Configuration descriptor for declarative [`UiScope::immediate_canvas_with`] emission.
+#[derive(Debug, Clone)]
+pub struct ImmediateCanvasSpec {
+    /// Diagnostic node name.
+    pub name: &'static str,
+    /// Semantic 64-bit widget tag.
+    pub tag: u64,
+    /// Flexbox and visual container style.
+    pub style: Style,
+    /// Coordinate origin used by [`CanvasPrimitive`](irisui_core::CanvasPrimitive) items on this node.
+    pub origin: CanvasOrigin,
+    /// Whether the canvas participates in pointer hit-testing.
+    pub interactive: bool,
+    /// Optional hover cursor override.
+    pub cursor: Option<WidgetCursor>,
+}
+
+impl ImmediateCanvasSpec {
+    /// Creates a new interactive canvas spec using screen-space coordinates.
+    #[inline]
+    #[must_use]
+    pub const fn new(name: &'static str, tag: u64, style: Style) -> Self {
+        Self {
+            name,
+            tag,
+            style,
+            origin: CanvasOrigin::Screen,
+            interactive: true,
+            cursor: None,
+        }
+    }
+
+    /// Sets the coordinate origin mode (`Screen`, `NodeTopLeft`, or `NodeCenter`).
+    #[inline]
+    #[must_use]
+    pub const fn origin(mut self, origin: CanvasOrigin) -> Self {
+        self.origin = origin;
+        self
+    }
+
+    /// Configures whether pointer hit-testing captures clicks over this canvas.
+    #[inline]
+    #[must_use]
+    pub const fn interactive(mut self, interactive: bool) -> Self {
+        self.interactive = interactive;
+        self
+    }
+
+    /// Assigns a custom hover cursor icon to the canvas node.
+    #[inline]
+    #[must_use]
+    pub const fn cursor(mut self, cursor: WidgetCursor) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+}
 
 impl<'a> UiScope<'a> {
     /// Emits a blinking text input caret cursor node with [`WidgetRole::TextInputCaret`].
@@ -261,6 +319,20 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut crate::canvas::ImmediateCanvas),
     {
+        self.immediate_canvas_with(ImmediateCanvasSpec::new(name, tag, style), draw_fn)
+    }
+
+    /// Emits a declarative canvas configured via [`ImmediateCanvasSpec`], supporting layout-relative
+    /// origins (`CanvasOrigin::NodeTopLeft` / `CanvasOrigin::NodeCenter`), pointer passthrough, and
+    /// custom hover cursors.
+    pub fn immediate_canvas_with<F>(
+        &mut self,
+        spec: ImmediateCanvasSpec,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
         let node_id = self.tree.create_node();
         let parent_layer = self
             .tree
@@ -268,25 +340,26 @@ impl<'a> UiScope<'a> {
             .map(|p| p.layer)
             .unwrap_or_default();
 
-        let w = style.width.unwrap_or(0.0);
-        let h = style.height.unwrap_or(0.0);
-
+        let w = spec.style.width.unwrap_or(0.0);
+        let h = spec.style.height.unwrap_or(0.0);
         let bounds = self
             .tree
             .tag_rects
-            .get(&tag)
+            .get(&spec.tag)
             .copied()
             .unwrap_or_else(|| Rect::new(0.0, 0.0, w, h));
 
         if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.tag = tag;
+            node.set_name(spec.name);
+            node.tag = spec.tag;
             node.role = WidgetRole::ImmediateCanvas;
-            node.interactive = true;
+            node.interactive = spec.interactive;
             node.is_boundary = true;
             node.layer = parent_layer;
+            node.cursor = spec.cursor;
+            node.canvas_origin = spec.origin;
             node.computed_rect = bounds;
-            node.set_style(style);
+            node.set_style(spec.style);
         }
 
         let _ = self.tree.add_child(self.parent, node_id);
@@ -321,5 +394,204 @@ impl<'a> UiScope<'a> {
             Style::new().width(size.width).height(size.height),
             draw_fn,
         )
+    }
+
+    /// Measures stacked children inside a tagged scroll container, updates max/safe scroll
+    /// offsets on the viewport, and renders a vertical scrollbar overlay when content overflows.
+    ///
+    /// Returns the resolved maximum vertical scroll offset (`max_scroll_y`).
+    pub fn sync_and_render_vertical_scrollbar(&mut self, spec: VerticalScrollbarSpec) -> f32 {
+        let current_scroll = self.scroll_offset(spec.viewport_tag);
+        let measured_total_h = self
+            .node_id_tagged(spec.container_tag)
+            .and_then(|id| self.node_ref(id))
+            .map(|node| {
+                node.children
+                    .iter()
+                    .filter_map(|&cid| self.node_ref(cid))
+                    .map(|child| {
+                        child.computed_rect.bottom() + current_scroll - spec.content_rect.y
+                    })
+                    .fold(0.0_f32, f32::max)
+            })
+            .unwrap_or(0.0);
+
+        let total_h = measured_total_h
+            .max(spec.min_virtual_height)
+            .max(spec.content_rect.height);
+        let max_scroll_y = (total_h - spec.content_rect.height).max(0.0);
+        let safe_scroll = current_scroll.clamp(0.0, max_scroll_y);
+
+        self.set_content_size_tagged(spec.viewport_tag, spec.content_rect.width, total_h);
+        self.set_max_scroll(spec.viewport_tag, max_scroll_y);
+        self.set_scroll_offset(spec.viewport_tag, safe_scroll);
+
+        if total_h > spec.content_rect.height
+            && let Some(geom) = crate::scroll_area::ScrollBarGeometry::compute_vertical(
+                spec.content_rect,
+                total_h,
+                safe_scroll,
+                &spec.style,
+            )
+        {
+            let is_dragging = self.is_tag_captured(spec.thumb_tag);
+            let target_host = spec
+                .host_node_tag
+                .and_then(|tag| self.node_id_tagged(tag))
+                .unwrap_or(self.parent);
+            let mut host_scope = self.child_scope(target_host);
+            host_scope.scrollbar_vertical(
+                geom,
+                spec.host_rect,
+                is_dragging,
+                spec.fallback_cursor,
+                spec.track_tag,
+                spec.thumb_tag,
+            );
+        }
+
+        max_scroll_y
+    }
+}
+
+/// Configuration descriptor for declarative [`UiScope::sync_and_render_vertical_scrollbar`].
+#[derive(Debug, Clone, Copy)]
+pub struct VerticalScrollbarSpec {
+    /// Semantic tag of the scroll viewport node storing scroll offset and content size.
+    pub viewport_tag: u64,
+    /// Semantic tag of the column/stack child container whose laid-out items determine content height.
+    pub container_tag: u64,
+    /// Semantic hit-testing tag assigned to the emitted scrollbar track node.
+    pub track_tag: u64,
+    /// Semantic hit-testing tag assigned to the emitted scrollbar thumb node.
+    pub thumb_tag: u64,
+    /// Scrollable viewport rectangle in logical screen space.
+    pub content_rect: Rect,
+    /// Host container rectangle used for relative absolute positioning of the scrollbar overlay.
+    pub host_rect: Rect,
+    /// Optional tagged ancestor node receiving the scrollbar overlay (defaults to current parent).
+    pub host_node_tag: Option<u64>,
+    /// Minimum virtual content height floor applied alongside measured child bounds.
+    pub min_virtual_height: f32,
+    /// Optional fallback pointer coordinate for scrollbar track/thumb hover highlights.
+    pub fallback_cursor: Option<Point>,
+    /// Visual scrollbar thickness, inset, and color style tokens.
+    pub style: crate::scroll_area::ScrollAreaStyle,
+}
+
+impl VerticalScrollbarSpec {
+    /// Creates a new vertical scrollbar spec targeting `viewport_tag` and `container_tag`.
+    #[inline]
+    #[must_use]
+    pub fn new(
+        viewport_tag: u64,
+        container_tag: u64,
+        track_tag: u64,
+        thumb_tag: u64,
+        content_rect: Rect,
+    ) -> Self {
+        Self {
+            viewport_tag,
+            container_tag,
+            track_tag,
+            thumb_tag,
+            content_rect,
+            host_rect: content_rect,
+            host_node_tag: None,
+            min_virtual_height: 0.0,
+            fallback_cursor: None,
+            style: crate::scroll_area::ScrollAreaStyle::default(),
+        }
+    }
+
+    /// Sets the host container bounding rectangle and optional tagged host node for scrollbar overlay attachment.
+    #[inline]
+    #[must_use]
+    pub const fn host(mut self, host_rect: Rect, host_node_tag: Option<u64>) -> Self {
+        self.host_rect = host_rect;
+        self.host_node_tag = host_node_tag;
+        self
+    }
+
+    /// Sets a minimum virtual content height floor in pixels.
+    #[inline]
+    #[must_use]
+    pub const fn min_virtual_height(mut self, height: f32) -> Self {
+        self.min_virtual_height = height;
+        self
+    }
+
+    /// Sets the fallback pointer cursor position for hover visual state detection.
+    #[inline]
+    #[must_use]
+    pub const fn cursor(mut self, cursor_pos: Option<Point>) -> Self {
+        self.fallback_cursor = cursor_pos;
+        self
+    }
+
+    /// Sets custom [`ScrollAreaStyle`](crate::scroll_area::ScrollAreaStyle) metrics and colors.
+    #[inline]
+    #[must_use]
+    pub const fn style(mut self, style: crate::scroll_area::ScrollAreaStyle) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+#[cfg(test)]
+mod scrollbar_tests {
+    use super::*;
+    use irisui_core::tree::UiTree;
+
+    #[test]
+    fn test_sync_and_render_vertical_scrollbar_clamps_and_emits_nodes() {
+        const VP: u64 = 101;
+        const CONT: u64 = 102;
+        const TRACK: u64 = 103;
+        const THUMB: u64 = 104;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        tree.scroll_offsets.insert(VP, 500.0);
+
+        let max_scroll = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.container_tagged(
+                "Viewport",
+                Style::new()
+                    .width(200.0)
+                    .height(100.0)
+                    .scroll_offset_y(500.0),
+                WidgetRole::ScrollAreaViewport,
+                VP,
+                |vp| {
+                    vp.container_tagged(
+                        "Body",
+                        Style::new().flex_col(),
+                        WidgetRole::Default,
+                        CONT,
+                        |col| {
+                            col.empty_box(Style::new().height(250.0));
+                        },
+                    );
+                },
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 200.0, 100.0));
+            scope.sync_and_render_vertical_scrollbar(
+                VerticalScrollbarSpec::new(
+                    VP,
+                    CONT,
+                    TRACK,
+                    THUMB,
+                    Rect::new(0.0, 0.0, 200.0, 100.0),
+                )
+                .min_virtual_height(300.0),
+            )
+        };
+
+        assert!((max_scroll - 200.0).abs() < f32::EPSILON);
+        assert!((*tree.scroll_offsets.get(&VP).unwrap_or(&0.0) - 200.0).abs() < f32::EPSILON);
+        assert!(tree.find_node_by_tag(TRACK).is_some());
+        assert!(tree.find_node_by_tag(THUMB).is_some());
     }
 }

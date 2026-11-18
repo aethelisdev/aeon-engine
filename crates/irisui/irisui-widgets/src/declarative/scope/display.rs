@@ -16,6 +16,7 @@ pub mod labels;
 pub mod live;
 pub mod log_row;
 
+pub use canvas::{ImmediateCanvasSpec, VerticalScrollbarSpec};
 pub use key_value::{
     NumberLabelDescriptor, format_file_size_stack, format_number_stack,
     format_prefix_number_suffix_stack,

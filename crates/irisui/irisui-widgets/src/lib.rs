@@ -37,10 +37,11 @@ pub use declarative::caret_sync::{
 pub use declarative::scope::{
     ActionBarButton, AnchoredPopupConfig, AssetSlotConfig, AssetSlotResponse,
     ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout,
-    DropdownCardConfig, DualActionBarResponse, InputBoxStyle, LabeledStatusDescriptor,
-    LiveTextProps, LogRowDescriptor, ModalDescriptor, MultilineEditorProps, NumberLabelDescriptor,
-    PopupCardStyle, PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig,
-    PropertyPaletteResponse, TabBarResponse, UiScope, WrappedLabelDescriptor,
+    DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle,
+    LabeledStatusDescriptor, LiveTextProps, LogRowDescriptor, ModalDescriptor,
+    MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle, PropertyActionRow,
+    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, TabBarResponse, UiScope,
+    WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -56,7 +57,8 @@ pub use declarative::widget::{
 };
 pub use floating_panel::{
     DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
-    FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState, calculate_floating_drag_pos,
+    FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState, calculate_floating_card_rect,
+    calculate_floating_drag_pos,
 };
 pub use grid_view::ResponsiveGrid;
 pub use scroll_area::ScrollArea;
@@ -75,13 +77,13 @@ pub mod prelude {
         AssetSlotResponse, CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions,
         CardResponse, ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
         ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DropdownCardConfig,
-        DualActionBarResponse, InputBoxStyle, LabeledInputButton, LabeledInputConfig,
-        LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
+        DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle, LabeledInputButton,
+        LabeledInputConfig, LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
         MultilineEditorProps, NavItemConfig, NumberLabelDescriptor, PopupCardStyle,
         PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
         PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
         PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
-        WrappedLabelDescriptor,
+        VerticalScrollbarSpec, WrappedLabelDescriptor,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
@@ -115,7 +117,9 @@ pub mod prelude {
     pub use crate::controls::{
         GutterMetrics, GutterStyle, MultilineNavOutcome, MultilineTextState,
     };
-    pub use crate::floating_panel::FloatingPanelState as FloatingState;
+    pub use crate::floating_panel::{
+        FloatingPanelState as FloatingState, calculate_floating_card_rect,
+    };
     pub use crate::input::TextInputState;
     pub use crate::scroll_area::ScrollAreaState;
     pub use crate::tree_view::TreeState;

@@ -259,8 +259,12 @@ impl<'a> UiScope<'a> {
             } else if let Some(ref res) = edit_res {
                 if res.is_editing {
                     res.display_text.clone()
-                } else if let Some((active_text, _)) = active_in_scope {
-                    active_text.to_owned()
+                } else if let Some((active_text, sel)) = active_in_scope {
+                    if !sel && row.active_text_input_blink {
+                        format!("{active_text}|")
+                    } else {
+                        active_text.to_owned()
+                    }
                 } else if let Some(fmt) = options.format {
                     if fmt.contains("Hz") {
                         format!("{:.0} Hz", *value)
@@ -719,5 +723,34 @@ mod tests {
         let mut val = 0.5_f32;
         let mut scope = UiScope::new(&mut tree, root);
         scope.property_slider("Exposure", &mut val, 0.0, 1.0, 0.01);
+    }
+
+    #[test]
+    fn test_scoped_text_input_blink_appends_caret_to_active_slider() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let num_box_tag = {
+            let scope = UiScope::new(&mut tree, root);
+            crate::declarative::types::hash_label_with_seed(
+                scope.tag_for("Sensitivity"),
+                "##num_box",
+            )
+        };
+
+        let mut val = 1.0_f32;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.with_scoped_text_input_blink(Some((num_box_tag, "1.25", false)), true, |s| {
+                s.property_slider("Sensitivity", &mut val, 0.0, 10.0, 0.1);
+            });
+        }
+
+        let text_id = tree
+            .find_node_by_name("SliderNumberText")
+            .expect("text node");
+        assert_eq!(
+            tree.get(text_id).and_then(|node| node.text.as_deref()),
+            Some("1.25|")
+        );
     }
 }

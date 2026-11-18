@@ -74,7 +74,7 @@ pub use overflow::{
     DockOverflowMenuStyle, build_dock_overflow_menu, evaluate_dock_overflow_click,
 };
 pub use panel::{DockPanel, PanelRegistry};
-pub use state::{ActiveSplitterDrag, DockState};
+pub use state::{ActiveSplitterDrag, DockState, TabPlacement, resolve_centered_floating_rect};
 pub use style::{DEFAULT_TAB_BAR_HEIGHT, DockStyle};
 pub use tab_bar::{
     TabBarLayoutInfo, TabLayoutInfo, calculate_tab_reorder_index, compute_tab_bar_layout,
@@ -92,7 +92,8 @@ pub mod prelude {
         DockInteractionConfig, DockLayoutOptions, DockNode, DockNodeId, DockPanel, DockResponse,
         DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
         FloatingWindowId, FloatingWindowManager, FloatingWindowStyle, MultiViewportManager,
-        PanelRegistry, SimpleTabViewer, SplitDirection, TabViewer, UiNotifier,
+        PanelRegistry, SimpleTabViewer, SplitDirection, TabPlacement, TabViewer, UiNotifier,
+        resolve_centered_floating_rect,
     };
 }
 

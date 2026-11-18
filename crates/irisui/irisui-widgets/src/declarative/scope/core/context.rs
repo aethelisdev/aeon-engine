@@ -25,6 +25,7 @@ pub struct UiScope<'a> {
     pub(crate) hovered_tag: Option<u64>,
     pub(crate) seed: u64,
     pub(crate) active_text_input: Option<(u64, &'a str, bool)>,
+    pub(crate) active_text_input_blink: bool,
 }
 
 impl<'a> UiScope<'a> {
@@ -43,6 +44,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: None,
             seed: 0,
             active_text_input: None,
+            active_text_input_blink: false,
         }
     }
 
@@ -68,6 +70,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: None,
             seed: 0,
             active_text_input: None,
+            active_text_input_blink: false,
         }
     }
 
@@ -93,6 +96,7 @@ impl<'a> UiScope<'a> {
             hovered_tag,
             seed: 0,
             active_text_input: None,
+            active_text_input_blink: false,
         }
     }
 
@@ -103,6 +107,45 @@ impl<'a> UiScope<'a> {
     pub fn with_active_text_input(mut self, active_input: Option<(u64, &'a str, bool)>) -> Self {
         self.active_text_input = active_input;
         self
+    }
+
+    /// Attaches the active text input session alongside the frame caret blink visibility flag.
+    ///
+    /// When `blink_caret` is `true` and text is not select-all highlighted, inline numeric boxes
+    /// append the visible caret bar inside the library without host-side string formatting.
+    pub fn with_active_text_input_blink(
+        mut self,
+        active_input: Option<(u64, &'a str, bool)>,
+        blink_caret: bool,
+    ) -> Self {
+        self.active_text_input = active_input;
+        self.active_text_input_blink = blink_caret;
+        self
+    }
+
+    /// Temporarily binds an active inline text input session and caret blink flag for the duration of `f`.
+    ///
+    /// Allows `&mut UiScope` panel callbacks with short-lived text buffers to attach inline numeric
+    /// editing and library-managed caret blinking without reconstructing a root `UiScope` or duplicating
+    /// host-side caret string formatting.
+    pub fn with_scoped_text_input_blink<R>(
+        &mut self,
+        active_input: Option<(u64, &str, bool)>,
+        blink_caret: bool,
+        f: impl FnOnce(&mut UiScope<'_>) -> R,
+    ) -> R {
+        let mut child = UiScope {
+            tree: self.tree,
+            parent: self.parent,
+            events: self.events,
+            tagged_events: self.tagged_events,
+            hovered_id: self.hovered_id,
+            hovered_tag: self.hovered_tag,
+            seed: self.seed,
+            active_text_input: active_input,
+            active_text_input_blink: blink_caret,
+        };
+        f(&mut child)
     }
 
     /// Creates a child scope for a nested widget container, preserving active events, tags, and text input state.
@@ -120,6 +163,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: self.hovered_tag,
             seed: self.seed,
             active_text_input: self.active_text_input,
+            active_text_input_blink: self.active_text_input_blink,
         }
     }
 
@@ -142,6 +186,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: self.hovered_tag,
             seed,
             active_text_input: self.active_text_input,
+            active_text_input_blink: self.active_text_input_blink,
         }
     }
 
@@ -182,6 +227,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: self.hovered_tag,
             seed: child_seed,
             active_text_input: self.active_text_input,
+            active_text_input_blink: self.active_text_input_blink,
         };
         f(&mut sub_scope)
     }

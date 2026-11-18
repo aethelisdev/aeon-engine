@@ -79,6 +79,28 @@ impl<'a> ImmediateCanvas<'a> {
         );
     }
 
+    /// Appends a rounded filled rectangle with an integrated border stroke as a single SDF quad.
+    #[inline]
+    pub fn fill_styled_rect(
+        &mut self,
+        rect: Rect,
+        color: Color,
+        border_color: Color,
+        border_width: f32,
+        corner_radius: f32,
+    ) {
+        self.tree.add_canvas_primitive(
+            self.node_id,
+            CanvasPrimitive::StyledRect {
+                rect,
+                color,
+                border_color,
+                border_width,
+                corner_radius,
+            },
+        );
+    }
+
     /// Appends a hollow stroked border outline to the immediate canvas command buffer.
     ///
     /// # Arguments
@@ -256,14 +278,16 @@ where
     let Some(bounds) = tree.get(node_id).map(|n| n.computed_rect) else {
         return false;
     };
-    tree.clear_canvas_primitives_for(node_id);
+    let prev_cmds = tree.take_canvas_primitives_for(node_id);
     let mut canvas = ImmediateCanvas::new(tree, node_id, bounds);
     draw_fn(&mut canvas);
-    let has_text = tree.canvas_primitives(node_id).is_some_and(|prims| {
-        prims
-            .iter()
-            .any(|p| matches!(p, irisui_core::CanvasPrimitive::Text { .. }))
-    });
+    let new_cmds = tree.canvas_primitives(node_id).unwrap_or(&[]);
+    if prev_cmds.as_deref().unwrap_or(&[]) == new_cmds {
+        return false;
+    }
+    let has_text = new_cmds
+        .iter()
+        .any(|p| matches!(p, irisui_core::CanvasPrimitive::Text { .. }));
     if has_text {
         tree.record_live_text_update();
     }
@@ -328,5 +352,54 @@ impl ChartDrawer {
 
             prev_pt = Some((pt_x, pt_y, val));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::declarative::UiScope;
+
+    #[test]
+    fn test_update_live_canvas_skips_dirty_flags_when_primitives_unchanged() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        const TAG_TEST_CANVAS: u64 = 0xCAFE_1234;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.live_canvas_tagged(
+                "TestLiveCanvas",
+                TAG_TEST_CANVAS,
+                irisui_core::Size::new(100.0, 24.0),
+                |c| {
+                    c.draw_text(Point::new(4.0, 4.0), "Pos: 0,0,0", 12.0, Color::WHITE);
+                },
+            );
+        }
+        let _ = tree.take_live_refresh_flags();
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let changed = scope.update_live_canvas(TAG_TEST_CANVAS, |c| {
+                c.draw_text(Point::new(4.0, 4.0), "Pos: 0,0,0", 12.0, Color::WHITE);
+            });
+            assert!(
+                !changed,
+                "Identical primitives must not mark live canvas dirty"
+            );
+        }
+        assert_eq!(tree.take_live_refresh_flags(), (false, false));
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let changed = scope.update_live_canvas(TAG_TEST_CANVAS, |c| {
+                c.draw_text(Point::new(4.0, 4.0), "Pos: 1,0,0", 12.0, Color::WHITE);
+            });
+            assert!(
+                changed,
+                "Changed text primitive must mark live canvas dirty"
+            );
+        }
+        assert_eq!(tree.take_live_refresh_flags(), (true, true));
     }
 }

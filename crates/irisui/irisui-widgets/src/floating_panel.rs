@@ -10,7 +10,7 @@
 
 use irisui_core::dispatch::DispatchResult;
 use irisui_core::event::{MouseButton, UiEvent};
-use irisui_core::geometry::{Point, Rect};
+use irisui_core::geometry::{Point, Rect, Size};
 use irisui_core::node::WidgetRole;
 use irisui_core::tree::UiTree;
 
@@ -278,6 +278,37 @@ impl FloatingPanelState {
     }
 }
 
+/// Computes a centered or position-clamped floating card rectangle within viewport bounds.
+///
+/// Keeps the top-left origin clamped horizontally to `[0, screen_size.width - card_size.width]`
+/// and vertically above `min_y` inside `[min_y, screen_size.height - card_size.height]`.
+#[must_use]
+pub fn calculate_floating_card_rect(
+    screen_size: Size,
+    card_size: Size,
+    window_pos: Option<Point>,
+    min_y: f32,
+) -> Rect {
+    let (left, top) = if let Some(pos) = window_pos {
+        let max_x = (screen_size.width - card_size.width).max(0.0);
+        let max_y = (screen_size.height - card_size.height).max(min_y);
+        (
+            pos.x.clamp(0.0, max_x).round(),
+            pos.y.clamp(min_y, max_y).round(),
+        )
+    } else {
+        (
+            ((screen_size.width - card_size.width) * 0.5)
+                .max(0.0)
+                .round(),
+            ((screen_size.height - card_size.height) * 0.5)
+                .max(min_y)
+                .round(),
+        )
+    };
+    Rect::new(left, top, card_size.width, card_size.height)
+}
+
 /// Calculates the clamped position for a floating window during titlebar dragging.
 ///
 /// Guarantees that the panel stays fully within the visible screen area and does not
@@ -395,5 +426,29 @@ mod tests {
         );
         assert!(up_outcome.consumed);
         assert!(!state.is_dragging());
+    }
+
+    #[test]
+    fn test_calculate_floating_card_rect() {
+        let screen = irisui_core::Size::new(1280.0, 720.0);
+        let card = irisui_core::Size::new(600.0, 400.0);
+
+        // Centered by default when window_pos is None.
+        let centered = calculate_floating_card_rect(screen, card, None, 28.0);
+        assert_eq!(centered, Rect::new(340.0, 160.0, 600.0, 400.0));
+
+        // Respects min_y and right/bottom bounds when clamped.
+        let clamped_tl =
+            calculate_floating_card_rect(screen, card, Some(Point::new(-50.0, 5.0)), 28.0);
+        assert_eq!(clamped_tl, Rect::new(0.0, 28.0, 600.0, 400.0));
+
+        let clamped_br =
+            calculate_floating_card_rect(screen, card, Some(Point::new(2000.0, 2000.0)), 28.0);
+        assert_eq!(clamped_br, Rect::new(680.0, 320.0, 600.0, 400.0));
+
+        // Handles viewports smaller than the card without inverting bounds.
+        let small =
+            calculate_floating_card_rect(irisui_core::Size::new(400.0, 300.0), card, None, 28.0);
+        assert_eq!(small, Rect::new(0.0, 28.0, 600.0, 400.0));
     }
 }
