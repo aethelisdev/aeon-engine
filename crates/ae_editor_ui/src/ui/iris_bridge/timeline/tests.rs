@@ -19,7 +19,6 @@ fn test_timeline_panel_build_empty_state() {
         animation_player: None,
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
-        events: &[],
     };
 
     let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
@@ -42,7 +41,6 @@ fn test_timeline_panel_build_missing_player() {
         animation_player: None,
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
-        events: &[],
     };
 
     let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
@@ -67,7 +65,6 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         animation_player: None,
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
-        events: &[],
     };
     build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
@@ -93,7 +90,6 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         animation_player: None,
         cursor_pos: Point::new(400.0, 480.0),
         is_dragging_scrubber: false,
-        events: &[],
     };
 
     build_timeline_panel(
@@ -127,7 +123,6 @@ fn test_timeline_panel_build_with_player() {
         animation_player: Some(&player),
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
-        events: &[],
     };
 
     let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);

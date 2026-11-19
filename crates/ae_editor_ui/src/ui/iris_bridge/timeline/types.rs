@@ -6,7 +6,7 @@
 //! Exposes parameter bundles, panel runtime state, and user interaction
 //! action variants for the Iris UI Animation Timeline Studio panel.
 
-use irisui::prelude::{Color, InteractionEvent, Point, Rect};
+use irisui::prelude::{Color, Point, Rect};
 
 /// Default height in physical pixels allocated for the top ruler ticks section.
 pub const DEFAULT_RULER_HEIGHT: f32 = 18.0;
@@ -224,8 +224,6 @@ pub struct TimelinePanelParams<'a> {
     pub cursor_pos: Point,
     /// Whether the user is actively dragging the scrubber playhead needle.
     pub is_dragging_scrubber: bool,
-    /// Tagged interaction events emitted during this frame for declarative widgets.
-    pub events: &'a [(u64, InteractionEvent)],
 }
 
 /// User interaction actions dispatched by the Animation Timeline Studio panel.
@@ -261,8 +259,6 @@ pub struct TimelinePanelState {
     pub active_scrubber_track: Option<(f32, f32)>,
     /// Selected entity handle cached for timeline interactions.
     pub selected_entity: Option<hecs::Entity>,
-    /// Pending tagged interaction events collected during window event routing.
-    pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Duration of the currently active animation clip in seconds.
     pub clip_duration: f32,
 }

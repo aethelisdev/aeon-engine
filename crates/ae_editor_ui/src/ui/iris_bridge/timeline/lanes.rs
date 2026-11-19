@@ -273,7 +273,6 @@ mod tests {
             animation_player: None,
             cursor_pos: Point::new(10.0, 10.0),
             is_dragging_scrubber: false,
-            events: &[],
         };
 
         {
@@ -323,7 +322,6 @@ mod tests {
             animation_player: Some(&player),
             cursor_pos: Point::new(10.0, 10.0),
             is_dragging_scrubber: false,
-            events: &[],
         };
 
         {
@@ -370,7 +368,6 @@ mod tests {
             animation_player: Some(&player),
             cursor_pos: Point::new(10.0, 610.0),
             is_dragging_scrubber: false,
-            events: &[],
         };
 
         {

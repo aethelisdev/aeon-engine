@@ -6,6 +6,7 @@
 use super::types::OverlayUpdateParams;
 use super::viewport_hud::{self, ViewportHudParams, ViewportHudState};
 use super::viewport_texture::VIEWPORT_TEXTURE_ID;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
 impl ViewportHudState {
@@ -19,7 +20,9 @@ impl ViewportHudState {
         viewport_rect: Rect,
         params: &OverlayUpdateParams<'_>,
         cursor_pos: Point,
+        action_bus: &mut irisui::workbench::ActionBus<EngineUiAction>,
     ) {
+        self.reset_live_cache();
         if viewport_rect.width <= 20.0 || viewport_rect.height <= 20.0 {
             return;
         }
@@ -50,7 +53,7 @@ impl ViewportHudState {
                         is_editing: params.context.is_editing,
                         is_2d: params.context.is_2d_mode,
                     },
-                    self,
+                    action_bus,
                 );
 
                 params
@@ -78,5 +81,63 @@ impl ViewportHudState {
             params.viewport.camera.position.y,
             params.viewport.camera.position.z,
         );
+    }
+
+    /// Updates camera HUD text and compass lines in place during `InPlaceRefresh` frames.
+    pub(crate) fn refresh_live(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        cam: &ae_renderer::camera::Camera,
+        vp_rect: Rect,
+    ) {
+        self.refresh_camera_hud_live(
+            scope,
+            cam,
+            (
+                [
+                    (cam.position.x * 10.0).round() as i32,
+                    (cam.position.y * 10.0).round() as i32,
+                    (cam.position.z * 10.0).round() as i32,
+                ],
+                cam.pitch.0.to_degrees().round() as i32,
+                cam.yaw.0.to_degrees().round() as i32,
+                vp_rect,
+            ),
+        );
+        self.refresh_compass_live(
+            scope,
+            cam,
+            (
+                (cam.pitch.0 * 1000.0).round() as i32,
+                (cam.yaw.0 * 1000.0).round() as i32,
+                vp_rect,
+            ),
+        );
+    }
+
+    #[inline]
+    fn refresh_camera_hud_live(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        cam: &ae_renderer::camera::Camera,
+        key: ([i32; 3], i32, i32, Rect),
+    ) {
+        if self.last_camera_hud_key != Some(key) {
+            self.last_camera_hud_key = Some(key);
+            viewport_hud::camera_hud::update_camera_hud(scope, cam);
+        }
+    }
+
+    #[inline]
+    fn refresh_compass_live(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        cam: &ae_renderer::camera::Camera,
+        key: (i32, i32, Rect),
+    ) {
+        if self.last_compass_key != Some(key) {
+            self.last_compass_key = Some(key);
+            viewport_hud::compass::update_compass_canvas(scope, cam);
+        }
     }
 }

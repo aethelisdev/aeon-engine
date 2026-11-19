@@ -44,7 +44,6 @@ impl TimelinePanelState {
                     .as_deref(),
                 cursor_pos,
                 is_dragging_scrubber: self.is_dragging,
-                events: &std::mem::take(&mut self.pending_interaction_events),
             },
             &mut self.actions,
         );

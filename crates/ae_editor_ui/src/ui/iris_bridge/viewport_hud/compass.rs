@@ -3,9 +3,9 @@
 
 //! # 3D Scene Navigation Compass Builder
 //!
-//! Renders the interactive 3D Orientation Gizmo (Compass) in the top-right corner of the Viewport.
-//! 3D axis connecting lines are rendered directly via [`DrawCommandList`] GPU SDF quads,
-//! while the 6 interactive knobs are tagged with semantic IDs [`TAG_COMPASS_POS_X`]..=[`TAG_COMPASS_NEG_Z`].
+//! Renders the interactive 3D Orientation Gizmo (Compass) in the top-right corner of the Viewport
+//! using [`UiScope::live_canvas_anchored`] (`CanvasOrigin::NodeTopLeft`) and analytical
+//! oriented GPU SDF line segments (`canvas.draw_line`).
 
 use super::types::{TAG_COMPASS_CANVAS, ViewportHudParams};
 use ae_editor::scene_gizmo::SceneNavigationGizmo;
@@ -22,136 +22,125 @@ pub const COMPASS_RADIUS: f32 = 25.0;
 /// Top and right margin offsets from the viewport edge in pixels.
 pub const COMPASS_MARGIN: f32 = 8.0;
 
-/// Draws the complete 3D orientation compass (circular backdrop, connecting lines, knobs and dots)
+#[inline]
+fn compass_local_rect() -> Rect {
+    Rect::new(0.0, 0.0, COMPASS_SIZE, COMPASS_SIZE)
+}
+
+#[inline]
+fn axis_color(rgb: [u8; 3], is_positive: bool) -> Color {
+    Color::rgba(
+        f32::from(rgb[0]) / 255.0,
+        f32::from(rgb[1]) / 255.0,
+        f32::from(rgb[2]) / 255.0,
+        if is_positive { 0.95 } else { 0.45 },
+    )
+}
+
+#[inline]
+fn draw_compass_axis_entry(
+    canvas: &mut ImmediateCanvas<'_>,
+    center: Point,
+    (dx, dy, label, color_rgb, is_positive): (f32, f32, &'static str, [u8; 3], bool),
+) {
+    if (dx * dx + dy * dy).sqrt() > 1.0 {
+        canvas.draw_line(
+            center,
+            Point::new(center.x + dx, center.y + dy),
+            axis_color(color_rgb, is_positive),
+            if is_positive { 1.8 } else { 1.0 },
+        );
+    }
+    if is_positive {
+        draw_positive_knob(
+            canvas,
+            center.x + dx - 7.0,
+            center.y + dy - 7.0,
+            label,
+            axis_color(color_rgb, true),
+        );
+    } else {
+        draw_negative_dot(
+            canvas,
+            center.x + dx - 3.0,
+            center.y + dy - 3.0,
+            axis_color(color_rgb, false),
+        );
+    }
+}
+
+#[inline]
+fn draw_positive_knob(
+    canvas: &mut ImmediateCanvas<'_>,
+    knob_x: f32,
+    knob_y: f32,
+    label: &'static str,
+    color: Color,
+) {
+    canvas.fill_rect(Rect::new(knob_x, knob_y, 14.0, 14.0), color, 7.0);
+    canvas.draw_text(
+        Point::new(knob_x + 3.8, knob_y + 1.8),
+        label,
+        9.0,
+        Color::WHITE,
+    );
+}
+
+#[inline]
+fn draw_negative_dot(canvas: &mut ImmediateCanvas<'_>, dot_x: f32, dot_y: f32, color: Color) {
+    canvas.fill_rect(
+        Rect::new(dot_x, dot_y, 6.0, 6.0),
+        Color::rgba(color.r * 0.45, color.g * 0.45, color.b * 0.45, 0.75),
+        3.0,
+    );
+}
+
+/// Draws the complete 3D orientation compass (circular backdrop, analytical lines, knobs and dots)
 /// directly into an [`ImmediateCanvas`].
-///
-/// Axis connecting lines and interactive knobs rotate  with the camera orientation
-/// at 144 Hz with zero persistent child tree nodes.
-///
-/// # Arguments
-/// * `canvas` - Immediate drawing context.
-/// * `camera` - Active viewport camera snapshot.
-/// * `rect` - Bounding rectangle of the compass widget in screen pixels.
 pub fn draw_compass_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera, rect: Rect) {
     if rect.width <= 0.0 || rect.height <= 0.0 {
         return;
     }
 
-    let center_x = rect.x + rect.width * 0.5;
-    let center_y = rect.y + rect.height * 0.5;
-    let radius = COMPASS_RADIUS;
+    canvas.fill_rect(rect, Color::rgba(0.04, 0.05, 0.08, 0.65), rect.width * 0.5);
+    canvas.stroke_rect(
+        rect,
+        Color::rgba(1.0, 1.0, 1.0, 0.08),
+        1.0,
+        rect.width * 0.5,
+    );
 
-    // 1. Draw circular glass background and subtle outer border ring
-    let bg_color = Color::rgba(0.04, 0.05, 0.08, 0.65);
-    let border_color = Color::rgba(1.0, 1.0, 1.0, 0.08);
-    canvas.fill_rect(rect, bg_color, rect.width * 0.5);
-    canvas.stroke_rect(rect, border_color, 1.0, rect.width * 0.5);
-
-    // 2. Compute 3D projected axis endpoints (sorted back-to-front by view depth)
-    let endpoints =
-        SceneNavigationGizmo::compute_axis_endpoints(camera.pitch.0, camera.yaw.0, radius);
-
-    // 3. Render axis connecting lines and endpoints in sorted depth order
-    for (dx, dy, label, color_rgb, is_positive) in endpoints {
-        let axis_color = Color::rgba(
-            color_rgb[0] as f32 / 255.0,
-            color_rgb[1] as f32 / 255.0,
-            color_rgb[2] as f32 / 255.0,
-            if is_positive { 0.95 } else { 0.45 },
-        );
-
-        // Draw smooth, continuous solid axis line from center to endpoint using a constant step
-        // count so compass quad slice cardinality stays invariant across camera orientations.
-        const AXIS_STEPS: usize = 24;
-        let len = (dx * dx + dy * dy).sqrt();
-        let line_thick = if is_positive { 1.8 } else { 1.0 };
-        let step_color = if len > 1.0 {
-            axis_color
-        } else {
-            Color::TRANSPARENT
-        };
-        for i in 0..=AXIS_STEPS {
-            let t = i as f32 / AXIS_STEPS as f32;
-            let qx = center_x + dx * t - line_thick * 0.5;
-            let qy = center_y + dy * t - line_thick * 0.5;
-            canvas.fill_rect(Rect::new(qx, qy, line_thick, line_thick), step_color, 0.0);
-        }
-
-        // Draw endpoint knob or dot
-        if is_positive {
-            let knob_size = 14.0;
-            let knob_x = center_x + dx - knob_size * 0.5;
-            let knob_y = center_y + dy - knob_size * 0.5;
-            let knob_rect = Rect::new(knob_x, knob_y, knob_size, knob_size);
-
-            // Clean, borderless solid circular knob disk
-            canvas.fill_rect(knob_rect, axis_color, knob_size * 0.5);
-
-            // Centered single-character axis indicator label ("X", "Y", "Z")
-            let text_pos = Point::new(knob_x + 3.8, knob_y + 1.8);
-            canvas.draw_text(text_pos, label, 9.0, Color::WHITE);
-        } else {
-            let dot_size = 6.0;
-            let dot_x = center_x + dx - dot_size * 0.5;
-            let dot_y = center_y + dy - dot_size * 0.5;
-            let dot_rect = Rect::new(dot_x, dot_y, dot_size, dot_size);
-
-            let dim_color = Color::rgba(
-                axis_color.r * 0.45,
-                axis_color.g * 0.45,
-                axis_color.b * 0.45,
-                0.75,
+    SceneNavigationGizmo::compute_axis_endpoints(camera.pitch.0, camera.yaw.0, COMPASS_RADIUS)
+        .into_iter()
+        .for_each(|endpoint| {
+            draw_compass_axis_entry(
+                canvas,
+                Point::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5),
+                endpoint,
             );
-            canvas.fill_rect(dot_rect, dim_color, dot_size * 0.5);
-        }
-    }
+        });
 }
 
-/// Builds the 3D Scene Navigation Compass in the top-right corner of the Viewport.
-///
-/// Anchored via [`Style::position_absolute`], [`Style::right`], and [`Style::top`].
-/// Emits an [`ImmediateCanvas`] node tagged with [`TAG_COMPASS_CANVAS`] with zero persistent child tree nodes.
-#[inline]
-fn compass_bounds_rect(viewport_rect: Rect) -> Rect {
-    Rect::new(
-        viewport_rect.right() - COMPASS_SIZE - COMPASS_MARGIN,
-        viewport_rect.y + COMPASS_MARGIN,
-        COMPASS_SIZE,
-        COMPASS_SIZE,
-    )
-}
-
+/// Emits the 3D Scene Navigation Compass anchored cleanly via Taffy `.right`/`.top` and `CanvasOrigin::NodeTopLeft`.
 pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    scope.volatile_overlay(
+    scope.live_canvas_anchored(
         "SceneNavCompass",
         TAG_COMPASS_CANVAS,
-        compass_bounds_rect(params.viewport_rect),
-        |canvas| {
-            draw_compass_canvas(
-                canvas,
-                params.camera,
-                compass_bounds_rect(params.viewport_rect),
-            );
-        },
+        CanvasOrigin::NodeTopLeft,
+        Style::new()
+            .position_absolute()
+            .right(COMPASS_MARGIN)
+            .top(COMPASS_MARGIN)
+            .width(COMPASS_SIZE)
+            .height(COMPASS_SIZE),
+        |canvas| draw_compass_canvas(canvas, params.camera, compass_local_rect()),
     );
 }
 
 /// Updates the 3D scene compass volatile canvas primitives in-place via [`UiScope::update_live_canvas`].
-///
-/// Resolves the compass bounding rectangle and repaints the glass disc, lines, rotating knobs,
-/// and labels without modifying retained tree topology or triggering Taffy layout passes.
-///
-/// # Arguments
-/// * `scope` - Mutable declarative UI scope.
-/// * `camera` - Active camera instance with current pitch and yaw angles.
-/// * `viewport_rect` - Screen bounding box of the active viewport.
-pub fn update_compass_canvas(
-    scope: &mut UiScope<'_>,
-    camera: &Camera,
-    viewport_rect: Rect,
-) -> bool {
+pub fn update_compass_canvas(scope: &mut UiScope<'_>, camera: &Camera) -> bool {
     scope.update_live_canvas(TAG_COMPASS_CANVAS, |canvas| {
-        draw_compass_canvas(canvas, camera, compass_bounds_rect(viewport_rect));
+        draw_compass_canvas(canvas, camera, compass_local_rect());
     })
 }
 
@@ -202,28 +191,18 @@ mod tests {
 
         build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
 
-        // Verify that NOT A SINGLE fake "AxisLineDot" node was created
-        let mut names = Vec::new();
-        for (_, node) in tree.iter() {
-            if let Some(ref name) = node.name {
-                names.push(name.as_str());
-            }
-        }
+        let compass_node = tree
+            .node_tagged(TAG_COMPASS_CANVAS)
+            .expect("Compass host node must exist");
+        assert_eq!(compass_node.canvas_origin, CanvasOrigin::NodeTopLeft);
 
-        assert!(
-            !names.contains(&"AxisLineDot"),
-            "AxisLineDot fake nodes must be 100% eliminated from the UI tree"
-        );
-
-        // Verify total node count is exactly 1 (single autonomous ImmediateCanvas host node)
+        let names: Vec<_> = tree.iter().filter_map(|(_, n)| n.name.as_deref()).collect();
+        assert!(!names.contains(&"AxisLineDot"));
         let compass_node_count = names
             .iter()
             .filter(|n| n.starts_with("Compass") || n.starts_with("SceneNav"))
             .count();
-        assert_eq!(
-            compass_node_count, 1,
-            "Compass hierarchy must strictly contain exactly 1 autonomous ImmediateCanvas node with zero persistent child tree nodes"
-        );
+        assert_eq!(compass_node_count, 1);
     }
 
     #[test]
@@ -255,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compass_canvas_draws_primitives() {
+    fn test_compass_canvas_draws_analytical_lines_and_updates_in_place() {
         let camera = make_test_camera();
         let snapping = SnapSettings::default();
         let world = World::new();
@@ -284,29 +263,27 @@ mod tests {
         let primitives = tree
             .canvas_primitives(compass_id)
             .expect("primitives should exist for compass");
+        let line_count = primitives
+            .iter()
+            .filter(|p| matches!(p, irisui::core::CanvasPrimitive::Line { .. }))
+            .count();
         assert!(
-            !primitives.is_empty(),
-            "ImmediateCanvas must contain glass backdrop, axis lines, knobs, and text primitives"
-        );
-        // Backdrop rect + border + lines + 3 knobs + 3 texts + 3 dots >= 30 primitives
-        assert!(
-            primitives.len() >= 30,
-            "ImmediateCanvas should contain at least 30 volatile primitives for compass visualization"
+            line_count >= 4,
+            "Compass axes must use real CanvasPrimitive::Line segments, got {}",
+            line_count
         );
 
-        // Unchanged camera state must skip dirtying primitives
         let mut scope = UiScope::new(&mut tree, root);
-        let unchanged = update_compass_canvas(&mut scope, &camera, params.viewport_rect);
+        let unchanged = update_compass_canvas(&mut scope, &camera);
         assert!(
             !unchanged,
             "update_compass_canvas must skip dirty marking when camera did not move"
         );
 
-        // Rotated camera state must update in-place without structural modifications
         let mut rotated_camera = make_test_camera();
         rotated_camera.yaw = cgmath::Rad(0.75);
         let mut scope = UiScope::new(&mut tree, root);
-        let updated = update_compass_canvas(&mut scope, &rotated_camera, params.viewport_rect);
+        let updated = update_compass_canvas(&mut scope, &rotated_camera);
         assert!(
             updated,
             "update_compass_canvas must succeed when camera orientation changes"

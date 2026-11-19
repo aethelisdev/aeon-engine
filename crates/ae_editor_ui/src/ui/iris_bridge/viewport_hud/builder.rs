@@ -1,67 +1,42 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Root builder orchestrating toolbar, compass, and camera HUD overlays.
+//! # Viewport HUD Root Orchestrator
+//!
+//! Dispatches Viewport HUD toolbar, compass, camera HUD, and Play Mode overlays
+//! purely through [`UiScope`] with zero manual `finish_layout` calls and zero imperative `let`s.
 
 use super::camera_hud;
 use super::compass;
 use super::play_hud;
-use super::popup;
 use super::toolbar;
-use super::types::{ViewportHudParams, ViewportHudState};
+use super::types::ViewportHudParams;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
-/// Builds the complete Viewport HUD overlay hierarchy into the UI Tree.
-///
-/// Dispatches declarative HUD components: top-left floating toolbar, top-right
-/// 3D navigation compass, bottom-right camera info HUD, and optional active dropdown popups.
 /// Builds viewport HUD overlays purely through a declarative [`UiScope`].
+///
+/// Layout solving is owned strictly by `Workbench`, eliminating redundant per-panel `finish_layout` passes.
 pub fn build_viewport_hud_scope(
     scope: &mut UiScope<'_>,
     params: &ViewportHudParams<'_>,
-    hud: &mut ViewportHudState,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     if params.viewport_rect.width < 20.0 || params.viewport_rect.height < 20.0 {
         return;
     }
 
     if params.is_editing {
-        // 1. Top-left floating toolbar
-        toolbar::build_viewport_toolbar(scope, params, hud);
+        toolbar::build_viewport_toolbar(scope, params, action_bus);
 
-        // In 2D dimension mode, 3D compass and 3D camera Euler angle telemetry are hidden
-        if !params.is_2d {
-            // 2. Top-right 3D Scene Navigation Compass (visible across all 3D projection modes)
-            compass::build_scene_navigation_compass(scope, params);
-
-            // 3. Bottom-right Camera Info HUD (positioned via Style::position_absolute, right(8.0), bottom(8.0))
-            camera_hud::build_camera_hud(scope, params);
-        }
-
-        // 4. Active scoped dropdown popup if its trigger tag is active in UiTree
-        popup::render_active_viewport_hud_dropdown_popup(scope, params, hud);
-
-        // 5. Resolve complete HUD layout and hover reconciliation across viewport bounds
-        scope.finish_layout(params.viewport_rect);
+        scope.when(!params.is_2d, |s| {
+            compass::build_scene_navigation_compass(s, params);
+            camera_hud::build_camera_hud(s, params);
+        });
     } else {
-        // Play Mode HUD & In-Game Pause Menu Overlay
-        play_hud::build_play_hud(scope, params);
-
-        scope.finish_layout(params.viewport_rect);
+        play_hud::build_play_hud(scope, params, action_bus);
     }
-}
-
-/// Builds the interactive Viewport HUD overlay directly into the UI tree.
-///
-/// Subtree layout and hover states are resolved declaratively across the viewport bounds.
-pub fn build_viewport_hud(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &ViewportHudParams<'_>,
-    hud: &mut ViewportHudState,
-) {
-    let mut scope = UiScope::new(tree, parent_id);
-    build_viewport_hud_scope(&mut scope, params, hud);
 }
 
 #[cfg(test)]
@@ -113,15 +88,12 @@ mod tests {
             is_2d: false,
         };
 
-        let mut hud = ViewportHudState::default();
-        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        let mut bus = ActionBus::new();
+        build_viewport_hud_scope(&mut UiScope::new(&mut tree, root), &params, &mut bus);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
-        // Verifies toolbar is present
         assert!(tags.contains(&TAG_VIEWPORT_CAMERA_MODE));
-        // Verifies 3D compass is present
         assert!(tags.contains(&TAG_COMPASS_CANVAS));
-        // Verifies 3D camera telemetry immediate canvas is present
         assert!(tags.contains(&TAG_CAMERA_HUD));
     }
 
@@ -147,15 +119,13 @@ mod tests {
             is_2d: true,
         };
 
-        let mut hud = ViewportHudState::default();
-        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        let mut bus = ActionBus::new();
+        build_viewport_hud_scope(&mut UiScope::new(&mut tree, root), &params, &mut bus);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
-        // In 2D mode, 3D camera and shading dropdowns are suppressed, gizmo tools remain
         assert!(!tags.contains(&TAG_VIEWPORT_CAMERA_MODE));
         assert!(!tags.contains(&TAG_VIEWPORT_SHADING_MODE));
         assert!(tags.contains(&TAG_GIZMO_TRANSLATE));
-        // 3D compass and camera HUD must be hidden in 2D mode
         assert!(!tags.contains(&TAG_COMPASS_CANVAS));
         assert!(!tags.contains(&TAG_CAMERA_HUD));
     }
@@ -187,11 +157,10 @@ mod tests {
             is_2d: false,
         };
 
-        let mut hud = ViewportHudState::default();
-        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        let mut bus = ActionBus::new();
+        build_viewport_hud_scope(&mut UiScope::new(&mut tree, root), &params, &mut bus);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
-        // In play mode, edit toolbar and compass are hidden, pause menu items are shown
         assert!(!tags.contains(&TAG_VIEWPORT_CAMERA_MODE));
         assert!(!tags.contains(&TAG_COMPASS_CANVAS));
         assert!(tags.contains(&TAG_PLAY_EXIT));
@@ -210,7 +179,7 @@ mod tests {
             viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
             camera: &camera,
             wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
+            gizmo_mode: GizmoMode::Select,
             gizmo_space: GizmoSpace::World,
             snapping: &snapping,
             cursor_pos: Point::new(100.0, 100.0),
@@ -221,58 +190,38 @@ mod tests {
         };
 
         tree.open_popup(TAG_VIEWPORT_CAMERA_MODE);
-        let mut hud = ViewportHudState::default();
-        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        let mut bus = ActionBus::new();
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            build_viewport_hud_scope(&mut scope, &params, &mut bus);
+            scope.finish_layout(params.viewport_rect);
+        }
 
-        // Verify camera mode dropdown trigger tag is actively registered
-        assert!(
-            tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
-            "Camera mode dropdown tag must be registered as active popup tag"
-        );
-
-        // Find camera mode button rect
-        let cam_btn_rect = tree
-            .node_rect_tagged(TAG_VIEWPORT_CAMERA_MODE, Point::ZERO)
-            .or_else(|| tree.tag_rect(TAG_VIEWPORT_CAMERA_MODE))
-            .expect("Camera mode trigger button must have geometry in tree");
-
-        let btn_center = Point::new(
-            cam_btn_rect.x + cam_btn_rect.width * 0.5,
-            cam_btn_rect.y + cam_btn_rect.height * 0.5,
-        );
-
-        // Click on trigger button must be recognized as inside popup
-        assert!(
-            tree.is_point_inside_popup(btn_center),
-            "Trigger button click must be considered inside popup"
-        );
-        assert!(
-            !tree.dismiss_popups_on_outside_click(btn_center),
-            "Trigger button click must not dismiss popup"
-        );
         assert!(tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE));
+        assert!(tree.has_open_popup());
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.layer == UiLayer::Popup && n.role == WidgetRole::DropdownPopup)
+        );
 
-        // Click on an outside coordinate must dismiss popups
-        let outside_point = Point::new(750.0, 550.0);
-        assert!(
-            !tree.is_point_inside_popup(outside_point),
-            "Coordinate (750, 550) must be outside popup"
-        );
-        assert!(
-            tree.dismiss_popups_on_outside_click(outside_point),
-            "Outside click must dismiss active popups"
-        );
-        assert!(
-            !tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
-            "Active popup tag must be cleared on dismissal"
-        );
-        assert!(tree.popups_dismissed());
+        tree.dispatch_event(&UiEvent::MouseDown {
+            point: Point::new(700.0, 500.0),
+            button: MouseButton::Left,
+        });
+        assert!(!tree.has_open_popup());
+        assert!(!tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE));
 
-        // Rebuilding HUD after dismissal renders no dropdown card and keeps tag inactive
-        build_viewport_hud(&mut tree, root, &params, &mut hud);
+        tree.clear();
+        let root2 = tree.create_root().expect("Root2");
+        {
+            let mut scope = UiScope::new(&mut tree, root2);
+            build_viewport_hud_scope(&mut scope, &params, &mut bus);
+        }
         assert!(
-            !tree.is_popup_tag_active(TAG_VIEWPORT_CAMERA_MODE),
-            "Camera mode popup tag must remain cleared after outside-click dismissal"
+            !tree
+                .iter()
+                .any(|(_, n)| n.layer == UiLayer::Popup && n.role == WidgetRole::DropdownPopup),
+            "Closed popup should not render after outside click"
         );
     }
 }
