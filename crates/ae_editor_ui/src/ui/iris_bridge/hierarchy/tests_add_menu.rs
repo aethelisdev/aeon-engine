@@ -4,110 +4,98 @@
 //! # Scene Hierarchy `➕` Add Menu Lifecycle & Event Integration Tests
 //!
 //! Verifies the end-to-end integration of the Scene Hierarchy Add Entity toolbar button,
-//! cascading menu activation, submenu transitions, entity spawn dispatching, and overlay dismissal.
+//! `UiTree` SSOT popup/submenu activation, zero-allocation static cascading entries,
+//! direct [`ActionBus`] entity spawn dispatching, and outside-click dismissal.
 
 use super::header::build_hierarchy_header;
-use super::types::{
-    AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyAction, HierarchyPanelParams,
-    HierarchyPanelState,
-};
+use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyPanelParams};
+use crate::ui::types::EngineUiAction;
 use hecs::World;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
+
+fn test_params(world: &World) -> HierarchyPanelParams<'_> {
+    HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        blink_caret: false,
+        cursor_byte_idx: 0,
+    }
+}
 
 #[test]
 fn test_hierarchy_add_button_toggle_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
     let world = World::new();
+    let mut bus = ActionBus::new();
 
-    // 1. When menu is closed, clicking '+' activates HIERARCHY_TAG_ADD_BUTTON in UiTree
-    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON);
-    let mut actions = Vec::new();
+    // 1. Clicking '+' activates HIERARCHY_TAG_ADD_BUTTON in UiTree SSOT
+    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
-        let params = HierarchyPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: None,
-            search_query: "",
-            is_editing: true,
-            is_2d: false,
-            active_submenu: None,
-            active_sub_submenu: None,
-            active_context_menu: None,
-            cursor_pos: Point::new(10.0, 10.0),
-            blink_caret: false,
-            cursor_byte_idx: 0,
-        };
+        let params = test_params(&world);
         let mut scope = UiScope::new(&mut tree, root_id);
-        build_hierarchy_header(&mut scope, &params, &mut actions);
+        build_hierarchy_header(&mut scope, &params, &mut bus);
     }
-    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
+    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 
-    // 2. When menu is open, clicking '+' again toggles HIERARCHY_TAG_ADD_BUTTON off
-    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON);
-    actions.clear();
+    // 2. Clicking '+' again toggles HIERARCHY_TAG_ADD_BUTTON off
+    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
-        let params = HierarchyPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world: &world,
-            selected_entity: None,
-            search_query: "",
-            is_editing: true,
-            is_2d: false,
-            active_submenu: None,
-            active_sub_submenu: None,
-            active_context_menu: None,
-            cursor_pos: Point::new(10.0, 10.0),
-            blink_caret: false,
-            cursor_byte_idx: 0,
-        };
+        let params = test_params(&world);
         let mut scope = UiScope::new(&mut tree, root_id);
-        build_hierarchy_header(&mut scope, &params, &mut actions);
+        build_hierarchy_header(&mut scope, &params, &mut bus);
     }
-    assert!(!tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
+    assert!(!tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 }
 
 #[test]
-fn test_hierarchy_state_open_close_and_submenu_flow() {
-    let mut state = HierarchyPanelState::default();
-    assert!(!state.is_add_menu_open);
-
-    // Simulate OpenAddMenu processing
-    state.is_add_menu_open = true;
-    state.active_submenu = None;
-    state.active_sub_submenu = None;
-    assert!(state.is_add_menu_open);
-
-    // Hover or click on 3D Objects submenu
-    assert!(state.activate_submenu(AddSubmenuId::Objects3D));
-    assert_eq!(state.active_submenu, Some(AddSubmenuId::Objects3D));
-
-    // Resolve tag 101 into SpawnShape(Cube)
-    let action = super::add_menu::get_hierarchy_add_menu_action(101);
-    assert_eq!(
-        action,
-        Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube))
-    );
-
-    // On item click, menu closes
-    state.is_add_menu_open = false;
-    state.active_submenu = None;
-    state.active_sub_submenu = None;
-    assert!(!state.is_add_menu_open);
-    assert_eq!(state.active_submenu, None);
-}
-
-#[test]
-fn test_hierarchy_add_menu_outside_click() {
+fn test_hierarchy_add_menu_cascading_click_emits_directly_to_action_bus() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = World::new();
+    let mut bus = ActionBus::new();
 
-    let mut actions = Vec::new();
+    // Activate Add Menu and open 3D Objects submenu in UiTree SSOT
+    tree.open_popup(HIERARCHY_TAG_ADD_BUTTON.raw());
+    tree.set_active_submenu(
+        irisui::widgets::declarative::hash_label("HierarchyAddMenu"),
+        AddSubmenuId::Objects3D.tag().raw(),
+    );
+    tree.event_state.frame_clicked_tag = Some(UiTag::from_str("Cube").raw());
+
+    {
+        let params = test_params(&world);
+        let mut scope = UiScope::new(&mut tree, root);
+        let rect = super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut bus);
+        assert!(rect.is_some());
+    }
+
+    let drained: Vec<_> = bus.drain().collect();
+    assert_eq!(drained.len(), 1);
+    assert!(matches!(
+        drained[0],
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cube)
+    ));
+    assert!(
+        !tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()),
+        "Clicking leaf menu item must auto-close Add Menu popup tag in UiTree"
+    );
+}
+
+#[test]
+fn test_hierarchy_add_menu_outside_click_resets_tree_ssot() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let world = World::new();
+    let mut bus = ActionBus::new();
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
     let add_btn_rect = Rect::new(240.0, 4.0, 24.0, 24.0);
 
-    // 1. Create Hierarchy Add button anchor in tree
     {
         let mut scope = UiScope::new(&mut tree, root);
         scope.container_tagged(
@@ -119,88 +107,32 @@ fn test_hierarchy_add_menu_outside_click() {
                 .width(add_btn_rect.width)
                 .height(add_btn_rect.height),
             WidgetRole::Button,
-            HIERARCHY_TAG_ADD_BUTTON,
+            HIERARCHY_TAG_ADD_BUTTON.raw(),
             |_btn| {},
         );
         scope.finish_layout(panel_rect);
     }
 
-    let params = HierarchyPanelParams {
-        panel_rect,
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        active_submenu: None,
-        active_sub_submenu: None,
-        active_context_menu: None,
-        cursor_pos: Point::new(100.0, 100.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    };
-
-    tree.open_popup(HIERARCHY_TAG_ADD_BUTTON);
-    // 2. Build cascading add menu
+    let params = test_params(&world);
+    tree.open_popup(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
         let mut scope = UiScope::new(&mut tree, root);
-        super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut actions);
+        super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut bus);
     }
 
-    // 3. Verify HIERARCHY_TAG_ADD_BUTTON is registered as active popup tag
-    assert!(
-        tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON),
-        "Hierarchy add button tag must be registered as active popup tag"
-    );
+    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 
-    // 4. Click on trigger button: inside popup check
+    // Click inside anchor button does not dismiss
     let btn_click = Point::new(250.0, 10.0);
-    assert!(
-        tree.is_point_inside_popup(btn_click),
-        "Click on Add button must be recognized as inside popup"
-    );
-    assert!(
-        !tree.dismiss_popups_on_outside_click(btn_click),
-        "Click on Add button must not dismiss popup"
-    );
-    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON));
+    assert!(tree.is_point_inside_popup(btn_click));
+    assert!(!tree.dismiss_popups_on_outside_click(btn_click));
+    assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 
-    // 5. Click outside: dismiss popups
+    // Click outside dismisses popups and submenus directly in UiTree SSOT
     let outside_point = Point::new(800.0, 800.0);
-    assert!(
-        !tree.is_point_inside_popup(outside_point),
-        "Point (800, 800) must be outside popup"
-    );
-    assert!(
-        tree.dismiss_popups_on_outside_click(outside_point),
-        "Outside click must dismiss popup"
-    );
-    assert!(
-        !tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON),
-        "Active popup tag must be cleared on dismissal"
-    );
+    assert!(!tree.is_point_inside_popup(outside_point));
+    assert!(tree.dismiss_popups_on_outside_click(outside_point));
+    assert!(!tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
+    assert!(tree.active_submenus.is_empty());
     assert!(tree.popups_dismissed());
-
-    // 6. Next frame: scope.popups_dismissed() resets hierarchy panel state
-    {
-        let scope = UiScope::new(&mut tree, root);
-        assert!(scope.popups_dismissed());
-        let mut hierarchy_state = super::types::HierarchyState {
-            is_add_menu_open: true,
-            active_submenu: Some(AddSubmenuId::Objects3D),
-            active_sub_submenu: Some(AddSubmenuId::Objects3D),
-            ..Default::default()
-        };
-
-        if scope.popups_dismissed() {
-            hierarchy_state.is_add_menu_open = false;
-            hierarchy_state.active_submenu = None;
-            hierarchy_state.active_sub_submenu = None;
-            hierarchy_state.active_context_menu = None;
-        }
-
-        assert!(!hierarchy_state.is_add_menu_open);
-        assert!(hierarchy_state.active_submenu.is_none());
-        assert!(hierarchy_state.active_sub_submenu.is_none());
-    }
 }
