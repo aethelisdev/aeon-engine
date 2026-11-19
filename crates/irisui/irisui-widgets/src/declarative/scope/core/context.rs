@@ -207,6 +207,13 @@ impl<'a> UiScope<'a> {
         hash_label_with_seed(self.seed, tag_source)
     }
 
+    /// Computes a deterministic typed [`irisui_core::UiTag`] for `label` within the current scope hierarchy.
+    #[inline]
+    #[must_use]
+    pub fn next_tag(&self, key: &str) -> irisui_core::UiTag {
+        irisui_core::UiTag(self.tag_for(key))
+    }
+
     /// Executes a closure within a nested sub-scope seeded with the given identifier.
     ///
     /// Any widgets created within this sub-scope inherit a combined seed ([`combine_seeds`]),

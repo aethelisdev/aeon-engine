@@ -15,6 +15,8 @@ pub mod key_value;
 pub mod labels;
 pub mod live;
 pub mod log_row;
+pub mod section_heading;
+pub mod telemetry;
 
 pub use canvas::{ImmediateCanvasSpec, VerticalScrollbarSpec};
 pub use key_value::{

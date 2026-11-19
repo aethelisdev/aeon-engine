@@ -115,6 +115,13 @@ impl ScopeId for &String {
     }
 }
 
+impl ScopeId for irisui_core::UiTag {
+    #[inline]
+    fn into_seed(self) -> u64 {
+        self.raw()
+    }
+}
+
 /// Formats a floating-point value cleanly without deceptive trailing zeros (e.g. `-115.8` instead of `-115.800`).
 ///
 /// Follows industry standards ( / DCC tools):
@@ -294,5 +301,19 @@ mod tests {
         assert_eq!(eval_numeric_expression("-115.8"), Some(-115.8));
         assert_eq!(eval_numeric_expression("5 / 0"), None);
         assert_eq!(eval_numeric_expression("44444444"), Some(44444444.0));
+    }
+
+    #[test]
+    fn test_ui_tag_scope_id_isolation() {
+        let mut tree = irisui_core::UiTree::new();
+        let root = tree.create_root().expect("root");
+        let mut scope = crate::UiScope::new(&mut tree, root);
+
+        let a = irisui_core::UiTag::from_str("SectionA");
+        let b = irisui_core::UiTag::from_str("SectionB");
+        let tag_a = scope.with_id(a, |s| s.next_tag("Item"));
+        let tag_b = scope.with_id(b, |s| s.next_tag("Item"));
+        assert_ne!(tag_a, tag_b);
+        assert_eq!(tag_a, a.child("Item"));
     }
 }

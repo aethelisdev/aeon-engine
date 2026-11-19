@@ -220,6 +220,69 @@ impl<'a> UiScope<'a> {
             Style::new().height(desc.height),
         );
     }
+
+    /// Emits a two-line title and muted description row paired with a right-aligned tinted pill badge.
+    ///
+    /// Designed for keybinding tables, command reference lists, and annotated setting rows
+    /// without manual flexbox column/pill container nesting at consumer call sites.
+    ///
+    /// # Arguments
+    /// * `title` - Primary action or item title displayed in primary text color.
+    /// * `note` - Secondary explanatory subtitle displayed in muted text color below the title.
+    /// * `badge` - Compact pill text rendered on the trailing edge (e.g., `"Ctrl + Z"`, `"Default"`).
+    /// * `badge_tint` - Foreground text color used to derive the badge's translucent fill and border.
+    pub fn titled_badge_row(&mut self, title: &str, note: &str, badge: &str, badge_tint: Color) {
+        let theme = self.theme();
+        let row_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::SpaceBetween)
+            .padding_insets(Insets::new(4.0, 0.0, 4.0, 0.0));
+        let badge_style = Style::new()
+            .background(Color::rgba(badge_tint.r, badge_tint.g, badge_tint.b, 0.15))
+            .border(
+                1.0,
+                Color::rgba(badge_tint.r, badge_tint.g, badge_tint.b, 0.40),
+            )
+            .border_radius(4.0)
+            .padding_insets(Insets::new(3.0, 8.0, 3.0, 8.0));
+
+        self.container_named("TitledBadgeRow", row_style, |row| {
+            row.container_named(
+                "TitledBadgeLeftCol",
+                Style::new().flex_col().flex_grow(1.0),
+                |left| {
+                    left.label_styled_passive(
+                        "TitledBadgeTitle",
+                        title,
+                        11.5,
+                        theme.text_primary,
+                        TextAlign::Left,
+                        Style::new(),
+                    );
+                    left.label_styled_passive(
+                        "TitledBadgeNote",
+                        note,
+                        10.5,
+                        theme.text_muted,
+                        TextAlign::Left,
+                        Style::new(),
+                    );
+                },
+            );
+
+            row.container_named("TitledBadgePill", badge_style, |pill| {
+                pill.label_styled_passive(
+                    "TitledBadgeText",
+                    badge,
+                    11.0,
+                    badge_tint,
+                    TextAlign::Center,
+                    Style::new(),
+                );
+            });
+        });
+    }
 }
 
 /// Configuration descriptor for formatting a floating-point number label with prefix, suffix, and typography.
@@ -337,4 +400,43 @@ pub fn format_number_stack(val: f64, precision: usize, buf: &mut [u8; 32]) -> &s
     let _ = write!(cursor, "{val:.precision$}");
     let pos = cursor.position() as usize;
     std::str::from_utf8(&buf[..pos]).unwrap_or("")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::UiTree;
+
+    #[test]
+    fn test_titled_badge_row_layout_and_badge_text() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.titled_badge_row(
+                "Undo",
+                "Revert last transform action.",
+                "Ctrl + Z",
+                Color::rgba(0.0, 0.90, 1.0, 1.0),
+            );
+        }
+
+        let root_node = tree.get(root).expect("Root node exists");
+        assert_eq!(root_node.children.len(), 1);
+        let row = tree.get(root_node.children[0]).expect("Row exists");
+        assert_eq!(row.name.as_deref(), Some("TitledBadgeRow"));
+        assert_eq!(row.children.len(), 2);
+
+        let left = tree.get(row.children[0]).expect("Left column exists");
+        assert_eq!(left.children.len(), 2);
+        let title = tree.get(left.children[0]).expect("Title exists");
+        let note = tree.get(left.children[1]).expect("Note exists");
+        assert_eq!(title.text.as_deref(), Some("Undo"));
+        assert_eq!(note.text.as_deref(), Some("Revert last transform action."));
+
+        let pill = tree.get(row.children[1]).expect("Badge pill exists");
+        assert_eq!(pill.name.as_deref(), Some("TitledBadgePill"));
+        let pill_text = tree.get(pill.children[0]).expect("Pill text exists");
+        assert_eq!(pill_text.text.as_deref(), Some("Ctrl + Z"));
+    }
 }

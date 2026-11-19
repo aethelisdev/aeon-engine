@@ -230,6 +230,40 @@ impl<'a> UiScope<'a> {
     pub fn floating_drag_preview(&mut self, preview: FloatingDragPreview) -> WidgetResponse {
         self.add(preview)
     }
+
+    /// Emits a declarative viewport drop target overlay combining an automatic viewport boundary
+    /// hit-test, projected landing ring indicator, and floating drag preview capsule.
+    ///
+    /// Resolves the live pointer coordinate from the retained UI tree (falling back to
+    /// `desc.cursor_fallback`), evaluates `resolve_landing_point(cursor)` only when the cursor
+    /// lies inside a valid non-collapsed `desc.viewport_rect`, and emits the floating preview card.
+    pub fn viewport_drop_overlay<F>(
+        &mut self,
+        desc: crate::declarative::widget::ViewportDropOverlay<'_>,
+        resolve_landing_point: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(Point) -> Option<Point>,
+    {
+        let cursor = self.resolved_cursor_pos(desc.cursor_fallback);
+        if desc.viewport_rect.width > 20.0
+            && desc.viewport_rect.height > 20.0
+            && desc.viewport_rect.contains_point(cursor)
+            && let Some(landing_pt) = resolve_landing_point(cursor)
+        {
+            self.landing_indicator(
+                landing_pt,
+                desc.landing_outer_radius,
+                desc.landing_inner_radius,
+                desc.landing_ring_color,
+            );
+        }
+        self.floating_drag_preview(
+            FloatingDragPreview::new(desc.title)
+                .with_cursor(cursor)
+                .with_badge(desc.badge_text, desc.badge_color),
+        )
+    }
 }
 
 #[cfg(test)]

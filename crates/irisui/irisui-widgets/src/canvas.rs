@@ -7,7 +7,7 @@
 //! components for game engine tools, timelines, telemetry graphs, and node graph wires.
 
 use irisui_core::canvas::CanvasPrimitive;
-use irisui_core::{Color, Point, Rect, Style, UiTree, WidgetId};
+use irisui_core::{Color, Point, Rect, UiTree, WidgetId};
 use irisui_wgpu::{DrawCommandList, QuadInstance};
 
 /// High-frequency immediate-mode canvas drawing context.
@@ -338,14 +338,11 @@ impl ChartDrawer {
 
             if let Some((prev_x, prev_y, prev_val)) = prev_pt {
                 let segment_color = color_fn(val.max(prev_val));
-                let seg_min_x = prev_x.min(pt_x);
-                let seg_min_y = prev_y.min(pt_y);
-                let seg_w = (pt_x - prev_x).abs().max(1.5);
-                let seg_h = (pt_y - prev_y).abs().max(1.5);
-
-                command_list.push_quad(QuadInstance::from_style(
-                    Rect::new(seg_min_x, seg_min_y, seg_w, seg_h),
-                    &Style::new().background(segment_color).border_radius(0.75),
+                command_list.push_quad(QuadInstance::line(
+                    Point::new(prev_x, prev_y),
+                    Point::new(pt_x, pt_y),
+                    segment_color,
+                    1.5,
                     Some(canvas_rect),
                 ));
             }

@@ -215,6 +215,17 @@ impl<'a> UiScope<'a> {
         self.colored_label(color, text);
     }
 
+    /// Formats into a zero-heap [`irisui_core::StackString`] and emits a colored text label.
+    #[inline]
+    pub fn text_colored_fmt<const N: usize, F>(&mut self, color: Color, fmt_fn: F)
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.colored_label(color, buf.as_str());
+    }
+
     /// Emits a static text label node with explicit foreground color and semantic tag.
     ///
     /// Useful for telemetry metrics, counter displays, and real-time status labels requiring in-place mutation.
@@ -239,6 +250,23 @@ impl<'a> UiScope<'a> {
             node.set_style(Style::new().width(est_w));
         }
         let _ = self.tree.add_child(self.parent, node_id);
+    }
+
+    /// Formats into a stack [`irisui_core::StackString`] and emits a tagged live-updatable colored label.
+    #[inline]
+    pub fn text_colored_tagged_fmt<const N: usize, F>(&mut self, color: Color, tag: u64, fmt_fn: F)
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        let text = buf.as_str();
+        let est_w = (text.len() as f32 * 14.0 * 0.65).ceil().max(16.0);
+        if tag != 0 {
+            self.tree.register_live_tag(tag);
+        }
+        self.text_colored_tagged(text, color, tag);
+        let _ = est_w;
     }
 
     /// Emits a fully customized text label node with explicit font size, foreground color, and horizontal alignment.

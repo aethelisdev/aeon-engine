@@ -106,13 +106,37 @@ impl UiScope<'_> {
     where
         F: FnOnce(&mut crate::canvas::ImmediateCanvas),
     {
+        self.live_canvas_anchored(name, tag, irisui_core::CanvasOrigin::Screen, style, draw_fn)
+    }
+
+    /// Emits a layout-anchored live/volatile immediate canvas with an explicit [`irisui_core::CanvasOrigin`]
+    /// or updates its primitives in place when `tag` already exists in the retained tree.
+    ///
+    /// Pairing this with [`irisui_core::CanvasOrigin::NodeTopLeft`] or [`irisui_core::CanvasOrigin::NodeCenter`]
+    /// lets Taffy absolute anchors (such as `.right(8.0).top(8.0)`) position the canvas cleanly on Frame #0
+    /// without manual consumer `viewport_rect` coordinate subtraction or redundant `finish_layout` calls.
+    pub fn live_canvas_anchored<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        origin: irisui_core::CanvasOrigin,
+        style: Style,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
         if let Some(existing_id) = self.tree.node_tagged(tag).map(|n| n.id) {
             self.tree.register_live_tag(tag);
             let _ = self.update_live_canvas(tag, draw_fn);
             return self.response(existing_id);
         }
         self.tree.register_live_tag(tag);
-        self.immediate_canvas_styled(name, tag, style, draw_fn)
+        self.immediate_canvas_with(
+            crate::declarative::scope::display::canvas::ImmediateCanvasSpec::new(name, tag, style)
+                .origin(origin),
+            draw_fn,
+        )
     }
 
     /// Emits a styled live/volatile text node or updates its text in place when `props.tag`
@@ -170,6 +194,62 @@ impl UiScope<'_> {
         self.tree.update_live_text_by_tag(tag, text)
     }
 
+    /// Updates both the text and foreground color of a live/volatile node tagged `tag` in place.
+    pub fn update_live_text_colored(&mut self, tag: u64, text: &str, color: Color) -> bool {
+        self.tree.update_live_text_colored_by_tag(tag, text, color)
+    }
+
+    /// Emits a styled live/volatile text node formatted into a zero-heap [`irisui_core::StackString`].
+    pub fn live_text_fmt<const N: usize, F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        font_size: f32,
+        color: Color,
+        style: Style,
+        fmt_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.live_text(LiveTextProps::new(
+            name,
+            tag,
+            buf.as_str(),
+            font_size,
+            color,
+            style,
+        ))
+    }
+
+    /// Formats into a stack [`irisui_core::StackString`] and updates the live text node tagged `tag`.
+    pub fn update_live_text_fmt<const N: usize, F>(&mut self, tag: u64, fmt_fn: F) -> bool
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.tree.update_live_text_by_tag(tag, buf.as_str())
+    }
+
+    /// Formats into a stack [`irisui_core::StackString`] and updates text and color in place.
+    pub fn update_live_text_colored_fmt<const N: usize, F>(
+        &mut self,
+        tag: u64,
+        color: Color,
+        fmt_fn: F,
+    ) -> bool
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.tree
+            .update_live_text_colored_by_tag(tag, buf.as_str(), color)
+    }
+
     /// Returns `true` when `tag` is registered as a live/volatile node in the retained tree.
     #[inline]
     #[must_use]
@@ -182,5 +262,120 @@ impl UiScope<'_> {
     #[must_use]
     pub fn has_live_nodes(&self) -> bool {
         self.tree.has_live_nodes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::{CanvasOrigin, Point, Rect, UiTree};
+
+    #[test]
+    fn test_live_canvas_anchored_preserves_origin_and_updates_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        const TAG_ANCHORED: u64 = 0xAA10;
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.live_canvas_anchored(
+                "AnchoredCompass",
+                TAG_ANCHORED,
+                CanvasOrigin::NodeTopLeft,
+                Style::new()
+                    .position_absolute()
+                    .right(8.0)
+                    .top(8.0)
+                    .width(72.0)
+                    .height(72.0),
+                |c| c.fill_rect(Rect::new(0.0, 0.0, 10.0, 10.0), Color::RED, 0.0),
+            );
+        }
+
+        let node = tree.node_tagged(TAG_ANCHORED).expect("node must exist");
+        assert_eq!(node.canvas_origin, CanvasOrigin::NodeTopLeft);
+        assert!(tree.is_live_tag(TAG_ANCHORED));
+
+        // Second call updates primitives in place without creating duplicate nodes
+        let initial_len = tree.len();
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.live_canvas_anchored(
+                "AnchoredCompass",
+                TAG_ANCHORED,
+                CanvasOrigin::NodeTopLeft,
+                Style::new().width(72.0).height(72.0),
+                |c| {
+                    c.draw_line(
+                        Point::new(0.0, 0.0),
+                        Point::new(20.0, 20.0),
+                        Color::GREEN,
+                        2.0,
+                    );
+                },
+            );
+        }
+
+        assert_eq!(tree.len(), initial_len);
+        let id = tree.find_node_by_tag(TAG_ANCHORED).expect("id");
+        assert!(matches!(
+            tree.canvas_primitives(id).and_then(|p| p.first()),
+            Some(irisui_core::CanvasPrimitive::Line { .. })
+        ));
+    }
+
+    #[test]
+    fn test_live_text_fmt_and_colored_update_in_place() {
+        use std::fmt::Write;
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        const TAG_TEXT: u64 = 0xBB11;
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.live_text_fmt::<32, _>(
+                "FpsText",
+                TAG_TEXT,
+                14.0,
+                Color::GREEN,
+                Style::new(),
+                |buf| {
+                    let _ = write!(buf, "{:.0} FPS", 144.0_f32);
+                },
+            );
+        }
+
+        assert_eq!(
+            tree.node_tagged(TAG_TEXT).and_then(|n| n.text.as_deref()),
+            Some("144 FPS")
+        );
+        assert_eq!(
+            tree.node_tagged(TAG_TEXT).map(|n| n.text_color),
+            Some(Color::GREEN)
+        );
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            assert!(
+                scope.update_live_text_colored_fmt::<32, _>(TAG_TEXT, Color::RED, |buf| {
+                    let _ = write!(buf, "{:.0} FPS", 24.0_f32);
+                })
+            );
+            // Repeating with identical text and color returns false (no redundant dirty mark)
+            assert!(
+                !scope.update_live_text_colored_fmt::<32, _>(TAG_TEXT, Color::RED, |buf| {
+                    let _ = write!(buf, "{:.0} FPS", 24.0_f32);
+                })
+            );
+        }
+
+        assert_eq!(
+            tree.node_tagged(TAG_TEXT).and_then(|n| n.text.as_deref()),
+            Some("24 FPS")
+        );
+        assert_eq!(
+            tree.node_tagged(TAG_TEXT).map(|n| n.text_color),
+            Some(Color::RED)
+        );
     }
 }

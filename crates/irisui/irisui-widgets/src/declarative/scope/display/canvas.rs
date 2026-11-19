@@ -340,7 +340,10 @@ impl<'a> UiScope<'a> {
             .map(|p| p.layer)
             .unwrap_or_default();
 
-        let w = spec.style.width.unwrap_or(0.0);
+        let w = spec
+            .style
+            .width
+            .unwrap_or_else(|| self.available_rect().width);
         let h = spec.style.height.unwrap_or(0.0);
         let bounds = self
             .tree
