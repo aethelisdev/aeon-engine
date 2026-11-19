@@ -28,7 +28,8 @@ pub use irisui_winit as winit;
 pub use irisui_workbench as workbench;
 
 pub use irisui_wgpu::{
-    IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, SurfaceRefreshMode,
+    IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, StaticUiSurfaceCache,
+    SurfaceCacheFrameAction, SurfaceCacheState, SurfaceRefreshMode,
 };
 pub use irisui_widgets::{SubtreeSession, rebuild_leaf_subtree};
 

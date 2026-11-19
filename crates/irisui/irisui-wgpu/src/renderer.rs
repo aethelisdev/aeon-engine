@@ -22,6 +22,17 @@ struct UnitVertex {
     position: [f32; 2],
 }
 
+/// Rendering mode controlling how [`crate::command::DrawCommand::DrawExternalTexture`] commands are handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandListRenderMode {
+    /// Draw all SDF quads, atlas textures, and external textures in exact Z-order.
+    Full,
+    /// Draw SDF quads and atlas textures while punching `alpha = 0` cutouts for external textures.
+    StaticWithCutout,
+    /// Draw exclusively registered external textures onto the active render target.
+    ExternalTexturesOnly,
+}
+
 /// Main WGPU-based SDF Renderer for Iris UI.
 pub struct IrisRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -343,6 +354,22 @@ impl IrisRenderer {
         command_list: &'rp crate::command::DrawCommandList,
         screen_size: (u32, u32),
     ) {
+        self.render_command_list_with_mode(
+            render_pass,
+            command_list,
+            screen_size,
+            CommandListRenderMode::Full,
+        );
+    }
+
+    /// Executes sequential draw commands using the specified [`CommandListRenderMode`].
+    pub fn render_command_list_with_mode<'rp>(
+        &'rp self,
+        render_pass: &mut wgpu::RenderPass<'rp>,
+        command_list: &'rp crate::command::DrawCommandList,
+        screen_size: (u32, u32),
+        mode: CommandListRenderMode,
+    ) {
         #[derive(Copy, Clone, PartialEq, Eq)]
         enum ActivePipeline {
             None,
@@ -359,7 +386,8 @@ impl IrisRenderer {
         while idx < commands.len() {
             match commands[idx] {
                 crate::command::DrawCommand::DrawSdfQuads { start, count } => {
-                    if count > 0
+                    if mode != CommandListRenderMode::ExternalTexturesOnly
+                        && count > 0
                         && let Some(ref instance_buf) = self.instance_buffer
                     {
                         if active_pipe != ActivePipeline::Sdf {
@@ -406,8 +434,9 @@ impl IrisRenderer {
                     let (end, next_idx) =
                         consecutive_texture_batch_end(commands, idx + 1, instance_index + 1);
                     idx = next_idx;
-                    if let (Some(tex_buf), Some(tex_bg)) =
-                        (&self.texture_instance_buffer, &self.texture_bind_group)
+                    if mode != CommandListRenderMode::ExternalTexturesOnly
+                        && let (Some(tex_buf), Some(tex_bg)) =
+                            (&self.texture_instance_buffer, &self.texture_bind_group)
                     {
                         if active_pipe != ActivePipeline::Texture {
                             render_pass.set_pipeline(self.texture_pipeline.pipeline());
@@ -432,13 +461,25 @@ impl IrisRenderer {
                     }
                 }
                 crate::command::DrawCommand::DrawExternalTexture { id, instance_index } => {
-                    if let Some(bind_group) = self.external_textures.get(id) {
-                        self.external_pipeline.render_instance(
-                            render_pass,
-                            bind_group,
-                            instance_index,
-                        );
-                        active_pipe = ActivePipeline::ExternalTexture;
+                    match mode {
+                        CommandListRenderMode::Full
+                        | CommandListRenderMode::ExternalTexturesOnly => {
+                            if let Some(bind_group) = self.external_textures.get(id) {
+                                self.external_pipeline.render_instance(
+                                    render_pass,
+                                    bind_group,
+                                    instance_index,
+                                );
+                                active_pipe = ActivePipeline::ExternalTexture;
+                            }
+                        }
+                        CommandListRenderMode::StaticWithCutout => {
+                            if self.external_textures.get(id).is_some() {
+                                self.external_pipeline
+                                    .render_cutout_instance(render_pass, instance_index);
+                                active_pipe = ActivePipeline::ExternalTexture;
+                            }
+                        }
                     }
                     idx += 1;
                 }

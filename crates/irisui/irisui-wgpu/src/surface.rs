@@ -18,7 +18,8 @@ use irisui_text::{
 };
 
 use crate::command::DrawCommandList;
-use crate::renderer::IrisRenderer;
+use crate::renderer::{CommandListRenderMode, IrisRenderer};
+use crate::surface_cache::{StaticUiSurfaceCache, SurfaceCacheFrameAction};
 use crate::texture_array_atlas::TextureArrayAtlas;
 use crate::tree_compiler::TreeCompilerOptions;
 use crate::tree_compiler_patch::{
@@ -47,8 +48,6 @@ pub struct IrisSurfaceRenderParams<'a> {
     pub physical_screen_size: (u32, u32),
     /// Active UI zoom scaling factor.
     pub zoom_factor: f32,
-    /// Optional host-managed focus tag taking precedence over `UiTree` internal focus.
-    pub focused_tag_override: Option<u64>,
     /// Additional floating/menu rectangles that occlude underlying UI text sections.
     pub extra_text_occluders: &'a [Rect],
 }
@@ -71,6 +70,10 @@ pub struct IrisSurfaceHost {
     pub target_format: wgpu::TextureFormat,
     /// Optional mipmapped 2D texture array atlas bound for icon sheets and dynamic thumbnails.
     pub texture_atlas: Option<TextureArrayAtlas>,
+    /// Offscreen rasterization cache and 1-quad blit pipeline for dormant UI frames.
+    pub surface_cache: StaticUiSurfaceCache,
+    /// Refresh mode observed in the most recent [`Self::apply_frame_flags`] call.
+    pub last_frame_mode: SurfaceRefreshMode,
     /// Whether the static typography layer requires GPU glyph shaping before rendering.
     pub needs_text_prepare: bool,
     /// Whether the high-frequency volatile typography layer requires GPU glyph shaping.
@@ -92,11 +95,48 @@ impl IrisSurfaceHost {
             compiler_scratch: TreeCompilerScratch::default(),
             target_format,
             texture_atlas: None,
+            surface_cache: StaticUiSurfaceCache::new(device, target_format),
+            last_frame_mode: SurfaceRefreshMode::StructuralRebuild {
+                is_full_shell: true,
+            },
             needs_text_prepare: true,
             needs_volatile_text_prepare: true,
             needs_full_quad_upload: true,
             is_visible: true,
         }
+    }
+
+    /// Marks the dormant offscreen UI cache stale so the next dormant frame re-rasterizes offscreen.
+    #[inline]
+    pub fn invalidate_surface_cache(&mut self) {
+        self.surface_cache.state_mut().invalidate();
+    }
+
+    /// Enables or disables dormant offscreen caching and 1-quad blitting.
+    #[inline]
+    pub fn set_surface_cache_enabled(&mut self, enabled: bool) {
+        self.surface_cache.state_mut().set_enabled(enabled);
+    }
+
+    /// Returns `true` if the most recent [`Self::render_to_view`] call used only the 1-quad cache blit.
+    #[inline]
+    #[must_use]
+    pub const fn did_last_frame_hit_surface_cache(&self) -> bool {
+        self.surface_cache.state().did_last_frame_hit()
+    }
+
+    /// Returns total dormant frames satisfied via single-quad cache blits since startup.
+    #[inline]
+    #[must_use]
+    pub const fn surface_cache_hit_count(&self) -> u64 {
+        self.surface_cache.state().cache_hit_count()
+    }
+
+    /// Returns total offscreen UI rasterization passes executed to populate [`Self::surface_cache`].
+    #[inline]
+    #[must_use]
+    pub const fn surface_cache_offscreen_render_count(&self) -> u64 {
+        self.surface_cache.state().offscreen_render_count()
     }
 
     /// Returns `true` once [`Self::texture_atlas`] has been initialized on the GPU.
@@ -128,6 +168,7 @@ impl IrisSurfaceHost {
             self.renderer
                 .set_texture_bind_group(Some(atlas.bind_group().clone()));
             self.texture_atlas = Some(atlas);
+            self.invalidate_surface_cache();
         }
         // Invariant: `self.texture_atlas` is guaranteed `Some` by the guard immediately above.
         self.texture_atlas
@@ -154,12 +195,17 @@ impl IrisSurfaceHost {
         id: ExternalTextureId,
         view: Option<&wgpu::TextureView>,
     ) {
-        if let Some(view) = view {
-            self.renderer
-                .external_textures
-                .set(device, &self.renderer.external_pipeline, id, view);
-        } else {
-            self.renderer.external_textures.remove(id);
+        let changed = match view {
+            Some(view) => self.renderer.external_textures.set(
+                device,
+                &self.renderer.external_pipeline,
+                id,
+                view,
+            ),
+            None => self.renderer.external_textures.remove(id),
+        };
+        if changed {
+            self.invalidate_surface_cache();
         }
     }
 
@@ -168,6 +214,7 @@ impl IrisSurfaceHost {
     pub fn apply_caret_blink_update(&mut self, update: CaretBlinkUpdate) {
         if update.needs_redraw() {
             self.needs_text_prepare = true;
+            self.invalidate_surface_cache();
         }
     }
 
@@ -186,6 +233,9 @@ impl IrisSurfaceHost {
             if hover_requires_full_upload {
                 self.needs_full_quad_upload = true;
             }
+            if hover_affects_text || hover_requires_full_upload {
+                self.invalidate_surface_cache();
+            }
         }
     }
 
@@ -199,6 +249,7 @@ impl IrisSurfaceHost {
         flags: IrisSurfaceFrameFlags,
         custom_drawer: Option<CustomDrawFn<'_>>,
     ) {
+        self.last_frame_mode = flags.mode;
         if flags.caret_blink_redraw {
             self.needs_text_prepare = true;
         }
@@ -224,6 +275,15 @@ impl IrisSurfaceHost {
                     self.needs_text_prepare = true;
                 }
             }
+        }
+        if !matches!(
+            flags.mode,
+            SurfaceRefreshMode::Dormant | SurfaceRefreshMode::InPlaceRefresh
+        ) || flags.caret_blink_redraw
+            || flags.needs_quad_reupload
+            || self.needs_text_prepare
+        {
+            self.invalidate_surface_cache();
         }
 
         if flags.needs_quad_reupload {
@@ -253,6 +313,7 @@ impl IrisSurfaceHost {
         force_full_upload: bool,
         custom_drawer: Option<CustomDrawFn<'_>>,
     ) {
+        self.invalidate_surface_cache();
         let Some(root) = tree.root() else {
             self.command_list.clear();
             return;
@@ -363,8 +424,101 @@ impl IrisSurfaceHost {
                 .max(1.0) as u32,
         );
 
-        self.prepare_text_layers(tree, text_system, hovered_tag, zoom, &params);
-        self.submit_overlay_render_pass(tree, logical_screen_size, params);
+        let static_surface_dirty =
+            self.needs_text_prepare || self.needs_full_quad_upload || tree.has_dirty_boundaries();
+        let action = self.surface_cache.state().resolve_frame_action(
+            self.last_frame_mode,
+            static_surface_dirty,
+            params.physical_screen_size,
+            zoom,
+        );
+
+        match action {
+            SurfaceCacheFrameAction::BlitCachedOnly => {
+                if self.needs_volatile_text_prepare {
+                    self.prepare_text_layers(tree, text_system, hovered_tag, zoom, &params);
+                }
+                self.encode_cached_composite_pass(
+                    logical_screen_size,
+                    params.physical_screen_size,
+                    params.target_view,
+                    params.encoder,
+                );
+                self.surface_cache.state_mut().record_cache_hit();
+            }
+            SurfaceCacheFrameAction::PopulateAndBlit => {
+                self.prepare_text_layers(tree, text_system, hovered_tag, zoom, &params);
+                self.prepare_quads_for_render(
+                    tree,
+                    logical_screen_size,
+                    params.device,
+                    params.queue,
+                );
+                let has_drawable = self.has_drawable_layers();
+                if has_drawable {
+                    let offscreen_view = self
+                        .surface_cache
+                        .ensure_offscreen_view(params.device, params.physical_screen_size);
+                    Self::encode_ui_pass(
+                        SurfaceRenderSources {
+                            renderer: &self.renderer,
+                            command_list: &self.command_list,
+                            text_renderer: self.text_renderer.as_ref(),
+                        },
+                        UiPassConfig {
+                            logical_screen_size,
+                            target_view: offscreen_view,
+                            load_op: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            mode: CommandListRenderMode::StaticWithCutout,
+                            include_volatile_text: false,
+                        },
+                        params.encoder,
+                    );
+                    self.surface_cache
+                        .state_mut()
+                        .record_populated(params.physical_screen_size, zoom);
+                    self.encode_cached_composite_pass(
+                        logical_screen_size,
+                        params.physical_screen_size,
+                        params.target_view,
+                        params.encoder,
+                    );
+                } else {
+                    self.surface_cache.state_mut().record_direct_frame();
+                }
+                tree.clear_dirty_boundaries();
+                self.needs_full_quad_upload = false;
+            }
+            SurfaceCacheFrameAction::DirectRender => {
+                self.prepare_text_layers(tree, text_system, hovered_tag, zoom, &params);
+                self.prepare_quads_for_render(
+                    tree,
+                    logical_screen_size,
+                    params.device,
+                    params.queue,
+                );
+                if self.has_drawable_layers() {
+                    Self::encode_ui_pass(
+                        SurfaceRenderSources {
+                            renderer: &self.renderer,
+                            command_list: &self.command_list,
+                            text_renderer: self.text_renderer.as_ref(),
+                        },
+                        UiPassConfig {
+                            logical_screen_size,
+                            target_view: params.target_view,
+                            load_op: wgpu::LoadOp::Load,
+                            mode: CommandListRenderMode::Full,
+                            include_volatile_text: true,
+                        },
+                        params.encoder,
+                    );
+                }
+                self.surface_cache.state_mut().record_direct_frame();
+                tree.clear_dirty_boundaries();
+                self.needs_full_quad_upload = false;
+            }
+        }
     }
 
     fn prepare_text_layers(
@@ -393,7 +547,7 @@ impl IrisSurfaceHost {
         let mut text_options = TextCollectionOptions {
             hovered_tag,
             hovered_id: tree.event_state.hovered,
-            focused_tag: params.focused_tag_override.or(tree.event_state.focused_tag),
+            focused_tag: tree.event_state.focused_tag,
             focused_id: tree.event_state.focused,
             blink_caret: text_system.is_caret_visible(),
             extra_occluders: params.extra_text_occluders.to_vec(),
@@ -451,137 +605,147 @@ impl IrisSurfaceHost {
         self.needs_volatile_text_prepare = false;
     }
 
-    fn submit_overlay_render_pass(
+    fn has_quads(&self) -> bool {
+        !self.command_list.commands.is_empty() || !self.command_list.quads.is_empty()
+    }
+
+    fn has_drawable_layers(&self) -> bool {
+        self.has_quads() || self.text_renderer.is_some()
+    }
+
+    fn prepare_quads_for_render(
         &mut self,
-        tree: &mut UiTree,
+        tree: &UiTree,
         logical_screen_size: (u32, u32),
-        params: IrisSurfaceRenderParams<'_>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        if !self.has_quads() {
+            return;
+        }
+        let dirty_boundaries = if self.needs_full_quad_upload {
+            None
+        } else {
+            Some(tree.dirty_boundaries())
+        };
+        self.renderer.prepare_command_list_with_dirty_boundaries(
+            device,
+            queue,
+            [logical_screen_size.0 as f32, logical_screen_size.1 as f32],
+            &self.command_list,
+            dirty_boundaries,
+        );
+    }
+
+    fn encode_ui_pass(
+        sources: SurfaceRenderSources<'_>,
+        config: UiPassConfig<'_>,
+        encoder: &mut wgpu::CommandEncoder,
     ) {
         let has_quads =
-            !self.command_list.commands.is_empty() || !self.command_list.quads.is_empty();
-        let static_text = self.text_renderer.as_ref().map(|l| l.static_renderer());
-        let volatile_text = self.text_renderer.as_ref().map(|l| l.volatile_renderer());
-        if has_quads || static_text.is_some() || volatile_text.is_some() {
-            if has_quads {
-                let dirty_boundaries = if self.needs_full_quad_upload {
-                    None
-                } else {
-                    Some(tree.dirty_boundaries())
-                };
-                self.renderer.prepare_command_list_with_dirty_boundaries(
-                    params.device,
-                    params.queue,
-                    [logical_screen_size.0 as f32, logical_screen_size.1 as f32],
-                    &self.command_list,
-                    dirty_boundaries,
-                );
-            }
+            !sources.command_list.commands.is_empty() || !sources.command_list.quads.is_empty();
+        let static_text = sources
+            .text_renderer
+            .map(LayeredTextRenderer::static_renderer);
+        let volatile_text = config
+            .include_volatile_text
+            .then_some(sources.text_renderer)
+            .flatten()
+            .map(LayeredTextRenderer::volatile_renderer);
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Iris UI Surface Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: config.target_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: config.load_op,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
 
-            let mut render_pass = params
-                .encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Iris UI Surface Render Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: params.target_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+        if has_quads {
+            sources.renderer.render_command_list_with_mode(
+                &mut render_pass,
+                sources.command_list,
+                config.logical_screen_size,
+                config.mode,
+            );
+        }
+        if let Some(txt) = static_text {
+            txt.render(&mut render_pass);
+        }
+        if let Some(volatile_txt) = volatile_text {
+            volatile_txt.render(&mut render_pass);
+        }
+    }
 
-            if has_quads {
-                self.renderer.render_command_list(
-                    &mut render_pass,
-                    &self.command_list,
-                    logical_screen_size,
-                );
-            }
-            if let Some(txt) = static_text {
-                txt.render(&mut render_pass);
-            }
-            if let Some(volatile_txt) = volatile_text {
-                volatile_txt.render(&mut render_pass);
-            }
+    fn encode_cached_composite_pass(
+        &self,
+        logical_screen_size: (u32, u32),
+        physical_screen_size: (u32, u32),
+        target_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Iris UI Cached Composite Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+
+        if !self.command_list.external_texture_quads.is_empty() {
+            self.renderer.render_command_list_with_mode(
+                &mut render_pass,
+                &self.command_list,
+                logical_screen_size,
+                CommandListRenderMode::ExternalTexturesOnly,
+            );
+            render_pass.set_scissor_rect(
+                0,
+                0,
+                physical_screen_size.0.max(1),
+                physical_screen_size.1.max(1),
+            );
         }
 
-        tree.clear_dirty_boundaries();
-        self.needs_full_quad_upload = false;
+        self.surface_cache.draw_blit_in_pass(&mut render_pass);
+
+        if let Some(volatile_txt) = self
+            .text_renderer
+            .as_ref()
+            .map(LayeredTextRenderer::volatile_renderer)
+        {
+            volatile_txt.render(&mut render_pass);
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use irisui_core::{Color, Style};
+struct SurfaceRenderSources<'a> {
+    renderer: &'a IrisRenderer,
+    command_list: &'a DrawCommandList,
+    text_renderer: Option<&'a LayeredTextRenderer>,
+}
 
-    #[test]
-    fn test_collect_text_sections_filters_occluded_background_labels() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root");
-        let label = tree.create_node();
-        tree.add_child(root, label).expect("child");
-        if let Some(node) = tree.get_mut(label) {
-            node.text = Some("Background Text".into());
-            node.computed_rect = Rect::new(20.0, 20.0, 120.0, 20.0);
-        }
-
-        let visible = IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &[], &[]);
-        assert_eq!(visible.len(), 1);
-
-        let occluded = IrisSurfaceHost::collect_text_sections_from_tree(
-            &tree,
-            &[Rect::new(0.0, 0.0, 200.0, 200.0)],
-            &[],
-            &[],
-        );
-        assert!(occluded.is_empty());
-    }
-
-    #[test]
-    fn test_surface_compile_and_hover_flag_logic() {
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root");
-        let child = tree.create_node();
-        tree.add_child(root, child).expect("child");
-        if let Some(node) = tree.get_mut(child) {
-            node.style = Style::new().background(Color::BLUE);
-            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 40.0);
-        }
-        let mut command_list = DrawCommandList::default();
-        let mut scratch = TreeCompilerScratch::default();
-        let mut noop =
-            |_l: &mut DrawCommandList, _id: WidgetId, _n: &WidgetNode, _c: Option<Rect>| {};
-        let mut opts = TreeCompilerOptions::new().with_custom_drawer(&mut noop);
-        compile_tree_draw_commands_with_scratch(
-            &tree,
-            root,
-            &mut opts,
-            &mut scratch,
-            &mut command_list,
-        );
-        assert!(!command_list.quads.is_empty());
-
-        let flags = IrisSurfaceFrameFlags {
-            mode: SurfaceRefreshMode::StructuralRebuild {
-                is_full_shell: true,
-            },
-            caret_blink_redraw: false,
-            needs_text_prepare: true,
-            volatile_needs_text_prepare: true,
-            needs_quad_reupload: true,
-        };
-        assert_eq!(
-            flags.mode,
-            SurfaceRefreshMode::StructuralRebuild {
-                is_full_shell: true
-            }
-        );
-    }
+struct UiPassConfig<'a> {
+    logical_screen_size: (u32, u32),
+    target_view: &'a wgpu::TextureView,
+    load_op: wgpu::LoadOp<wgpu::Color>,
+    mode: CommandListRenderMode,
+    include_volatile_text: bool,
 }

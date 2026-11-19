@@ -19,6 +19,9 @@ pub mod quad;
 pub mod renderer;
 pub mod scissor;
 pub mod surface;
+pub mod surface_cache;
+#[cfg(test)]
+mod surface_tests;
 pub mod texture_array_atlas;
 pub mod texture_pipeline;
 pub mod tree_compiler;
@@ -29,11 +32,14 @@ pub use external_texture_pipeline::{ExternalTexturePipeline, ExternalTextureQuad
 pub use external_textures::ExternalTextures;
 pub use layer_cache::{BoundaryLayerCache, InstanceBufferTarget};
 pub use quad::QuadInstance;
-pub use renderer::{IrisRenderer, IrisTreePrepareParams, compile_tree_for_frame};
+pub use renderer::{
+    CommandListRenderMode, IrisRenderer, IrisTreePrepareParams, compile_tree_for_frame,
+};
 pub use scissor::ScissorStack;
 pub use surface::{
     IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, SurfaceRefreshMode,
 };
+pub use surface_cache::{StaticUiSurfaceCache, SurfaceCacheFrameAction, SurfaceCacheState};
 pub use texture_array_atlas::{TextureArrayAtlas, compute_mip_level_count};
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};
 pub use tree_compiler::{
@@ -50,13 +56,15 @@ pub use tree_compiler_patch::{
 /// Designed to be imported via wildcard `use irisui_wgpu::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     pub use crate::{
-        BoundarySlice, CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
-        ExternalTextureQuadInstance, ExternalTextures, InstanceBufferTarget, IrisRenderer,
-        IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, IrisTreePrepareParams,
-        QuadInstance, ScissorStack, SurfaceRefreshMode, TextureArrayAtlas, TextureQuadInstance,
-        TextureQuadPipeline, TreeCompilerOptions, TreeCompilerScratch, compile_tree_draw_commands,
-        compile_tree_draw_commands_into, compile_tree_draw_commands_with_scratch,
-        compile_tree_for_frame, patch_dirty_boundaries_with_scratch,
+        BoundarySlice, CommandListRenderMode, CustomDrawCallback, DrawCommand, DrawCommandList,
+        ExternalTexturePipeline, ExternalTextureQuadInstance, ExternalTextures,
+        InstanceBufferTarget, IrisRenderer, IrisSurfaceFrameFlags, IrisSurfaceHost,
+        IrisSurfaceRenderParams, IrisTreePrepareParams, QuadInstance, ScissorStack,
+        StaticUiSurfaceCache, SurfaceCacheFrameAction, SurfaceCacheState, SurfaceRefreshMode,
+        TextureArrayAtlas, TextureQuadInstance, TextureQuadPipeline, TreeCompilerOptions,
+        TreeCompilerScratch, compile_tree_draw_commands, compile_tree_draw_commands_into,
+        compile_tree_draw_commands_with_scratch, compile_tree_for_frame,
+        patch_dirty_boundaries_with_scratch,
     };
 }
 
