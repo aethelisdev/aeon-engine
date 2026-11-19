@@ -397,17 +397,18 @@ impl AeEngine {
              encoder: &mut wgpu::CommandEncoder,
              window: &winit::window::Window,
              surface_view: &wgpu::TextureView,
-             viewport_texture_view: Option<&wgpu::TextureView>| {
+             viewport_texture_view: Option<&wgpu::TextureView>,
+             surface_size: (u32, u32)| {
                 ui.sync_console();
-                let win_size = window.inner_size();
                 let prev_scale = ui.scale_factor();
-                ui.on_window_resized(win_size.width, win_size.height);
+                ui.on_window_resized(surface_size.0, surface_size.1);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
                     encoder,
                     window,
                     window_surface_view: surface_view,
+                    surface_size,
                     viewport_texture_view,
                     fps,
                     world,
@@ -426,7 +427,7 @@ impl AeEngine {
                     ui_actions: &mut ui_actions,
                 });
                 if (ui.scale_factor() - prev_scale).abs() > f32::EPSILON {
-                    ui.on_window_resized(win_size.width, win_size.height);
+                    ui.on_window_resized(surface_size.0, surface_size.1);
                 }
                 #[cfg(feature = "mcp")]
                 if let Some(session) = mcp.as_mut() {
@@ -435,7 +436,7 @@ impl AeEngine {
                         queue,
                         encoder,
                         surface_view,
-                        (win_size.width, win_size.height),
+                        surface_size,
                         ui.scale_factor(),
                     );
                 }

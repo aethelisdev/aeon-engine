@@ -18,6 +18,8 @@ pub struct IrisPassParams<'a> {
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub window: &'a Window,
     pub window_surface_view: &'a wgpu::TextureView,
+    /// Authoritative physical pixel dimensions `(width, height)` of the bound `window_surface_view`.
+    pub surface_size: (u32, u32),
     pub viewport_texture_view: Option<&'a wgpu::TextureView>,
     pub viewport_rect: Rect,
     pub is_editing: bool,
@@ -44,16 +46,16 @@ impl EngineUi {
         let mut win = params.window;
         self.workbench.sync_cursor(&mut win);
 
-        let win_size = params.window.inner_size();
-        if win_size.width == 0 || win_size.height == 0 {
+        let (surface_w, surface_h) = params.surface_size;
+        if surface_w == 0 || surface_h == 0 {
             return;
         }
 
         self.expire_status_message();
 
         let zoom = self.scale_factor();
-        let logical_w = win_size.width as f32 / zoom;
-        let logical_h = win_size.height as f32 / zoom;
+        let logical_w = surface_w as f32 / zoom;
+        let logical_h = surface_h as f32 / zoom;
 
         iris_bridge::icons::ensure_editor_icon_atlas(
             &mut self.surface,
@@ -225,7 +227,7 @@ impl EngineUi {
                 queue: params.queue,
                 encoder: params.encoder,
                 target_view: params.window_surface_view,
-                physical_screen_size: (win_size.width, win_size.height),
+                physical_screen_size: (surface_w, surface_h),
                 zoom_factor: zoom,
                 extra_text_occluders: &[],
             },

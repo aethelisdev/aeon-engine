@@ -155,3 +155,28 @@ fn test_render_frame_scratch_sort_extreme_floats_and_infinities() {
             || scratch.transparent_model_draws[0].distance_sq.is_infinite()
     );
 }
+
+#[test]
+fn test_resolve_surface_target_size_prevents_window_maximize_scissor_mismatch() {
+    // When swapchain texture is still 800x600 while OS window.inner_size() has jumped to 2516x1440,
+    // the authoritative swapchain texture dimensions (800, 600) must be returned so set_scissor_rect
+    // never exceeds the bound render target.
+    assert_eq!(
+        resolve_surface_target_size((800, 600), (2516, 1440)),
+        (800, 600)
+    );
+
+    // Zero or uninitialized texture dimensions fall back safely to configured size.
+    assert_eq!(
+        resolve_surface_target_size((0, 600), (1920, 1080)),
+        (1920, 1080)
+    );
+    assert_eq!(
+        resolve_surface_target_size((800, 0), (1920, 1080)),
+        (1920, 1080)
+    );
+    assert_eq!(
+        resolve_surface_target_size((0, 0), (1280, 720)),
+        (1280, 720)
+    );
+}

@@ -23,12 +23,11 @@ impl EngineUi {
         // Track live engine frames per second (FPS) directly from timing parameters
         self.fps = params.fps;
 
-        let win_size = params.window.inner_size();
+        let (surface_w, surface_h) = params.surface_size;
         let zoom = self.scale_factor();
-        let viewport_rect = self.workbench.prepare_viewport_layout(Size::new(
-            win_size.width as f32 / zoom,
-            win_size.height as f32 / zoom,
-        ));
+        let viewport_rect = self
+            .workbench
+            .prepare_viewport_layout(Size::new(surface_w as f32 / zoom, surface_h as f32 / zoom));
 
         // Synchronize engine asset loading state with autonomous DialogHost progress modal
         if self.is_loading_assets {
@@ -80,6 +79,7 @@ impl EngineUi {
             encoder: params.encoder,
             window: params.window,
             window_surface_view: params.window_surface_view,
+            surface_size: params.surface_size,
             viewport_texture_view: params.viewport_texture_view,
             viewport_rect,
             is_editing: *params.mode == ae_core::modules::EngineMode::Edit,

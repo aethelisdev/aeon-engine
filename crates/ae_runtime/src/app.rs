@@ -497,7 +497,8 @@ impl RuntimeSession {
                          encoder: &mut wgpu::CommandEncoder,
                          _window: &Window,
                          surface_view: &wgpu::TextureView,
-                         _viewport_view: Option<&wgpu::TextureView>| {
+                         _viewport_view: Option<&wgpu::TextureView>,
+                         _surface_size: (u32, u32)| {
             hud_overlay.render(device, queue, encoder, surface_view);
             // Return zero rect so RenderState does not allocate an offscreen viewport_texture
             // and renders the 3D/2D scene directly onto surface_view behind the HUD.

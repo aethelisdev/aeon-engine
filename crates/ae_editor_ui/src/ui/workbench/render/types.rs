@@ -15,6 +15,8 @@ pub struct EditorUiRenderParams<'a> {
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub window: &'a Window,
     pub window_surface_view: &'a wgpu::TextureView,
+    /// Authoritative physical pixel dimensions `(width, height)` of the bound `window_surface_view`.
+    pub surface_size: (u32, u32),
     pub viewport_texture_view: Option<&'a wgpu::TextureView>,
     pub fps: f32,
     pub world: &'a hecs::World,

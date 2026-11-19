@@ -24,6 +24,9 @@ pub fn quantize_dimension(dim: u32, bucket_size: u32) -> u32 {
 }
 
 /// Type alias for the UI render callback to reduce type complexity.
+///
+/// The seventh argument `(u32, u32)` provides the authoritative physical pixel dimensions
+/// `(width, height)` of the acquired swapchain surface texture for the current frame.
 pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
     &wgpu::Device,
     &wgpu::Queue,
@@ -31,6 +34,7 @@ pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
     &Window,
     &wgpu::TextureView,
     Option<&wgpu::TextureView>,
+    (u32, u32),
 ) -> ViewportRect;
 
 /// Parameters for executing a single frame rendering pipeline pass.
@@ -47,17 +51,49 @@ pub struct RenderFrameParams<'a> {
     pub ui_renderer: Option<UiRenderCallback<'a>>,
 }
 
-/// Context holding the acquired swapchain surface texture, its view, and presentation latency.
+/// Context holding the acquired swapchain surface texture, its view, physical dimensions, and presentation latency.
 pub(crate) struct AcquiredFrameSurface {
     /// Active swapchain output texture acquired from the surface.
     pub output: wgpu::SurfaceTexture,
     /// Default texture view created for presentation rendering.
     pub surface_view: wgpu::TextureView,
+    /// Authoritative physical pixel dimensions `(width, height)` of the acquired swapchain texture.
+    pub surface_size: (u32, u32),
     /// Latency elapsed during swapchain texture acquisition.
     pub acquire_wait: std::time::Duration,
 }
 
+/// Resolves the authoritative physical `(width, height)` for UI and post-process passes targeting
+/// a swapchain texture, falling back to `fallback_size` only if either texture dimension is zero.
+///
+/// Prevents asynchronous OS window-manager maximize/resize races where `window.inner_size()` reports
+/// a new resolution before the WGPU swapchain texture has been reconfigured, which would otherwise
+/// cause `set_scissor_rect` validation panics against the active render target.
+#[inline]
+#[must_use]
+pub const fn resolve_surface_target_size(
+    texture_size: (u32, u32),
+    fallback_size: (u32, u32),
+) -> (u32, u32) {
+    if texture_size.0 > 0 && texture_size.1 > 0 {
+        texture_size
+    } else {
+        fallback_size
+    }
+}
+
 impl RenderState {
+    /// Synchronizes swapchain surface and post-process targets if the OS window inner dimensions
+    /// changed asynchronously (e.g. during window manager maximize/restore transitions) before
+    /// `WindowEvent::Resized` was dispatched.
+    #[inline]
+    pub(crate) fn sync_surface_to_window_size(&mut self) {
+        let live_size = self.window.inner_size();
+        if live_size.width > 0 && live_size.height > 0 && live_size != self.size {
+            self.resize(live_size);
+        }
+    }
+
     /// Evaluates the active environment color converted from sRGB to linear gamma space.
     ///
     /// Avoids repeating redundant perceptual powf(2.2) conversions across render passes.
@@ -85,6 +121,11 @@ impl RenderState {
             other => return Err(RenderError::Other(format!("{:?}", other))),
         };
         let acquire_wait = acquire_start.elapsed();
+        let tex_extent = output.texture.size();
+        let surface_size = resolve_surface_target_size(
+            (tex_extent.width, tex_extent.height),
+            (self.config.width, self.config.height),
+        );
         let surface_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -92,6 +133,7 @@ impl RenderState {
         Ok(AcquiredFrameSurface {
             output,
             surface_view,
+            surface_size,
             acquire_wait,
         })
     }
@@ -154,6 +196,7 @@ impl RenderState {
             options,
             ui_renderer,
         } = params;
+        self.sync_surface_to_window_size();
         if self.size.width == 0 || self.size.height == 0 {
             return Ok(());
         }
@@ -225,6 +268,7 @@ impl RenderState {
             let AcquiredFrameSurface {
                 output,
                 surface_view,
+                surface_size,
                 acquire_wait,
             } = self.acquire_surface_frame()?;
             let mut encoder = self
@@ -261,6 +305,7 @@ impl RenderState {
                     &self.window,
                     &surface_view,
                     vt_view,
+                    surface_size,
                 );
             }
 
@@ -570,6 +615,7 @@ impl RenderState {
         let AcquiredFrameSurface {
             output,
             surface_view,
+            surface_size,
             acquire_wait,
         } = match early_acquired_surface {
             Some(s) => s,
@@ -586,6 +632,7 @@ impl RenderState {
                 &self.window,
                 &surface_view,
                 vt_view,
+                surface_size,
             );
         }
         let ui_pass_record_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
@@ -625,6 +672,7 @@ impl RenderState {
         let AcquiredFrameSurface {
             output,
             surface_view,
+            surface_size,
             acquire_wait,
         } = self.acquire_surface_frame()?;
         let mut encoder = self
@@ -699,6 +747,7 @@ impl RenderState {
                 &self.window,
                 &surface_view,
                 vt_view,
+                surface_size,
             );
         }
         let ui_pass_record_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
