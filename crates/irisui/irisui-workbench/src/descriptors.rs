@@ -22,7 +22,9 @@ pub use menu::{
     MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
     MenuSectionDescriptor,
 };
-pub use panel::{PanelMetadata, ScopedPanelContext, ScopedWorkbenchPanel, WorkbenchPanel};
+pub use panel::{
+    LiveRefreshInterval, PanelMetadata, ScopedPanelContext, ScopedWorkbenchPanel, WorkbenchPanel,
+};
 pub use panel_catalog::{
     PanelCatalog, PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer,
 };
