@@ -273,13 +273,21 @@ struct ModeToggleBtnProps {
     action: AssetsPanelAction,
 }
 
+#[inline]
+const fn mode_toggle_tint(is_active: bool) -> Color {
+    if is_active {
+        Color::rgba(0.0, 0.90, 1.0, 1.0)
+    } else {
+        Color::rgba(0.65, 0.70, 0.80, 1.0)
+    }
+}
+
 /// Helper to render a selectable view mode toggle button.
 fn build_mode_toggle_btn(
     scope: &mut UiScope<'_>,
     props: ModeToggleBtnProps,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let action_to_emit = props.action;
     scope
         .container_tagged_resp(
             "ModeToggleBtn",
@@ -287,20 +295,16 @@ fn build_mode_toggle_btn(
             WidgetRole::Button,
             props.tag,
             |btn| {
-                let tint = if props.is_active {
-                    Color::rgba(0.0, 0.90, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.65, 0.70, 0.80, 1.0)
-                };
-                if let Some(uv) = props.icon_uv {
-                    btn.icon(uv, tint, 12.0);
-                }
+                props
+                    .icon_uv
+                    .into_iter()
+                    .for_each(|uv| btn.icon(uv, mode_toggle_tint(props.is_active), 12.0));
                 if props.is_active {
                     btn.label_styled_passive(
                         "ModeToggleText",
                         props.label,
                         11.0,
-                        tint,
+                        mode_toggle_tint(true),
                         TextAlign::Center,
                         Style::new(),
                     );
@@ -309,15 +313,15 @@ fn build_mode_toggle_btn(
                         "ModeToggleText",
                         props.label,
                         11.0,
-                        (tint, Color::WHITE),
+                        (mode_toggle_tint(false), Color::WHITE),
                         TextAlign::Center,
                         Style::new(),
                     );
                 }
             },
         )
-        .on_click(move || {
-            actions.push(action_to_emit);
+        .on_click(|| {
+            actions.push(props.action);
         });
 }
 

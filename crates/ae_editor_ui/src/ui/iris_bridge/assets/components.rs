@@ -289,17 +289,15 @@ pub fn asset_grid_card(
     rel_pos: Point,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> WidgetResponse {
-    let card_bg = scope.theme().card_bg;
-    let card_border = scope.theme().card_border;
-    let resp = scope
+    scope
         .container_tagged_resp(
             "AssetGridCard",
             asset_card_container_style(
                 rel_pos,
                 is_selected,
                 resolve_category_color(item.category),
-                card_bg,
-                card_border,
+                scope.theme().card_bg,
+                scope.theme().card_border,
             ),
             WidgetRole::Button,
             encode_item_tag(item_idx),
@@ -393,10 +391,11 @@ pub fn asset_grid_card(
             },
         )
         .on_drag(|| {
-            let payload = TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
-                .with_badge(item.category.badge(), item.category.badge_color())
-                .into_erased();
-            actions.push(AssetsPanelAction::StartAssetDrag(payload));
+            actions.push(AssetsPanelAction::StartAssetDrag(
+                TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
+                    .with_badge(item.category.badge(), item.category.badge_color())
+                    .into_erased(),
+            ));
         })
         .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
         .on_double_click(|| {
@@ -404,15 +403,10 @@ pub fn asset_grid_card(
                 item.path.clone(),
                 item.category,
             ))
-        });
-
-    if (resp.clicked() || resp.secondary_clicked() || (resp.pressed() && !resp.dragged()))
-        && !resp.double_clicked()
-    {
-        actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
-    }
-
-    resp
+        })
+        .on_select_interaction(|| {
+            actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+        })
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
@@ -427,7 +421,7 @@ pub fn asset_list_row(
     is_selected: bool,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> WidgetResponse {
-    let resp = scope
+    scope
         .container_tagged_resp(
             "AssetListRow",
             asset_list_row_style(is_selected),
@@ -536,20 +530,16 @@ pub fn asset_list_row(
             },
         )
         .on_drag(|| {
-            let payload = TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
-                .with_badge(item.category.badge(), item.category.badge_color())
-                .into_erased();
-            actions.push(AssetsPanelAction::StartAssetDrag(payload));
+            actions.push(AssetsPanelAction::StartAssetDrag(
+                TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
+                    .with_badge(item.category.badge(), item.category.badge_color())
+                    .into_erased(),
+            ));
         })
-        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag));
-
-    if (resp.clicked() || resp.secondary_clicked() || (resp.pressed() && !resp.dragged()))
-        && !resp.double_clicked()
-    {
-        actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
-    }
-
-    resp
+        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
+        .on_select_interaction(|| {
+            actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+        })
 }
 
 #[inline]

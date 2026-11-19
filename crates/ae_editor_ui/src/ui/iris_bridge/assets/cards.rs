@@ -1,91 +1,50 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Asset Browser Interactive Card Grid View.
+//! Responsive Asset Grid Cards Renderer.
 //!
-//! Renders responsive wrapping grid cards with category badges, memory status indicators,
-//! canonical vector icons, truncated names, and file size metadata via 100% declarative
-//! [`UiScope`] widgets.
-//!
-//! Zero per-frame heap allocations: card items and paths are referenced directly without
-//! copying metadata into parallel target collections.
+//! Renders responsive grid cards via [`UiScope::virtual_grid`] with category badges,
+//! VRAM status dots, texture thumbnails or vector atlas icons, and truncated titles.
 
-use super::components::{
-    ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, asset_empty_notice, asset_grid_card,
+pub use super::components::{
+    ASSET_CARD_GAP as CARD_GAP, ASSET_CARD_HEIGHT as CARD_HEIGHT, ASSET_CARD_WIDTH as CARD_WIDTH,
+    asset_empty_notice, asset_grid_card, resolve_category_color, resolve_category_icon,
 };
-use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};
+
+use super::types::{
+    ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
+    AssetsPanelAction, AssetsPanelParams, encode_item_tag,
+};
+use crate::assets::types::AssetItem;
 use irisui::prelude::*;
 
-/// Standard width of an asset grid card in logical pixels.
-pub const CARD_WIDTH: f32 = ASSET_CARD_WIDTH;
-
-/// Standard height of an asset grid card in logical pixels.
-pub const CARD_HEIGHT: f32 = ASSET_CARD_HEIGHT;
-
-/// Horizontal and vertical spacing between adjacent grid cards.
-pub const CARD_SPACING: f32 = ASSET_CARD_GAP;
-
-/// Re-export canonical category color resolver for module consumers.
-pub use super::components::resolve_category_color;
-/// Re-export canonical category icon resolver for module consumers.
-pub use super::components::resolve_category_icon;
-
-/// Constructs the responsive grid cards directly via a declarative [`UiScope`].
-///
-/// Uses 100% declarative UI scope widgets with zero imperative node allocations.
-/// Handles autonomous scrolling via [`WidgetRole::ScrollAreaViewport`], asset selection
-/// via single click, and instantiation into the active scene via double-click.
+/// Builds the responsive asset grid inside `vp_rect` via [`UiScope::virtual_grid`].
 pub fn build_asset_grid_cards_scope(
     scope: &mut UiScope<'_>,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    if params.filtered_items.is_empty() {
-        asset_empty_notice(scope, vp_rect, params.search_query);
-        return;
-    }
-
-    let scroll_y = scope.scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
-
     scope
-        .container_tagged_resp(
-            "AssetGridContainer",
-            Style::new()
-                .flex_col()
-                .width(vp_rect.width)
-                .height(vp_rect.height)
-                .scroll_offset_y(scroll_y)
-                .clip_children(true),
-            WidgetRole::ScrollAreaViewport,
-            ASSETS_TAG_CONTENT_VIEWPORT,
-            |grid_scope| {
-                for (item_idx, card_rect) in asset_responsive_grid().compute_visible_cells(
-                    vp_rect,
-                    params.filtered_items.len(),
-                    scroll_y,
-                ) {
-                    let card_pos =
-                        Point::new(card_rect.x - vp_rect.x, card_rect.y - vp_rect.y + scroll_y);
-                    render_grid_card(
-                        grid_scope,
-                        item_idx as u32,
-                        &params.filtered_items[item_idx],
-                        card_pos,
-                        params,
-                        actions,
-                    );
-                }
-            },
+        .virtual_grid(
+            params.filtered_items.len(),
+            VirtualGridConfig::new("AssetGridContainer", ASSETS_TAG_CONTENT_VIEWPORT, vp_rect)
+                .with_cell_size(CARD_WIDTH, CARD_HEIGHT, CARD_GAP)
+                .with_scrollbar_tags(ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SCROLLBAR_THUMB),
         )
-        .content_size(
-            scope,
-            Size::new(
-                vp_rect.width,
-                asset_responsive_grid()
-                    .compute_content_height(params.filtered_items.len(), vp_rect.width),
-            ),
-        )
+        .empty_state(|vp| {
+            asset_empty_notice(vp, vp_rect, params.search_query);
+        })
+        .render_item(|grid_scope, item_idx, card_pos| {
+            render_grid_card(
+                grid_scope,
+                item_idx as u32,
+                &params.filtered_items[item_idx],
+                card_pos,
+                params,
+                actions,
+            );
+        })
         .context_menu(scope, |menu| {
             super::context_menu::render_folder_context_menu_items(
                 menu,
@@ -95,36 +54,24 @@ pub fn build_asset_grid_cards_scope(
         });
 }
 
-/// Constructs the canonical responsive layout grid for asset browser cards.
-#[inline]
-fn asset_responsive_grid() -> ResponsiveGrid {
-    ResponsiveGrid::new(CARD_WIDTH, CARD_HEIGHT)
-        .spacing(CARD_SPACING, CARD_SPACING)
-        .padding(10.0, 10.0)
-}
-
-/// Renders an individual asset grid card with its context menu into the active scope.
+/// Renders an individual asset grid card using declarative [`asset_grid_card`].
 fn render_grid_card(
     scope: &mut UiScope<'_>,
     item_idx: u32,
-    item: &crate::assets::types::AssetItem,
-    card_pos: Point,
+    item: &AssetItem,
+    rel_pos: Point,
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let item_tag = super::types::encode_item_tag(item_idx);
-    let is_clicked_this_frame = scope.is_tag_clicked(item_tag);
-    let is_pressed_this_frame = scope.is_tag_pressed(item_tag);
-    let is_selected =
-        is_clicked_this_frame || is_pressed_this_frame || params.selected_asset == Some(&item.path);
-
     asset_grid_card(
         scope,
         item_idx,
         item,
         params.thumbnail_layers.get(&item.path).copied(),
-        is_selected,
-        card_pos,
+        scope.is_tag_clicked(encode_item_tag(item_idx))
+            || scope.is_tag_pressed(encode_item_tag(item_idx))
+            || params.selected_asset == Some(&item.path),
+        rel_pos,
         actions,
     )
     .context_menu(scope, |menu| {
@@ -137,7 +84,7 @@ mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
     use std::collections::HashMap;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     fn test_assets_params<'a>(
         items: &'a [AssetItem],
@@ -146,8 +93,8 @@ mod tests {
         AssetsPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
             screen_size: (1280.0, 720.0),
-            current_folder: std::path::Path::new("assets"),
-            search_query: "nonexistent",
+            current_folder: Path::new("assets"),
+            search_query: "",
             active_category: AssetCategory::All,
             view_mode: AssetViewMode::Grid,
             selected_asset: None,
@@ -191,7 +138,6 @@ mod tests {
         let layers = HashMap::new();
         let mut actions = Vec::new();
 
-        // 1. Empty items case -> triggers asset_empty_notice
         build_asset_grid_cards_scope(
             &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
@@ -205,7 +151,6 @@ mod tests {
             "Empty notice container should be emitted when items are empty"
         );
 
-        // 2. Populated items case -> triggers asset_grid_card placed side-by-side
         let items = [
             test_asset_item("hero.gltf", 4096, true),
             test_asset_item("sword.gltf", 2048, false),

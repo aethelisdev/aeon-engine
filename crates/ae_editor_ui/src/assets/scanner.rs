@@ -13,16 +13,18 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Scans the file system and active asset storages if the scan interval has elapsed.
+///
+/// Returns `true` if a rescan occurred and the discovered item or subfolder list changed.
 pub fn rescan_assets_if_needed(
     state: &mut AssetBrowserState,
     models: &AssetStorage<ModelAsset>,
     textures: &AssetStorage<TextureAsset>,
     shaders: &AssetStorage<ShaderAsset>,
-) {
+) -> bool {
     if state.last_scan_time.elapsed() < Duration::from_millis(1500)
         && !state.cached_items.is_empty()
     {
-        return;
+        return false;
     }
 
     state.last_scan_time = Instant::now();
@@ -202,8 +204,11 @@ pub fn rescan_assets_if_needed(
     }
 
     discovered_subfolders.sort();
+    let changed = state.cached_items.len() != discovered_items.len()
+        || state.subfolders != discovered_subfolders;
     state.cached_items = discovered_items;
     state.subfolders = discovered_subfolders;
+    changed
 }
 
 fn walk_directory(

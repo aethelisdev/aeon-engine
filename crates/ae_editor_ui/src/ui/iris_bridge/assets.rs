@@ -24,6 +24,8 @@ pub mod preview;
 mod tag_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_modals;
 pub mod toolbar;
 pub mod tree;
 pub mod types;
@@ -34,23 +36,17 @@ pub use components::{
     FOLDER_TREE_ROW_HEIGHT, asset_breadcrumb_bar, asset_empty_notice, asset_folder_tree_item,
     asset_grid_card, asset_list_row, resolve_category_color, resolve_category_icon,
 };
-pub use context_menu::{
-    build_assets_context_menu, build_assets_context_menu_overlay, render_asset_context_menu_items,
-    render_folder_context_menu_items,
-};
+pub use context_menu::{render_asset_context_menu_items, render_folder_context_menu_items};
 pub use drag_overlay::build_asset_drag_overlays_scope;
-pub use panel::{build_assets_panel, render_assets_dialog_host};
+pub use panel::build_assets_panel;
 pub use types::AssetClickTracker;
 pub use types::{
-    ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_DOMAIN,
-    ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_PANEL_ROOT,
-    ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SEARCH_CLEAR,
-    ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_TOGGLE_SIDEBAR, ASSETS_TAG_TREE_SCROLLBAR_THUMB,
-    ASSETS_TAG_TREE_SCROLLBAR_TRACK, ASSETS_TAG_TREE_VIEWPORT, ASSETS_TAG_VIEW_GRID,
-    ASSETS_TAG_VIEW_LIST, AssetItemAction, AssetPreviewModalState, AssetsContextMenuAction,
+    ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_ENGINE_CONTENT,
+    ASSETS_TAG_IMPORT, ASSETS_TAG_PANEL_ROOT, ASSETS_TAG_PREVIEW_MODAL, ASSETS_TAG_SCROLLBAR_THUMB,
+    ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT,
+    ASSETS_TAG_TOGGLE_SIDEBAR, ASSETS_TAG_TREE_SCROLLBAR_THUMB, ASSETS_TAG_TREE_SCROLLBAR_TRACK,
+    ASSETS_TAG_TREE_VIEWPORT, ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST, AssetPreviewModalState,
     AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
-    AssetsPanelState, AssetsState, encode_breadcrumb_tag, encode_chip_tag, encode_ctx_item_tag,
-    encode_item_inspect_tag, encode_item_spawn_tag, encode_item_tag, encode_tree_chevron_tag,
-    encode_tree_row_tag, is_assets_tag, parse_breadcrumb_tag, parse_chip_tag, parse_ctx_item_tag,
-    parse_item_tag, parse_tree_tag, resolve_assets_ctx_action,
+    AssetsPanelState, AssetsState, encode_breadcrumb_tag, encode_chip_tag, encode_item_inspect_tag,
+    encode_item_spawn_tag, encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag,
 };

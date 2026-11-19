@@ -20,8 +20,6 @@ pub fn build_asset_footer_scope(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let footer_bg = scope.theme().toolbar_bg;
-    let footer_border = scope.theme().toolbar_border;
     scope.container_named(
         "AssetsFooter",
         Style::new()
@@ -30,8 +28,8 @@ pub fn build_asset_footer_scope(
             .justify_content(JustifyContent::SpaceBetween)
             .padding_insets(Insets::symmetric(0.0, 8.0))
             .height(ASSETS_FOOTER_HEIGHT)
-            .background(footer_bg)
-            .border(1.0, footer_border),
+            .background(scope.theme().toolbar_bg)
+            .border(1.0, scope.theme().toolbar_border),
         |footer| {
             // 1. Left Group: Sidebar Toggle + Folder Icon + Folder Path
             footer.container_named(
@@ -74,7 +72,7 @@ pub fn build_asset_footer_scope(
                 },
             );
 
-            // 2. Right Group: Real-time Telemetry (Single-pass zero-allocation iterator)
+            // 2. Right Group: Real-time Telemetry
             footer.label_styled_passive(
                 "FooterTelemetry",
                 format_footer_telemetry(params),
@@ -99,27 +97,35 @@ fn sidebar_toggle_button_style() -> Style {
 }
 
 /// Computes the telemetry summary text for the asset browser footer.
-///
-/// Single-pass fold iterator referencing pre-cached item buffers with zero heap allocations.
 #[inline]
 fn format_footer_telemetry(params: &AssetsPanelParams<'_>) -> String {
-    let (total_count, in_memory_count, total_size) = params
-        .cached_items
-        .iter()
-        .filter(|item| {
-            params.show_engine_content || item.source != crate::assets::types::AssetSource::Engine
-        })
-        .fold((0usize, 0usize, 0u64), |(count, mem, size), item| {
-            (
-                count + 1,
-                mem + usize::from(item.is_loaded_in_memory),
-                size + item.file_size_bytes,
-            )
-        });
+    format_telemetry_totals(
+        params.filtered_items.len(),
+        params
+            .cached_items
+            .iter()
+            .filter(|item| {
+                params.show_engine_content
+                    || item.source != crate::assets::types::AssetSource::Engine
+            })
+            .fold((0usize, 0usize, 0u64), |(count, mem, size), item| {
+                (
+                    count + 1,
+                    mem + usize::from(item.is_loaded_in_memory),
+                    size + item.file_size_bytes,
+                )
+            }),
+    )
+}
 
+#[inline]
+fn format_telemetry_totals(
+    filtered_len: usize,
+    (total_count, in_memory_count, total_size): (usize, usize, u64),
+) -> String {
     format!(
         "{} Items in Scope ({} Total, {} in VRAM)  •  Disk: {}",
-        params.filtered_items.len(),
+        filtered_len,
         total_count,
         in_memory_count,
         AssetBrowserState::format_file_size(total_size)

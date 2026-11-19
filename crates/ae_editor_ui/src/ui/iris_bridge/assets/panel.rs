@@ -6,7 +6,6 @@
 //! Ties together top breadcrumb and action navigation, category filter chips,
 //! left folder tree sidebar, scrollable card/table views, and telemetry footer
 //! using a pure declarative Taffy flexbox layout hierarchy without manual pixel math.
-use std::path::PathBuf;
 
 use super::cards::build_asset_grid_cards_scope;
 use super::chips::build_category_chips_scope;
@@ -14,54 +13,34 @@ use super::footer::build_asset_footer_scope;
 use super::list::build_asset_list_table_scope;
 use super::toolbar::build_asset_toolbar_scope;
 use super::tree::build_folder_tree_sidebar_scope;
+pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP_BAR_HEIGHT};
 use super::types::{
     ASSETS_TAG_PANEL_ROOT, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
 };
 use crate::assets::types::AssetViewMode;
 use irisui::prelude::*;
-use irisui::workbench::WorkbenchUiScopeExt;
-
-pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP_BAR_HEIGHT};
+use std::path::PathBuf;
 
 /// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree`.
-///
-/// Uses an idiomatic nested `UiScope` closure tree adhering strictly to modern Taffy flexbox
-/// standards with zero imperative node allocations, zero target collections, and zero per-frame clones.
-/// Gathers user interaction events into `actions` for Redux/Action-driven state updates.
-///
-/// Returns [`AssetsPanelLayoutMetrics`] describing the outer panel bounds, sidebar geometry,
-/// asset content viewport, and optional floating context menu card bounds.
 pub fn build_assets_panel(
     scope: &mut UiScope<'_>,
     params: &AssetsPanelParams<'_>,
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> AssetsPanelLayoutMetrics {
-    let metrics = params.layout_metrics();
-
     scope
         .panel("AssetsPanelRoot")
         .tagged(ASSETS_TAG_PANEL_ROOT)
         .background_themed(|t| t.panel_bg)
         .bounds(params.panel_rect)
         .show(|panel_scope| {
-            // 2. Top Header Toolbar (Pure Flexbox Breadcrumbs + Controls)
+            // 1. Top Header Toolbar
             build_asset_toolbar_scope(panel_scope, params, actions);
 
-            // 3. Category Filter Chips Row (Fixed height, horizontal flex row)
-            build_category_chips_scope(
-                panel_scope,
-                Rect::new(
-                    params.panel_rect.x,
-                    params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT,
-                    params.panel_rect.width,
-                    ASSETS_CHIPS_BAR_HEIGHT,
-                ),
-                params,
-                actions,
-            );
+            // 2. Category Filter Chips Row
+            build_category_chips_scope(panel_scope, params, actions);
 
-            // 4. Middle Body (Pure Taffy flex_row with flex_grow(1.0) taking all available space)
+            // 3. Middle Body
             panel_scope.container_named(
                 "AssetsPanelBody",
                 Style::new()
@@ -69,14 +48,15 @@ pub fn build_assets_panel(
                     .flex_grow(1.0)
                     .width(params.panel_rect.width),
                 |body_scope| {
-                    if let Some(sb_rect) = metrics.sidebar_rect {
-                        build_folder_tree_sidebar_scope(
-                            body_scope, sb_rect, params, tree_state, actions,
-                        );
-                    }
-
-                    let content_bg = body_scope.theme().panel_bg;
-                    let mut dropped_files: Option<Vec<PathBuf>> = None;
+                    params
+                        .layout_metrics()
+                        .sidebar_rect
+                        .into_iter()
+                        .for_each(|sb_rect| {
+                            build_folder_tree_sidebar_scope(
+                                body_scope, sb_rect, params, tree_state, actions,
+                            );
+                        });
 
                     body_scope
                         .drop_target_styled(
@@ -84,17 +64,20 @@ pub fn build_assets_panel(
                             Style::new()
                                 .flex_col()
                                 .flex_grow(1.0)
-                                .background(content_bg),
+                                .background(body_scope.theme().panel_bg),
                             |target_scope, is_hovered| {
                                 if is_hovered {
-                                    let accent = target_scope.theme().accent;
                                     target_scope.container_named(
                                         "AssetDropIndicator",
                                         Style::new()
-                                            .width(metrics.content_viewport_rect.width)
+                                            .width(
+                                                params.layout_metrics().content_viewport_rect.width,
+                                            )
                                             .height(28.0)
-                                            .background(accent.with_alpha(0.20))
-                                            .border(1.0, accent)
+                                            .background(
+                                                target_scope.theme().accent.with_alpha(0.20),
+                                            )
+                                            .border(1.0, target_scope.theme().accent)
                                             .align_items(AlignItems::Center)
                                             .justify_content(JustifyContent::Center),
                                         |indicator| {
@@ -108,7 +91,7 @@ pub fn build_assets_panel(
                                     AssetViewMode::Grid => {
                                         build_asset_grid_cards_scope(
                                             target_scope,
-                                            metrics.content_viewport_rect,
+                                            params.layout_metrics().content_viewport_rect,
                                             params,
                                             actions,
                                         );
@@ -116,7 +99,7 @@ pub fn build_assets_panel(
                                     AssetViewMode::List => {
                                         build_asset_list_table_scope(
                                             target_scope,
-                                            metrics.content_viewport_rect,
+                                            params.layout_metrics().content_viewport_rect,
                                             params,
                                             actions,
                                         );
@@ -125,50 +108,24 @@ pub fn build_assets_panel(
                             },
                         )
                         .on_drop(|paths| {
-                            dropped_files = Some(paths.to_vec());
+                            actions.push(AssetsPanelAction::ImportDroppedFiles(paths.to_vec()));
                         });
-
-                    if let Some(files) = dropped_files {
-                        actions.push(AssetsPanelAction::ImportDroppedFiles(files));
-                    }
                 },
             );
 
-            // 5. Bottom Status Footer (Pure Flexbox Telemetry + Sidebar Toggle)
+            // 4. Bottom Status Footer
             build_asset_footer_scope(panel_scope, params, actions);
         });
 
-    // 6. Right-Click Floating Context Menu is rendered on top-level UiTree (Layer 2)
-    // to prevent clipping and preserve precise absolute screen coordinates.
-
-    // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
+    // 5. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(scope, params);
     if params.active_preview_modal.is_some()
         && (scope.is_tag_clicked(irisui::widgets::modal::MODAL_TAG_CLOSE)
             || scope.is_tag_clicked(irisui::widgets::modal::MODAL_TAG_SCRIM))
     {
+        scope.close_modal(super::types::ASSETS_TAG_PREVIEW_MODAL);
         actions.push(AssetsPanelAction::CloseInspectModal);
     }
 
-    metrics
-}
-
-/// Declaratively renders the assets panel's autonomous dialog host onto [`UiLayer::Modal`].
-///
-/// Connects modal dialogues (confirmations, inputs, and custom alerts) directly into
-/// the panel's active [`UiScope`] by delegating to [`WorkbenchUiScopeExt::dialog_host`].
-pub fn render_assets_dialog_host(
-    scope: &mut UiScope<'_>,
-    host: &mut irisui::workbench::DialogHost<AssetsPanelAction>,
-    bus: &mut irisui::workbench::ActionBus<AssetsPanelAction>,
-    screen_size: (f32, f32),
-) {
-    if host.is_active() {
-        scope.dialog_host(
-            host,
-            Rect::new(0.0, 0.0, screen_size.0, screen_size.1),
-            false,
-            bus,
-        );
-    }
+    params.layout_metrics()
 }

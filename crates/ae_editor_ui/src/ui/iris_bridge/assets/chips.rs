@@ -1,116 +1,88 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Category Filter Chips Bar for Iris UI Asset Browser.
+//! Category Filter Chips Bar for the Iris UI Content / Asset Browser.
 //!
-//! Renders categorized asset filter badges with dynamic count indicators
-//! and synchronized selection state using pure declarative method chaining.
+//! Renders an interactive horizontal strip of category filter pills:
+//! `All`, `3D Models`, `Textures`, `Shaders`, `Scenes`, `Materials`, `Audio`.
 
+use super::panel::ASSETS_CHIPS_BAR_HEIGHT;
 use super::types::{AssetsPanelAction, AssetsPanelParams, encode_chip_tag};
-use crate::assets::types::{AssetCategory, AssetSource};
+use crate::assets::types::AssetCategory;
 use irisui::prelude::*;
 
-/// Canonical category order and display labels for the Asset Browser filter chips bar.
-pub const CATEGORIES: [(AssetCategory, &str); 7] = [
-    (AssetCategory::All, "All Assets"),
-    (AssetCategory::Models3D, "3D Meshes"),
-    (AssetCategory::Textures2D, "Textures"),
-    (AssetCategory::Shaders, "Shaders"),
-    (AssetCategory::Scenes, "Scenes"),
-    (AssetCategory::Materials, "Materials"),
-    (AssetCategory::Audio, "Audio"),
+/// Category definitions with display label and pill width in logical pixels.
+pub const CATEGORY_CHIPS: &[(AssetCategory, &str, f32)] = &[
+    (AssetCategory::All, "All", 46.0),
+    (AssetCategory::Models3D, "3D Models", 82.0),
+    (AssetCategory::Textures2D, "Textures", 74.0),
+    (AssetCategory::Shaders, "Shaders", 70.0),
+    (AssetCategory::Scenes, "Scenes", 66.0),
+    (AssetCategory::Materials, "Materials", 76.0),
+    (AssetCategory::Audio, "Audio", 60.0),
 ];
 
-/// Declaratively emits the category filter chips bar into the active [`UiScope`].
-///
-/// Features dynamic item counters, category accent borders, and 64-bit semantic tags
-/// (`encode_chip_tag`) for zero-allocation $O(1)$ hit-testing.
-/// Clicking a chip appends [`AssetsPanelAction::SelectCategory`] to the action stream.
+/// Declarative construction of the Category Filter Chips horizontal bar using [`UiScope`].
 pub fn build_category_chips_scope(
     scope: &mut UiScope<'_>,
-    chips_rect: Rect,
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope.container_named(
-        "AssetsCategoryChipsRow",
+        "CategoryChipsRow",
         Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::FlexStart)
-            .width(chips_rect.width)
-            .height(chips_rect.height)
-            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .gap(6.0),
+            .width(params.panel_rect.width)
+            .height(ASSETS_CHIPS_BAR_HEIGHT)
+            .padding_insets(Insets::symmetric(0.0, 8.0))
+            .gap(6.0)
+            .background(scope.theme().panel_bg),
         |row| {
-            for (idx, &(cat, label)) in CATEGORIES.iter().enumerate() {
-                let chip_tag = encode_chip_tag(idx as u8);
-                let is_selected = active_category(row, params.active_category) == cat;
-                let resp = row.add(
+            for (idx, &(cat, label, width)) in CATEGORY_CHIPS.iter().enumerate() {
+                row.add(
                     Chip::new(label)
-                        .count(count_category_items(params, cat))
-                        .selected(is_selected)
-                        .tag(chip_tag)
-                        .accent_color(super::cards::resolve_category_color(cat)),
-                );
-                if (resp.clicked() || (resp.pressed() && !resp.dragged())) && !resp.double_clicked()
-                {
+                        .selected(active_category(row, params.active_category) == cat)
+                        .accent_color(Color::rgba(0.0, 0.85, 1.0, 0.90))
+                        .width(width)
+                        .tag(encode_chip_tag(idx as u8)),
+                )
+                .on_click(|| {
                     actions.push(AssetsPanelAction::SelectCategory(cat));
-                }
+                });
             }
         },
     );
 }
 
-/// Resolves the currently active or clicked category for instant visual feedback.
 #[inline]
-fn active_category(scope: &UiScope<'_>, default_cat: AssetCategory) -> AssetCategory {
-    CATEGORIES
+fn active_category(scope: &UiScope<'_>, current: AssetCategory) -> AssetCategory {
+    CATEGORY_CHIPS
         .iter()
         .enumerate()
-        .find(|(idx, _)| {
-            let tag = encode_chip_tag(*idx as u8);
-            scope.is_tag_clicked(tag) || scope.is_tag_pressed(tag)
+        .find_map(|(idx, &(cat, _, _))| {
+            (scope.is_tag_clicked(encode_chip_tag(idx as u8))
+                || scope.is_tag_pressed(encode_chip_tag(idx as u8)))
+            .then_some(cat)
         })
-        .map(|(_, (cat, _))| *cat)
-        .unwrap_or(default_cat)
-}
-
-/// Returns the number of cached items matching the specified category and engine visibility filters.
-fn count_category_items(params: &AssetsPanelParams<'_>, cat: AssetCategory) -> usize {
-    params
-        .cached_items
-        .iter()
-        .filter(|item| {
-            (params.show_engine_content || item.source != AssetSource::Engine)
-                && (!params.is_2d_mode || !item.is_3d)
-                && (params.is_2d_mode || item.is_3d || item.category != AssetCategory::Scenes)
-                && (cat == AssetCategory::All || item.category == cat)
-        })
-        .count()
+        .unwrap_or(current)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::AssetCategory;
+    use std::collections::HashMap;
+    use std::path::Path;
 
     #[test]
     fn test_category_chips_order_matches_canonical_all() {
-        for (idx, &(cat, _)) in CATEGORIES.iter().enumerate() {
-            assert_eq!(
-                AssetCategory::ALL[idx],
-                cat,
-                "AssetCategory::ALL at index {idx} must match UI chips order exactly",
-            );
+        for (i, &(chip_cat, _, _)) in CATEGORY_CHIPS.iter().enumerate() {
+            assert_eq!(chip_cat, AssetCategory::ALL[i]);
         }
     }
 
     #[test]
     fn test_category_chips_renders_in_tree() {
-        use std::collections::HashMap;
-        use std::path::Path;
-
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let mut actions = Vec::new();
@@ -118,7 +90,7 @@ mod tests {
         let thumbnail_layers = HashMap::new();
 
         let params = AssetsPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
+            panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
             screen_size: (1280.0, 720.0),
             current_folder,
             search_query: "",
@@ -132,7 +104,7 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            cursor_pos: Point::new(10.0, 10.0),
+            cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
             active_preview_modal: None,
@@ -140,29 +112,18 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
-        build_category_chips_scope(
-            &mut UiScope::new(&mut tree, root_id),
-            Rect::new(0.0, 0.0, 800.0, 32.0),
-            &params,
-            &mut actions,
-        );
+        build_category_chips_scope(&mut UiScope::new(&mut tree, root_id), &params, &mut actions);
 
         let row_id = tree
-            .find_node_by_name("AssetsCategoryChipsRow")
-            .expect("AssetsCategoryChipsRow must be emitted");
+            .find_node_by_name("CategoryChipsRow")
+            .expect("CategoryChipsRow must exist");
         let row_node = tree.get(row_id).expect("Row node must exist");
-        assert_eq!(
-            row_node.children.len(),
-            CATEGORIES.len(),
-            "Must emit exactly one Chip container per category"
-        );
+        assert_eq!(row_node.children.len(), CATEGORY_CHIPS.len());
     }
 
     #[test]
     fn test_click_audio_category_chip() {
         use crate::ui::iris_bridge::assets::panel::build_assets_panel;
-        use std::collections::HashMap;
-        use std::path::Path;
 
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
@@ -193,7 +154,6 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
-        // 1. Initial build: constructs the panel with layout
         build_assets_panel(
             &mut UiScope::new(&mut tree, root_id),
             &params,
@@ -201,8 +161,7 @@ mod tests {
             &mut actions,
         );
 
-        // 2. Find Audio chip tag
-        let audio_tag = encode_chip_tag(6); // Audio is index 6
+        let audio_tag = encode_chip_tag(6);
         let mut audio_node_info = None;
         tree.traverse_depth_first(root_id, &mut |id, node| {
             if node.tag == audio_tag {
@@ -211,42 +170,23 @@ mod tests {
         });
 
         let (_audio_id, audio_rect) = audio_node_info.expect("Audio chip must exist in UI tree");
-        println!("AUDIO RECT: {:?}", audio_rect);
-
-        // Print hit test at center of Audio chip:
         let click_pos = Point::new(
             audio_rect.x + audio_rect.width * 0.5,
             audio_rect.y + audio_rect.height * 0.5,
-        );
-        let hit = tree.hit_test_layered(click_pos);
-        println!(
-            "HIT AT AUDIO CENTER ({:?}): {:?}",
-            click_pos,
-            hit.and_then(|id| tree.get(id).map(|n| (
-                &n.name,
-                n.tag,
-                n.computed_rect,
-                n.interactive,
-                n.role
-            )))
         );
         let down_res = tree.dispatch_event(&UiEvent::MouseDown {
             point: click_pos,
             button: MouseButton::Left,
         });
-        assert!(
-            down_res.consumed,
-            "MouseDown must be consumed by Audio chip"
-        );
+        assert!(down_res.consumed);
 
         let up_res = tree.dispatch_event(&UiEvent::MouseUp {
             point: click_pos,
             button: MouseButton::Left,
         });
-        assert!(up_res.consumed, "MouseUp must be consumed by Audio chip");
+        assert!(up_res.consumed);
         assert_eq!(tree.event_state.frame_clicked_tag, Some(audio_tag));
 
-        // 4. Rebuild assets panel with updated event state
         let mut click_actions = Vec::new();
         let mut params_clicked = params;
         params_clicked.cursor_pos = click_pos;

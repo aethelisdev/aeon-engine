@@ -12,10 +12,39 @@ use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
 
+const CORNERS_3D: [[f32; 3]; 8] = [
+    [-1.0, -1.0, -1.0],
+    [1.0, -1.0, -1.0],
+    [1.0, 1.0, -1.0],
+    [-1.0, 1.0, -1.0],
+    [-1.0, -1.0, 1.0],
+    [1.0, -1.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [-1.0, 1.0, 1.0],
+];
+
+const WIREFRAME_EDGES: [(usize, usize); 12] = [
+    (0, 1),
+    (1, 2),
+    (2, 3),
+    (3, 0),
+    (4, 5),
+    (5, 6),
+    (6, 7),
+    (7, 4),
+    (0, 4),
+    (1, 5),
+    (2, 6),
+    (3, 7),
+];
+
+const COORDINATE_AXES: [([f32; 3], Color); 3] = [
+    ([0.6, 0.0, 0.0], Color::rgba(1.0, 0.30, 0.30, 0.90)),
+    ([0.0, 0.6, 0.0], Color::rgba(0.30, 1.0, 0.30, 0.90)),
+    ([0.0, 0.0, 0.6], Color::rgba(0.30, 0.60, 1.0, 0.90)),
+];
+
 /// Renders the 3D model inspection preview with interactive wireframe orbit canvas using declarative [`UiScope`].
-///
-/// TODO(architecture): Replace CPU 2D projection software-rendering with an
-/// offscreen WGPU render-to-texture preview pipeline from `ae_renderer`.
 pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
     // 1. Controls Bar: Instruction Hint + Spawn Action Button
     ui.container(
@@ -58,51 +87,45 @@ pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, modal: &AssetPr
     );
 }
 
+#[inline]
+fn orbit_scale(zoom_distance: f32) -> f32 {
+    (85.0 / zoom_distance).clamp(25.0, 180.0)
+}
+
+#[inline]
+fn line_segment_rect((x0, y0): (f32, f32), (x1, y1): (f32, f32), min_thickness: f32) -> Rect {
+    Rect::new(
+        x0.min(x1),
+        y0.min(y1),
+        (x1 - x0).abs().max(min_thickness),
+        (y1 - y0).abs().max(min_thickness),
+    )
+}
+
 /// Emits node-centered 12 wireframe bounding box edges and 3 coordinate axes into `canvas`.
 fn draw_wireframe_orbit_primitives(
     canvas: &mut ImmediateCanvas<'_>,
     modal: &AssetPreviewModalState,
 ) {
-    let scale = (85.0 / modal.zoom_distance).clamp(25.0, 180.0);
-    let center = [0.0, 0.0];
-
-    let corners_3d = [
-        [-1.0, -1.0, -1.0],
-        [1.0, -1.0, -1.0],
-        [1.0, 1.0, -1.0],
-        [-1.0, 1.0, -1.0],
-        [-1.0, -1.0, 1.0],
-        [1.0, -1.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [-1.0, 1.0, 1.0],
-    ];
-    let proj_points: [(f32, f32); 8] = corners_3d
-        .map(|pt| project_3d_point(pt, modal.orbit_yaw, modal.orbit_pitch, center, scale));
-
     if modal.show_wireframe {
-        let edges = [
-            (0, 1),
-            (1, 2),
-            (2, 3),
-            (3, 0),
-            (4, 5),
-            (5, 6),
-            (6, 7),
-            (7, 4),
-            (0, 4),
-            (1, 5),
-            (2, 6),
-            (3, 7),
-        ];
-        for (p0_idx, p1_idx) in edges {
-            let (x0, y0) = proj_points[p0_idx];
-            let (x1, y1) = proj_points[p1_idx];
+        for (p0_idx, p1_idx) in WIREFRAME_EDGES {
             canvas.fill_rect(
-                Rect::new(
-                    x0.min(x1),
-                    y0.min(y1),
-                    (x1 - x0).abs().max(1.5),
-                    (y1 - y0).abs().max(1.5),
+                line_segment_rect(
+                    project_3d_point(
+                        CORNERS_3D[p0_idx],
+                        modal.orbit_yaw,
+                        modal.orbit_pitch,
+                        [0.0, 0.0],
+                        orbit_scale(modal.zoom_distance),
+                    ),
+                    project_3d_point(
+                        CORNERS_3D[p1_idx],
+                        modal.orbit_yaw,
+                        modal.orbit_pitch,
+                        [0.0, 0.0],
+                        orbit_scale(modal.zoom_distance),
+                    ),
+                    1.5,
                 ),
                 Color::rgba(0.0, 0.85, 1.0, 0.45),
                 0.75,
@@ -110,26 +133,24 @@ fn draw_wireframe_orbit_primitives(
         }
     }
 
-    let (ox, oy) = project_3d_point(
-        [0.0, 0.0, 0.0],
-        modal.orbit_yaw,
-        modal.orbit_pitch,
-        center,
-        scale,
-    );
-    let axes = [
-        ([0.6, 0.0, 0.0], Color::rgba(1.0, 0.30, 0.30, 0.90)),
-        ([0.0, 0.6, 0.0], Color::rgba(0.30, 1.0, 0.30, 0.90)),
-        ([0.0, 0.0, 0.6], Color::rgba(0.30, 0.60, 1.0, 0.90)),
-    ];
-    for (tip, color) in axes {
-        let (tx, ty) = project_3d_point(tip, modal.orbit_yaw, modal.orbit_pitch, center, scale);
+    for (tip, color) in COORDINATE_AXES {
         canvas.fill_rect(
-            Rect::new(
-                ox.min(tx),
-                oy.min(ty),
-                (tx - ox).abs().max(2.0),
-                (ty - oy).abs().max(2.0),
+            line_segment_rect(
+                project_3d_point(
+                    [0.0, 0.0, 0.0],
+                    modal.orbit_yaw,
+                    modal.orbit_pitch,
+                    [0.0, 0.0],
+                    orbit_scale(modal.zoom_distance),
+                ),
+                project_3d_point(
+                    tip,
+                    modal.orbit_yaw,
+                    modal.orbit_pitch,
+                    [0.0, 0.0],
+                    orbit_scale(modal.zoom_distance),
+                ),
+                2.0,
             ),
             color,
             0.0,
@@ -145,18 +166,21 @@ fn project_3d_point(
     center: [f32; 2],
     scale: f32,
 ) -> (f32, f32) {
-    let cos_y = yaw.cos();
-    let sin_y = yaw.sin();
-    let x1 = pt[0] * cos_y - pt[2] * sin_y;
-    let z1 = pt[0] * sin_y + pt[2] * cos_y;
+    project_rotated(
+        pt[0] * yaw.cos() - pt[2] * yaw.sin(),
+        pt[1] * pitch.cos() - (pt[0] * yaw.sin() + pt[2] * yaw.cos()) * pitch.sin(),
+        pt[1] * pitch.sin() + (pt[0] * yaw.sin() + pt[2] * yaw.cos()) * pitch.cos(),
+        center,
+        scale,
+    )
+}
 
-    let cos_p = pitch.cos();
-    let sin_p = pitch.sin();
-    let y2 = pt[1] * cos_p - z1 * sin_p;
-    let z2 = pt[1] * sin_p + z1 * cos_p;
-
-    let proj_factor = scale / (1.0 + z2 * 0.18).max(0.2);
-    (center[0] + x1 * proj_factor, center[1] - y2 * proj_factor)
+#[inline]
+fn project_rotated(x1: f32, y2: f32, z2: f32, center: [f32; 2], scale: f32) -> (f32, f32) {
+    (
+        center[0] + x1 * (scale / (1.0 + z2 * 0.18).max(0.2)),
+        center[1] - y2 * (scale / (1.0 + z2 * 0.18).max(0.2)),
+    )
 }
 
 #[cfg(test)]
@@ -213,7 +237,6 @@ mod tests {
         let mut opts = irisui::wgpu_backend::TreeCompilerOptions::new();
         let cmd_with_wireframe =
             irisui::wgpu_backend::compile_tree_draw_commands(&tree, orbit_id, &mut opts);
-        // 1 container background quad + 12 wireframe edges + 3 axes = 16 quads
         assert_eq!(cmd_with_wireframe.quads.len(), 16);
         let center_x = orbit_rect.x + orbit_rect.width * 0.5;
         let center_y = orbit_rect.y + orbit_rect.height * 0.5;
@@ -240,7 +263,6 @@ mod tests {
             .expect("orbit canvas node 2");
         let cmd_without_wireframe =
             irisui::wgpu_backend::compile_tree_draw_commands(&tree2, orbit_id2, &mut opts);
-        // 1 container background quad + 3 axes = 4 quads
         assert_eq!(cmd_without_wireframe.quads.len(), 4);
     }
 }

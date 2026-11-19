@@ -9,7 +9,7 @@
 use crate::assets::types::{
     AssetBrowserState, AssetCategory, AssetItem, AssetSource, AssetViewMode,
 };
-use irisui::core::MemoCache;
+use irisui::core::{MemoCache, UiTag};
 use irisui::prelude::{Point, Rect, TreeState};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -103,227 +103,111 @@ pub enum AssetsPanelAction {
     ImportDroppedFiles(Vec<PathBuf>),
 }
 
-pub use super::context_menu::{
-    ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
-    ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuAction,
-    AssetsContextMenuTarget, resolve_assets_ctx_action,
-};
+pub use super::context_menu::AssetsContextMenuTarget;
 
+/// Deterministic semantic tag for the asset preview modal window state in [`irisui::core::UiTree`].
+pub const ASSETS_TAG_PREVIEW_MODAL: u64 = UiTag::from_str("assets.preview.modal").raw();
 /// Semantic interaction tag for the asset preview modal "Reveal in Explorer" button.
-pub const ASSET_PREVIEW_TAG_REVEAL: u64 = 0xF010;
+pub const ASSET_PREVIEW_TAG_REVEAL: u64 = UiTag::from_str("assets.preview.reveal").raw();
 /// Semantic interaction tag for the asset preview 3D model orbit canvas.
-pub const ASSET_PREVIEW_TAG_ORBIT: u64 = 0xF011;
+pub const ASSET_PREVIEW_TAG_ORBIT: u64 = UiTag::from_str("assets.preview.orbit").raw();
 
 // ============================================================================
-// 64-BIT DOMAIN SEMANTIC TAGS & BITMASKING RULES (O(1) HIT TESTING)
+// DETERMINISTIC FNV-1A SEMANTIC TAGS (ZERO HARDCODED HEX LITERALS)
 // ============================================================================
 
-/// 64-bit Domain identifier for native Iris UI Content / Asset Browser panel elements.
-pub const ASSETS_TAG_DOMAIN: u64 = 0x0090_0000_0000_0000;
-/// Bitmask isolating the 16-bit Asset Browser domain prefix.
-pub const ASSETS_TAG_DOMAIN_MASK: u64 = 0xFFFF_0000_0000_0000;
-
-// --- Primary Panel Controls ---
 /// Semantic tag for the primary Asset Browser panel root container.
-pub const ASSETS_TAG_PANEL_ROOT: u64 = ASSETS_TAG_DOMAIN | 0x0001;
+pub const ASSETS_TAG_PANEL_ROOT: u64 = UiTag::from_str("assets.panel.root").raw();
 /// Semantic tag for toggling the folder tree sidebar.
-pub const ASSETS_TAG_TOGGLE_SIDEBAR: u64 = ASSETS_TAG_DOMAIN | 0x0002;
+pub const ASSETS_TAG_TOGGLE_SIDEBAR: u64 = UiTag::from_str("assets.toggle_sidebar").raw();
 /// Semantic tag for triggering model/texture import dialog.
-pub const ASSETS_TAG_IMPORT: u64 = ASSETS_TAG_DOMAIN | 0x0003;
+pub const ASSETS_TAG_IMPORT: u64 = UiTag::from_str("assets.import").raw();
 /// Semantic tag for sweeping unreferenced VRAM GPU assets.
-pub const ASSETS_TAG_CLEAN_VRAM: u64 = ASSETS_TAG_DOMAIN | 0x0004;
+pub const ASSETS_TAG_CLEAN_VRAM: u64 = UiTag::from_str("assets.clean_vram").raw();
 /// Semantic tag for switching presentation to responsive grid card view.
-pub const ASSETS_TAG_VIEW_GRID: u64 = ASSETS_TAG_DOMAIN | 0x0005;
+pub const ASSETS_TAG_VIEW_GRID: u64 = UiTag::from_str("assets.view_grid").raw();
 /// Semantic tag for switching presentation to detailed tabular list view.
-pub const ASSETS_TAG_VIEW_LIST: u64 = ASSETS_TAG_DOMAIN | 0x0006;
+pub const ASSETS_TAG_VIEW_LIST: u64 = UiTag::from_str("assets.view_list").raw();
 /// Semantic tag for toggling visibility of built-in engine content.
-pub const ASSETS_TAG_ENGINE_CONTENT: u64 = ASSETS_TAG_DOMAIN | 0x0007;
+pub const ASSETS_TAG_ENGINE_CONTENT: u64 = UiTag::from_str("assets.engine_content").raw();
 /// Semantic tag for the live asset search text input box.
-pub const ASSETS_TAG_SEARCH_INPUT: u64 = ASSETS_TAG_DOMAIN | 0x0008;
+pub const ASSETS_TAG_SEARCH_INPUT: u64 = UiTag::from_str("assets.search.input").raw();
 /// Semantic tag for clearing the active search filter query.
-pub const ASSETS_TAG_SEARCH_CLEAR: u64 = ASSETS_TAG_DOMAIN | 0x0009;
+pub const ASSETS_TAG_SEARCH_CLEAR: u64 = UiTag::from_str("assets.search.clear").raw();
 /// Semantic tag for the folder tree sidebar scrollable viewport.
-pub const ASSETS_TAG_TREE_VIEWPORT: u64 = ASSETS_TAG_DOMAIN | 0x0014;
+pub const ASSETS_TAG_TREE_VIEWPORT: u64 = UiTag::from_str("assets.tree.viewport").raw();
 /// Semantic tag for the primary assets scrollable content area viewport.
-pub const ASSETS_TAG_CONTENT_VIEWPORT: u64 = ASSETS_TAG_DOMAIN | 0x000E;
+pub const ASSETS_TAG_CONTENT_VIEWPORT: u64 = UiTag::from_str("assets.content.viewport").raw();
 /// Semantic tag for primary content scrollbar track.
-pub const ASSETS_TAG_SCROLLBAR_TRACK: u64 = ASSETS_TAG_DOMAIN | 0x000A;
+pub const ASSETS_TAG_SCROLLBAR_TRACK: u64 = UiTag::from_str("assets.scrollbar.track").raw();
 /// Semantic tag for primary content scrollbar draggable thumb.
-pub const ASSETS_TAG_SCROLLBAR_THUMB: u64 = ASSETS_TAG_DOMAIN | 0x000B;
+pub const ASSETS_TAG_SCROLLBAR_THUMB: u64 = UiTag::from_str("assets.scrollbar.thumb").raw();
 /// Semantic tag for folder tree sidebar scrollbar track.
-pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK: u64 = ASSETS_TAG_DOMAIN | 0x000C;
+pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK: u64 =
+    UiTag::from_str("assets.tree.scrollbar.track").raw();
 /// Semantic tag for folder tree sidebar scrollbar draggable thumb.
-pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB: u64 = ASSETS_TAG_DOMAIN | 0x000D;
+pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB: u64 =
+    UiTag::from_str("assets.tree.scrollbar.thumb").raw();
 /// Semantic tag for creating a new subfolder in the folder tree sidebar.
-pub const ASSETS_TAG_NEW_SUBFOLDER: u64 = ASSETS_TAG_DOMAIN | 0x000E;
+pub const ASSETS_TAG_NEW_SUBFOLDER: u64 = UiTag::from_str("assets.new_subfolder").raw();
 /// Semantic tag for revealing the active folder in the OS file explorer.
-pub const ASSETS_TAG_REVEAL: u64 = ASSETS_TAG_DOMAIN | 0x000F;
+pub const ASSETS_TAG_REVEAL: u64 = UiTag::from_str("assets.reveal").raw();
 
-// --- Modal & Floating Preview Controls ---
-/// Semantic tag for closing the quick asset preview modal.
-pub const ASSETS_TAG_PREVIEW_CLOSE: u64 = ASSETS_TAG_DOMAIN | 0x0010;
-/// Semantic tag for revealing previewed asset in the OS file explorer.
-pub const ASSETS_TAG_PREVIEW_REVEAL_BTN: u64 = ASSETS_TAG_DOMAIN | 0x0011;
-/// Semantic tag for the 3D asset orbital camera canvas.
-pub const ASSETS_TAG_PREVIEW_ORBIT_CANVAS: u64 = ASSETS_TAG_DOMAIN | 0x0012;
-/// Semantic tag for toggling 3D preview wireframe edges.
-pub const ASSETS_TAG_PREVIEW_WIREFRAME_BTN: u64 = ASSETS_TAG_DOMAIN | 0x0013;
+const CHIP_BASE_TAG: UiTag = UiTag::from_str("assets.chip");
+const BREADCRUMB_BASE_TAG: UiTag = UiTag::from_str("assets.breadcrumb");
+const TREE_ROW_BASE_TAG: UiTag = UiTag::from_str("assets.tree.row");
+const TREE_CHEVRON_BASE_TAG: UiTag = UiTag::from_str("assets.tree.chevron");
+const ITEM_BASE_TAG: UiTag = UiTag::from_str("assets.item.select");
+const ITEM_SPAWN_BASE_TAG: UiTag = UiTag::from_str("assets.item.spawn");
+const ITEM_INSPECT_BASE_TAG: UiTag = UiTag::from_str("assets.item.inspect");
 
-// --- Dynamic Sub-Domains (Bitmasked Payloads) ---
-/// Base prefix for category filter chips (payload: category index `0..8`).
-pub const ASSETS_TAG_CHIP_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0100;
-/// Bitmask isolating category filter chip payload.
-pub const ASSETS_TAG_CHIP_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
-
-/// Base prefix for breadcrumb navigation segments (payload: segment index `0..255`).
-pub const ASSETS_TAG_BREADCRUMB_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0200;
-/// Bitmask isolating breadcrumb segment payload.
-pub const ASSETS_TAG_BREADCRUMB_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
-
-/// Base prefix for context menu actions (payload: action index `0..15`).
-pub const ASSETS_TAG_CTX_ITEM_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0300;
-/// Bitmask isolating context menu action payload.
-pub const ASSETS_TAG_CTX_ITEM_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
-
-/// Base prefix for folder tree directory rows (payload: node index `0..u32::MAX`).
-pub const ASSETS_TAG_TREE_ROW_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0001_0000_0000;
-/// Base prefix for folder tree expand/collapse chevron buttons.
-pub const ASSETS_TAG_TREE_CHEVRON_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0002_0000_0000;
-/// Bitmask isolating folder tree category prefix.
-pub const ASSETS_TAG_TREE_PREFIX_MASK: u64 = 0xFFFF_FFFF_0000_0000;
-/// Bitmask isolating 32-bit payload index.
-pub const ASSETS_TAG_PAYLOAD_MASK: u64 = 0x0000_0000_FFFF_FFFF;
-
-/// Base prefix for asset items in grid/list (primary card selection, double click, drag).
-pub const ASSETS_TAG_ITEM_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0010_0000_0000;
-/// Base prefix for table row direct Spawn button.
-pub const ASSETS_TAG_ITEM_SPAWN_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0020_0000_0000;
-/// Base prefix for table row direct Inspect button.
-pub const ASSETS_TAG_ITEM_INSPECT_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0030_0000_0000;
-/// Bitmask isolating item action type prefix.
-pub const ASSETS_TAG_ITEM_PREFIX_MASK: u64 = 0xFFFF_FFF0_0000_0000;
-
-/// Discriminator for interaction targets within an individual asset card or row.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum AssetItemAction {
-    /// Selects the asset, or opens it on double-click.
-    SelectOrOpen,
-    /// Spawns the asset into the active 3D scene immediately.
-    Spawn,
-    /// Opens the Quick Asset Inspector orbital preview window.
-    Inspect,
+/// Encodes a category filter chip index into a deterministic 64-bit semantic tag.
+#[inline]
+#[must_use]
+pub const fn encode_chip_tag(category_idx: u8) -> u64 {
+    UiTag::indexed(CHIP_BASE_TAG, category_idx as u64).raw()
 }
 
-/// Encodes a category filter chip index into a 64-bit semantic tag.
+/// Encodes a breadcrumb segment index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn encode_chip_tag(category_idx: u8) -> u64 {
-    ASSETS_TAG_CHIP_BASE | (category_idx as u64)
+#[must_use]
+pub const fn encode_breadcrumb_tag(segment_idx: u8) -> u64 {
+    UiTag::indexed(BREADCRUMB_BASE_TAG, segment_idx as u64).raw()
 }
 
-/// Decodes a 64-bit semantic tag into a category filter chip index, if matching.
+/// Encodes a folder tree row node index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn parse_chip_tag(tag: u64) -> Option<u8> {
-    if (tag & ASSETS_TAG_CHIP_MASK) == ASSETS_TAG_CHIP_BASE {
-        Some((tag & 0xFF) as u8)
-    } else {
-        None
-    }
+#[must_use]
+pub const fn encode_tree_row_tag(node_idx: u32) -> u64 {
+    UiTag::indexed(TREE_ROW_BASE_TAG, node_idx as u64).raw()
 }
 
-/// Encodes a breadcrumb segment index into a 64-bit semantic tag.
+/// Encodes a folder tree chevron button index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn encode_breadcrumb_tag(segment_idx: u8) -> u64 {
-    ASSETS_TAG_BREADCRUMB_BASE | (segment_idx as u64)
+#[must_use]
+pub const fn encode_tree_chevron_tag(node_idx: u32) -> u64 {
+    UiTag::indexed(TREE_CHEVRON_BASE_TAG, node_idx as u64).raw()
 }
 
-/// Decodes a 64-bit semantic tag into a breadcrumb segment index, if matching.
+/// Encodes an asset card or row selection target index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn parse_breadcrumb_tag(tag: u64) -> Option<u8> {
-    if (tag & ASSETS_TAG_BREADCRUMB_MASK) == ASSETS_TAG_BREADCRUMB_BASE {
-        Some((tag & 0xFF) as u8)
-    } else {
-        None
-    }
+#[must_use]
+pub const fn encode_item_tag(item_idx: u32) -> u64 {
+    UiTag::indexed(ITEM_BASE_TAG, item_idx as u64).raw()
 }
 
-/// Encodes a context menu action index into a 64-bit semantic tag.
+/// Encodes a list table row direct Spawn button index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn encode_ctx_item_tag(action_idx: u8) -> u64 {
-    ASSETS_TAG_CTX_ITEM_BASE | (action_idx as u64)
+#[must_use]
+pub const fn encode_item_spawn_tag(item_idx: u32) -> u64 {
+    UiTag::indexed(ITEM_SPAWN_BASE_TAG, item_idx as u64).raw()
 }
 
-/// Decodes a 64-bit semantic tag into a context menu action index, if matching.
+/// Encodes a list table row direct Inspect button index into a deterministic 64-bit semantic tag.
 #[inline]
-pub fn parse_ctx_item_tag(tag: u64) -> Option<u8> {
-    if (tag & ASSETS_TAG_CTX_ITEM_MASK) == ASSETS_TAG_CTX_ITEM_BASE {
-        Some((tag & 0xFF) as u8)
-    } else {
-        None
-    }
-}
-
-/// Encodes a folder tree row node index into a 64-bit semantic tag.
-#[inline]
-pub fn encode_tree_row_tag(node_idx: u32) -> u64 {
-    ASSETS_TAG_TREE_ROW_BASE | (node_idx as u64)
-}
-
-/// Encodes a folder tree chevron button index into a 64-bit semantic tag.
-#[inline]
-pub fn encode_tree_chevron_tag(node_idx: u32) -> u64 {
-    ASSETS_TAG_TREE_CHEVRON_BASE | (node_idx as u64)
-}
-
-/// Decodes a 64-bit semantic tag into a folder tree node index and chevron flag, if matching.
-///
-/// Returns `Some((node_idx, is_chevron))`.
-#[inline]
-pub fn parse_tree_tag(tag: u64) -> Option<(u32, bool)> {
-    match tag & ASSETS_TAG_TREE_PREFIX_MASK {
-        ASSETS_TAG_TREE_ROW_BASE => Some(((tag & ASSETS_TAG_PAYLOAD_MASK) as u32, false)),
-        ASSETS_TAG_TREE_CHEVRON_BASE => Some(((tag & ASSETS_TAG_PAYLOAD_MASK) as u32, true)),
-        _ => None,
-    }
-}
-
-/// Encodes an asset card or row selection target index into a 64-bit semantic tag.
-#[inline]
-pub fn encode_item_tag(item_idx: u32) -> u64 {
-    ASSETS_TAG_ITEM_BASE | (item_idx as u64)
-}
-
-/// Encodes a list table row direct Spawn button index into a 64-bit semantic tag.
-#[inline]
-pub fn encode_item_spawn_tag(item_idx: u32) -> u64 {
-    ASSETS_TAG_ITEM_SPAWN_BASE | (item_idx as u64)
-}
-
-/// Encodes a list table row direct Inspect button index into a 64-bit semantic tag.
-#[inline]
-pub fn encode_item_inspect_tag(item_idx: u32) -> u64 {
-    ASSETS_TAG_ITEM_INSPECT_BASE | (item_idx as u64)
-}
-
-/// Decodes a 64-bit semantic tag into an asset item index and action type, if matching.
-///
-/// Returns `Some((item_idx, action))`.
-#[inline]
-pub fn parse_item_tag(tag: u64) -> Option<(u32, AssetItemAction)> {
-    match (
-        tag & ASSETS_TAG_ITEM_PREFIX_MASK,
-        (tag & ASSETS_TAG_PAYLOAD_MASK) as u32,
-    ) {
-        (ASSETS_TAG_ITEM_BASE, idx) => Some((idx, AssetItemAction::SelectOrOpen)),
-        (ASSETS_TAG_ITEM_SPAWN_BASE, idx) => Some((idx, AssetItemAction::Spawn)),
-        (ASSETS_TAG_ITEM_INSPECT_BASE, idx) => Some((idx, AssetItemAction::Inspect)),
-        _ => None,
-    }
-}
-
-/// Evaluates whether a 64-bit semantic tag belongs to the Asset Browser domain.
-#[inline]
-pub fn is_assets_tag(tag: u64) -> bool {
-    (tag & ASSETS_TAG_DOMAIN_MASK) == ASSETS_TAG_DOMAIN
+#[must_use]
+pub const fn encode_item_inspect_tag(item_idx: u32) -> u64 {
+    UiTag::indexed(ITEM_INSPECT_BASE_TAG, item_idx as u64).raw()
 }
 
 /// Dynamic runtime state parameters for the 3D Quick Asset Preview orbital camera.
@@ -546,18 +430,10 @@ impl AssetsFilterKey {
 pub struct AssetsPanelState {
     /// Search input text state managing asset filter buffer, cursor, and selection.
     pub search_input: irisui::prelude::TextInputState,
-    /// Queued asset browser actions awaiting processor dispatch.
-    pub actions: Vec<AssetsPanelAction>,
     /// Double-click tracking state for asset spawning.
     pub click_tracker: AssetClickTracker,
-    /// Active right-click context menu: `(target, click_pos)`.
-    pub context_menu: Option<(AssetsContextMenuTarget, Point)>,
     /// Active Quick Asset Preview modal state.
     pub preview_modal: Option<AssetPreviewModalState>,
-    /// Autonomous dialog host managing file operation confirmations and prompts.
-    pub dialog_host: irisui::workbench::DialogHost<AssetsPanelAction>,
-    /// Action bus collecting actions dispatched by file operation dialogues.
-    pub action_bus: irisui::workbench::ActionBus<AssetsPanelAction>,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (32..255).
     pub thumbnail_layers: HashMap<PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (32..255).
@@ -566,37 +442,18 @@ pub struct AssetsPanelState {
     pub(crate) filtered_cache: MemoCache<AssetsFilterKey, Vec<AssetItem>>,
     /// Active hierarchical folder tree state managing directory expansion and selection.
     pub tree_state: TreeState<PathBuf>,
-    /// Reusable scratch buffer collecting panel actions emitted during a single build pass.
-    pub(crate) pending_build_actions: Vec<AssetsPanelAction>,
-}
-
-impl AssetsPanelState {
-    /// Drains and returns all queued asset browser actions.
-    #[inline]
-    pub fn take_actions(&mut self) -> Vec<AssetsPanelAction> {
-        std::mem::take(&mut self.actions)
-    }
 }
 
 impl Default for AssetsPanelState {
     fn default() -> Self {
         Self {
             search_input: irisui::prelude::TextInputState::default(),
-            actions: Vec::new(),
             click_tracker: AssetClickTracker::default(),
-            context_menu: None,
             preview_modal: None,
-            dialog_host: irisui::workbench::DialogHost::new(),
-            action_bus: irisui::workbench::ActionBus::new(),
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,
             filtered_cache: MemoCache::default(),
-            tree_state: {
-                let mut ts = TreeState::default();
-                ts.set_expanded(PathBuf::from("assets"), true);
-                ts
-            },
-            pending_build_actions: Vec::new(),
+            tree_state: TreeState::with_expanded([PathBuf::from("assets")]),
         }
     }
 }

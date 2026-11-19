@@ -8,118 +8,125 @@
 
 use super::panel::build_assets_panel;
 use super::types::{
-    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetsPanelAction, AssetsPanelParams,
-    AssetsPanelState,
+    ASSETS_TAG_PREVIEW_MODAL, ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT,
+    AssetPreviewModalState, AssetsPanelAction, AssetsPanelParams, AssetsPanelState,
 };
+use crate::assets::types::{AssetCategory, AssetDragPayload, AssetItem};
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use crate::ui::panel_layout::PanelId;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::{ActionBus, DialogHost};
+
+/// Execution context passed to [`AssetsPanelState::build_view`].
+pub(crate) struct AssetsBuildContext<'a, 'p> {
+    pub params: &'a mut OverlayUpdateParams<'p>,
+    pub notifier: &'a mut DeferredNotifier<PanelId>,
+    pub action_bus: &'a mut ActionBus<EngineUiAction>,
+    pub dialog_host: &'a mut DialogHost<EngineUiAction>,
+    pub cursor_pos: Point,
+    pub blink_caret: bool,
+}
 
 impl AssetsPanelState {
-    /// Synchronizes search query text when unfocused and tags `PanelId::Assets` for redraw
-    /// when external asset browser state has changed since the previous frame.
-    pub(crate) fn sync_dirty_invalidation(
-        &mut self,
-        asset_browser: &crate::assets::types::AssetBrowserState,
-        is_2d_mode: bool,
-        is_search_focused: bool,
-        notifier: &mut irisui::dock::UiNotifier<crate::ui::panel_layout::PanelId>,
-    ) {
-        if !is_search_focused {
-            self.search_input.set_text(&asset_browser.search_query);
-        }
-        if self.filtered_cache.is_dirty_with(|key| {
-            key.matches(asset_browser, self.search_input.text().trim(), is_2d_mode)
-        }) || !self.actions.is_empty()
-        {
-            notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
-        }
-    }
-
     /// Builds the Content / Asset Browser panel directly using typed assets state and `UiScope`.
     pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
-        params: &OverlayUpdateParams<'_>,
-        notifier: &mut DeferredNotifier<PanelId>,
-        (cursor_pos, blink_caret): (Point, bool),
+        mut ctx: AssetsBuildContext<'_, '_>,
     ) {
         if scope.is_collapsed() {
             return;
         }
-
-        if scope.popups_dismissed() {
-            self.context_menu = None;
+        if !scope.is_tag_focused(ASSETS_TAG_SEARCH_INPUT)
+            && self.search_input.text() != ctx.params.panel_data.asset_browser.search_query
+        {
+            self.search_input
+                .set_text(&ctx.params.panel_data.asset_browser.search_query);
         }
-
         scope.auto_sync_text_input(
             ASSETS_TAG_SEARCH_INPUT,
             Some(ASSETS_TAG_SEARCH_CLEAR),
             &mut self.search_input,
         );
+        if self.search_input.text() != ctx.params.panel_data.asset_browser.search_query {
+            ctx.params.panel_data.asset_browser.search_query = self.search_input.text().to_owned();
+        }
 
         self.filtered_cache.sync_with(
             |key| {
                 key.matches(
-                    params.panel_data.asset_browser,
+                    ctx.params.panel_data.asset_browser,
                     self.search_input.text().trim(),
-                    params.context.is_2d_mode,
+                    ctx.params.context.is_2d_mode,
                 )
             },
             || {
                 super::types::AssetsFilterKey::capture(
-                    params.panel_data.asset_browser,
+                    ctx.params.panel_data.asset_browser,
                     self.search_input.text().trim(),
-                    params.context.is_2d_mode,
+                    ctx.params.context.is_2d_mode,
                 )
             },
             || {
-                params
+                ctx.params
                     .panel_data
                     .asset_browser
-                    .filter_items(self.search_input.text(), params.context.is_2d_mode)
+                    .filter_items(self.search_input.text(), ctx.params.context.is_2d_mode)
             },
         );
-        self.pending_build_actions.clear();
 
+        self.render_and_dispatch(scope, &mut ctx, Vec::new());
+    }
+
+    fn render_and_dispatch(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        ctx: &mut AssetsBuildContext<'_, '_>,
+        mut actions: Vec<AssetsPanelAction>,
+    ) {
         build_assets_panel(
             scope,
             &AssetsPanelParams {
                 panel_rect: scope.parent_rect(),
                 screen_size: (scope.screen_bounds().width, scope.screen_bounds().height),
-                current_folder: &params.panel_data.asset_browser.current_folder,
+                current_folder: &ctx.params.panel_data.asset_browser.current_folder,
                 search_query: self.search_input.text(),
-                active_category: params.panel_data.asset_browser.active_category,
-                view_mode: params.panel_data.asset_browser.view_mode,
-                selected_asset: params.panel_data.asset_browser.selected_asset.as_deref(),
-                cached_items: &params.panel_data.asset_browser.cached_items,
+                active_category: ctx.params.panel_data.asset_browser.active_category,
+                view_mode: ctx.params.panel_data.asset_browser.view_mode,
+                selected_asset: ctx
+                    .params
+                    .panel_data
+                    .asset_browser
+                    .selected_asset
+                    .as_deref(),
+                cached_items: &ctx.params.panel_data.asset_browser.cached_items,
                 filtered_items: self.filtered_cache.get(),
-                is_2d_mode: params.context.is_2d_mode,
-                show_engine_content: params.panel_data.asset_browser.show_engine_content,
-                sidebar_width: params.panel_data.asset_browser.sidebar_width,
-                sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
-                cursor_pos: scope.resolved_cursor_pos(cursor_pos),
-                blink_caret,
-                active_context_menu: self.context_menu.as_ref(),
+                is_2d_mode: ctx.params.context.is_2d_mode,
+                show_engine_content: ctx.params.panel_data.asset_browser.show_engine_content,
+                sidebar_width: ctx.params.panel_data.asset_browser.sidebar_width,
+                sidebar_collapsed: ctx.params.panel_data.asset_browser.sidebar_collapsed,
+                cursor_pos: scope.resolved_cursor_pos(ctx.cursor_pos),
+                blink_caret: ctx.blink_caret,
+                active_context_menu: None,
                 active_preview_modal: self.preview_modal.as_ref(),
-                subfolders: &params.panel_data.asset_browser.subfolders,
+                subfolders: &ctx.params.panel_data.asset_browser.subfolders,
                 thumbnail_layers: &self.thumbnail_layers,
                 cursor_byte_idx: self.search_input.cursor_byte_idx,
             },
             &mut self.tree_state,
-            &mut self.pending_build_actions,
+            &mut actions,
         );
 
-        self.pending_build_actions.extend(self.action_bus.drain());
-        std::mem::take(&mut self.pending_build_actions)
-            .into_iter()
-            .for_each(|action| self.handle_panel_action(scope, notifier, action));
+        for action in actions {
+            self.handle_panel_action(scope, ctx, action);
+        }
     }
 
     fn handle_panel_action(
         &mut self,
         scope: &mut UiScope<'_>,
-        notifier: &mut DeferredNotifier<PanelId>,
+        ctx: &mut AssetsBuildContext<'_, '_>,
         action: AssetsPanelAction,
     ) {
         match action {
@@ -128,25 +135,99 @@ impl AssetsPanelState {
                 std::iter::successors(path.parent(), |p| p.parent()).for_each(|parent| {
                     _ = self.tree_state.set_expanded(parent.to_path_buf(), true);
                 });
-                self.actions.push(AssetsPanelAction::NavigateFolder(path));
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                ctx.params.panel_data.asset_browser.current_folder = path;
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
             AssetsPanelAction::SelectAsset(opt) => {
-                self.actions.push(AssetsPanelAction::SelectAsset(opt));
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                ctx.params.panel_data.asset_browser.selected_asset = opt;
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::SelectCategory(cat) => {
+                ctx.params.panel_data.asset_browser.active_category = cat;
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::SetViewMode(mode) => {
+                ctx.params.panel_data.asset_browser.view_mode = mode;
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::ToggleSidebar => {
+                ctx.params.panel_data.asset_browser.sidebar_collapsed =
+                    !ctx.params.panel_data.asset_browser.sidebar_collapsed;
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::SearchInput(query) => {
+                self.search_input.set_text(&query);
+                ctx.params.panel_data.asset_browser.search_query = query;
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
             AssetsPanelAction::FocusSearch => {
                 scope.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
             }
             AssetsPanelAction::ClearSearch => {
                 self.search_input.clear();
+                ctx.params.panel_data.asset_browser.search_query.clear();
                 scope.clear_focus();
                 scope.clear_text_edit();
-                self.actions.push(AssetsPanelAction::ClearSearch);
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::ToggleEngineContent => {
+                ctx.params.panel_data.asset_browser.show_engine_content =
+                    !ctx.params.panel_data.asset_browser.show_engine_content;
+                ctx.notifier.tag_redraw(PanelId::Assets);
+            }
+            AssetsPanelAction::OpenImportDialog => {
+                ctx.action_bus.emit(EngineUiAction::OpenModelDialog);
+            }
+            AssetsPanelAction::RevealFolder(path) => {
+                drop(crate::assets::file_ops::open_in_file_explorer(&path));
+            }
+            AssetsPanelAction::CleanVram => {
+                ctx.action_bus.emit(EngineUiAction::GarbageCollect);
+            }
+            AssetsPanelAction::CopyPath(path) => {
+                _ = irisui::widgets::SystemClipboard::new().set_text(&path.to_string_lossy());
+            }
+            AssetsPanelAction::ImportDroppedFiles(paths) => {
+                ctx.action_bus.emit(EngineUiAction::ImportDroppedFiles {
+                    paths,
+                    screen_pos: Some([
+                        scope.resolved_cursor_pos(ctx.cursor_pos).x,
+                        scope.resolved_cursor_pos(ctx.cursor_pos).y,
+                    ]),
+                });
+            }
+            AssetsPanelAction::SpawnAsset(path, cat) => match cat {
+                AssetCategory::Models3D => {
+                    ctx.action_bus
+                        .emit(EngineUiAction::SpawnModelPathAt(path, [0.0, 0.0, 0.0]));
+                }
+                AssetCategory::Textures2D => {
+                    ctx.action_bus
+                        .emit(EngineUiAction::SpawnSpritePathAt(path, [0.0, 0.0, 0.0]));
+                }
+                AssetCategory::Scenes => {
+                    ctx.action_bus.emit(EngineUiAction::LoadSceneFromPath(path));
+                }
+                _ => {}
+            },
+            AssetsPanelAction::InspectAsset(item) | AssetsPanelAction::OpenInspectModal(item) => {
+                self.preview_modal = Some(AssetPreviewModalState {
+                    item,
+                    orbit_yaw: 0.6,
+                    orbit_pitch: 0.35,
+                    zoom_distance: 1.0,
+                    show_wireframe: true,
+                });
+                scope.open_modal(ASSETS_TAG_PREVIEW_MODAL);
+                ctx.notifier.tag_all();
+            }
+            AssetsPanelAction::CloseInspectModal => {
+                self.preview_modal = None;
+                scope.close_modal(ASSETS_TAG_PREVIEW_MODAL);
+                ctx.notifier.tag_all();
             }
             AssetsPanelAction::OpenDelete(path) => {
-                self.dialog_host.open_confirm_danger(
+                ctx.dialog_host.open_confirm_danger(
                     "Delete Asset",
                     format!(
                         "Are you sure you want to permanently delete '{}'?",
@@ -154,52 +235,89 @@ impl AssetsPanelState {
                             .and_then(|n| n.to_str())
                             .unwrap_or("selected item")
                     ),
-                    AssetsPanelAction::ConfirmDelete(path),
+                    EngineUiAction::DeleteAssetOrFolder(path),
                 );
-                notifier.tag_all();
+                ctx.notifier.tag_all();
             }
-            AssetsPanelAction::OpenRename(path, name, is_folder) => {
-                self.dialog_host.open_input(
+            AssetsPanelAction::OpenRename(target, name, is_folder) => {
+                ctx.dialog_host.open_input(
                     format!("Rename {}", if is_folder { "Folder" } else { "Asset" }),
                     "New Name:",
                     name,
-                    move |new_name| AssetsPanelAction::ConfirmRename(path.clone(), new_name),
+                    move |new_name| EngineUiAction::RenameAssetOrFolder {
+                        target: target.clone(),
+                        new_name,
+                    },
                 );
-                notifier.tag_all();
+                ctx.notifier.tag_all();
             }
             AssetsPanelAction::OpenCreateSubfolder(parent) => {
-                self.dialog_host.open_input(
+                ctx.dialog_host.open_input(
                     "New Folder",
                     "Folder Name:",
                     "New Folder",
-                    move |name| AssetsPanelAction::ConfirmNewFolder(parent.clone(), name),
+                    move |name| EngineUiAction::CreateSubfolder {
+                        parent: parent.clone(),
+                        name,
+                    },
                 );
-                notifier.tag_all();
+                ctx.notifier.tag_all();
             }
             AssetsPanelAction::ConfirmDelete(path) => {
-                drop(crate::assets::file_ops::delete_asset_or_folder(&path));
-                self.filtered_cache.invalidate();
-                self.actions.push(AssetsPanelAction::SelectAsset(None));
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                ctx.action_bus
+                    .emit(EngineUiAction::DeleteAssetOrFolder(path));
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
-            AssetsPanelAction::ConfirmRename(path, new_name) => {
-                drop(crate::assets::file_ops::rename_asset_or_folder(
-                    &path, &new_name,
-                ));
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+            AssetsPanelAction::ConfirmRename(target, new_name) => {
+                ctx.action_bus
+                    .emit(EngineUiAction::RenameAssetOrFolder { target, new_name });
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
             AssetsPanelAction::ConfirmNewFolder(parent, name) => {
-                drop(crate::assets::file_ops::create_subfolder(&parent, &name));
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                ctx.action_bus
+                    .emit(EngineUiAction::CreateSubfolder { parent, name });
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
-            AssetsPanelAction::CloseInspectModal => {
-                self.preview_modal = None;
-                notifier.tag_all();
+            AssetsPanelAction::StartAssetDrag(payload) => {
+                payload
+                    .downcast_ref::<AssetItem>()
+                    .into_iter()
+                    .for_each(|item| {
+                        if ctx
+                            .params
+                            .panel_data
+                            .asset_browser
+                            .drag_payload
+                            .as_ref()
+                            .is_none_or(|p| p.path != item.path)
+                        {
+                            ctx.params.panel_data.asset_browser.drag_payload =
+                                Some(AssetDragPayload {
+                                    path: item.path.clone(),
+                                    name: item.name.clone(),
+                                    category: item.category,
+                                    model_handle: item.model_handle,
+                                    texture_handle: item.texture_handle,
+                                });
+                            ctx.notifier.tag_redraw(PanelId::Viewport);
+                            ctx.notifier.tag_redraw(PanelId::Assets);
+                        }
+                    });
             }
-            other => {
-                self.actions.push(other);
-                notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+            AssetsPanelAction::EndAssetDrag => {
+                crate::assets::drag_drop::resolve_viewport_drop_action(
+                    ctx.params.panel_data.asset_browser,
+                    scope.resolved_cursor_pos(ctx.cursor_pos),
+                    ctx.params.viewport.viewport_rect,
+                    ctx.params.viewport.camera,
+                    ctx.params.context.is_2d_mode,
+                )
+                .into_iter()
+                .for_each(|act| ctx.action_bus.emit(act));
+                ctx.notifier.tag_redraw(PanelId::Viewport);
+                ctx.notifier.tag_redraw(PanelId::Assets);
             }
+            _ => {}
         }
     }
 
@@ -209,7 +327,7 @@ impl AssetsPanelState {
         &mut self,
         surface: &irisui::IrisSurfaceHost,
         queue: &wgpu::Queue,
-        items: &[crate::assets::types::AssetItem],
+        items: &[AssetItem],
     ) {
         surface
             .texture_atlas
