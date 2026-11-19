@@ -3,7 +3,7 @@
 
 //! Retained UI update loop, always-rebuild and typography collection tests.
 
-use irisui::prelude::{Button, Color, FocusManager, Rect, UiScope, UiTree};
+use irisui::prelude::{Button, Color, Rect, UiScope, UiTree};
 
 #[test]
 fn test_collect_text_sections_with_hover_state() {
@@ -35,22 +35,24 @@ fn test_collect_text_sections_with_hover_state() {
 }
 
 #[test]
-fn test_focus_manager_text_input_focus() {
+fn test_ui_tree_text_input_focus_ssot() {
     use super::hierarchy::HIERARCHY_TAG_SEARCH_INPUT;
 
-    let mut focus_mgr = FocusManager::new();
-    assert!(!focus_mgr.has_focus());
-    assert_eq!(focus_mgr.focused_tag(), None);
+    let mut tree = UiTree::new();
+    assert!(!tree.is_text_input_focused());
+    assert_eq!(tree.event_state.focused_tag, None);
 
-    focus_mgr.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
-    assert!(focus_mgr.has_focus());
-    assert_eq!(focus_mgr.focused_tag(), Some(HIERARCHY_TAG_SEARCH_INPUT));
-    assert!(focus_mgr.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
-    assert!(!focus_mgr.is_tag_focused(99999));
+    tree.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
+    assert_eq!(
+        tree.event_state.focused_tag,
+        Some(HIERARCHY_TAG_SEARCH_INPUT)
+    );
+    assert!(tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
+    assert!(!tree.is_tag_focused(99999));
 
-    focus_mgr.clear_focus();
-    assert!(!focus_mgr.has_focus());
-    assert_eq!(focus_mgr.focused_tag(), None);
+    tree.event_state.clear_focus();
+    assert!(!tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
+    assert_eq!(tree.event_state.focused_tag, None);
 }
 
 #[test]
@@ -137,76 +139,42 @@ fn test_search_input_focus_blur_lifecycle() {
 }
 
 #[test]
-fn test_focus_manager_auto_sync_lifecycle_with_ui_scope() {
+fn test_ui_scope_focus_ssot_lifecycle() {
     use super::assets::ASSETS_TAG_SEARCH_INPUT;
-    use irisui::widgets::controls::focus::FocusState;
 
     let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
-    let mut focus_manager = FocusManager::new();
-    let mut focus_state = FocusState::new();
 
     // 1. Initially no focus
-    assert!(!focus_manager.has_focus());
-    assert!(!focus_state.has_focus());
+    assert!(!tree.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
+    assert!(!tree.is_text_input_focused());
 
-    // 2. Focus set on search input
-    focus_manager.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
-    focus_state.sync_from_core(&focus_manager);
-    assert!(focus_manager.has_focus());
-    assert!(focus_state.has_focus());
-    assert!(focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
-
-    // 3. UiScope auto_sync_core_focus when text editing is NOT active drops focus
+    // 2. Focus set directly on UiTree via UiScope SSOT
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
-        assert!(
-            cleared,
-            "auto_sync_core_focus must clear focus when active_text_edit is none"
-        );
-        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
-        assert!(
-            state_cleared,
-            "auto_sync_focus_state must clear focus when active_text_edit is none"
-        );
+        scope.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
+        assert!(scope.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
     }
-    assert!(!focus_manager.has_focus());
-    assert!(!focus_state.has_focus());
 
-    // 4. When text editing IS active, focus is retained
+    // 3. Clearing focus releases tag and active edit cleanly
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.clear_focus();
+        assert!(!scope.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
+    }
+
+    // 4. When text editing IS active, both tree and scope report focused state
     tree.event_state
         .start_text_edit(None, ASSETS_TAG_SEARCH_INPUT, "test", 4, None);
-    focus_manager.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
-    focus_state.sync_from_core(&focus_manager);
-
     {
-        let mut scope = UiScope::new(&mut tree, root);
-        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
-        assert!(
-            !cleared,
-            "auto_sync_core_focus must retain focus while text edit is active"
-        );
-        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
-        assert!(
-            !state_cleared,
-            "auto_sync_focus_state must retain focus while text edit is active"
-        );
+        let scope = UiScope::new(&mut tree, root);
+        assert!(scope.has_text_input_focus());
+        assert!(scope.is_tag_focused(ASSETS_TAG_SEARCH_INPUT));
     }
-    assert!(focus_manager.has_focus());
-    assert!(focus_state.has_focus());
 
-    // 5. When text editing finishes, auto_sync drops focus
+    // 5. Clearing text edit drops active text input focus
     tree.event_state.clear_text_edit();
-    {
-        let mut scope = UiScope::new(&mut tree, root);
-        let cleared = scope.auto_sync_core_focus(&mut focus_manager);
-        assert!(cleared);
-        let state_cleared = scope.auto_sync_focus_state(&mut focus_state);
-        assert!(state_cleared);
-    }
-    assert!(!focus_manager.has_focus());
-    assert!(!focus_state.has_focus());
+    assert!(!tree.is_text_input_focused());
 }
 
 #[test]
@@ -603,10 +571,10 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
 fn test_overlay_params_accessors_and_invariants() {
     use super::menubar::VIEW_PANEL_IDS;
     use super::params::*;
-    use crate::ui::panel_layout::PanelLayoutState;
+    use crate::ui::panel_layout::create_default_dock_state;
 
-    let layout_state = PanelLayoutState::default();
-    let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+    let dock_state = create_default_dock_state();
+    let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
     let mut world = hecs::World::new();
     let entity_a = world.spawn((123u32,));
     let _entity_b = world.spawn((456u32,));
@@ -634,8 +602,6 @@ fn test_overlay_params_accessors_and_invariants() {
     let asset_browser = crate::assets::AssetBrowserState::default();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let euler = [0.0; 3];
-    let swatches = Vec::new();
     let mut live_updates = true;
 
     let camera = ae_renderer::camera::Camera {
@@ -707,9 +673,6 @@ fn test_overlay_params_accessors_and_invariants() {
             console_entries: &[],
             textures: &textures,
             models: &models,
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
         },
         dialog_host: None,
         action_bus: None,

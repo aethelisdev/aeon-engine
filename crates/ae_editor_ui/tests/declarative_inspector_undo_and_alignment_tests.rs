@@ -19,21 +19,12 @@ use irisui::widgets::declarative::scope::UiScope;
 fn create_test_params<'a>(
     world: &'a hecs::World,
     selected: Option<hecs::Entity>,
-    euler: &'a [f32; 3],
-    swatches: &'a [[f32; 4]],
 ) -> InspectorPanelParams<'a> {
     InspectorPanelParams {
         panel_rect: irisui::core::Rect::new(0.0, 0.0, 320.0, 900.0),
         world,
         selected_entity: selected,
-        inspector_euler: euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: swatches,
         cursor_pos: irisui::core::Point::new(0.0, 0.0),
-        active_submenu: None,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        inspector_hsv: [0.0, 0.0, 1.0],
     }
 }
 
@@ -60,19 +51,10 @@ fn test_property_label_width_alignment_across_cards() {
         Velocity::default(),
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_test_params(&world, Some(entity));
 
     let mut name = String::new();
-    let mut swatches = Vec::new();
-    let mut active_submenu = None;
-    let mut session = ae_editor_ui::ui::iris_bridge::inspector::InspectorSessionRefs {
-        inspected_name: &mut name,
-        saved_swatches: &mut swatches,
-        active_submenu: &mut active_submenu,
-    };
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name);
 
     // Verify canonical default label width constant is 105px
     assert_eq!(DEFAULT_INSPECTOR_LABEL_WIDTH, 105.0);

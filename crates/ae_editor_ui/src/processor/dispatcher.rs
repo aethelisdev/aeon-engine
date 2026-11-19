@@ -54,14 +54,12 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                     .reset_dock_state(crate::ui::panel_layout::create_default_dock_state());
             }
             crate::ui::EngineUiAction::OpenPreferences => {
-                ctx.ui.open_preferences();
+                ctx.ui
+                    .workbench
+                    .open_or_focus_panel(crate::ui::PanelId::Preferences);
             }
-            crate::ui::EngineUiAction::OpenAbout
-            | crate::ui::EngineUiAction::StartProjectExport(_) => {
-                // Handled declaratively by modal tags or host engine export pipeline
-            }
-            crate::ui::EngineUiAction::TitleBarAction(_) => {
-                // Window titlebar actions are dispatched in the render pass where Window handle is present
+            crate::ui::EngineUiAction::StartProjectExport(_) => {
+                // Handled declaratively by host engine export pipeline
             }
             crate::ui::EngineUiAction::SetUiScale(scale) => {
                 ctx.ui.ui_zoom_factor = scale.clamp(0.6, 2.0);
