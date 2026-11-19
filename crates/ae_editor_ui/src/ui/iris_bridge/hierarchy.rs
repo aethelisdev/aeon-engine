@@ -8,7 +8,6 @@
 
 pub mod add_menu;
 pub mod builder;
-pub mod context_menu;
 pub mod footer;
 pub mod header;
 pub mod panel;
@@ -21,16 +20,13 @@ pub mod tests_add_menu;
 pub mod tests_navigation;
 pub mod types;
 
-pub use add_menu::{
-    draw_hierarchy_add_menu, get_hierarchy_add_menu_action, get_hierarchy_add_menu_items,
-};
+pub use add_menu::{draw_hierarchy_add_menu, hierarchy_add_menu_entries};
 pub use panel::build_hierarchy_panel;
+pub use rows::SceneHierarchySource;
 pub use types::{
-    AddSubmenuId, HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HIERARCHY_TAG_ADD_BUTTON,
-    HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_PREFIX, HIERARCHY_TAG_FOLDOUT_PREFIX,
-    HIERARCHY_TAG_INDEX_MASK, HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX,
+    AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_BASE,
+    HIERARCHY_TAG_FOLDOUT_BASE, HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_BASE,
     HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT,
-    HierarchyAction, HierarchyPanelParams, HierarchyPanelState, HierarchyRow, HierarchyState,
-    is_hierarchy_tag, make_eye_tag, make_foldout_tag, make_row_tag, parse_eye_tag,
-    parse_foldout_tag, parse_row_tag,
+    HierarchyPanelParams, HierarchyPanelState, HierarchyRow, HierarchyState, make_eye_tag,
+    make_foldout_tag, make_row_tag,
 };

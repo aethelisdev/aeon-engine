@@ -1,251 +1,106 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Scene Hierarchy Data Structures and Action Types
+//! # Scene Hierarchy Data Structures and Semantic Tag Definitions
 //!
-//! Provides the data structures, hit-test targets, and action dispatch enums
-//! for the 100% Iris UI GPU-accelerated Scene Hierarchy panel.
+//! Provides semantic [`UiTag`] identifiers, cached row aliases, panel view parameters,
+//! and retained panel state for the Iris UI-accelerated Scene Hierarchy outliner.
 
 use irisui::prelude::*;
-use std::path::PathBuf;
 
-/// Pre-flattened lightweight POD representation of a single entity row in the scene hierarchy tree.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HierarchyRow {
-    /// Target ECS entity.
-    pub entity: hecs::Entity,
-    /// Indentation nesting depth (0 = root entity).
-    pub depth: u16,
-    /// True if the entity has at least one valid child entity.
-    pub has_children: bool,
-    /// True if this node is currently expanded in the tree view.
-    pub is_expanded: bool,
-}
+/// Alias for a flattened hierarchy row owned by [`TreeModel`](irisui::prelude::TreeModel).
+pub type HierarchyRow = TreeRowEntry<hecs::Entity>;
 
-/// Active hierarchical submenu currently open within the `➕` Add Menu.
-/// Represents the hierarchical cascading depth tier of an Add Menu branch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddSubmenuTier {
-    /// Primary level-1 submenu opening directly from the main Add Menu card.
-    Primary,
-    /// Secondary nested level-2 sub-submenu opening from a primary branch card.
-    Secondary,
-}
-
+/// Active cascading submenu category within the Hierarchy `➕` Add Menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddSubmenuId {
-    /// 3D primitive geometry submenu (Cube, Sphere, Plane, Cylinder, Capsule, Torus, Triangle).
+    /// 3D primitive geometry submenu.
     Objects3D,
-    /// 2D primitive sprite objects submenu (Sprite, Player Sprite, Empty 2D Object).
+    /// 2D primitive sprite objects submenu.
     Objects2D,
-    /// 2D Canvas & UI elements submenu (Panel, Label, Image, Button, Progress Bar, Slider, Checkbox, Input).
+    /// 2D Canvas & UI elements submenu.
     UiCanvas,
-    /// Preset in-game HUD widgets (HealthBar, ScoreDisplay).
+    /// Preset in-game HUD widgets submenu.
     HudPresets,
-    /// Assets and prefabs submenu (Load Model, Load Prefab).
+    /// Assets and prefabs submenu.
     AssetsPrefabs,
     /// Stress testing and performance benchmarks submenu.
     StressBenchmarks,
 }
 
 impl AddSubmenuId {
-    /// Returns the hierarchical cascading depth tier of this submenu branch.
-    ///
-    /// Enables fully data-driven submenu activation without hardcoded enum branching.
+    /// Returns the deterministic [`UiTag`] identifying this cascading submenu branch.
     #[inline]
-    pub const fn tier(self) -> AddSubmenuTier {
+    #[must_use]
+    pub const fn tag(self) -> UiTag {
         match self {
-            Self::HudPresets => AddSubmenuTier::Secondary,
-            Self::Objects3D
-            | Self::Objects2D
-            | Self::UiCanvas
-            | Self::AssetsPrefabs
-            | Self::StressBenchmarks => AddSubmenuTier::Primary,
-        }
-    }
-
-    /// Converts the submenu variant into a unique numeric tag for widget routing.
-    #[inline]
-    pub const fn to_tag(self) -> u64 {
-        match self {
-            Self::Objects3D => 1,
-            Self::Objects2D => 2,
-            Self::UiCanvas => 3,
-            Self::HudPresets => 4,
-            Self::AssetsPrefabs => 5,
-            Self::StressBenchmarks => 6,
-        }
-    }
-
-    /// Reconstructs the submenu variant from a widget tag if it represents a branch.
-    #[inline]
-    pub const fn from_tag(tag: u64) -> Option<Self> {
-        match tag {
-            1 => Some(Self::Objects3D),
-            2 => Some(Self::Objects2D),
-            3 => Some(Self::UiCanvas),
-            4 => Some(Self::HudPresets),
-            5 => Some(Self::AssetsPrefabs),
-            6 => Some(Self::StressBenchmarks),
-            _ => None,
+            Self::Objects3D => UiTag::from_str("ae.hierarchy.add_menu.objects_3d"),
+            Self::Objects2D => UiTag::from_str("ae.hierarchy.add_menu.objects_2d"),
+            Self::UiCanvas => UiTag::from_str("ae.hierarchy.add_menu.ui_canvas"),
+            Self::HudPresets => UiTag::from_str("ae.hierarchy.add_menu.hud_presets"),
+            Self::AssetsPrefabs => UiTag::from_str("ae.hierarchy.add_menu.assets_prefabs"),
+            Self::StressBenchmarks => UiTag::from_str("ae.hierarchy.add_menu.stress_benchmarks"),
         }
     }
 }
 
-/// Actions dispatched from the Hierarchy panel to the engine UI processor.
-#[derive(Debug, Clone, PartialEq)]
-pub enum HierarchyAction {
-    /// Select or deselect an entity.
-    SelectEntity(Option<hecs::Entity>),
-    /// Toggle visibility of a specific entity.
-    ToggleVisibility(hecs::Entity),
-    /// Delete the currently selected entity.
-    DeleteSelected,
-    /// Spawn a primitive 3D mesh shape.
-    SpawnShape(ae_core::ecs::Shape),
-    /// Spawn a standard 2D Sprite entity.
-    SpawnDefaultSprite,
-    /// Spawn a 2D Player Sprite entity with `PlayerTag`.
-    SpawnPlayerSprite,
-    /// Spawn an empty 2D entity.
-    SpawnEmpty2D,
-    /// Spawn a 2D UI element or preset HUD component.
-    SpawnUiElement(crate::ui::UiElementType),
-    /// Open the 3D model asset import file picker dialog.
-    OpenModelDialog,
-    /// Open the prefab asset import file picker dialog.
-    OpenLoadPrefabDialog,
-    /// Instantiate a prefab from the given filesystem path.
-    InstantiatePrefab(PathBuf),
-    /// Spawns the complete interactive test sandbox.
-    SpawnPhase1TestSandbox,
-    /// Triggers an entity stress benchmark test with N entities.
-    StressTest(usize),
-    /// Triggers the 10km OpenWorld stress test.
-    AaaOpenWorldTest,
-    /// Triggers the particle physics explosion stress test.
-    Explode,
-    /// Sets the search filter query string.
-    SetSearchQuery(String),
-    /// Clears the active search filter query.
-    ClearSearchQuery,
-    /// Opens the `➕` Add Menu at the specified screen anchor.
-    OpenAddMenu(Option<Point>),
-    /// Closes the active `➕` Add Menu.
-    CloseAddMenu,
-    /// Opens a specific cascading submenu within the Add Menu.
-    OpenSubmenu(AddSubmenuId),
-    /// Closes the active cascading submenu.
-    CloseSubmenu,
-    /// Opens a specific nested sub-submenu within the cascading submenu.
-    OpenSubSubmenu(AddSubmenuId),
-    /// Closes the active nested sub-submenu.
-    CloseSubSubmenu,
-    /// Opens the right-click context menu for an entity at the cursor position.
-    OpenContextMenu(hecs::Entity, Point),
-    /// Closes the right-click context menu.
-    CloseContextMenu,
-}
+// ── Deterministic Semantic UiTags ─────────────────────────────────────────
 
-// ── Semantic 64-bit Tags ──────────────────────────────────────────────────
+/// Semantic [`UiTag`] assigned to the Hierarchy Panel root container.
+pub const HIERARCHY_TAG_PANEL_ROOT: UiTag = UiTag::from_str("ae.hierarchy.panel_root");
 
-/// Semantic tag assigned to the Hierarchy Panel root container.
-pub const HIERARCHY_TAG_PANEL_ROOT: u64 = 0x4849_4552_0000_0000;
+/// Semantic [`UiTag`] assigned to the Search Bar text input container.
+pub const HIERARCHY_TAG_SEARCH_INPUT: UiTag = UiTag::from_str("ae.hierarchy.search_input");
 
-/// Semantic tag assigned to the Search Bar text input container.
-pub const HIERARCHY_TAG_SEARCH_INPUT: u64 = 0x4849_4552_0000_0001;
+/// Semantic [`UiTag`] assigned to the Search Bar clear `✖` button.
+pub const HIERARCHY_TAG_SEARCH_CLEAR: UiTag = UiTag::from_str("ae.hierarchy.search_clear");
 
-/// Semantic tag assigned to the Search Bar clear `✖` button.
-pub const HIERARCHY_TAG_SEARCH_CLEAR: u64 = 0x4849_4552_0000_0002;
+/// Semantic [`UiTag`] assigned to the Header `➕` Add Menu toggle button.
+pub const HIERARCHY_TAG_ADD_BUTTON: UiTag = UiTag::from_str("ae.hierarchy.add_button");
 
-/// Semantic tag assigned to the Header `➕` Add Menu button.
-pub const HIERARCHY_TAG_ADD_BUTTON: u64 = 0x4849_4552_0000_0003;
+/// Semantic [`UiTag`] assigned to the Header `🗑` Delete Selected button.
+pub const HIERARCHY_TAG_DELETE_BUTTON: UiTag = UiTag::from_str("ae.hierarchy.delete_button");
 
-/// Semantic tag assigned to the Header `🗑` Delete Selected button.
-pub const HIERARCHY_TAG_DELETE_BUTTON: u64 = 0x4849_4552_0000_0004;
+/// Semantic [`UiTag`] assigned to the Hierarchy virtual rows scroll viewport.
+pub const HIERARCHY_TAG_VIEWPORT: UiTag = UiTag::from_str("ae.hierarchy.viewport");
 
-/// Semantic tag assigned to the Hierarchy virtual rows scroll viewport.
-pub const HIERARCHY_TAG_VIEWPORT: u64 = 0x4849_4552_0000_0005;
+/// Semantic [`UiTag`] assigned to the Hierarchy scrollbar track.
+pub const HIERARCHY_TAG_SCROLLBAR_TRACK: UiTag = UiTag::from_str("ae.hierarchy.scrollbar_track");
 
-/// Semantic tag assigned to the Hierarchy scrollbar track.
-pub const HIERARCHY_TAG_SCROLLBAR_TRACK: u64 = 0x4849_4552_0000_0006;
+/// Semantic [`UiTag`] assigned to the Hierarchy draggable scrollbar thumb.
+pub const HIERARCHY_TAG_SCROLLBAR_THUMB: UiTag = UiTag::from_str("ae.hierarchy.scrollbar_thumb");
 
-/// Semantic tag assigned to the Hierarchy draggable scrollbar thumb.
-pub const HIERARCHY_TAG_SCROLLBAR_THUMB: u64 = 0x4849_4552_0000_0007;
+/// Base [`UiTag`] used to derive per-row selection tags via [`UiTag::indexed`].
+pub const HIERARCHY_TAG_ROW_BASE: UiTag = UiTag::from_str("ae.hierarchy.row");
 
-/// Bitmask prefix for dynamic entity row selection tags.
-pub const HIERARCHY_TAG_ROW_PREFIX: u64 = 0x4849_4552_1000_0000;
+/// Base [`UiTag`] used to derive per-row eye visibility tags via [`UiTag::indexed`].
+pub const HIERARCHY_TAG_EYE_BASE: UiTag = UiTag::from_str("ae.hierarchy.eye");
 
-/// Bitmask prefix for dynamic entity eye visibility toggle tags.
-pub const HIERARCHY_TAG_EYE_PREFIX: u64 = 0x4849_4552_2000_0000;
+/// Base [`UiTag`] used to derive per-row foldout chevron tags via [`UiTag::indexed`].
+pub const HIERARCHY_TAG_FOLDOUT_BASE: UiTag = UiTag::from_str("ae.hierarchy.foldout");
 
-/// Bitmask prefix for dynamic entity foldout chevron expand/collapse tags.
-pub const HIERARCHY_TAG_FOLDOUT_PREFIX: u64 = 0x4849_4552_3000_0000;
-
-/// Bitmask isolating the row index within dynamic row and eye tags (lower 24 bits).
-pub const HIERARCHY_TAG_INDEX_MASK: u64 = 0x0000_0000_00FF_FFFF;
-
-/// Constructs a 64-bit semantic tag for an interactive entity row selection item.
+/// Derives a deterministic 64-bit tag for an interactive entity row at `row_idx`.
 #[inline]
+#[must_use]
 pub const fn make_row_tag(row_idx: usize) -> u64 {
-    HIERARCHY_TAG_ROW_PREFIX | ((row_idx as u64) & HIERARCHY_TAG_INDEX_MASK)
+    HIERARCHY_TAG_ROW_BASE.indexed(row_idx as u64).raw()
 }
 
-/// Parses and extracts the row index from an interactive entity row semantic tag.
+/// Derives a deterministic 64-bit tag for an entity eye visibility button at `row_idx`.
 #[inline]
-pub const fn parse_row_tag(tag: u64) -> Option<usize> {
-    if (tag & 0xFFFF_FFFF_FF00_0000) == HIERARCHY_TAG_ROW_PREFIX {
-        Some((tag & HIERARCHY_TAG_INDEX_MASK) as usize)
-    } else {
-        None
-    }
-}
-
-/// Constructs a 64-bit semantic tag for an entity eye visibility toggle button.
-#[inline]
+#[must_use]
 pub const fn make_eye_tag(row_idx: usize) -> u64 {
-    HIERARCHY_TAG_EYE_PREFIX | ((row_idx as u64) & HIERARCHY_TAG_INDEX_MASK)
+    HIERARCHY_TAG_EYE_BASE.indexed(row_idx as u64).raw()
 }
 
-/// Parses and extracts the row index from an entity eye visibility semantic tag.
+/// Derives a deterministic 64-bit tag for an entity branch foldout chevron at `row_idx`.
 #[inline]
-pub const fn parse_eye_tag(tag: u64) -> Option<usize> {
-    if (tag & 0xFFFF_FFFF_FF00_0000) == HIERARCHY_TAG_EYE_PREFIX {
-        Some((tag & HIERARCHY_TAG_INDEX_MASK) as usize)
-    } else {
-        None
-    }
-}
-
-/// Constructs a 64-bit semantic tag for an entity branch foldout chevron toggle button.
-#[inline]
+#[must_use]
 pub const fn make_foldout_tag(row_idx: usize) -> u64 {
-    HIERARCHY_TAG_FOLDOUT_PREFIX | ((row_idx as u64) & HIERARCHY_TAG_INDEX_MASK)
+    HIERARCHY_TAG_FOLDOUT_BASE.indexed(row_idx as u64).raw()
 }
 
-/// Parses and extracts the row index from an entity branch foldout chevron semantic tag.
-#[inline]
-pub const fn parse_foldout_tag(tag: u64) -> Option<usize> {
-    if (tag & 0xFFFF_FFFF_FF00_0000) == HIERARCHY_TAG_FOLDOUT_PREFIX {
-        Some((tag & HIERARCHY_TAG_INDEX_MASK) as usize)
-    } else {
-        None
-    }
-}
-
-/// Returns `true` if the given 64-bit widget tag belongs to the Scene Hierarchy panel subsystem.
-#[inline]
-pub const fn is_hierarchy_tag(tag: u64) -> bool {
-    (tag & 0xFFFF_FFFF_0000_0000) == 0x4849_4552_0000_0000
-}
-
-/// Numerical tag for deleting the target entity via right-click context menu.
-pub const HIERARCHY_CTX_DELETE: u64 = 0xE100_0001;
-
-/// Numerical tag for toggling target entity visibility via right-click context menu.
-pub const HIERARCHY_CTX_VISIBILITY: u64 = 0xE100_0002;
-
-/// Parameters passed to the Hierarchy panel declarative builder.
+/// Read-only view parameters passed to the Hierarchy panel declarative builder.
 pub struct HierarchyPanelParams<'a> {
     /// Docked panel bounding rectangle.
     pub panel_rect: Rect,
@@ -259,53 +114,33 @@ pub struct HierarchyPanelParams<'a> {
     pub is_editing: bool,
     /// Whether the active dimension mode is 2D Sprite Engine mode.
     pub is_2d: bool,
-    /// Active cascading Add Menu submenu (if open).
-    pub active_submenu: Option<AddSubmenuId>,
-    /// Active nested Add Menu sub-submenu (if open).
-    pub active_sub_submenu: Option<AddSubmenuId>,
-    /// Active right-click context menu (target entity, position) if open.
-    pub active_context_menu: Option<(hecs::Entity, Point)>,
-    /// Current mouse cursor position.
-    pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
 }
 
-/// Persistent interactive state for the Scene Hierarchy panel overlay.
+/// Persistent UI state owned by the Scene Hierarchy panel.
+///
+/// All popup open/close flags and context menu visibility are owned directly by
+/// [`UiTree`](irisui::core::UiTree); flattened row caches live inside [`TreeModel`].
 #[derive(Debug, Clone)]
 pub struct HierarchyPanelState {
     /// Search input text state managing filter buffer, cursor, and selection.
-    pub search_input: irisui::prelude::TextInputState,
-    /// Queued hierarchy interaction actions awaiting processor dispatch.
-    pub actions: Vec<HierarchyAction>,
-    /// Persistent pre-allocated row cache to eliminate per-frame allocations.
-    pub rows_cache: Vec<HierarchyRow>,
+    pub search_input: TextInputState,
+    /// Cached flattened DFS entity rows and filtered view managed by `irisui-widgets`.
+    pub model: TreeModel<hecs::Entity>,
     /// Unified TreeState managing expanded and selected entity nodes.
     pub tree_state: TreeState<hecs::Entity>,
-    /// Whether the `➕` Add Menu is open in Scene Hierarchy.
-    pub is_add_menu_open: bool,
-    /// Currently open cascading submenu in Scene Hierarchy Add Menu.
-    pub active_submenu: Option<AddSubmenuId>,
-    /// Currently open cascading sub-submenu (Level 3) in Scene Hierarchy Add Menu.
-    pub active_sub_submenu: Option<AddSubmenuId>,
-    /// Currently open right-click context menu in Scene Hierarchy.
-    pub active_context_menu: Option<(hecs::Entity, Point)>,
 }
 
 impl Default for HierarchyPanelState {
     #[inline]
     fn default() -> Self {
         Self {
-            search_input: irisui::prelude::TextInputState::default(),
-            actions: Vec::new(),
-            rows_cache: Vec::new(),
+            search_input: TextInputState::default(),
+            model: TreeModel::new(),
             tree_state: TreeState::expanded_by_default(),
-            is_add_menu_open: false,
-            active_submenu: None,
-            active_sub_submenu: None,
-            active_context_menu: None,
         }
     }
 }
@@ -313,72 +148,40 @@ impl Default for HierarchyPanelState {
 /// Semantic alias for [`HierarchyPanelState`].
 pub type HierarchyState = HierarchyPanelState;
 
-impl HierarchyPanelState {
-    /// Drains and returns all queued hierarchy actions.
-    #[inline]
-    pub fn take_actions(&mut self) -> Vec<HierarchyAction> {
-        std::mem::take(&mut self.actions)
-    }
-
-    /// Dynamically activates a cascading submenu branch based on its hierarchical tier.
-    ///
-    /// Opening a primary tier submenu clears any active secondary sub-submenus,
-    /// while opening a secondary tier branch preserves the parent primary branch.
-    ///
-    /// Returns `true` if the state was mutated and requires UI repaint.
-    pub fn activate_submenu(&mut self, sub_id: AddSubmenuId) -> bool {
-        match sub_id.tier() {
-            AddSubmenuTier::Primary => {
-                if self.active_submenu != Some(sub_id) {
-                    self.active_submenu = Some(sub_id);
-                    self.active_sub_submenu = None;
-                    return true;
-                }
-            }
-            AddSubmenuTier::Secondary => {
-                if self.active_sub_submenu != Some(sub_id) {
-                    self.active_sub_submenu = Some(sub_id);
-                    return true;
-                }
-            }
-        }
-        false
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_add_submenu_tier_and_dynamic_activation() {
-        let mut state = HierarchyPanelState::default();
-
-        // 1. Activate Primary tier (UiCanvas)
-        assert_eq!(AddSubmenuId::UiCanvas.tier(), AddSubmenuTier::Primary);
-        assert!(state.activate_submenu(AddSubmenuId::UiCanvas));
-        assert_eq!(state.active_submenu, Some(AddSubmenuId::UiCanvas));
-        assert_eq!(state.active_sub_submenu, None);
-
-        // Activating same primary branch returns false (no mutation)
-        assert!(!state.activate_submenu(AddSubmenuId::UiCanvas));
-
-        // 2. Activate Secondary tier (HudPresets) while preserving primary
-        assert_eq!(AddSubmenuId::HudPresets.tier(), AddSubmenuTier::Secondary);
-        assert!(state.activate_submenu(AddSubmenuId::HudPresets));
-        assert_eq!(state.active_submenu, Some(AddSubmenuId::UiCanvas));
-        assert_eq!(state.active_sub_submenu, Some(AddSubmenuId::HudPresets));
-
-        // 3. Switching to another Primary tier (Objects3D) clears secondary tier
-        assert!(state.activate_submenu(AddSubmenuId::Objects3D));
-        assert_eq!(state.active_submenu, Some(AddSubmenuId::Objects3D));
-        assert_eq!(state.active_sub_submenu, None);
+    fn test_hierarchy_default_state() {
+        let state = HierarchyPanelState::default();
+        assert_eq!(state.model.total_count(), 0);
+        assert!(state.tree_state.default_expanded);
     }
 
     #[test]
-    fn test_hierarchy_default_state() {
-        let state = HierarchyPanelState::default();
-        assert!(state.rows_cache.is_empty());
-        assert!(!state.is_add_menu_open);
+    fn test_hierarchy_tags_are_unique_and_non_zero() {
+        let tags = [
+            HIERARCHY_TAG_PANEL_ROOT.raw(),
+            HIERARCHY_TAG_SEARCH_INPUT.raw(),
+            HIERARCHY_TAG_SEARCH_CLEAR.raw(),
+            HIERARCHY_TAG_ADD_BUTTON.raw(),
+            HIERARCHY_TAG_DELETE_BUTTON.raw(),
+            HIERARCHY_TAG_VIEWPORT.raw(),
+            HIERARCHY_TAG_SCROLLBAR_TRACK.raw(),
+            HIERARCHY_TAG_SCROLLBAR_THUMB.raw(),
+            make_row_tag(0),
+            make_row_tag(1),
+            make_eye_tag(0),
+            make_foldout_tag(0),
+        ];
+        for (i, &t1) in tags.iter().enumerate() {
+            assert_ne!(t1, 0);
+            for (j, &t2) in tags.iter().enumerate() {
+                if i != j {
+                    assert_ne!(t1, t2);
+                }
+            }
+        }
     }
 }

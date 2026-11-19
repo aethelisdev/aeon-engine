@@ -3,49 +3,35 @@
 
 //! # Scene Hierarchy Panel Orchestrator & Viewport Lifecycle
 //!
-//! Assembles the Scene Hierarchy root container, header toolbar, scrollable DFS
-//! entity rows, and footer status bar purely using [`UiScope`] and declarative flexbox primitives.
+//! Assembles the Scene Hierarchy root container, header toolbar, virtualized DFS
+//! entity rows, footer status bar, and cascading add menu using pure declarative [`UiScope`].
 
 use super::add_menu::draw_hierarchy_add_menu;
-use super::context_menu::draw_hierarchy_context_menu;
 use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
-use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
-use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyAction, HierarchyPanelParams, HierarchyRow};
+use super::rows::build_hierarchy_rows;
+use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
 /// Builds the complete Scene Hierarchy panel tree purely using declarative [`UiScope`].
 pub fn build_hierarchy_panel(
     scope: &mut UiScope<'_>,
     params: &HierarchyPanelParams<'_>,
-    rows_cache: &mut Vec<HierarchyRow>,
-    actions: &mut Vec<HierarchyAction>,
+    model: &TreeModel<hecs::Entity>,
     tree_state: &mut TreeState<hecs::Entity>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope
         .panel("HierarchyPanelRoot")
-        .tagged(HIERARCHY_TAG_PANEL_ROOT)
+        .tagged(HIERARCHY_TAG_PANEL_ROOT.raw())
         .bounds(params.panel_rect)
         .background_themed(|t| t.panel_bg)
         .show(|panel_scope| {
-            // 1. Header Toolbar (Search Box, Add Button, Delete Button)
-            build_hierarchy_header(panel_scope, params, actions);
-
-            // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
-            sync_hierarchy_rows(params.world, tree_state, rows_cache);
-
-            // 3. Virtualized & Frustum-Culled Entity Rows Viewport
-            build_hierarchy_rows(panel_scope, rows_cache, params, actions, tree_state);
-
-            // 4. Footer Status Line (Object Count & Selection Telemetry)
-            build_hierarchy_footer(panel_scope, rows_cache.len(), params);
-
-            // 5. Cascading ➕ Add Entity Dropdown Menu (elevated overlay; scoped by HIERARCHY_TAG_ADD_BUTTON)
-            draw_hierarchy_add_menu(panel_scope, params, actions);
-
-            // 6. Right-Click Entity Context Menu (elevated overlay)
-            if params.active_context_menu.is_some() {
-                draw_hierarchy_context_menu(panel_scope, params, actions);
-            }
+            build_hierarchy_header(panel_scope, params, action_bus);
+            build_hierarchy_rows(panel_scope, model, tree_state, params, action_bus);
+            build_hierarchy_footer(panel_scope, model.total_count(), params);
+            draw_hierarchy_add_menu(panel_scope, params, action_bus);
         });
 }

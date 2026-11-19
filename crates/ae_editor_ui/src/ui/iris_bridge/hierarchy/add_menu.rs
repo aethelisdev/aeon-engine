@@ -1,316 +1,254 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Scene Hierarchy `➕` Cascading Add Menu Builder
+//! # Scene Hierarchy `➕` Static Cascading Add Menu
 //!
-//! Provides the data-driven cascading multi-level dropdown menu tree for spawning 3D shapes,
-//! 2D UI elements, HUD presets, asset imports, and stress test benchmarks via [`CascadingMenuBuilder`].
-//!
-//! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
+//! Defines the compile-time static menu trees (`const &[CascadingMenuEntry]`) for
+//! spawning 3D shapes, 2D sprites, UI Canvas widgets, asset imports, and benchmarks
+//! with zero heap allocations and direct `UiTree` + `ActionBus` wiring.
 
-use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyAction, HierarchyPanelParams};
+use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyPanelParams};
+use crate::ui::UiElementType;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
-use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};
-use irisui::widgets::declarative::scope::{CascadingPopupConfig, PopupPlacement};
+use irisui::workbench::ActionBus;
 
-/// Resolves a numeric menu item tag into its corresponding [`HierarchyAction`].
+const ADD_MENU_HUD_PRESETS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "Health Bar (Player Tag)",
+        UiIcon::Glyph("❤️"),
+        EngineUiAction::SpawnUiElement(UiElementType::HealthBar),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Score Display (Score Tag)",
+        UiIcon::Glyph("⭐"),
+        EngineUiAction::SpawnUiElement(UiElementType::ScoreDisplay),
+    ),
+];
+
+const ADD_MENU_UI_CANVAS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "Panel / Canvas Box",
+        UiIcon::Glyph("🟩"),
+        EngineUiAction::SpawnUiElement(UiElementType::Panel),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Text Label",
+        UiIcon::Glyph("🔤"),
+        EngineUiAction::SpawnUiElement(UiElementType::Text),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Interactive Button",
+        UiIcon::Glyph("🔘"),
+        EngineUiAction::SpawnUiElement(UiElementType::Button),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Image / Icon",
+        UiIcon::Glyph("🖼️"),
+        EngineUiAction::SpawnUiElement(UiElementType::Image),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Progress Bar",
+        UiIcon::Glyph("📊"),
+        EngineUiAction::SpawnUiElement(UiElementType::ProgressBar),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Numeric Slider",
+        UiIcon::Glyph("🎚️"),
+        EngineUiAction::SpawnUiElement(UiElementType::Slider),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Toggle Checkbox",
+        UiIcon::Glyph("☑️"),
+        EngineUiAction::SpawnUiElement(UiElementType::Checkbox),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Text Input Field",
+        UiIcon::Glyph("📝"),
+        EngineUiAction::SpawnUiElement(UiElementType::TextInput),
+    ),
+    CascadingMenuEntry::separator(),
+    CascadingMenuEntry::submenu(
+        "HUD Presets",
+        Some(UiIcon::Glyph("🎮")),
+        AddSubmenuId::HudPresets.tag(),
+        ADD_MENU_HUD_PRESETS,
+    ),
+];
+
+const ADD_MENU_ASSETS_PREFABS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "3D Model...",
+        UiIcon::Atlas(ICON_CUBE),
+        EngineUiAction::OpenModelDialog,
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Load Prefab...",
+        UiIcon::Atlas(ICON_FOLDER),
+        EngineUiAction::OpenLoadPrefabDialog,
+    ),
+];
+
+const ADD_MENU_2D_OBJECTS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "Sprite",
+        UiIcon::Glyph("🖼️"),
+        EngineUiAction::SpawnDefaultSprite,
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Player Sprite",
+        UiIcon::Glyph("🏃"),
+        EngineUiAction::SpawnPlayerSprite,
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Empty 2D Object",
+        UiIcon::Glyph("📦"),
+        EngineUiAction::SpawnEmpty2D,
+    ),
+];
+
+const ADD_MENU_3D_OBJECTS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "Cube",
+        UiIcon::Atlas(ICON_CUBE),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cube),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Sphere",
+        UiIcon::Atlas(ICON_SPHERE),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Sphere),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Cylinder",
+        UiIcon::Glyph("🧪"),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cylinder),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Capsule",
+        UiIcon::Glyph("💊"),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Capsule),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Torus",
+        UiIcon::Glyph("🍩"),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Torus),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "Triangle",
+        UiIcon::Glyph("📐"),
+        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Triangle),
+    ),
+];
+
+const ADD_MENU_STRESS_BENCHMARKS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::item_with_icon(
+        "OpenWorld (10km)",
+        UiIcon::Glyph("🏰"),
+        EngineUiAction::AaaOpenWorldTest,
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "10,000 Entities",
+        UiIcon::Glyph("⚡"),
+        EngineUiAction::StressTest(10_000),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "100,000 Entities",
+        UiIcon::Glyph("⚡"),
+        EngineUiAction::StressTest(100_000),
+    ),
+    CascadingMenuEntry::item_with_icon(
+        "10,000,000 Universe",
+        UiIcon::Glyph("⚡"),
+        EngineUiAction::StressTest(10_000_000),
+    ),
+    CascadingMenuEntry::item_with_icon("Explode!", UiIcon::Glyph("💥"), EngineUiAction::Explode),
+];
+
+const ADD_MENU_ROOT_2D: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::submenu(
+        "2D Objects",
+        Some(UiIcon::Glyph("🖼️")),
+        AddSubmenuId::Objects2D.tag(),
+        ADD_MENU_2D_OBJECTS,
+    ),
+    CascadingMenuEntry::submenu(
+        "UI & Canvas",
+        Some(UiIcon::Glyph("🎨")),
+        AddSubmenuId::UiCanvas.tag(),
+        ADD_MENU_UI_CANVAS,
+    ),
+    CascadingMenuEntry::submenu(
+        "Assets & Prefabs",
+        Some(UiIcon::Atlas(ICON_FOLDER)),
+        AddSubmenuId::AssetsPrefabs.tag(),
+        ADD_MENU_ASSETS_PREFABS,
+    ),
+];
+
+const ADD_MENU_ROOT_3D: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
+    CascadingMenuEntry::submenu(
+        "3D Objects",
+        Some(UiIcon::Atlas(ICON_CUBE)),
+        AddSubmenuId::Objects3D.tag(),
+        ADD_MENU_3D_OBJECTS,
+    ),
+    CascadingMenuEntry::submenu(
+        "UI & Canvas",
+        Some(UiIcon::Glyph("🎨")),
+        AddSubmenuId::UiCanvas.tag(),
+        ADD_MENU_UI_CANVAS,
+    ),
+    CascadingMenuEntry::submenu(
+        "Assets & Prefabs",
+        Some(UiIcon::Atlas(ICON_FOLDER)),
+        AddSubmenuId::AssetsPrefabs.tag(),
+        ADD_MENU_ASSETS_PREFABS,
+    ),
+    CascadingMenuEntry::separator(),
+    CascadingMenuEntry::item_with_icon(
+        "Phase 1 Test Sandbox",
+        UiIcon::Glyph("🎮"),
+        EngineUiAction::SpawnPhase1TestSandbox,
+    ),
+    CascadingMenuEntry::submenu(
+        "Stress Benchmarks",
+        Some(UiIcon::Glyph("⚡")),
+        AddSubmenuId::StressBenchmarks.tag(),
+        ADD_MENU_STRESS_BENCHMARKS,
+    ),
+];
+
+/// Returns the compile-time static menu hierarchy for either 2D or 3D editor mode.
 #[inline]
-pub fn get_hierarchy_add_menu_action(tag: u64) -> Option<HierarchyAction> {
-    match tag {
-        // 3D Shapes
-        101 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube)),
-        102 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
-        103 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cylinder)),
-        104 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Capsule)),
-        105 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Torus)),
-        106 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Triangle)),
-
-        // 2D Objects
-        201 => Some(HierarchyAction::SpawnDefaultSprite),
-        202 => Some(HierarchyAction::SpawnPlayerSprite),
-        203 => Some(HierarchyAction::SpawnEmpty2D),
-
-        // UI & Canvas Elements
-        301 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Panel,
-        )),
-        302 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Text,
-        )),
-        303 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Button,
-        )),
-        304 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Image,
-        )),
-        305 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::ProgressBar,
-        )),
-        306 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Slider,
-        )),
-        307 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::Checkbox,
-        )),
-        308 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::TextInput,
-        )),
-        309 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::HealthBar,
-        )),
-        310 => Some(HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::ScoreDisplay,
-        )),
-
-        // Asset Imports
-        401 => Some(HierarchyAction::OpenModelDialog),
-        402 => Some(HierarchyAction::OpenLoadPrefabDialog),
-
-        // Benchmarks & Sandboxes
-        501 => Some(HierarchyAction::SpawnPhase1TestSandbox),
-        502 => Some(HierarchyAction::AaaOpenWorldTest),
-        503 => Some(HierarchyAction::StressTest(10_000)),
-        504 => Some(HierarchyAction::StressTest(100_000)),
-        505 => Some(HierarchyAction::StressTest(10_000_000)),
-        506 => Some(HierarchyAction::Explode),
-
-        _ => None,
-    }
-}
-
-/// Constructs the declarative cascading menu item hierarchy for Scene Hierarchy.
-pub fn get_hierarchy_add_menu_items(is_2d: bool) -> Vec<CascadingMenuItem> {
-    let ui_canvas_items = vec![
-        CascadingMenuItem::item_with_icon("Panel / Canvas Box", CascadingMenuIcon::Text("🟩"), 301),
-        CascadingMenuItem::item_with_icon("Text Label", CascadingMenuIcon::Text("🔤"), 302),
-        CascadingMenuItem::item_with_icon("Interactive Button", CascadingMenuIcon::Text("🔘"), 303),
-        CascadingMenuItem::item_with_icon("Image / Icon", CascadingMenuIcon::Text("🖼️"), 304),
-        CascadingMenuItem::item_with_icon("Progress Bar", CascadingMenuIcon::Text("📊"), 305),
-        CascadingMenuItem::item_with_icon("Numeric Slider", CascadingMenuIcon::Text("🎚️"), 306),
-        CascadingMenuItem::item_with_icon("Toggle Checkbox", CascadingMenuIcon::Text("☑️"), 307),
-        CascadingMenuItem::item_with_icon("Text Input Field", CascadingMenuIcon::Text("📝"), 308),
-        CascadingMenuItem::separator(),
-        CascadingMenuItem::branch(
-            "HUD Presets",
-            Some(CascadingMenuIcon::Text("🎮")),
-            AddSubmenuId::HudPresets.to_tag(),
-            vec![
-                CascadingMenuItem::item_with_icon(
-                    "Health Bar (Player Tag)",
-                    CascadingMenuIcon::Text("❤️"),
-                    309,
-                ),
-                CascadingMenuItem::item_with_icon(
-                    "Score Display (Score Tag)",
-                    CascadingMenuIcon::Text("⭐"),
-                    310,
-                ),
-            ],
-        ),
-    ];
-
-    let asset_items = vec![
-        CascadingMenuItem::item_with_icon(
-            "3D Model...",
-            CascadingMenuIcon::Texture(ICON_CUBE),
-            401,
-        ),
-        CascadingMenuItem::item_with_icon(
-            "Load Prefab...",
-            CascadingMenuIcon::Texture(ICON_FOLDER),
-            402,
-        ),
-    ];
-
+#[must_use]
+pub const fn hierarchy_add_menu_entries(
+    is_2d: bool,
+) -> &'static [CascadingMenuEntry<'static, EngineUiAction>] {
     if is_2d {
-        vec![
-            CascadingMenuItem::branch(
-                "2D Objects",
-                Some(CascadingMenuIcon::Text("🖼️")),
-                AddSubmenuId::Objects2D.to_tag(),
-                vec![
-                    CascadingMenuItem::item_with_icon("Sprite", CascadingMenuIcon::Text("🖼️"), 201),
-                    CascadingMenuItem::item_with_icon(
-                        "Player Sprite",
-                        CascadingMenuIcon::Text("🏃"),
-                        202,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "Empty 2D Object",
-                        CascadingMenuIcon::Text("📦"),
-                        203,
-                    ),
-                ],
-            ),
-            CascadingMenuItem::branch(
-                "UI & Canvas",
-                Some(CascadingMenuIcon::Text("🎨")),
-                AddSubmenuId::UiCanvas.to_tag(),
-                ui_canvas_items,
-            ),
-            CascadingMenuItem::branch(
-                "Assets & Prefabs",
-                Some(CascadingMenuIcon::Texture(ICON_FOLDER)),
-                AddSubmenuId::AssetsPrefabs.to_tag(),
-                asset_items,
-            ),
-        ]
+        ADD_MENU_ROOT_2D
     } else {
-        vec![
-            CascadingMenuItem::branch(
-                "3D Objects",
-                Some(CascadingMenuIcon::Texture(ICON_CUBE)),
-                AddSubmenuId::Objects3D.to_tag(),
-                vec![
-                    CascadingMenuItem::item_with_icon(
-                        "Cube",
-                        CascadingMenuIcon::Texture(ICON_CUBE),
-                        101,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "Sphere",
-                        CascadingMenuIcon::Texture(ICON_SPHERE),
-                        102,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "Cylinder",
-                        CascadingMenuIcon::Text("🧪"),
-                        103,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "Capsule",
-                        CascadingMenuIcon::Text("💊"),
-                        104,
-                    ),
-                    CascadingMenuItem::item_with_icon("Torus", CascadingMenuIcon::Text("🍩"), 105),
-                    CascadingMenuItem::item_with_icon(
-                        "Triangle",
-                        CascadingMenuIcon::Text("📐"),
-                        106,
-                    ),
-                ],
-            ),
-            CascadingMenuItem::branch(
-                "UI & Canvas",
-                Some(CascadingMenuIcon::Text("🎨")),
-                AddSubmenuId::UiCanvas.to_tag(),
-                ui_canvas_items,
-            ),
-            CascadingMenuItem::branch(
-                "Assets & Prefabs",
-                Some(CascadingMenuIcon::Texture(ICON_FOLDER)),
-                AddSubmenuId::AssetsPrefabs.to_tag(),
-                asset_items,
-            ),
-            CascadingMenuItem::separator(),
-            CascadingMenuItem::item_with_icon(
-                "Phase 1 Test Sandbox",
-                CascadingMenuIcon::Text("🎮"),
-                501,
-            ),
-            CascadingMenuItem::branch(
-                "Stress Benchmarks",
-                Some(CascadingMenuIcon::Text("⚡")),
-                AddSubmenuId::StressBenchmarks.to_tag(),
-                vec![
-                    CascadingMenuItem::item_with_icon(
-                        "OpenWorld (10km)",
-                        CascadingMenuIcon::Text("🏰"),
-                        502,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "10,000 Entities",
-                        CascadingMenuIcon::Text("⚡"),
-                        503,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "100,000 Entities",
-                        CascadingMenuIcon::Text("⚡"),
-                        504,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "10,000,000 Universe",
-                        CascadingMenuIcon::Text("⚡"),
-                        505,
-                    ),
-                    CascadingMenuItem::item_with_icon(
-                        "Explode!",
-                        CascadingMenuIcon::Text("💥"),
-                        506,
-                    ),
-                ],
-            ),
-        ]
+        ADD_MENU_ROOT_3D
     }
 }
 
-/// Draws the cascading `➕` Add Menu directly into the active [`UiScope`].
-///
-/// Dispatches menu actions and dismiss triggers autonomously via declarative [`WidgetResponse`]
-/// without leaking event loop machinery or tree mutations to the engine layer.
-///
-/// Returns the bounding [`Rect`] of the primary popup card if open.
+/// Draws the cascading `➕` Add Menu directly into [`UiScope`] when `HIERARCHY_TAG_ADD_BUTTON`
+/// is active, emitting clicked spawn actions directly to [`ActionBus`].
 pub fn draw_hierarchy_add_menu(
     scope: &mut UiScope<'_>,
     params: &HierarchyPanelParams<'_>,
-    actions: &mut Vec<HierarchyAction>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) -> Option<Rect> {
-    scope
-        .scoped_cascading_popup_anchored_to_tag(
-            "HierarchyAddMenu",
-            HIERARCHY_TAG_ADD_BUTTON,
-            Rect::new(
-                (params.panel_rect.x + params.panel_rect.width - 56.0)
-                    .max(params.panel_rect.x + 60.0),
-                params.panel_rect.y + 4.0,
-                24.0,
-                24.0,
-            ),
-            CascadingPopupConfig::new(185.0, PopupPlacement::Below)
-                .with_active_submenu(params.active_submenu.map(|s| s.to_tag()))
-                .with_nested_submenu(
-                    params
-                        .active_submenu
-                        .zip(params.active_sub_submenu)
-                        .map(|(p, c)| (p.to_tag(), c.to_tag())),
-                ),
-            |card| {
-                render_menu_items(card, &get_hierarchy_add_menu_items(params.is_2d), actions);
-            },
-        )
-        .map(|res| res.response.rect)
-}
-
-/// Renders cascading menu items recursively using pure declarative [`UiScope`].
-fn render_menu_items(
-    card: &mut UiScope<'_>,
-    items: &[CascadingMenuItem],
-    actions: &mut Vec<HierarchyAction>,
-) {
-    for item in items {
-        if item.is_separator {
-            card.separator();
-            continue;
-        }
-
-        if let Some(children) = &item.submenu {
-            let children_clone = children.clone();
-            card.submenu_named_with_icon_inner(
-                "HierarchySubmenu",
-                &item.label,
-                item.icon,
-                item.tag,
-                |sub_card| {
-                    render_menu_items(sub_card, &children_clone, actions);
-                },
-            );
-        } else {
-            card.dropdown_menu_item_autoclose(item).on_click(|| {
-                if let Some(act) = get_hierarchy_add_menu_action(item.tag) {
-                    actions.push(act);
-                }
-            });
-        }
-    }
+    scope.scoped_cascading_menu_anchored(
+        "HierarchyAddMenu",
+        HIERARCHY_TAG_ADD_BUTTON,
+        CascadingPopupConfig::new(185.0, PopupPlacement::Below).with_fallback_rect(Rect::new(
+            (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),
+            params.panel_rect.y + 4.0,
+            24.0,
+            24.0,
+        )),
+        hierarchy_add_menu_entries(params.is_2d),
+        |action| action_bus.emit(action.clone()),
+    )
 }
