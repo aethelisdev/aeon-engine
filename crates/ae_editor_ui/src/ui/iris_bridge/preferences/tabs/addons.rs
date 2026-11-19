@@ -5,11 +5,8 @@
 //!
 //! Renders installed engine plugins, asset loaders, and runtime extensions declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::pref_heading;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
-/// Add-on plugin item descriptor.
 struct AddonItem {
     name: &'static str,
     version: &'static str,
@@ -55,23 +52,19 @@ const ENGINE_ADDONS: [AddonItem; 4] = [
 ];
 
 /// Builds the Add-ons preferences tab content declaratively using [`UiScope`].
-pub fn build_addons_tab(scope: &mut UiScope<'_>, _params: &PreferencesParams<'_>) {
-    pref_heading(
-        scope,
+pub fn build_addons_tab(scope: &mut UiScope<'_>) {
+    scope.section_heading(
         "📦  Add-ons & Plugins",
         "Manage installed engine extensions, format importers, and runtime subsystems.",
     );
-
-    let card_bg = scope.theme().card_bg;
-    let card_border = scope.theme().card_border;
 
     for addon in &ENGINE_ADDONS {
         scope.container_named(
             "AddonCard",
             Style::new()
                 .flex_col()
-                .background(card_bg)
-                .border(1.0, card_border)
+                .background(scope.theme().card_bg)
+                .border(1.0, scope.theme().card_border)
                 .border_radius(6.0)
                 .padding_insets(Insets::new(12.0, 14.0, 12.0, 14.0))
                 .margin_insets(Insets::new(0.0, 0.0, 12.0, 0.0)),

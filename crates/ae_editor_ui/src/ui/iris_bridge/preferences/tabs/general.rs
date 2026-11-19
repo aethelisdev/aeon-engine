@@ -3,12 +3,15 @@
 
 //! # General Preferences Tab
 //!
-//! Renders global engine settings, language configuration, display / UI scale settings,
-//! and viewport synchronization options declaratively using [`UiScope`].
+//! Renders global display / UI scale settings, theme selection, and viewport
+//! synchronization details declaratively using [`UiScope`].
 
-use super::super::components::{pref_combobox, pref_heading, pref_section_card};
-use super::super::types::{PreferencesAction, PreferencesParams};
+use super::super::types::PreferencesParams;
+use super::PREF_COMBO_LAYOUT;
+use crate::ui::iris_bridge::theme::ThemePreset;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
 /// Scales table supported in the UI scale ComboBox.
 pub const UI_SCALES: [(f32, &str); 7] = [
@@ -21,25 +24,36 @@ pub const UI_SCALES: [(f32, &str); 7] = [
     (1.50, "150%"),
 ];
 
+const UI_SCALE_LABELS: [&str; 7] = [
+    "75%",
+    "80%",
+    "90%",
+    "100% (Default)",
+    "110%",
+    "125%",
+    "150%",
+];
+
+const THEME_LABELS: [&str; 2] = [
+    "Obsidian Deep (High Contrast)",
+    "Cold Slate (Studio Neutral)",
+];
+
 /// Builds the General & Interface preferences tab content declaratively using [`UiScope`].
 pub fn build_general_tab(
     scope: &mut UiScope<'_>,
     params: &mut PreferencesParams<'_>,
-    actions: &mut Vec<PreferencesAction>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    pref_heading(
-        scope,
+    scope.section_heading(
         "General & Interface",
         "Global engine settings, display scaling, theme, and viewport synchronization.",
     );
 
-    let is_scale_collapsed = params.collapsed_sections.contains("general_scale");
-
-    pref_section_card(
-        scope,
+    scope.collapsing_section(
         "general_scale",
         "🔍  Display & UI Scale",
-        is_scale_collapsed,
+        true,
         |body| {
             body.label_styled_passive(
                 "ScaleDesc",
@@ -50,85 +64,59 @@ pub fn build_general_tab(
                 Style::new().margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
             );
 
-            let current_zoom = params.zoom_factor;
-            let selected_label = UI_SCALES
-                .iter()
-                .find(|(val, _)| (current_zoom - *val).abs() < 0.01)
-                .map(|(_, l)| *l)
-                .unwrap_or("100% (Default)");
-
-            let scale_labels = [
-                "75%",
-                "80%",
-                "90%",
-                "100% (Default)",
-                "110%",
-                "125%",
-                "150%",
-            ];
-            let resp = pref_combobox(body, "Interface Scale", selected_label, &scale_labels);
-            if resp.changed()
-                && let Some(idx) = resp.selected_index()
-                && let Some(&(scale_val, _)) = UI_SCALES.get(idx)
-            {
-                params.zoom_factor = scale_val;
-                actions.push(PreferencesAction::SetUiScale(scale_val));
-            }
-        },
-    );
-
-    let is_theme_collapsed = params.collapsed_sections.contains("general_theme");
-
-    pref_section_card(
-        scope,
-        "general_theme",
-        "🎨  Workspace Theme",
-        is_theme_collapsed,
-        |body| {
-            body.label_styled_passive(
-                "ThemeDesc",
-                "Select workspace color elevation palette (Obsidian Deep or Cold Slate):",
-                11.5,
-                Color::rgba(0.70, 0.73, 0.80, 1.0),
-                TextAlign::Left,
-                Style::new().margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
+            body.prop_combobox_mapped_styled_on_change(
+                ComboBoxMapConfig::new(
+                    "Interface Scale",
+                    UI_SCALES
+                        .iter()
+                        .position(|(val, _)| (params.zoom_factor - *val).abs() < 0.01)
+                        .unwrap_or(3),
+                    &UI_SCALE_LABELS,
+                )
+                .with_layout(PREF_COMBO_LAYOUT),
+                &mut params.zoom_factor,
+                |idx| UI_SCALES.get(idx).map_or(1.0, |(val, _)| *val),
+                |&scale| action_bus.emit(EngineUiAction::SetUiScale(scale)),
             );
-
-            let selected_label = match params.current_theme {
-                crate::ui::iris_bridge::theme::ThemePreset::ObsidianDeep => {
-                    "Obsidian Deep (High Contrast)"
-                }
-                crate::ui::iris_bridge::theme::ThemePreset::ColdSlate => {
-                    "Cold Slate (Studio Neutral)"
-                }
-            };
-
-            let theme_labels = [
-                "Obsidian Deep (High Contrast)",
-                "Cold Slate (Studio Neutral)",
-            ];
-            let resp = pref_combobox(body, "Theme Preset", selected_label, &theme_labels);
-            if resp.changed()
-                && let Some(idx) = resp.selected_index()
-            {
-                let new_theme = if idx == 0 {
-                    crate::ui::iris_bridge::theme::ThemePreset::ObsidianDeep
-                } else {
-                    crate::ui::iris_bridge::theme::ThemePreset::ColdSlate
-                };
-                params.current_theme = new_theme;
-                actions.push(PreferencesAction::SetTheme(new_theme));
-            }
         },
     );
 
-    let is_sync_collapsed = params.collapsed_sections.contains("general_viewport");
+    scope.collapsing_section("general_theme", "🎨  Workspace Theme", true, |body| {
+        body.label_styled_passive(
+            "ThemeDesc",
+            "Select workspace color elevation palette (Obsidian Deep or Cold Slate):",
+            11.5,
+            Color::rgba(0.70, 0.73, 0.80, 1.0),
+            TextAlign::Left,
+            Style::new().margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
+        );
 
-    pref_section_card(
-        scope,
+        body.prop_combobox_mapped_styled_on_change(
+            ComboBoxMapConfig::new(
+                "Theme Preset",
+                match *params.current_theme {
+                    ThemePreset::ObsidianDeep => 0,
+                    ThemePreset::ColdSlate => 1,
+                },
+                &THEME_LABELS,
+            )
+            .with_layout(PREF_COMBO_LAYOUT),
+            params.current_theme,
+            |idx| {
+                if idx == 0 {
+                    ThemePreset::ObsidianDeep
+                } else {
+                    ThemePreset::ColdSlate
+                }
+            },
+            |&preset| action_bus.emit(EngineUiAction::SetThemePreset(preset)),
+        );
+    });
+
+    scope.collapsing_section(
         "general_viewport",
         "🖥  Viewport & Synchronization",
-        is_sync_collapsed,
+        true,
         |body| {
             body.container_named(
                 "SyncInfoBox",

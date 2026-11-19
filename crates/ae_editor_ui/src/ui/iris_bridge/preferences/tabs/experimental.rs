@@ -6,11 +6,8 @@
 //! Renders preview cards for  engine features under active development
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::pref_heading;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
-/// Experimental feature preview descriptor.
 struct ExperimentalFeature {
     icon_title: &'static str,
     status_label: &'static str,
@@ -48,23 +45,19 @@ const EXPERIMENTAL_FEATURES: [ExperimentalFeature; 3] = [
 ];
 
 /// Builds the Experimental preferences tab content declaratively using [`UiScope`].
-pub fn build_experimental_tab(scope: &mut UiScope<'_>, _params: &PreferencesParams<'_>) {
-    pref_heading(
-        scope,
+pub fn build_experimental_tab(scope: &mut UiScope<'_>) {
+    scope.section_heading(
         "🧪  Experimental Technologies",
         "Preview bleeding-edge engine features and next-generation graphics pipelines.",
     );
-
-    let card_bg = scope.theme().card_bg;
-    let card_border = scope.theme().card_border;
 
     for feature in &EXPERIMENTAL_FEATURES {
         scope.container_named(
             "ExperimentalCard",
             Style::new()
                 .flex_col()
-                .background(card_bg)
-                .border(1.0, card_border)
+                .background(scope.theme().card_bg)
+                .border(1.0, scope.theme().card_border)
                 .border_radius(6.0)
                 .padding_insets(Insets::new(12.0, 14.0, 12.0, 14.0))
                 .margin_insets(Insets::new(0.0, 0.0, 12.0, 0.0)),

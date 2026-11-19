@@ -6,34 +6,15 @@
 //! Renders engine hot-reload and live editor runtime execution settings
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::pref_section_card;
-use crate::ui::iris_bridge::preferences::types::{
-    PreferencesAction, PreferencesParams, PreferencesToggleId, encode_toggle_tag,
-};
+use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
 /// Builds the Runtime settings card declaratively using [`UiScope`].
-pub fn build_runtime_card(
-    scope: &mut UiScope<'_>,
-    params: &mut PreferencesParams<'_>,
-    actions: &mut Vec<PreferencesAction>,
-) {
-    pref_section_card(
-        scope,
-        "editor_runtime",
-        "⚙  Runtime Settings",
-        params.collapsed_sections.contains("editor_runtime"),
-        |body| {
-            body.checkbox_tagged(
-                "Enable Live Editor Updates (Hot Reload)",
-                encode_toggle_tag(PreferencesToggleId::LiveUpdatesEnabled),
-                params.enable_live_updates,
-            )
-            .on_click(|| {
-                actions.push(PreferencesAction::Toggle(
-                    PreferencesToggleId::LiveUpdatesEnabled,
-                ));
-            });
-        },
-    );
+pub fn build_runtime_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+    scope.collapsing_section("editor_runtime", "⚙  Runtime Settings", true, |body| {
+        body.checkbox(
+            "Enable Live Editor Updates (Hot Reload)",
+            params.enable_live_updates,
+        );
+    });
 }

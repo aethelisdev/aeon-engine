@@ -3,12 +3,11 @@
 
 //! # Iris UI Preferences Subsystem
 //!
-//! Provides the complete declarative GPU SDF Preferences modal dialog implementation,
-//! including modular tabs for General, Graphics, Editor, Navigation, Keymap, System,
-//! Add-ons, Input, Modules, and Experimental configurations.
+//! Provides the declarative GPU SDF Preferences panel implementation across modular
+//! configuration tabs (`General`, `Graphics`, `Editor`, `Navigation`, `Keymap`,
+//! `System`, `Add-ons`, `Input`, `Modules`, and `Experimental`).
 
 pub mod builder;
-pub mod components;
 pub mod tabs;
 pub mod types;
 
@@ -19,16 +18,8 @@ mod tests;
 #[cfg(test)]
 mod tests_scroll;
 
-pub use builder::{
-    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
-    build_preferences_dialog, calculate_preferences_drag_pos,
-};
-pub use components::{pref_combobox, pref_heading, pref_section_card};
+pub use builder::{SIDEBAR_TABS, SIDEBAR_WIDTH, build_preferences_view};
 pub use types::{
-    PHYSICS_HZ_PRESETS, PREF_SECTIONS, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW,
-    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_SECTION_BASE, PREF_TAG_TAB_BASE,
-    PREF_TAG_TITLEBAR, PREF_TAG_TOGGLE_BASE, PREFERENCES_TAG_DOMAIN, PreferencesAction,
-    PreferencesDialogState, PreferencesParams, PreferencesTagTarget, PreferencesToggleId,
-    encode_section_tag, encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_section_tag,
-    parse_tab_tag, parse_toggle_tag, preferences_scroll_style, resolve_preferences_tag,
+    PHYSICS_HZ_PRESETS, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER, PREF_TAG_SCROLLBAR_THUMB,
+    PREF_TAG_SCROLLBAR_TRACK, PreferencesDialogState, PreferencesParams, preferences_scroll_style,
 };

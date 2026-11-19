@@ -6,11 +6,8 @@
 //! Renders hardware GPU adapter status, Rayon thread pool telemetry, and memory diagnostics
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::pref_heading;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
-/// System diagnostic item descriptor.
 struct DiagnosticItem {
     icon_title: &'static str,
     headline: &'static str,
@@ -41,23 +38,19 @@ const SYSTEM_DIAGNOSTICS: [DiagnosticItem; 4] = [
 ];
 
 /// Builds the System preferences tab content declaratively using [`UiScope`].
-pub fn build_system_tab(scope: &mut UiScope<'_>, _params: &PreferencesParams<'_>) {
-    pref_heading(
-        scope,
+pub fn build_system_tab(scope: &mut UiScope<'_>) {
+    scope.section_heading(
         "⚙  System & Hardware Diagnostics",
         "Runtime hardware capabilities, graphics API backend, and thread scheduler telemetry.",
     );
-
-    let card_bg = scope.theme().card_bg;
-    let card_border = scope.theme().card_border;
 
     for item in &SYSTEM_DIAGNOSTICS {
         scope.container_named(
             "SystemCard",
             Style::new()
                 .flex_col()
-                .background(card_bg)
-                .border(1.0, card_border)
+                .background(scope.theme().card_bg)
+                .border(1.0, scope.theme().card_border)
                 .border_radius(6.0)
                 .padding_insets(Insets::new(12.0, 14.0, 12.0, 14.0))
                 .margin_insets(Insets::new(0.0, 0.0, 12.0, 0.0)),

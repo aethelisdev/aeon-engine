@@ -6,84 +6,69 @@
 //! Renders hardware-accelerated configuration cards for mouse look sensitivity,
 //! cursor behavior, and navigation control mappings declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::{pref_heading, pref_section_card};
 use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 
+const VIEWPORT_GESTURES: [(&str, &str, &str); 4] = [
+    (
+        "Fly Camera",
+        "Right Mouse Button + WASD",
+        "Move through scene in forward, backward, and strafe directions.",
+    ),
+    (
+        "Orbit Camera",
+        "Alt + Left Mouse Button",
+        "Orbit smoothly around selected object or camera focal point.",
+    ),
+    (
+        "Pan Camera",
+        "Middle Mouse Button (Scroll Click)",
+        "Translate camera horizontally and vertically on viewport plane.",
+    ),
+    (
+        "Zoom to Target",
+        "Mouse Scroll Wheel",
+        "Step camera position along line of sight toward cursor target.",
+    ),
+];
+
 /// Builds the Input preferences tab content declaratively using [`UiScope`].
-///
-/// Binds mouse look and orbit sensitivity directly to `params.editor_config.mouse_sensitivity`
-/// via immediate two-way property sliders.
 pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
-    pref_heading(
-        scope,
+    scope.section_heading(
         "🖱  Input & Controls",
         "Configure mouse sensitivity, viewport interaction hotkeys, and pointer behaviors.",
     );
 
-    let is_mouse_collapsed = params.collapsed_sections.contains("input_mouse");
-    let cfg = &mut *params.editor_config;
-
-    pref_section_card(
-        scope,
+    scope.collapsing_section(
         "input_mouse",
         "🖱  Mouse & Cursor Sensitivity",
-        is_mouse_collapsed,
+        true,
         |body| {
-            let sens_opts = PropertySliderOptions::new(0.0005, 0.0300, 0.0002)
-                .with_format("{:.4}")
-                .with_subtitle(
-                    "Sensitivity multiplier applied to mouse deltas when orbiting or looking around the 3D viewport.",
-                );
             body.property_slider_with_options(
                 "Look Sensitivity",
-                &mut cfg.mouse_sensitivity,
-                sens_opts,
+                &mut params.editor_config.mouse_sensitivity,
+                PropertySliderOptions::new(0.0005, 0.0300, 0.0002)
+                    .with_format("{:.4}")
+                    .with_subtitle(
+                        "Sensitivity multiplier applied to mouse deltas when orbiting or looking around the 3D viewport.",
+                    ),
             );
         },
     );
 
-    let is_mapping_collapsed = params.collapsed_sections.contains("input_mapping");
-    pref_section_card(
-        scope,
+    scope.collapsing_section(
         "input_mapping",
         "🎮  Standard Viewport Gestures",
-        is_mapping_collapsed,
+        true,
         |body| {
-            let shortcuts: [(&str, &str, &str); 4] = [
-                (
-                    "Fly Camera",
-                    "Right Mouse Button + WASD",
-                    "Move through scene in forward, backward, and strafe directions.",
-                ),
-                (
-                    "Orbit Camera",
-                    "Alt + Left Mouse Button",
-                    "Orbit smoothly around selected object or camera focal point.",
-                ),
-                (
-                    "Pan Camera",
-                    "Middle Mouse Button (Scroll Click)",
-                    "Translate camera horizontally and vertically on viewport plane.",
-                ),
-                (
-                    "Zoom to Target",
-                    "Mouse Scroll Wheel",
-                    "Step camera position along line of sight toward cursor target.",
-                ),
-            ];
-
-            let card_bg = body.theme().card_bg;
-            let card_border = body.theme().card_border;
-
-            for (action_name, hotkey, note) in shortcuts {
+            for (action_name, hotkey, note) in VIEWPORT_GESTURES {
                 body.container_named(
                     "InputGestureCard",
                     Style::new()
                         .flex_col()
-                        .background(card_bg)
-                        .border(1.0, card_border)
+                        .background(body.theme().card_bg)
+                        .border(1.0, body.theme().card_border)
                         .border_radius(6.0)
                         .padding_insets(Insets::new(8.0, 12.0, 8.0, 12.0))
                         .margin_insets(Insets::new(0.0, 0.0, 8.0, 0.0)),

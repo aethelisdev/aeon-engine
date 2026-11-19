@@ -11,7 +11,5 @@ pub mod panel;
 pub mod physics;
 pub mod runtime;
 pub mod snapping;
-pub mod types;
 
 pub use panel::build_editor_tab;
-pub use types::SNAP_MODE_OPTIONS;
