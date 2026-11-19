@@ -42,7 +42,7 @@ pub mod tooltip;
 pub mod tree_view;
 
 pub use action_card::{ActionCardButton, ActionCardConfig};
-pub use collapsing::{CollapsingBuilder, CollapsingResponse};
+pub use collapsing::{CollapsingBuilder, CollapsingCardBuilder, CollapsingResponse};
 pub use labeled_input::{LabeledInputButton, LabeledInputConfig};
 pub use menu_bar::{
     MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
@@ -84,7 +84,8 @@ pub use properties::{
     ComboBoxActionResponse, PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
     PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag, property_vec3_reset_tag,
+    PropertyVec3Response, PropertyVec3Target, euler_deg_to_quat_xyzw, property_vec3_axis_tag,
+    property_vec3_reset_tag, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
     resolve_hsv_from_color, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
     resolve_property_vec3_tag,
 };

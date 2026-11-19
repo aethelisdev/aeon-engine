@@ -53,6 +53,19 @@ impl<'a> ColorPaletteCardConfig<'a> {
         }
     }
 
+    /// Constructs a new [`ColorPaletteCardConfig`] whose hex text is auto-formatted
+    /// from `current_color` inside the framework without requiring a consumer string buffer.
+    #[inline]
+    #[must_use]
+    pub const fn with_auto_hex(
+        card_name: &'a str,
+        title: &'a str,
+        current_color: Color,
+        default_palette: &'a [Color],
+    ) -> Self {
+        Self::new(card_name, title, current_color, "", default_palette)
+    }
+
     /// Overrides the persistent hit-testing semantic tags for swatch and hex boxes.
     #[inline]
     #[must_use]
@@ -94,6 +107,40 @@ impl<'a> UiScope<'a> {
         })
     }
 
+    /// Renders a scoped color palette card whose popup visibility and custom saved swatches
+    /// are both owned directly by [`irisui_core::UiTree`] without consumer vectors or booleans.
+    ///
+    /// Custom swatches persist under `config.swatch_tag` (or a hash of `config.card_name` when untagged).
+    pub fn color_palette_card_tree_scoped(
+        &mut self,
+        config: ColorPaletteCardConfig<'_>,
+    ) -> Option<Color> {
+        let palette_key = config
+            .swatch_tag
+            .unwrap_or_else(|| crate::declarative::types::hash_label(config.card_name));
+        let row_config = match (config.swatch_tag, config.hex_tag) {
+            (Some(st), Some(ht)) => {
+                PropertyColorSwatchRowConfig::new("Object Color:", config.current_color, config.hex)
+                    .with_tags(st, ht)
+            }
+            _ => {
+                PropertyColorSwatchRowConfig::new("Object Color:", config.current_color, config.hex)
+            }
+        };
+
+        self.card_named(config.card_name, config.title, |card| {
+            card.prop_color_swatch_row_scoped(row_config)
+                .then_palette_map_scoped(
+                    card,
+                    palette_key,
+                    "Add to Palette:",
+                    config.default_palette,
+                    |c| c,
+                )
+        })
+        .inner
+    }
+
     fn render_color_palette_card_impl<F>(
         &mut self,
         config: ColorPaletteCardConfig<'_>,
@@ -126,5 +173,37 @@ impl<'a> UiScope<'a> {
             )
         })
         .inner
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::{Rect, UiTree};
+
+    #[test]
+    fn test_color_palette_card_tree_scoped_auto_hex_and_swatches() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        tree.custom_palette_mut(0xDEAD_BEEF)
+            .push([0.25, 0.5, 0.75, 1.0]);
+
+        let palette = [Color::WHITE, Color::BLACK];
+        let color = Color::rgba(1.0, 0.5, 0.0, 1.0);
+        let mut scope = UiScope::new(&mut tree, root);
+        let picked = scope.color_palette_card_tree_scoped(
+            ColorPaletteCardConfig::with_auto_hex("PalTest", "🎨 Test", color, &palette)
+                .with_tags(0xDEAD_BEEF, 0xDEAD_BEF0),
+        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 300.0));
+
+        assert!(picked.is_none());
+        assert_eq!(tree.custom_palette(0xDEAD_BEEF).len(), 1);
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.text.as_deref() == Some("#ff7f00")
+                    || n.text.as_deref() == Some("#ff8000")),
+            "Auto-formatted hex from Color must be rendered into HexInputBox"
+        );
     }
 }

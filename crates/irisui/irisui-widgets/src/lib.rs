@@ -83,7 +83,8 @@ pub mod prelude {
         PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
         PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
         PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
-        VerticalScrollbarSpec, WrappedLabelDescriptor,
+        VerticalScrollbarSpec, WrappedLabelDescriptor, euler_deg_to_quat_xyzw,
+        quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

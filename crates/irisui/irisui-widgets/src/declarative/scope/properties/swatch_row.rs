@@ -152,6 +152,29 @@ impl PropertyColorSwatchRowResponse {
             .or(palette_res.selected_color)
             .map(f)
     }
+
+    /// Evaluates a tree-backed declarative color palette under `palette_key`, combining hex
+    /// commitment and swatch selection without requiring an external `saved_swatches` vector.
+    pub fn then_palette_map_scoped<T, F: FnOnce(Color) -> T>(
+        self,
+        scope: &mut UiScope<'_>,
+        palette_key: u64,
+        label: &str,
+        default_swatches: &[Color],
+        f: F,
+    ) -> Option<T> {
+        let palette_res = scope.prop_color_palette_tree_scoped(
+            palette_key,
+            crate::declarative::scope::properties::PropertyPaletteConfig::new(
+                label,
+                self.swatch_color,
+                default_swatches,
+            ),
+        );
+        self.hex_committed_color
+            .or(palette_res.selected_color)
+            .map(f)
+    }
     /// Invokes `f(is_open)` if the color swatch was clicked and toggled during this frame.
     #[inline]
     pub fn on_toggle<F: FnOnce(bool)>(self, f: F) -> Self {
@@ -322,8 +345,14 @@ impl<'a> UiScope<'a> {
                 .as_ref()
                 .is_some_and(|s| s.tag == hex_tag);
 
+            let auto_hex_bytes = config.color.to_hex_rgb_bytes();
+            let resolved_hex = if config.hex.is_empty() {
+                std::str::from_utf8(&auto_hex_bytes).unwrap_or("#000000")
+            } else {
+                config.hex
+            };
             let mut input_props = InputBoxProps::new(
-                config.hex,
+                resolved_hex,
                 "#RRGGBB",
                 config.hex_box_width,
                 is_editing,

@@ -155,6 +155,19 @@ impl<'a> UiScope<'a> {
         self.tree.is_submenu_open(parent_tag, sub_tag)
     }
 
+    /// Returns the user-saved custom color swatches slice stored on `UiTree` under `palette_key`.
+    #[inline]
+    #[must_use]
+    pub fn custom_palette(&self, palette_key: u64) -> &[[f32; 4]] {
+        self.tree.custom_palette(palette_key)
+    }
+
+    /// Returns a mutable reference to the user-saved custom color swatches list stored on `UiTree` under `palette_key`.
+    #[inline]
+    pub fn custom_palette_mut(&mut self, palette_key: u64) -> &mut Vec<[f32; 4]> {
+        self.tree.custom_palette_mut(palette_key)
+    }
+
     /// Sets the total virtual content bounds size for the scrollable container tagged with `tag`.
     ///
     /// # Arguments
@@ -468,34 +481,28 @@ impl<'a> UiScope<'a> {
         self.tree.event_state.clear_focus();
     }
 
-    /// Automatically synchronizes the provided [`crate::controls::focus::FocusState`] with the active text edit state in the tree.
-    ///
-    /// Drops focus if text editing has concluded. Returns `true` if active focus was cleared.
+    /// Returns the persistent keyboard modifier flags (`ctrl` / `shift`) held on the retained [`UiTree`].
     #[inline]
-    pub fn auto_sync_focus_state(
-        &mut self,
-        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
-    ) -> bool {
-        focus_state.auto_sync_focus_state(self.tree)
+    #[must_use]
+    pub const fn modifiers(&self) -> irisui_core::event::InputModifiers {
+        self.tree.modifiers()
     }
 
-    /// Automatically synchronizes the provided core [`irisui_core::event::FocusManager`] with the active text edit state in the tree.
+    /// Assigns keyboard focus directly to the widget identified by `tag` on the retained [`UiTree`].
     ///
-    /// Drops focus if text editing has concluded. Returns `true` if active focus was cleared.
+    /// Passing `0` clears active focus across the tree.
     #[inline]
-    pub fn auto_sync_core_focus(
-        &mut self,
-        focus_manager: &mut irisui_core::event::FocusManager,
-    ) -> bool {
-        focus_manager.auto_sync_focus_state(self.tree)
+    pub fn set_focus_tag(&mut self, tag: u64) {
+        self.tree.set_focus_tag(tag);
     }
 
     /// Automatically synchronizes a [`crate::input::TextInputState`] with live text editing buffer events
     /// and handles optional clear button clicks.
     ///
-    /// If text editing is active on `input_tag`, updates `state.text` and `state.cursor_byte_idx`.
-    /// If `clear_tag` is clicked, clears `state`, clears keyboard focus, clears active text edit,
-    /// and returns `true`.
+    /// Evaluates `clear_tag` clicks first so clearing always takes precedence over an active edit
+    /// session, clearing `state`, tree focus, and any active inline text edit buffer.
+    /// Otherwise, if text editing is active on `input_tag`, updates `state.text` and
+    /// `state.cursor_byte_idx`.
     ///
     /// # Arguments
     /// * `input_tag` - 64-bit semantic tag of the target text input field.
@@ -507,6 +514,12 @@ impl<'a> UiScope<'a> {
         clear_tag: Option<u64>,
         state: &mut crate::input::TextInputState,
     ) -> bool {
+        if clear_tag.is_some_and(|c_tag| self.is_tag_clicked(c_tag)) {
+            state.clear();
+            self.clear_focus();
+            self.clear_text_edit();
+            return true;
+        }
         if let Some(buf) = self.text_edit_buffer(input_tag) {
             state.set_text(buf);
             if let Some(cur) = self.text_edit_cursor(input_tag) {
@@ -514,61 +527,7 @@ impl<'a> UiScope<'a> {
             }
             return true;
         }
-        if let Some(c_tag) = clear_tag
-            && self.is_tag_clicked(c_tag)
-        {
-            state.clear();
-            self.clear_focus();
-            self.clear_text_edit();
-            return true;
-        }
         false
-    }
-
-    /// Assigns keyboard focus to `tag` across both core [`FocusManager`] and widget [`FocusState`].
-    #[inline]
-    pub fn assign_focus_with(
-        &mut self,
-        tag: u64,
-        focus_manager: &mut irisui_core::event::FocusManager,
-        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
-    ) {
-        focus_manager.set_focus_tag(tag);
-        focus_state.sync_from_core(focus_manager);
-    }
-
-    /// Clears keyboard focus on core [`FocusManager`], widget [`FocusState`], and this tree scope.
-    #[inline]
-    pub fn clear_focus_with(
-        &mut self,
-        focus_manager: &mut irisui_core::event::FocusManager,
-        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
-    ) -> bool {
-        let had_core = focus_manager.has_focus();
-        focus_manager.clear_focus();
-        let cleared_state = focus_state.clear_focus();
-        self.clear_focus();
-        self.clear_text_edit();
-        had_core || cleared_state
-    }
-
-    /// Synchronizes keyboard focus managers alongside live search text buffer and clear triggers.
-    pub fn auto_sync_search_input(
-        &mut self,
-        input_tag: u64,
-        clear_tag: Option<u64>,
-        state: &mut crate::input::TextInputState,
-        focus_manager: &mut irisui_core::event::FocusManager,
-        focus_state: &mut crate::controls::focus::FocusState<crate::controls::focus::FocusTarget>,
-    ) -> bool {
-        self.auto_sync_core_focus(focus_manager);
-        self.auto_sync_focus_state(focus_state);
-        if clear_tag.is_some_and(|c_tag| self.is_tag_clicked(c_tag)) {
-            state.clear();
-            self.clear_focus_with(focus_manager, focus_state);
-            return true;
-        }
-        self.auto_sync_text_input(input_tag, None, state)
     }
 }
 
@@ -633,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ui_scope_focus_queries_and_auto_sync() {
+    fn test_ui_scope_focus_queries_ssot() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
 
@@ -641,7 +600,11 @@ mod tests {
         assert!(!scope.is_tag_focused(55));
         assert!(!scope.has_text_input_focus());
 
-        // 1. Start text edit
+        // 1. Direct tag focus on UiTree
+        scope.set_focus_tag(55);
+        assert!(scope.is_tag_focused(55));
+
+        // 2. Start text edit marks text input focus active
         scope
             .tree
             .event_state
@@ -649,28 +612,19 @@ mod tests {
         assert!(scope.is_tag_focused(55));
         assert!(scope.has_text_input_focus());
 
-        // 2. Auto-sync focus state and core focus
-        let mut focus_state = crate::controls::focus::FocusState::new();
-        let mut focus_manager = irisui_core::event::FocusManager::new();
-
-        let cleared_state = scope.auto_sync_focus_state(&mut focus_state);
-        let cleared_core = scope.auto_sync_core_focus(&mut focus_manager);
-        assert!(!cleared_state);
-        assert!(!cleared_core);
-        assert!(focus_state.is_tag_focused(55));
-        assert_eq!(focus_manager.focused_tag(), Some(55));
-
-        // 3. Clear text edit session
+        // 3. Clearing text edit drops text input focus
         scope.clear_text_edit();
         assert!(!scope.has_text_input_focus());
 
-        // 4. Auto-sync drops focus automatically
-        let cleared_state = scope.auto_sync_focus_state(&mut focus_state);
-        let cleared_core = scope.auto_sync_core_focus(&mut focus_manager);
-        assert!(cleared_state);
-        assert!(cleared_core);
-        assert!(!focus_state.has_focus());
-        assert!(!focus_manager.has_focus());
+        // 4. Clearing focus releases focused tag and state
+        scope.clear_focus();
+        assert!(!scope.is_tag_focused(55));
+
+        // 5. Setting tag 0 clears focus cleanly
+        scope.set_focus_tag(55);
+        assert!(scope.is_tag_focused(55));
+        scope.set_focus_tag(0);
+        assert!(!scope.is_tag_focused(55));
     }
 
     #[test]
@@ -694,11 +648,40 @@ mod tests {
         assert_eq!(input_state.text(), "updated query");
         assert_eq!(input_state.cursor_byte_idx, 13);
 
-        // 3. Clear button click clears state, focus, and text edit
-        scope.clear_text_edit();
+        // 3. Clear button click clears state, focus, and active text edit in one pass
         scope.tree.event_state.frame_clicked_tag = Some(101);
         assert!(scope.auto_sync_text_input(100, Some(101), &mut input_state));
         assert_eq!(input_state.text(), "");
         assert_eq!(input_state.cursor_byte_idx, 0);
+        assert!(!scope.has_text_input_focus());
+        assert!(!scope.is_tag_focused(100));
+    }
+
+    #[test]
+    fn test_ui_scope_modifiers_persist_across_pointer_events() {
+        use irisui_core::event::{InputModifiers, MouseButton, UiEvent};
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+
+        assert_eq!(
+            UiScope::new(&mut tree, root).modifiers(),
+            InputModifiers::default()
+        );
+
+        tree.dispatch_event(&UiEvent::ModifiersChanged {
+            ctrl_held: true,
+            shift_held: true,
+        });
+        tree.dispatch_event(&UiEvent::MouseDown {
+            button: MouseButton::Left,
+            point: Point::new(10.0, 10.0),
+        });
+        assert!(UiScope::new(&mut tree, root).modifiers().ctrl());
+        assert!(UiScope::new(&mut tree, root).modifiers().shift());
+
+        tree.event_state.clear_frame_clicks();
+        assert!(UiScope::new(&mut tree, root).modifiers().ctrl());
+        assert!(UiScope::new(&mut tree, root).modifiers().shift());
     }
 }

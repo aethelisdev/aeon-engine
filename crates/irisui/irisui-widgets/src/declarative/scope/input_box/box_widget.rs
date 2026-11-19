@@ -374,17 +374,19 @@ impl<'a> UiScope<'a> {
             .as_ref()
             .is_some_and(|s| s.tag == edit_key);
 
+        let effective_focused =
+            is_still_focused || props.is_focused || (tag != 0 && self.is_tag_focused(tag));
         let theme_style = props
             .style
             .unwrap_or_else(|| InputBoxStyle::from_theme(&self.theme()));
-        let border_color = if is_still_focused || props.is_focused {
+        let border_color = if effective_focused {
             theme_style.focus_border_color
         } else if hovered {
             theme_style.hover_border_color
         } else {
             theme_style.border_color
         };
-        let bg_color = if is_still_focused || props.is_focused {
+        let bg_color = if effective_focused {
             theme_style.focus_background
         } else if hovered {
             theme_style.hover_background
@@ -559,7 +561,7 @@ impl<'a> UiScope<'a> {
         let show_caret = if is_still_focused {
             !has_full_selection
         } else {
-            props.is_focused && props.cursor_blink_visible && !has_full_selection
+            effective_focused && props.cursor_blink_visible && !has_full_selection
         };
 
         if show_caret {

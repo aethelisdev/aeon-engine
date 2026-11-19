@@ -11,7 +11,8 @@
 use super::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};
 use irisui_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, WidgetCursor, WidgetRole,
+    AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
+    WidgetRole,
 };
 
 /// Response returned when emitting an autonomous collapsing section.
@@ -243,6 +244,190 @@ impl<'a, 'b> CollapsingBuilder<'a, 'b> {
     }
 }
 
+/// Fluent builder for assembling and customizing autonomous collapsible card sections.
+///
+/// Renders a themed card container with a `34px` interactive header bar, dynamic chevron
+/// indicator (`▶` / `▼`), crisp divider line, and collapsible content body. Persistent
+/// expansion state is stored inside [`irisui_core::UiTree::collapsing_state`].
+pub struct CollapsingCardBuilder<'a, 'b> {
+    scope: &'a mut UiScope<'b>,
+    title: String,
+    tag: Option<u64>,
+    default_open: bool,
+    bottom_margin: f32,
+}
+
+impl<'a, 'b> CollapsingCardBuilder<'a, 'b> {
+    /// Constructs a new collapsible card builder with the given header title.
+    #[inline]
+    pub fn new(scope: &'a mut UiScope<'b>, title: impl Into<String>) -> Self {
+        Self {
+            scope,
+            title: title.into(),
+            tag: None,
+            default_open: true,
+            bottom_margin: 14.0,
+        }
+    }
+
+    /// Explicitly assigns a 64-bit persistent semantic tag instead of hashing `title`.
+    #[inline]
+    pub fn tag(mut self, tag: u64) -> Self {
+        self.tag = Some(tag);
+        self
+    }
+
+    /// Sets whether this card defaults to expanded if it has never been toggled.
+    #[inline]
+    pub fn default_open(mut self, default_open: bool) -> Self {
+        self.default_open = default_open;
+        self
+    }
+
+    /// Sets the bottom spacing margin below the card container in logical pixels (default `14.0`).
+    #[inline]
+    pub fn bottom_margin(mut self, bottom_margin: f32) -> Self {
+        self.bottom_margin = bottom_margin;
+        self
+    }
+
+    /// Displays the collapsible card and evaluates `add_contents` inside the padded card body when open.
+    pub fn show<R>(
+        self,
+        add_contents: impl FnOnce(&mut UiScope<'_>) -> R,
+    ) -> CollapsingResponse<R> {
+        let (visible_title, _) = split_label_id(&self.title);
+        let tag = self.tag.unwrap_or_else(|| self.scope.tag_for(&self.title));
+        let is_open = self.scope.tree.is_collapsing_open(tag, self.default_open);
+
+        let card_bg = self.scope.theme().card_bg;
+        let card_border = self.scope.theme().card_border;
+        let header_bg = self.scope.theme().card_header_bg;
+        let hover_bg = header_bg.lerp(Color::WHITE, 0.08);
+
+        let card_id = self.scope.tree.create_node();
+        let _ = self.scope.tree.add_child(self.scope.parent, card_id);
+        if let Some(c_node) = self.scope.tree.get_mut(card_id) {
+            c_node.set_name("CollapsingCard");
+            c_node.role = WidgetRole::Default;
+            c_node.set_style(
+                Style::new()
+                    .flex_col()
+                    .background(card_bg)
+                    .border(1.0, card_border)
+                    .border_radius(6.0)
+                    .margin_insets(Insets::new(0.0, 0.0, self.bottom_margin, 0.0)),
+            );
+        }
+
+        let header_id = self.scope.tree.create_node();
+        let _ = self.scope.tree.add_child(card_id, header_id);
+        if let Some(h_node) = self.scope.tree.get_mut(header_id) {
+            h_node.set_name("CollapsingCardHeader");
+            h_node.tag = tag;
+            h_node.role = WidgetRole::Button;
+            h_node.interactive = true;
+            h_node.cursor = Some(WidgetCursor::Pointer);
+        }
+
+        let (clicked, hovered, _) = self.scope.check_interaction(header_id);
+        let pressed = self.scope.is_pressed(header_id);
+
+        let effective_open = is_open ^ clicked;
+        if clicked {
+            self.scope.tree.set_collapsing_open(tag, effective_open);
+        }
+
+        if let Some(h_node) = self.scope.tree.get_mut(header_id) {
+            let radii = if effective_open {
+                CornerRadii::new(5.0, 5.0, 0.0, 0.0)
+            } else {
+                CornerRadii::all(5.0)
+            };
+            h_node.set_style(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .height(34.0)
+                    .padding_insets(Insets::new(0.0, 12.0, 0.0, 12.0))
+                    .background(if hovered || pressed {
+                        hover_bg
+                    } else {
+                        header_bg
+                    })
+                    .hover_background(hover_bg)
+                    .corner_radii(radii),
+            );
+        }
+
+        let chevron_id = self.scope.tree.create_node();
+        let _ = self.scope.tree.add_child(header_id, chevron_id);
+        if let Some(ch_node) = self.scope.tree.get_mut(chevron_id) {
+            ch_node.set_name("CollapsingCardChevron");
+            ch_node.interactive = false;
+            ch_node.role = WidgetRole::Default;
+            ch_node.font_size = 10.0;
+            ch_node.line_height = 14.0;
+            ch_node.text_align = TextAlign::Left;
+            ch_node.text_color = Color::rgba(0.55, 0.58, 0.68, 1.0);
+            ch_node.set_text(if effective_open { "▼ " } else { "▶ " });
+            ch_node.set_style(Style::new().margin_insets(Insets::new(0.0, 8.0, 0.0, 0.0)));
+        }
+
+        let title_id = self.scope.tree.create_node();
+        let _ = self.scope.tree.add_child(header_id, title_id);
+        if let Some(t_node) = self.scope.tree.get_mut(title_id) {
+            t_node.set_name("CollapsingCardTitle");
+            t_node.interactive = false;
+            t_node.role = WidgetRole::Default;
+            t_node.font_size = 12.5;
+            t_node.line_height = 16.0;
+            t_node.text_align = TextAlign::Left;
+            t_node.text_color = if hovered || pressed {
+                Color::WHITE
+            } else {
+                Color::rgba(0.92, 0.94, 0.98, 1.0)
+            };
+            t_node.hover_text_color = Some(Color::WHITE);
+            t_node.set_text(visible_title);
+            t_node.set_style(Style::new().flex_grow(1.0));
+        }
+
+        let mut header_response = WidgetResponse::new(header_id, clicked, hovered, clicked);
+        if pressed {
+            header_response = header_response.with_pressed(true);
+        }
+
+        let body_response = if effective_open {
+            let mut card_scope = self.scope.child_scope(card_id);
+            card_scope.divider(card_border);
+
+            let body_id = self.scope.tree.create_node();
+            let _ = self.scope.tree.add_child(card_id, body_id);
+            if let Some(b_node) = self.scope.tree.get_mut(body_id) {
+                b_node.set_name("CollapsingCardBody");
+                b_node.role = WidgetRole::Default;
+                b_node.set_style(
+                    Style::new()
+                        .flex_col()
+                        .gap(2.0)
+                        .padding_insets(Insets::new(8.0, 12.0, 10.0, 12.0)),
+                );
+            }
+            let mut body_scope = self.scope.child_scope(body_id);
+            Some(add_contents(&mut body_scope))
+        } else {
+            None
+        };
+
+        CollapsingResponse {
+            header_response,
+            body_response,
+            is_open: effective_open,
+        }
+    }
+}
+
 impl<'a> UiScope<'a> {
     /// Emits an autonomous collapsible accordion section using persistent state tracking.
     ///
@@ -286,5 +471,71 @@ impl<'a> UiScope<'a> {
     #[inline]
     pub fn collapsing_builder(&mut self, title: impl Into<String>) -> CollapsingBuilder<'_, 'a> {
         CollapsingBuilder::new(self, title)
+    }
+
+    /// Emits an autonomous collapsible card section with themed card chrome, header bar, divider, and body.
+    pub fn collapsing_card<R>(
+        &mut self,
+        title: impl Into<String>,
+        add_contents: impl FnOnce(&mut UiScope<'_>) -> R,
+    ) -> CollapsingResponse<R> {
+        CollapsingCardBuilder::new(self, title).show(add_contents)
+    }
+
+    /// Returns a fluent [`CollapsingCardBuilder`] to configure semantic tag, default expansion, or bottom margin.
+    #[inline]
+    pub fn collapsing_card_builder(
+        &mut self,
+        title: impl Into<String>,
+    ) -> CollapsingCardBuilder<'_, 'a> {
+        CollapsingCardBuilder::new(self, title)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::UiTree;
+
+    #[test]
+    fn test_collapsing_card_toggles_body_and_persists_state() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root creation must succeed");
+        let card_tag = 0xCAFE_1234_5678_9ABCu64;
+
+        // Pass 1: Default collapsed -> body closure does not execute
+        let resp_collapsed = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope
+                .collapsing_card_builder("Section A")
+                .tag(card_tag)
+                .default_open(false)
+                .show(|body| {
+                    body.label("Inner");
+                    42
+                })
+        };
+        assert!(!resp_collapsed.is_open());
+        assert_eq!(resp_collapsed.body(), None);
+
+        // Pass 2: Simulated click on header toggles immediately to open
+        tree.event_state.frame_clicked_id = Some(resp_collapsed.header_response().id);
+        tree.event_state.frame_clicked_tag = Some(card_tag);
+        let root2 = tree.create_node();
+        let _ = tree.add_child(root, root2);
+        let resp_opened = {
+            let mut scope = UiScope::new(&mut tree, root2);
+            scope
+                .collapsing_card_builder("Section A")
+                .tag(card_tag)
+                .default_open(false)
+                .show(|body| {
+                    body.label("Inner");
+                    42
+                })
+        };
+        assert!(resp_opened.is_open());
+        assert_eq!(resp_opened.body(), Some(&42));
+        assert!(tree.is_collapsing_open(card_tag, false));
     }
 }

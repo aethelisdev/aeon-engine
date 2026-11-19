@@ -194,6 +194,21 @@ impl<'a> UiScope<'a> {
         PropertyPaletteResponse::new(selected_color, added, cleared, removed_index)
     }
 
+    /// Emits a declarative color palette whose user-saved custom swatches are owned directly
+    /// by [`irisui_core::UiTree::custom_palettes`] under `palette_key`.
+    ///
+    /// Eliminates consumer `saved_swatches: Vec<[f32; 4]>` bags and manual parameter plumbing.
+    pub fn prop_color_palette_tree_scoped(
+        &mut self,
+        palette_key: u64,
+        config: PropertyPaletteConfig<'_>,
+    ) -> PropertyPaletteResponse {
+        let mut custom_swatches = std::mem::take(self.tree.custom_palette_mut(palette_key));
+        let resp = self.prop_color_palette_with_config(config, &mut custom_swatches);
+        *self.tree.custom_palette_mut(palette_key) = custom_swatches;
+        resp
+    }
+
     fn render_palette_action_bar(
         &mut self,
         config: &PropertyPaletteConfig<'_>,
