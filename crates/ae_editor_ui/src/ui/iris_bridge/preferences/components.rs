@@ -51,87 +51,12 @@ pub fn pref_section_card<F>(
 where
     F: FnOnce(&mut UiScope<'_>),
 {
-    let tag = encode_section_tag(sec_id);
-    let is_open = scope.is_collapsing_open(tag, !is_collapsed);
-    let mut header_resp = WidgetResponse::default();
-    let card_bg = scope.theme().card_bg;
-    let card_border = scope.theme().card_border;
-    let header_bg = scope.theme().card_header_bg;
-    let hover_bg = header_bg.lerp(Color::WHITE, 0.08);
-
-    scope.container_named(
-        "PrefSectionCard",
-        Style::new()
-            .flex_col()
-            .background(card_bg)
-            .border(1.0, card_border)
-            .border_radius(6.0)
-            .margin_insets(Insets::new(0.0, 0.0, 14.0, 0.0)),
-        |card| {
-            let radii = if !is_open {
-                CornerRadii::all(5.0)
-            } else {
-                CornerRadii::new(5.0, 5.0, 0.0, 0.0)
-            };
-
-            // Section Header Bar
-            header_resp = card.container_tagged_resp(
-                "PrefSectionHeader",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .height(34.0)
-                    .padding_insets(Insets::new(0.0, 12.0, 0.0, 12.0))
-                    .background(header_bg)
-                    .hover_background(hover_bg)
-                    .corner_radii(radii),
-                WidgetRole::Button,
-                tag,
-                |hdr| {
-                    let chevron = if !is_open { "▶ " } else { "▼ " };
-                    hdr.label_styled_passive(
-                        "PrefSectionChevron",
-                        chevron,
-                        10.0,
-                        Color::rgba(0.55, 0.58, 0.68, 1.0),
-                        TextAlign::Left,
-                        Style::new().margin_insets(Insets::new(0.0, 8.0, 0.0, 0.0)),
-                    );
-                    hdr.label_styled_hover_passive(
-                        "PrefSectionTitle",
-                        title,
-                        12.5,
-                        (Color::rgba(0.92, 0.94, 0.98, 1.0), Color::WHITE),
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0),
-                    );
-                },
-            );
-
-            let effective_open = if header_resp.clicked() {
-                let toggled = !is_open;
-                card.set_collapsing_open(tag, toggled);
-                toggled
-            } else {
-                is_open
-            };
-
-            // Collapsible Content Body
-            if effective_open {
-                card.divider(card.theme().card_border);
-                card.container_named(
-                    "PrefSectionBody",
-                    Style::new()
-                        .flex_col()
-                        .gap(2.0)
-                        .padding_insets(Insets::new(8.0, 12.0, 10.0, 12.0)),
-                    content,
-                );
-            }
-        },
-    );
-
-    header_resp
+    scope
+        .collapsing_card_builder(title)
+        .tag(encode_section_tag(sec_id))
+        .default_open(!is_collapsed)
+        .show(content)
+        .header_response
 }
 
 /// Emits an autonomous declarative combobox row inside the Preferences dialog using [`irisui::prelude::ComboBox`].

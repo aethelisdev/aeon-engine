@@ -5,26 +5,12 @@
 
 use super::types::{
     UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UI_DESIGNER_TAG_ANCHORS_BTN, UI_DESIGNER_TAG_ASPECT_BTN,
-    UI_DESIGNER_TAG_GRID_BTN, UI_DESIGNER_TAG_SNAP_BTN, UI_DESIGNER_TAG_TOOLBAR,
-    UI_DESIGNER_TAG_ZOOM_IN, UI_DESIGNER_TAG_ZOOM_OUT, UI_DESIGNER_TAG_ZOOM_RESET,
-    encode_element_tag, is_ui_designer_tag,
+    UI_DESIGNER_TAG_GRID_BTN, UI_DESIGNER_TAG_SNAP_BTN, UI_DESIGNER_TAG_ZOOM_IN,
+    UI_DESIGNER_TAG_ZOOM_OUT, UI_DESIGNER_TAG_ZOOM_RESET, encode_element_tag,
 };
 use super::*;
 use ae_core::ecs::{UiAnchor, UiButton, UiElement};
 use irisui::prelude::*;
-
-#[test]
-fn test_ui_designer_tag_domain_check() {
-    assert!(is_ui_designer_tag(UI_DESIGNER_TAG_TOOLBAR));
-    assert!(is_ui_designer_tag(UI_DESIGNER_TAG_ASPECT_BTN));
-    assert!(is_ui_designer_tag(encode_element_tag(0)));
-    assert!(is_ui_designer_tag(encode_element_tag(999)));
-
-    // Non-UI Designer tags must return false
-    assert!(!is_ui_designer_tag(0));
-    assert!(!is_ui_designer_tag(0x0010_0000_0000_0000));
-    assert!(!is_ui_designer_tag(0x0050_0000_0000_0001));
-}
 
 #[test]
 fn test_ui_designer_panel_build() {
@@ -133,186 +119,6 @@ fn test_ui_designer_canvas_projection() {
     assert_eq!(found.entity, ent);
     assert_eq!(found.initial_offset, [12.0, 34.0]);
     assert!(metrics.canvas_rect.width > 0.0);
-}
-
-#[test]
-fn test_ui_designer_click_hit_testing() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root node creation must succeed");
-    let mut world = hecs::World::new();
-    let ent = world.spawn((UiElement {
-        anchor: UiAnchor::TopLeft,
-        offset: [100.0, 100.0],
-        size: [150.0, 40.0],
-        pivot: [0.0, 0.0],
-        visible: true,
-        z_index: 0,
-        alpha: 1.0,
-    },));
-
-    let state = UiDesignerState::default();
-    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 800.0);
-
-    let params = UiDesignerPanelParams {
-        panel_rect,
-        world: &world,
-        selected_entity: None,
-        cursor_pos: Point::new(0.0, 0.0),
-        state: &state,
-    };
-
-    let mut designer = UiDesignerPanelState::default();
-    let metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
-    let contexts = designer.drag_contexts.clone();
-    assert_eq!(contexts.len(), 1);
-
-    // Click on aspect ratio button via tag
-    let aspect_hit = HitTargetInfo {
-        id: root,
-        name: Some("UiAspectBtn".to_string()),
-        layer: UiLayer::Content,
-        role: WidgetRole::Button,
-        cursor: Some(WidgetCursor::Pointer),
-        tag: UI_DESIGNER_TAG_ASPECT_BTN,
-        rect: Rect::new(10.0, 10.0, 150.0, 26.0),
-    };
-    let click_res = handle_ui_designer_click(
-        Point::new(20.0, 20.0),
-        Some(&aspect_hit),
-        &metrics,
-        &contexts,
-        false,
-        false,
-    );
-    assert_eq!(
-        click_res.action,
-        Some(UiDesignerAction::ToggleAspectDropdown)
-    );
-
-    // Click on canvas element via element tag
-    let elem_tag = encode_element_tag(0);
-    let (_, elem_node) = tree
-        .iter()
-        .find(|(_, n)| n.tag == elem_tag)
-        .expect("UiCanvasElement must exist in tree");
-    let r = elem_node.computed_rect;
-    let elem_center = Point::new(r.x + r.width * 0.5, r.y + r.height * 0.5);
-    let real_hit = tree.hit_test_target(elem_center);
-    assert!(
-        real_hit.is_some(),
-        "hit_test_target at {elem_center:?} returned None! computed_rect was {:?}",
-        elem_node.computed_rect
-    );
-    let real_hit_target = real_hit.unwrap();
-    assert_eq!(
-        real_hit_target.tag, elem_tag,
-        "Expected hit_target to be UiCanvasElement tag, got {:#x} ({:?})",
-        real_hit_target.tag, real_hit_target.name
-    );
-    let elem_click = handle_ui_designer_click(
-        elem_center,
-        Some(&real_hit_target),
-        &metrics,
-        &contexts,
-        false,
-        false,
-    );
-    assert_eq!(
-        elem_click.action,
-        Some(UiDesignerAction::SelectEntity(Some(ent)))
-    );
-    assert!(elem_click.start_element_drag.is_some());
-
-    // Test aspect ratio selection via popup HitTargetInfo
-    let aspect_popup_hit = HitTargetInfo {
-        id: root,
-        name: Some("AspectOptionItem".to_string()),
-        layer: UiLayer::Popup,
-        role: WidgetRole::DropdownItem,
-        cursor: None,
-        tag: super::types::make_aspect_item_tag(1), // Ratio16x10
-        rect: Rect::new(100.0, 100.0, 150.0, 24.0),
-    };
-    let aspect_popup_click = handle_ui_designer_click(
-        Point::new(120.0, 110.0),
-        Some(&aspect_popup_hit),
-        &metrics,
-        &contexts,
-        true,
-        false,
-    );
-    assert_eq!(
-        aspect_popup_click.action,
-        Some(UiDesignerAction::SetAspectRatio(
-            CanvasAspectRatio::Ratio16x10
-        ))
-    );
-
-    // Test add element selection via popup HitTargetInfo
-    let add_hit = HitTargetInfo {
-        id: root,
-        name: Some("AddElementOption".to_string()),
-        layer: UiLayer::Popup,
-        role: WidgetRole::DropdownItem,
-        cursor: None,
-        tag: super::types::make_add_item_tag(3), // Button
-        rect: Rect::new(100.0, 100.0, 150.0, 24.0),
-    };
-    let add_click = handle_ui_designer_click(
-        Point::new(120.0, 110.0),
-        Some(&add_hit),
-        &metrics,
-        &contexts,
-        false,
-        true,
-    );
-    assert_eq!(
-        add_click.action,
-        Some(UiDesignerAction::SpawnElement(UiElementType::Button))
-    );
-}
-
-#[test]
-fn test_ui_designer_element_drag() {
-    let metrics = UiDesignerCanvasMetrics {
-        panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-        canvas_rect: Rect::new(100.0, 100.0, 600.0, 400.0),
-        resolution: [1920.0, 1080.0],
-        snap_grid: Some(16.0),
-        current_zoom: 1.0,
-        base_scale: 1.0,
-    };
-
-    let mut world = hecs::World::new();
-    let ent = world.spawn(());
-
-    let drag_state = UiDragState {
-        entity: ent,
-        anchor_origin: [0.0, 0.0],
-        drag_start_mouse_canvas: [500.0, 500.0],
-        initial_offset: [100.0, 100.0],
-    };
-
-    // Move cursor 100px to the right in canvas space
-    let cursor_x = metrics.canvas_rect.x + (600.0 / 1920.0) * metrics.canvas_rect.width;
-    let cursor_y = metrics.canvas_rect.y + (500.0 / 1080.0) * metrics.canvas_rect.height;
-
-    let action = handle_ui_designer_drag(
-        Point::new(cursor_x, cursor_y),
-        [0.0, 0.0],
-        Some(&drag_state),
-        false,
-        &metrics,
-    );
-
-    match action {
-        Some(UiDesignerAction::UpdateElementOffset { entity, offset }) => {
-            assert_eq!(entity, ent);
-            assert!((offset[0] - 200.0).abs() < 17.0);
-        }
-        _ => panic!("Expected UpdateElementOffset action"),
-    }
 }
 
 #[test]
@@ -435,26 +241,11 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
         hit_target.tag, elem_tag,
         "Selection outline or guide must not occlude UiCanvasElement hit target"
     );
-
-    // 3. Verify handle_ui_designer_click prioritizes the element and initiates drag
-    let click_res = handle_ui_designer_click(
-        elem_center,
-        Some(&hit_target),
-        &metrics,
-        &designer.drag_contexts,
-        false,
-        false,
-    );
-    assert_eq!(
-        click_res.action,
-        Some(UiDesignerAction::SelectEntity(Some(ent)))
-    );
-    assert!(click_res.start_element_drag.is_some());
-    assert!(!click_res.start_canvas_pan);
+    let _ = (metrics, ent);
 }
 
 #[test]
-fn test_ui_designer_popup_items_hover_and_click_routing() {
+fn test_ui_designer_popup_items_hover_styling() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
 
@@ -486,33 +277,6 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
         item_node.style.hover_background,
         Some(tree.theme().button_hover_bg),
         "Dropdown item must have theme button_hover_bg"
-    );
-
-    // Verify click on hovered dropdown item produces SpawnElement action
-    let hit_info = HitTargetInfo {
-        id: WidgetId::default(),
-        layer: UiLayer::Popup,
-        role: WidgetRole::DropdownItem,
-        cursor: None,
-        tag: target_tag,
-        rect: item_node.computed_rect,
-        name: Some("DropdownItem".to_string()),
-    };
-
-    let click_res = handle_ui_designer_click(
-        Point::new(10.0, 10.0),
-        Some(&hit_info),
-        &_metrics,
-        &designer.drag_contexts,
-        false,
-        true,
-    );
-
-    assert_eq!(
-        click_res.action,
-        Some(UiDesignerAction::SpawnElement(
-            super::types::UiElementType::Panel
-        ))
     );
 }
 

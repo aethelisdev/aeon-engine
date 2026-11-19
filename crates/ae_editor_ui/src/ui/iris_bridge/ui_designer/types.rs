@@ -126,14 +126,6 @@ pub const UI_DESIGNER_TAG_DOMAIN: u64 = 0x0070_0000_0000_0000;
 /// Tag domain mask to isolate subsystem ownership: `0xFFFF_0000_0000_0000`.
 pub const UI_DESIGNER_TAG_DOMAIN_MASK: u64 = 0xFFFF_0000_0000_0000;
 
-/// Returns true if the given 64-bit hardware tag belongs to the 2D Visual UI Designer subsystem.
-///
-/// Evaluates whether the upper 16 bits match the domain prefix `0x0070`.
-#[inline]
-pub const fn is_ui_designer_tag(tag: u64) -> bool {
-    (tag & UI_DESIGNER_TAG_DOMAIN_MASK) == UI_DESIGNER_TAG_DOMAIN
-}
-
 /// Initial drag context captured for an on-canvas UI element when rendered.
 ///
 /// Contains pure state data required to initiate smooth drag operations in virtual canvas space.
@@ -235,8 +227,8 @@ pub enum UiDesignerAction {
 /// Persistent interactive state for the 2D Visual UI Designer panel overlay.
 #[derive(Debug, Default, Clone)]
 pub struct UiDesignerPanelState {
-    /// Common panel interaction state (actions, events).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), UiDesignerAction>,
+    /// Queued actions emitted by UI Designer toolbar and canvas controls.
+    pub actions: Vec<UiDesignerAction>,
     /// Calculated virtual canvas metrics and coordinates from the last render pass.
     pub canvas_metrics: UiDesignerCanvasMetrics,
     /// Cached on-canvas UI element drag contexts for O(1) drag initialization.
@@ -249,20 +241,13 @@ pub struct UiDesignerPanelState {
     pub last_cursor: Point,
 }
 
-impl std::ops::Deref for UiDesignerPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), UiDesignerAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for UiDesignerPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
-    }
-}
-
 impl UiDesignerPanelState {
+    /// Drains and returns all queued UI Designer actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<UiDesignerAction> {
+        std::mem::take(&mut self.actions)
+    }
+
     /// Dispatches a UI Designer action directly to the action queue.
     pub fn dispatch(&mut self, action: UiDesignerAction) {
         match action {
@@ -270,7 +255,7 @@ impl UiDesignerPanelState {
             | UiDesignerAction::ToggleAddMenu
             | UiDesignerAction::ClosePopups => {}
             _ => {
-                self.push_action(action);
+                self.actions.push(action);
             }
         }
     }

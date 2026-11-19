@@ -1310,7 +1310,6 @@ fn test_preferences_build_view_uses_outer_panel_rect_for_content_area() {
     let asset_browser = crate::assets::AssetBrowserState::default();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let euler = [0.0; 3];
     let camera = ae_renderer::camera::Camera {
         position: cgmath::Point3::new(0.0, 2.0, 5.0),
         yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
@@ -1383,9 +1382,6 @@ fn test_preferences_build_view_uses_outer_panel_rect_for_content_area() {
             console_entries: &[],
             textures: &textures,
             models: &models,
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &[],
         },
         dialog_host: None,
         action_bus: None,
@@ -1394,12 +1390,7 @@ fn test_preferences_build_view_uses_outer_panel_rect_for_content_area() {
     let mut state = super::types::PreferencesDialogState::default();
     {
         let mut scope = UiScope::new(&mut tree, panel_id);
-        state.build_view(
-            &mut scope,
-            &mut params,
-            Default::default(),
-            (Point::ZERO, false),
-        );
+        state.build_view(&mut scope, &mut params, (Point::ZERO, false));
         scope.finish_layout(panel_rect);
     }
 

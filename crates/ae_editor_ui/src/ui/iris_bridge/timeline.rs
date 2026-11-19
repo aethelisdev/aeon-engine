@@ -8,7 +8,6 @@
 //! adaptive time rulers, and interactive scrubbing.
 
 pub mod builder;
-pub mod events;
 pub mod lanes;
 pub mod panel;
 pub mod ruler;
@@ -17,7 +16,6 @@ mod tests;
 pub mod transport;
 pub mod types;
 
-pub use events::{compute_scrub_timestamp, handle_timeline_click};
 pub use lanes::{CHANNEL_LANE_HEIGHT, MAX_VISIBLE_LANES, build_dope_sheet_lanes};
 pub use panel::build_timeline_panel;
 pub use ruler::{
@@ -29,10 +27,9 @@ pub use transport::{
     render_loop_pill, render_speed_pill, render_time_readout, render_transport_button,
 };
 pub use types::{
-    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, MediaTransportAction, MediaTransportStyle,
-    TIMELINE_SIDEBAR_WIDTH, TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT, TIMELINE_TAG_PLAY_PAUSE,
-    TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE,
-    TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineAction,
-    TimelineKeyframeMarker, TimelinePanelParams, TimelinePanelState, TimelineRulerStyle,
-    TimelineState, evaluate_timeline_transport_tag, is_timeline_tag,
+    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, MediaTransportStyle, TIMELINE_SIDEBAR_WIDTH,
+    TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT, TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP,
+    TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE, TIMELINE_TAG_STEP_BACK,
+    TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineAction, TimelineKeyframeMarker,
+    TimelinePanelParams, TimelinePanelState, TimelineRulerStyle, TimelineState,
 };

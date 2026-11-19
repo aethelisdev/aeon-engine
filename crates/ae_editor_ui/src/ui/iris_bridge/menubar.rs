@@ -17,6 +17,13 @@ use irisui::workbench::{
 /// Height of the top menubar panel in physical pixels.
 pub const MENUBAR_HEIGHT: f32 = 36.0;
 
+/// Semantic tag emitted by the menubar minimize window control button.
+pub const WINDOW_CONTROL_TAG_MINIMIZE: u64 = 0x7001;
+/// Semantic tag emitted by the menubar maximize/restore window control button.
+pub const WINDOW_CONTROL_TAG_MAXIMIZE: u64 = 0x7002;
+/// Semantic tag emitted by the menubar close window control button.
+pub const WINDOW_CONTROL_TAG_CLOSE: u64 = 0x7003;
+
 /// Default width of floating dropdown popup menus in physical pixels.
 pub const DROPDOWN_WIDTH: f32 = 260.0;
 
@@ -155,15 +162,6 @@ pub fn map_menubar_tag(tag: u64, is_editing: bool) -> Option<EngineUiAction> {
         } else {
             ae_core::modules::EngineMode::Edit
         })),
-        0x7001 => Some(EngineUiAction::TitleBarAction(
-            irisui::widgets::TitleBarAction::Minimize,
-        )),
-        0x7002 => Some(EngineUiAction::TitleBarAction(
-            irisui::widgets::TitleBarAction::Maximize,
-        )),
-        0x7003 => Some(EngineUiAction::TitleBarAction(
-            irisui::widgets::TitleBarAction::Close,
-        )),
         _ => None,
     }
 }
@@ -234,8 +232,15 @@ fn view_menu_descriptor(view_panel_mask: u64) -> MenuSectionDescriptor {
     VIEW_PANELS.iter().enumerate().fold(
         MenuSectionDescriptor::new("View", 0x3000),
         |menu, (idx, &(_pid, label, tag))| {
-            let visible = (view_panel_mask & (1u64 << idx)) != 0;
-            menu.with_action_with_icon(if visible { "✓" } else { " " }, label, tag)
+            menu.with_action_with_icon(
+                if (view_panel_mask & (1u64 << idx)) != 0 {
+                    "✓"
+                } else {
+                    " "
+                },
+                label,
+                tag,
+            )
         },
     )
 }
@@ -248,8 +253,15 @@ fn window_menu_descriptor(view_panel_mask: u64) -> MenuSectionDescriptor {
         .fold(
             MenuSectionDescriptor::new("Window", 0x4000),
             |menu, (idx, &(_pid, label, tag))| {
-                let visible = (view_panel_mask & (1u64 << idx)) != 0;
-                menu.with_action_with_icon(if visible { "✓" } else { " " }, label, tag + 0x1000)
+                menu.with_action_with_icon(
+                    if (view_panel_mask & (1u64 << idx)) != 0 {
+                        "✓"
+                    } else {
+                        " "
+                    },
+                    label,
+                    tag + 0x1000,
+                )
             },
         )
         .with_separator()
@@ -273,9 +285,9 @@ fn attach_right_controls(descriptor: MenuBarDescriptor, is_editing: bool) -> Men
     } else {
         descriptor.with_action_button("⏹ Stop", Color::hex("#dc2626"), Color::WHITE, 0x6002)
     })
-    .with_window_control("—", false, 0x7001)
-    .with_window_control("□", false, 0x7002)
-    .with_window_control("✕", true, 0x7003)
+    .with_window_control("—", false, WINDOW_CONTROL_TAG_MINIMIZE)
+    .with_window_control("□", false, WINDOW_CONTROL_TAG_MAXIMIZE)
+    .with_window_control("✕", true, WINDOW_CONTROL_TAG_CLOSE)
 }
 
 #[cfg(test)]
@@ -287,8 +299,8 @@ mod tests {
     fn test_top_menu_bar_declarative_build_and_roles() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
-        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+        let dock_state = crate::ui::panel_layout::create_default_dock_state();
+        let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
         let mut scope = UiScope::new(&mut tree, root);
 
@@ -313,8 +325,8 @@ mod tests {
     fn test_menu_bar_click_activates_dropdown() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
-        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+        let dock_state = crate::ui::panel_layout::create_default_dock_state();
+        let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         let file_tag = hash_label_with_seed(0, "File");
@@ -344,8 +356,8 @@ mod tests {
     fn test_top_menu_bar_button_widths_and_gaps() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
-        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+        let dock_state = crate::ui::panel_layout::create_default_dock_state();
+        let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         {
@@ -427,8 +439,8 @@ mod tests {
     fn test_menu_bar_action_emission_to_action_bus() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
-        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+        let dock_state = crate::ui::panel_layout::create_default_dock_state();
+        let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         // Simulate active File menu dropdown and clicking Exit (0x1005)
@@ -467,8 +479,8 @@ mod tests {
     fn test_top_menu_bar_about_modal_opens_and_renders() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let layout_state = crate::ui::panel_layout::PanelLayoutState::default();
-        let view_panel_mask = layout_state.dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
+        let dock_state = crate::ui::panel_layout::create_default_dock_state();
+        let view_panel_mask = dock_state.tab_visibility_mask(&VIEW_PANEL_IDS);
         let mut action_bus = irisui::workbench::ActionBus::new();
 
         // 1. Initially About modal is closed
@@ -527,6 +539,74 @@ mod tests {
             "Expected x to be centered near {}, found {}",
             expected_x,
             card_rect.x
+        );
+    }
+
+    #[test]
+    fn test_modal_second_open_click_inside_card_does_not_dismiss_root_cause() {
+        use irisui::core::event::{MouseButton, UiEvent};
+        use irisui::core::geometry::Point;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+
+        tree.open_modal(0x5001);
+        assert!(tree.is_modal_open(0x5001));
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            render_about_modal_if_active(&mut scope);
+        }
+        assert!(tree.is_modal_open(0x5001));
+
+        tree.close_modal(0x5001);
+        assert!(!tree.is_modal_open(0x5001));
+
+        tree.open_modal(0x5001);
+        assert!(tree.is_modal_open(0x5001));
+
+        tree.clear();
+        let root = tree.create_root().unwrap();
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            render_about_modal_if_active(&mut scope);
+        }
+        assert!(tree.is_modal_open(0x5001));
+
+        tree.dispatch_event(&UiEvent::MouseDown {
+            point: Point::new(960.0, 540.0),
+            button: MouseButton::Left,
+        });
+        tree.dispatch_event(&UiEvent::MouseUp {
+            point: Point::new(960.0, 540.0),
+            button: MouseButton::Left,
+        });
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            render_about_modal_if_active(&mut scope);
+        }
+        assert!(
+            tree.is_modal_open(0x5001),
+            "Clicking inside the modal card on the 2nd open must NOT dismiss the modal"
+        );
+
+        tree.dispatch_event(&UiEvent::MouseDown {
+            point: Point::new(50.0, 50.0),
+            button: MouseButton::Left,
+        });
+        tree.dispatch_event(&UiEvent::MouseUp {
+            point: Point::new(50.0, 50.0),
+            button: MouseButton::Left,
+        });
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            render_about_modal_if_active(&mut scope);
+        }
+        assert!(
+            !tree.is_modal_open(0x5001),
+            "Clicking outside on the backdrop scrim MUST dismiss the modal"
         );
     }
 }

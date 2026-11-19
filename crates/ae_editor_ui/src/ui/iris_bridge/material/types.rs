@@ -87,41 +87,6 @@ pub fn decode_submesh_texture_tag(tag: u64) -> Option<usize> {
     }
 }
 
-/// Target destination or action resolved from a Material Studio semantic tag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MaterialTagTarget {
-    /// Request to change 2D sprite texture.
-    SpriteChange,
-    /// Request to remove 2D sprite texture.
-    SpriteRemove,
-    /// Request to add texture component.
-    AddTexture,
-    /// Request to add color tint component.
-    AddColor,
-    /// Submesh alpha mode pill selection: `(submesh_idx, mode)`.
-    SubmeshAlpha(usize, ae_renderer::render::types::SubmeshAlphaMode),
-    /// Submesh texture slot picker: `submesh_idx`.
-    SubmeshTexture(usize),
-}
-
-/// Resolves a raw numeric tag into a typed [`MaterialTagTarget`].
-#[inline]
-pub fn resolve_material_tag(tag: u64) -> Option<MaterialTagTarget> {
-    match tag {
-        MATERIAL_TAG_SPRITE_CHANGE => Some(MaterialTagTarget::SpriteChange),
-        MATERIAL_TAG_SPRITE_REMOVE => Some(MaterialTagTarget::SpriteRemove),
-        MATERIAL_TAG_ADD_TEXTURE => Some(MaterialTagTarget::AddTexture),
-        MATERIAL_TAG_ADD_COLOR => Some(MaterialTagTarget::AddColor),
-        _ => {
-            if let Some((idx, mode)) = decode_submesh_alpha_tag(tag) {
-                Some(MaterialTagTarget::SubmeshAlpha(idx, mode))
-            } else {
-                decode_submesh_texture_tag(tag).map(MaterialTagTarget::SubmeshTexture)
-            }
-        }
-    }
-}
-
 /// Parameters required to construct and lay out the Material & Surface Studio panel.
 pub struct MaterialPanelParams<'a> {
     /// Absolute bounding rectangle allocated for the material panel in the docking tree.
@@ -166,8 +131,8 @@ pub enum MaterialAction {
 /// Persistent interactive state for the Material & Surface Studio panel overlay.
 #[derive(Debug, Default, Clone)]
 pub struct MaterialPanelState {
-    /// Common panel interaction state (search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>,
+    /// Queued actions emitted by material interactions during the frame.
+    pub actions: Vec<MaterialAction>,
     /// Selected entity handle cached for material panel interactions.
     pub selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
@@ -176,16 +141,11 @@ pub struct MaterialPanelState {
     pub active_model: Option<ae_renderer::asset::AssetHandle>,
 }
 
-impl std::ops::Deref for MaterialPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for MaterialPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
+impl MaterialPanelState {
+    /// Drains and returns all queued material actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<MaterialAction> {
+        std::mem::take(&mut self.actions)
     }
 }
 

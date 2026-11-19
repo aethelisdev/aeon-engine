@@ -241,8 +241,6 @@ pub enum PreferencesAction {
     SetTheme(crate::ui::iris_bridge::theme::ThemePreset),
     /// Toggle a boolean setting or engine module.
     Toggle(PreferencesToggleId),
-    /// Reposition the floating modal dialog window during titlebar dragging.
-    Move(Point),
 }
 
 /// Standard scrollbar styling for the Preferences modal dialog.
@@ -258,8 +256,8 @@ pub const fn preferences_scroll_style() -> ScrollAreaStyle {
 /// Persistent interactive state for the Preferences modal dialog overlay.
 #[derive(Debug, Default, Clone)]
 pub struct PreferencesDialogState {
-    /// Common panel interaction state (scroll_y, search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>,
+    /// Queued actions emitted by preferences controls.
+    pub actions: Vec<PreferencesAction>,
     /// First-class autonomous floating panel controller from Iris UI.
     pub floating: irisui::widgets::FloatingPanelState,
     /// Bounding rectangle of the scrollable content view.
@@ -280,6 +278,8 @@ pub struct PreferencesDialogState {
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Set of currently collapsed card/section identifiers in the Preferences dialog.
     pub collapsed_sections: HashSet<&'static str>,
+    /// Currently active workspace theme preset (Obsidian Deep or Cold Slate).
+    pub theme_preset: crate::ui::iris_bridge::theme::ThemePreset,
 }
 
 impl PreferencesDialogState {
@@ -287,19 +287,6 @@ impl PreferencesDialogState {
     #[inline]
     pub fn reset_scroll(&mut self) {
         self.active_drag_tag = None;
-    }
-}
-
-impl std::ops::Deref for PreferencesDialogState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for PreferencesDialogState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
     }
 }
 

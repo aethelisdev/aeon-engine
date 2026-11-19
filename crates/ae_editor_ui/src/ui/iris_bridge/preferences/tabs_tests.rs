@@ -307,3 +307,116 @@ fn test_preferences_keymap_scroll_covers_full_content() {
     );
     assert_eq!(content_rect.height, 504.0);
 }
+
+#[test]
+fn test_about_dialog_occludes_underlying_preferences_text() {
+    let mut tree = UiTree::new();
+    let _root = tree.create_root().expect("Root node must be created");
+
+    let screen_width = 1920.0;
+    let screen_height = 1080.0;
+
+    // 1. Build Preferences dialog in center
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    let pref_left = ((screen_width - super::builder::PREF_CARD_WIDTH) * 0.5).round();
+    let pref_top = ((screen_height - super::builder::PREF_CARD_HEIGHT) * 0.5).round();
+
+    let pref_params = PreferencesParams {
+        screen_width,
+        screen_height,
+        window_pos: Some(Point::new(pref_left, pref_top)),
+        active_tab: &mut 0,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: &mut false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+        current_theme: Default::default(),
+    };
+    let (_pref_id, pref_card_rect, _, _) =
+        build_preferences_dialog(&mut tree, pref_params, &mut Vec::new());
+
+    // 2. Build InfoCard dialog centered on top of Preferences via DialogHost
+    let mut dialog_host = irisui::workbench::DialogHost::<crate::ui::EngineUiAction>::new();
+    let mut action_bus = irisui::workbench::ActionBus::new();
+    dialog_host.open_info(
+        irisui::workbench::InfoCardDialogDescriptor::new("About Aeon Engine")
+            .with_app_name("Aeon Engine")
+            .with_size(480.0, 250.0),
+    );
+    let root = tree.root().unwrap();
+    let mut scope = UiScope::new(&mut tree, root);
+    dialog_host.render(
+        &mut scope,
+        Rect::new(0.0, 0.0, screen_width, screen_height),
+        false,
+        &mut action_bus,
+    );
+
+    let about_dialog_rect = Rect::new(
+        (screen_width - 480.0) * 0.5,
+        (screen_height - 250.0) * 0.5,
+        480.0,
+        250.0,
+    );
+
+    // Register modals in Z-order: Preferences (Layer 0), About (Layer 1)
+    let active_modals = [pref_card_rect, about_dialog_rect];
+    let sections =
+        irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
+    let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
+
+    assert!(
+        rendered_texts
+            .iter()
+            .any(|t| t.contains("About Aeon Engine")),
+        "Topmost About header title must be rendered without occlusion"
+    );
+    assert!(
+        rendered_texts.iter().any(|t| t.contains("Aeon Engine")),
+        "About dialog title must be rendered without occlusion"
+    );
+
+    for section in &sections {
+        let visible_bounds = match section.clip_bounds {
+            Some(clip) => section.bounds.intersect(clip),
+            None => section.bounds,
+        };
+        let visible_center_x = visible_bounds.x + visible_bounds.width * 0.5;
+        let visible_center_y = visible_bounds.y + visible_bounds.height * 0.5;
+        let visible_inside_about = visible_bounds.width > 0.0
+            && visible_bounds.height > 0.0
+            && visible_center_x >= about_dialog_rect.x
+            && visible_center_x <= about_dialog_rect.x + about_dialog_rect.width
+            && visible_center_y >= about_dialog_rect.y
+            && visible_center_y <= about_dialog_rect.y + about_dialog_rect.height;
+
+        if visible_inside_about {
+            let is_about_text = section.text.contains("About")
+                || section.text.contains("Aeon Engine")
+                || section.text.contains("Copyright")
+                || section.text.contains("Mozilla")
+                || section.text.contains("License")
+                || section.text.contains("MPL")
+                || section.text.contains("WARRANTY")
+                || section.text.contains("Close")
+                || section.text == "✕";
+            assert!(
+                is_about_text,
+                "Visible text '{}' inside About dialog bounds must belong to About, not bleed from Preferences",
+                section.text
+            );
+        }
+    }
+}

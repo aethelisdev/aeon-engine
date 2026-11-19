@@ -331,7 +331,6 @@ impl PreferencesDialogState {
         &mut self,
         scope: &mut UiScope<'_>,
         params: &mut OverlayUpdateParams<'_>,
-        current_theme: crate::ui::iris_bridge::theme::ThemePreset,
         (cursor_pos, blink_caret): (Point, bool),
     ) {
         if scope.is_collapsed() {
@@ -342,7 +341,6 @@ impl PreferencesDialogState {
             scope,
             scope.parent_rect(),
             params,
-            current_theme,
             (cursor_pos, blink_caret),
         );
     }
@@ -352,7 +350,6 @@ impl PreferencesDialogState {
         scope: &mut UiScope<'_>,
         panel_rect: Rect,
         params: &mut OverlayUpdateParams<'_>,
-        current_theme: crate::ui::iris_bridge::theme::ThemePreset,
         (cursor_pos, blink_caret): (Point, bool),
     ) {
         scope.with_scoped_text_input_blink(
@@ -390,9 +387,9 @@ impl PreferencesDialogState {
                                 enable_live_updates: &mut *params.preferences.enable_live_updates,
                                 enabled_modules: params.preferences.enabled_modules,
                                 events: &self.pending_interaction_events,
-                                current_theme,
+                                current_theme: self.theme_preset,
                             },
-                            &mut self.interactions.actions,
+                            &mut self.actions,
                             (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0),
                             panel_rect.height,
                         );

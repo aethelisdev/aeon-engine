@@ -8,8 +8,8 @@
 
 use super::panel::build_ui_designer_panel;
 use super::types::{UiDesignerPanelParams, UiDesignerPanelState};
-use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 
 impl UiDesignerPanelState {
@@ -19,7 +19,7 @@ impl UiDesignerPanelState {
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
         cursor_pos: Point,
-        notifier: &mut DeferredPanelNotifier<'_>,
+        notifier: &mut DeferredNotifier<PanelId>,
     ) {
         if scope.is_collapsed() {
             self.drag_contexts.clear();
@@ -38,7 +38,7 @@ impl UiDesignerPanelState {
             },
             self,
         );
-        if self.has_pending_actions() {
+        if !self.actions.is_empty() {
             notifier.tag_redraw(crate::ui::panel_layout::PanelId::UiDesigner);
         }
     }

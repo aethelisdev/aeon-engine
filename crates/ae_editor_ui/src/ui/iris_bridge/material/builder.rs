@@ -40,7 +40,7 @@ impl MaterialPanelState {
                 cursor_pos,
                 events: &std::mem::take(&mut self.pending_interaction_events),
             },
-            &mut self.interactions.actions,
+            &mut self.actions,
         );
         self.active_model = params
             .scene

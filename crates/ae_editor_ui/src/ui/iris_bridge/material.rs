@@ -8,7 +8,6 @@
 
 pub mod builder;
 pub mod empty_state;
-pub mod events;
 pub mod header;
 pub mod panel;
 pub mod sprite_view;
@@ -17,13 +16,12 @@ pub mod submesh_view;
 mod tests;
 pub mod types;
 
-pub use events::handle_material_click;
 pub use header::{MATERIAL_HEADER_HEIGHT, build_material_header};
 pub use panel::build_material_panel;
 pub use types::{
     MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_ADD_TEXTURE, MATERIAL_TAG_SPRITE_CHANGE,
     MATERIAL_TAG_SPRITE_REMOVE, MATERIAL_TAG_SUBMESH_ALPHA_BASE, MATERIAL_TAG_SUBMESH_TEXTURE_BASE,
     MATERIAL_TAG_VIEWPORT, MaterialAction, MaterialPanelParams, MaterialPanelState, MaterialState,
-    MaterialTagTarget, decode_submesh_alpha_tag, decode_submesh_texture_tag,
-    make_submesh_alpha_tag, make_submesh_texture_tag, resolve_material_tag,
+    decode_submesh_alpha_tag, decode_submesh_texture_tag, make_submesh_alpha_tag,
+    make_submesh_texture_tag,
 };

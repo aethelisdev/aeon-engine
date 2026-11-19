@@ -39,13 +39,6 @@ pub const TIMELINE_TAG_PLAYHEAD_CAP: u64 = 0xAA21;
 /// and joint labels, ensuring keyframe diamond markers never overlap badge text.
 pub const TIMELINE_SIDEBAR_WIDTH: f32 = 118.0;
 
-/// Returns true if the specified numeric tag belongs to the timeline subsystem.
-#[inline]
-#[must_use]
-pub const fn is_timeline_tag(tag: u64) -> bool {
-    tag >= 0xAA00 && tag <= 0xAAFF
-}
-
 /// A keyframe indicator marker positioned along a timeline scrubber track.
 ///
 /// Contains the timestamp of the keyframe and an optional custom tint color.
@@ -71,50 +64,6 @@ impl TimelineKeyframeMarker {
             time,
             color: Some(color),
         }
-    }
-}
-
-/// User interaction actions dispatched by a media playback transport bar.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum MediaTransportAction {
-    /// Steps playback backward by one frame or discrete step.
-    StepBack,
-    /// Toggles playback between active playing and paused states.
-    TogglePlayPause,
-    /// Stops playback and resets the current playhead timestamp to zero.
-    Stop,
-    /// Steps playback forward by one frame or discrete step.
-    StepForward,
-    /// Toggles looping mode on or off.
-    ToggleLoop,
-    /// Selects a specific playback speed multiplier.
-    SetSpeed(f32),
-}
-
-/// Evaluates a semantic numeric tag against timeline transport controls.
-///
-/// Returns the matching [`MediaTransportAction`] if the tag corresponds to a transport button.
-#[must_use]
-pub fn evaluate_timeline_transport_tag(
-    tag: u64,
-    speed_presets: &[f32],
-) -> Option<MediaTransportAction> {
-    match tag {
-        TIMELINE_TAG_STEP_BACK => Some(MediaTransportAction::StepBack),
-        TIMELINE_TAG_PLAY_PAUSE => Some(MediaTransportAction::TogglePlayPause),
-        TIMELINE_TAG_STOP => Some(MediaTransportAction::Stop),
-        TIMELINE_TAG_STEP_FWD => Some(MediaTransportAction::StepForward),
-        TIMELINE_TAG_LOOP => Some(MediaTransportAction::ToggleLoop),
-        t if (TIMELINE_TAG_SPEED_BASE..TIMELINE_TAG_SPEED_BASE + speed_presets.len() as u64)
-            .contains(&t) =>
-        {
-            let idx = (t - TIMELINE_TAG_SPEED_BASE) as usize;
-            speed_presets
-                .get(idx)
-                .copied()
-                .map(MediaTransportAction::SetSpeed)
-        }
-        _ => None,
     }
 }
 
@@ -304,8 +253,8 @@ pub enum TimelineAction {
 /// and queued user interactions without retaining external node identifier tables.
 #[derive(Debug, Default, Clone)]
 pub struct TimelinePanelState {
-    /// Common panel interaction state (actions queue).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), TimelineAction>,
+    /// Queued actions emitted by timeline transport and scrubbing controls.
+    pub actions: Vec<TimelineAction>,
     /// Whether user is actively dragging the timeline scrubber playhead needle.
     pub is_dragging: bool,
     /// Cached hardware hit-test track bounds during active scrubber drag: `(track_x, track_width)`.
@@ -318,16 +267,11 @@ pub struct TimelinePanelState {
     pub clip_duration: f32,
 }
 
-impl std::ops::Deref for TimelinePanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), TimelineAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for TimelinePanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
+impl TimelinePanelState {
+    /// Drains and returns all queued timeline actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<TimelineAction> {
+        std::mem::take(&mut self.actions)
     }
 }
 
@@ -337,53 +281,6 @@ pub type TimelineState = TimelinePanelState;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_timeline_tags_and_filter() {
-        assert!(is_timeline_tag(TIMELINE_TAG_PANEL_ROOT));
-        assert!(is_timeline_tag(TIMELINE_TAG_PLAY_PAUSE));
-        assert!(is_timeline_tag(TIMELINE_TAG_SCRUBBER_TRACK));
-        assert!(is_timeline_tag(TIMELINE_TAG_PLAYHEAD_CAP));
-        assert!(!is_timeline_tag(0x1000));
-        assert!(!is_timeline_tag(0xFFFF));
-    }
-
-    #[test]
-    fn test_evaluate_transport_tags() {
-        let presets = [0.25, 0.5, 1.0, 2.0];
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_STEP_BACK, &presets),
-            Some(MediaTransportAction::StepBack)
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_PLAY_PAUSE, &presets),
-            Some(MediaTransportAction::TogglePlayPause)
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_STOP, &presets),
-            Some(MediaTransportAction::Stop)
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_STEP_FWD, &presets),
-            Some(MediaTransportAction::StepForward)
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_LOOP, &presets),
-            Some(MediaTransportAction::ToggleLoop)
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE, &presets),
-            Some(MediaTransportAction::SetSpeed(0.25))
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE + 3, &presets),
-            Some(MediaTransportAction::SetSpeed(2.0))
-        );
-        assert_eq!(
-            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE + 10, &presets),
-            None
-        );
-    }
 
     #[test]
     fn test_keyframe_marker_construction() {

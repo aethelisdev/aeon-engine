@@ -4,7 +4,6 @@
 //! Material and Surface Studio unit tests.
 
 use super::*;
-use ae_renderer::render::types::SubmeshAlphaMode;
 use irisui::prelude::*;
 use irisui::widgets::panel::PanelBuilder;
 
@@ -108,53 +107,6 @@ fn test_material_panel_build_sprite_view() {
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_CHANGE));
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_REMOVE));
-}
-
-#[test]
-fn test_material_panel_click_hit_testing() {
-    let mut world = hecs::World::new();
-    let ent = world.spawn(("Entity1",));
-    let handle = ae_renderer::asset::AssetHandle::default();
-
-    // Click Change Texture
-    let act1 = handle_material_click(MATERIAL_TAG_SPRITE_CHANGE, Some(ent), None);
-    assert_eq!(act1, Some(MaterialAction::PickAndAssignEntityTexture(ent)));
-
-    // Click Remove Texture
-    let act2 = handle_material_click(MATERIAL_TAG_SPRITE_REMOVE, Some(ent), None);
-    assert_eq!(act2, Some(MaterialAction::RemoveTextureFromEntity(ent)));
-
-    // Click Add Texture
-    let act3 = handle_material_click(MATERIAL_TAG_ADD_TEXTURE, Some(ent), None);
-    assert_eq!(act3, Some(MaterialAction::PickAndAssignEntityTexture(ent)));
-
-    // Click Add Color
-    let act4 = handle_material_click(MATERIAL_TAG_ADD_COLOR, Some(ent), None);
-    assert_eq!(act4, Some(MaterialAction::AddColorComponent(ent)));
-
-    // Click Submesh Alpha Button
-    let alpha_tag = make_submesh_alpha_tag(1, SubmeshAlphaMode::Mask);
-    let act5 = handle_material_click(alpha_tag, Some(ent), Some(handle));
-    assert_eq!(
-        act5,
-        Some(MaterialAction::SetModelSubmeshAlphaMode(
-            handle,
-            1,
-            SubmeshAlphaMode::Mask
-        ))
-    );
-
-    // Click Submesh Texture Button
-    let tex_tag = make_submesh_texture_tag(1);
-    let act6 = handle_material_click(tex_tag, Some(ent), Some(handle));
-    assert_eq!(
-        act6,
-        Some(MaterialAction::PickAndSetSubmeshTexture(handle, 1))
-    );
-
-    // Click with unknown / 0 tag
-    let act7 = handle_material_click(0, Some(ent), Some(handle));
-    assert_eq!(act7, None);
 }
 
 #[test]
@@ -306,41 +258,6 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         "Empty state button must be centered in panel body, got y={}",
         add_btn.y
     );
-}
-
-#[test]
-fn test_resolve_material_tag_invariants() {
-    assert_eq!(
-        resolve_material_tag(MATERIAL_TAG_SPRITE_CHANGE),
-        Some(MaterialTagTarget::SpriteChange)
-    );
-    assert_eq!(
-        resolve_material_tag(MATERIAL_TAG_SPRITE_REMOVE),
-        Some(MaterialTagTarget::SpriteRemove)
-    );
-    assert_eq!(
-        resolve_material_tag(MATERIAL_TAG_ADD_TEXTURE),
-        Some(MaterialTagTarget::AddTexture)
-    );
-    assert_eq!(
-        resolve_material_tag(MATERIAL_TAG_ADD_COLOR),
-        Some(MaterialTagTarget::AddColor)
-    );
-
-    let alpha_tag = make_submesh_alpha_tag(2, SubmeshAlphaMode::Mask);
-    assert_eq!(
-        resolve_material_tag(alpha_tag),
-        Some(MaterialTagTarget::SubmeshAlpha(2, SubmeshAlphaMode::Mask))
-    );
-
-    let tex_tag = make_submesh_texture_tag(5);
-    assert_eq!(
-        resolve_material_tag(tex_tag),
-        Some(MaterialTagTarget::SubmeshTexture(5))
-    );
-
-    assert_eq!(resolve_material_tag(0), None);
-    assert_eq!(resolve_material_tag(0xFFFF_FFFF), None);
 }
 
 #[test]

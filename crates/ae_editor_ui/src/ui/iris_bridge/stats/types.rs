@@ -74,16 +74,6 @@ pub fn is_stats_tag(tag: u64) -> bool {
     (tag & 0xFFFF_FFFF_0000_0000) == 0x5354_4154_0000_0000
 }
 
-/// Strongly typed semantic action resolver for Stats & Profiler tags.
-#[inline]
-pub fn resolve_stats_action(tag: u64) -> Option<StatsPanelAction> {
-    match tag {
-        STATS_TAG_TOGGLE_WIREFRAME => Some(StatsPanelAction::ToggleWireframe),
-        STATS_TAG_TOGGLE_GRID => Some(StatsPanelAction::ToggleGrid),
-        _ => None,
-    }
-}
-
 /// Actions emitted by the Stats & Profiler panel interactions.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatsPanelAction {
@@ -134,8 +124,8 @@ pub struct StatsPanelParams<'a> {
 /// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
 #[derive(Debug, Clone)]
 pub struct StatsPanelState {
-    /// Common panel interaction state (search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>,
+    /// Queued actions emitted by telemetry toggle controls.
+    pub actions: Vec<StatsPanelAction>,
     /// Accumulated frame count within the current 250ms telemetry rolling average window.
     pub frame_counter: u32,
     /// Timestamp of the last visual rolling window update for the FPS text in the Stats panel.
@@ -144,32 +134,30 @@ pub struct StatsPanelState {
     pub displayed_fps: f32,
     /// Ring buffer snapshot of recent frame pacing samples used to draw the oscilloscope polyline.
     pub frame_ring_buffer: Option<FrameRingBuffer>,
+    /// Last instant when live performance telemetry text/graph sections were refreshed.
+    pub last_stats_refresh: Option<std::time::Instant>,
 }
 
 impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
-            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            actions: Vec::new(),
             frame_counter: 0,
             last_fps_refresh: std::time::Instant::now(),
             displayed_fps: 60.0,
             frame_ring_buffer: None,
+            last_stats_refresh: None,
         }
+    }
+}
+
+impl StatsPanelState {
+    /// Drains and returns all pending telemetry overlay actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<StatsPanelAction> {
+        std::mem::take(&mut self.actions)
     }
 }
 
 /// Semantic alias for [`StatsPanelState`].
 pub type StatsState = StatsPanelState;
-
-impl std::ops::Deref for StatsPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for StatsPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
-    }
-}
