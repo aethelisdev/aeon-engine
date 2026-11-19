@@ -37,6 +37,8 @@ enum TestAction {
 struct MockWindow {
     cursor: Option<CursorIcon>,
     maximized: bool,
+    minimized: bool,
+    closed: bool,
     logical_size: Size,
 }
 
@@ -61,9 +63,13 @@ impl WindowInterface for MockWindow {
         self.maximized
     }
 
-    fn minimize(&mut self) {}
+    fn minimize(&mut self) {
+        self.minimized = true;
+    }
 
-    fn close(&mut self) {}
+    fn close(&mut self) {
+        self.closed = true;
+    }
 
     fn logical_size(&self) -> Size {
         self.logical_size
@@ -486,5 +492,135 @@ fn test_workbench_dock_tab_chrome_hover_and_click_passthrough() {
         active_tab,
         Some(1),
         "Clicking interactive IrisDockTab must pass through to DockArea tab switcher"
+    );
+}
+
+#[test]
+fn test_workbench_with_preferences_panel_toggles_autonomously_on_ctrl_comma() {
+    let mut wb = create_test_workbench().with_preferences_panel(TestTab::Console);
+    let mut win = MockWindow::default();
+    let toggle_ev = UiEvent::KeyboardInput {
+        key: KeyCode::Character(','),
+        text: Some(",".into()),
+        is_pressed: true,
+        ctrl_held: true,
+        shift_held: false,
+    };
+
+    // First Ctrl+, closes initially open Console tab
+    let out_close = wb.handle_event(&mut win, &toggle_ev);
+    assert!(out_close.consumed);
+    assert!(out_close.shell_dirty);
+    assert!(!wb.descriptor.dock_state.contains_tab(&TestTab::Console));
+
+    // Second Ctrl+, re-opens Console tab autonomously
+    let out_open = wb.handle_event(&mut win, &toggle_ev);
+    assert!(out_open.consumed);
+    assert!(wb.descriptor.dock_state.contains_tab(&TestTab::Console));
+}
+
+#[test]
+fn test_workbench_window_control_tags_dispatch_to_host_window() {
+    let mut wb = create_test_workbench().with_window_control_tags(0x7001, 0x7002, 0x7003);
+    let mut win = MockWindow {
+        logical_size: Size::new(1280.0, 720.0),
+        ..Default::default()
+    };
+
+    let root = wb.tree.create_root().expect("Root must exist");
+    let min_btn = wb.tree.create_node();
+    let _ = wb.tree.add_child(root, min_btn);
+    if let Some(n) = wb.tree.get_mut(min_btn) {
+        n.interactive = true;
+        n.tag = 0x7001;
+        n.computed_rect = Rect::new(100.0, 4.0, 24.0, 22.0);
+    }
+    let max_btn = wb.tree.create_node();
+    let _ = wb.tree.add_child(root, max_btn);
+    if let Some(n) = wb.tree.get_mut(max_btn) {
+        n.interactive = true;
+        n.tag = 0x7002;
+        n.computed_rect = Rect::new(128.0, 4.0, 24.0, 22.0);
+    }
+    let close_btn = wb.tree.create_node();
+    let _ = wb.tree.add_child(root, close_btn);
+    if let Some(n) = wb.tree.get_mut(close_btn) {
+        n.interactive = true;
+        n.tag = 0x7003;
+        n.computed_rect = Rect::new(156.0, 4.0, 24.0, 22.0);
+    }
+
+    let click_at = |wb: &mut Workbench<TestTab, TestAction, ()>, win: &mut MockWindow, x: f32| {
+        let pt = Point::new(x, 12.0);
+        let _ = wb.handle_event(
+            win,
+            &UiEvent::MouseDown {
+                button: MouseButton::Left,
+                point: pt,
+            },
+        );
+        wb.handle_event(
+            win,
+            &UiEvent::MouseUp {
+                button: MouseButton::Left,
+                point: pt,
+            },
+        )
+    };
+
+    let out_min = click_at(&mut wb, &mut win, 110.0);
+    assert!(out_min.consumed);
+    assert!(win.minimized);
+    assert!(!out_min.close_requested);
+
+    let out_max = click_at(&mut wb, &mut win, 138.0);
+    assert!(out_max.consumed);
+    assert!(out_max.shell_dirty);
+    assert!(win.maximized);
+
+    let out_close = click_at(&mut wb, &mut win, 166.0);
+    assert!(out_close.consumed);
+    assert!(out_close.close_requested);
+    assert!(win.closed);
+    assert!(wb.action_bus.is_empty());
+}
+
+#[test]
+fn test_workbench_prepare_viewport_layout_resolves_and_caches_non_ui_tab() {
+    let mut wb = create_test_workbench()
+        .with_menubar_height(30.0)
+        .with_statusbar_height(24.0)
+        .with_non_ui_tab(TestTab::Inspector);
+
+    // Activate tab 0 (Inspector) and verify docked content rect inside workspace
+    let rect = wb.prepare_viewport_layout(Size::new(1280.0, 720.0));
+    assert!(rect.width > 1200.0);
+    assert!(rect.y >= 30.0);
+    assert!(rect.height > 600.0);
+    assert_eq!(wb.interactive_viewport, Some(rect));
+    assert!(!wb.wants_pointer_at_self([rect.x + 20.0, rect.y + 20.0]));
+
+    // Second call with unchanged geometry hits steady-state cache identically
+    assert_eq!(wb.prepare_viewport_layout(Size::new(1280.0, 720.0)), rect);
+
+    // Floating window clamping keeps detached windows inside workspace bounds
+    wb.dock_state_mut().open_or_focus_floating_tab(
+        TestTab::Console,
+        "Console",
+        Rect::new(200.0, -50.0, 400.0, 300.0),
+    );
+    let _ = wb.prepare_viewport_layout(Size::new(1280.0, 720.0));
+    assert!(wb.dock_state().floating_windows[0].rect.y >= 30.0);
+
+    // Non-UI viewport cursor hit respects floating window occlusion
+    wb.last_cursor_pos = Some(Point::new(250.0, 120.0));
+    assert!(!wb.is_cursor_over_non_ui_viewport());
+    wb.last_cursor_pos = Some(Point::new(50.0, 120.0));
+    assert!(wb.is_cursor_over_non_ui_viewport());
+
+    // Zero or non-finite sizes sanitize cleanly to Rect::ZERO
+    assert_eq!(
+        wb.prepare_viewport_layout(Size::new(f32::NAN, 720.0)),
+        Rect::ZERO
     );
 }

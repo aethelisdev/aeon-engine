@@ -14,10 +14,9 @@ use irisui_core::dispatch::DispatchResult;
 use irisui_core::event::{MouseButton, UiEvent};
 use irisui_core::geometry::Rect;
 use irisui_dock::area::runner::{DockArea, DockInteractionConfig};
-use irisui_dock::floating::{
-    DEFAULT_RESIZE_MARGIN, FloatingInteractionResponse, FloatingWindowClampBounds,
-};
+use irisui_dock::floating::{DEFAULT_RESIZE_MARGIN, FloatingInteractionResponse};
 use irisui_dock::state::DockState;
+use irisui_widgets::TitleBarAction;
 use irisui_winit::frameless::WindowInterface;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -30,6 +29,7 @@ struct TreeAndContentResult<TabId, Action> {
     hover_target_changed: bool,
     hover_affects_text: bool,
     hover_requires_full_upload: bool,
+    triggered_title_bar_action: Option<TitleBarAction>,
     route: Option<EventInvalidationRoute<TabId>>,
     extra_actions: Vec<Action>,
 }
@@ -44,6 +44,7 @@ impl<TabId, Action> Default for TreeAndContentResult<TabId, Action> {
             hover_target_changed: false,
             hover_affects_text: false,
             hover_requires_full_upload: false,
+            triggered_title_bar_action: None,
             route: None,
             extra_actions: Vec::new(),
         }
@@ -110,7 +111,8 @@ where
         if modal_click_consumed {
             self.tree.event_state.frame_clicked_tag = None;
         }
-        let route = if modal_click_consumed {
+        let triggered_title_bar_action = self.take_triggered_window_control_action();
+        let route = if modal_click_consumed || triggered_title_bar_action.is_some() {
             EventInvalidationRoute::Shell
         } else {
             self.route_event_invalidation(event, &dispatch)
@@ -141,19 +143,38 @@ where
         {
             modal_click_consumed
         } else {
-            dispatch.consumed || modal_click_consumed
+            dispatch.consumed || modal_click_consumed || triggered_title_bar_action.is_some()
         };
         TreeAndContentResult {
             consumed: consumed_by_content,
             cursor: dispatch.cursor,
-            needs_redraw: dispatch.needs_redraw || modal_click_consumed,
+            needs_redraw: dispatch.needs_redraw
+                || modal_click_consumed
+                || triggered_title_bar_action.is_some(),
             wants_keyboard_input: self.tree.is_text_input_focused(),
             hover_target_changed: hover.hover_target_changed,
             hover_affects_text: hover.hover_affects_text,
             hover_requires_full_upload: hover.hover_requires_full_upload,
+            triggered_title_bar_action,
             route: Some(route),
             extra_actions: Vec::new(),
         }
+    }
+
+    fn take_triggered_window_control_action(&mut self) -> Option<TitleBarAction> {
+        let (min_tag, max_tag, close_tag) = self.window_control_tags?;
+        let clicked = self.tree.event_state.frame_clicked_tag?;
+        let action = if clicked == min_tag {
+            TitleBarAction::Minimize
+        } else if clicked == max_tag {
+            TitleBarAction::Maximize
+        } else if clicked == close_tag {
+            TitleBarAction::Close
+        } else {
+            return None;
+        };
+        self.tree.event_state.frame_clicked_tag = None;
+        Some(action)
     }
 
     /// Creates a base [`WorkbenchOutcome`] configured with consumption status, cursor shape,
@@ -174,6 +195,7 @@ where
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            close_requested: false,
             wants_keyboard_input: self.wants_keyboard_input(),
             escape_handled: false,
             popups_dismissed: false,
@@ -244,6 +266,18 @@ where
             content.consumed,
             content.wants_keyboard_input,
         );
+        if let Some(action) = content.triggered_title_bar_action {
+            let drag_outcome = self.drag_host.handle_title_bar_action(window, action);
+            outcome.consumed = true;
+            if drag_outcome.is_closed() {
+                outcome.close_requested = true;
+            }
+            if action == TitleBarAction::Maximize {
+                outcome.layout_changed = true;
+                outcome.shell_dirty = true;
+                outcome = outcome.with_invalidation_route(EventInvalidationRoute::Shell);
+            }
+        }
         if !self.action_bus.is_empty() {
             outcome.actions.extend(self.action_bus.drain());
             outcome.layout_changed = true;
@@ -436,6 +470,15 @@ where
                 }
 
                 if c == ',' {
+                    if let Some(panel) = self.preferences_panel {
+                        Self::toggle_panel_in(
+                            &self.panel_registry,
+                            dock_state,
+                            &mut self.notifier,
+                            Some(logical_size),
+                            panel,
+                        );
+                    }
                     let mut outcome = self.make_outcome(true, None);
                     if let Some(builder) = &self.preferences_action {
                         outcome.actions.push(builder());
@@ -451,9 +494,7 @@ where
 
         // 6. Autonomous Docking Interaction (Splitters, Tabs, Floating Windows)
         let workspace_rect = self.compute_workspace_rect(screen_w, screen_h);
-        let clamp_bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
-            .with_min_y(self.menubar_height)
-            .with_bottom_inset(self.statusbar_height);
+        let clamp_bounds = self.floating_clamp_bounds(logical_size);
 
         let dock_config = DockInteractionConfig {
             clamp_bounds,
@@ -502,11 +543,7 @@ where
         dock_state: &mut DockState<TabId>,
     ) -> FloatingInteractionResponse<TabId> {
         let logical_size = window.logical_size();
-        let screen_w = logical_size.width;
-        let screen_h = logical_size.height;
-        let clamp_bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
-            .with_min_y(self.menubar_height)
-            .with_bottom_inset(self.statusbar_height);
+        let clamp_bounds = self.floating_clamp_bounds(logical_size);
 
         let tab_viewer = self.panel_registry.tab_viewer();
         let res = dock_state.handle_floating_event(&tab_viewer, event, clamp_bounds);

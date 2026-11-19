@@ -97,6 +97,12 @@ pub struct Workbench<
     /// Optional action mapping hook invoked when application preferences modal is toggled.
     pub preferences_action: Option<PreferencesActionBuilder<Action>>,
 
+    /// Optional dock tab identifier toggled directly on `Ctrl+,` preferences hotkey.
+    pub preferences_panel: Option<TabId>,
+
+    /// Optional `(minimize, maximize, close)` semantic tags for native window control dispatching.
+    pub window_control_tags: Option<(u64, u64, u64)>,
+
     /// Active docking interaction frame from the most recent shell assembly pass.
     pub dock_frame: Option<DockChromeFrame<TabId>>,
 
@@ -147,6 +153,12 @@ pub struct Workbench<
 
     /// Scratch buffer storing active floating window bounds for zero-allocation cursor evaluation.
     cached_floating_rects: Vec<Rect>,
+
+    /// Cached `(dock_revision, floating_hash, workspace_rect, is_maximized)` key for viewport resolution.
+    pub(super) cached_viewport_layout_key: Option<(u64, u64, Rect, bool)>,
+
+    /// Cached sanitized screen rectangle of `non_ui_tab` paired with `cached_viewport_layout_key`.
+    pub(super) cached_non_ui_viewport_rect: Rect,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -180,6 +192,8 @@ where
             file_drop_action: None,
             zoom_action: None,
             preferences_action: None,
+            preferences_panel: None,
+            window_control_tags: None,
             dock_frame: None,
             hovered_tag: None,
             last_hovered_tag: None,
@@ -197,6 +211,8 @@ where
             notifier: UiNotifier::new(),
             last_synced_window_cursor: None,
             cached_floating_rects: Vec::new(),
+            cached_viewport_layout_key: None,
+            cached_non_ui_viewport_rect: Rect::ZERO,
         }
     }
 
@@ -227,6 +243,28 @@ where
         F: Fn() -> Action + 'static + Send + Sync,
     {
         self.preferences_action = Some(Box::new(builder));
+        self
+    }
+
+    /// Configures a dock tab identifier to toggle autonomously whenever `Ctrl+,` is pressed.
+    #[must_use]
+    pub fn with_preferences_panel(mut self, panel: TabId) -> Self {
+        self.preferences_panel = Some(panel);
+        self
+    }
+
+    /// Configures 64-bit semantic tags for chrome window control buttons (`minimize`, `maximize`, `close`).
+    ///
+    /// When clicked during event dispatch, [`Self::drag_host`] executes the matching
+    /// [`irisui_widgets::TitleBarAction`] immediately onto the platform [`WindowInterface`].
+    #[must_use]
+    pub fn with_window_control_tags(
+        mut self,
+        minimize_tag: u64,
+        maximize_tag: u64,
+        close_tag: u64,
+    ) -> Self {
+        self.window_control_tags = Some((minimize_tag, maximize_tag, close_tag));
         self
     }
 
@@ -486,6 +524,42 @@ where
         self.tree
             .hit_test_layered(point)
             .is_some_and(|id| self.tree.effective_layer(id) >= UiLayer::Floating)
+    }
+
+    /// Returns `true` when the active pointer position is occluded by either an elevated overlay
+    /// node or any detached floating dock window.
+    #[inline]
+    #[must_use]
+    pub fn is_cursor_occluded(&self) -> bool {
+        let pos = self.effective_cursor_pos();
+        self.is_point_over_overlay(pos)
+            || self
+                .descriptor
+                .dock_state
+                .is_point_over_floating_window(pos)
+    }
+
+    /// Returns the sanitized screen rectangle of [`Self::non_ui_tab`], or [`Rect::ZERO`] if none is active.
+    #[inline]
+    #[must_use]
+    pub fn non_ui_viewport_rect(&self) -> Rect {
+        self.interactive_viewport.unwrap_or(Rect::ZERO)
+    }
+
+    /// Returns `true` when the active pointer resides inside the resolved non-UI viewport canvas
+    /// without being occluded by elevated overlays or detached floating dock windows.
+    #[inline]
+    #[must_use]
+    pub fn is_cursor_over_non_ui_viewport(&self) -> bool {
+        let vp = self.non_ui_viewport_rect();
+        let pos = self.effective_cursor_pos();
+        vp.width > 0.0
+            && vp.height > 0.0
+            && pos.x >= vp.x
+            && pos.x <= vp.right()
+            && pos.y >= vp.y
+            && pos.y <= vp.bottom()
+            && !self.is_cursor_occluded()
     }
 
     /// Resolves the desired OS widget cursor across elevated overlays, floating resize borders,

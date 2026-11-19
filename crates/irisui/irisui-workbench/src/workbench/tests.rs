@@ -693,11 +693,28 @@ fn test_workbench_evaluate_dock_lifecycle_tracks_dock_notifier_and_host_flags() 
         wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
         crate::lifecycle::LifecycleBranch::GranularPanels(vec![MockTab::Viewport])
     );
+    wb.notifier.clear_panel(MockTab::Viewport);
 
     // 3. Host flag change (e.g. popup active) -> FullShellRebuild
     assert_eq!(
         wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i.with_popup_active(true)),
         crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+
+    // 4. Workbench tree menu/modal flags are ingested automatically without host overrides
+    wb.tree.active_menu_bar_tag = Some(0x1001);
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+    wb.tree.active_menu_bar_tag = None;
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::FullShellRebuild
+    );
+    assert_eq!(
+        wb.evaluate_dock_lifecycle(&dock, 1.0, |i| i),
+        crate::lifecycle::LifecycleBranch::Dormant
     );
 }
 

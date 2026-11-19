@@ -325,7 +325,10 @@ where
             (screen.width, screen.height),
             scale_factor,
             self.theme_revision,
-        );
+        )
+        .with_menu_active(self.tree.active_menu_bar_tag.is_some())
+        .with_modal_active(self.tree.is_any_modal_open() || self.dialog_host.is_active())
+        .with_popup_active(self.tree.has_active_popup_nodes());
         self.lifecycle.ingest_notifier(&self.notifier);
         self.lifecycle.evaluate(host_inputs(base))
     }

@@ -47,6 +47,9 @@ pub struct WorkbenchOutcome<Action, TabId = ()> {
     /// Toggle preferences modal dialog requested via keyboard shortcuts (e.g. Ctrl+,).
     pub toggle_preferences: bool,
 
+    /// Whether a platform window close control (e.g. titlebar/menubar close button) was triggered.
+    pub close_requested: bool,
+
     /// Whether active workbench controls (modal dialogs or focused text inputs) require
     /// exclusive keyboard input, signaling the host application to suppress global hotkeys.
     pub wants_keyboard_input: bool,
@@ -95,6 +98,7 @@ impl<Action, TabId> Default for WorkbenchOutcome<Action, TabId> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            close_requested: false,
             wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
@@ -131,6 +135,7 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             dropped_files: None,
             zoom_changed: None,
             toggle_preferences: false,
+            close_requested: false,
             wants_keyboard_input: false,
             escape_handled: false,
             popups_dismissed: false,
@@ -326,6 +331,7 @@ impl<Action, TabId> WorkbenchOutcome<Action, TabId> {
             dropped_files: self.dropped_files,
             zoom_changed: self.zoom_changed,
             toggle_preferences: self.toggle_preferences,
+            close_requested: self.close_requested,
             wants_keyboard_input: self.wants_keyboard_input,
             escape_handled: self.escape_handled,
             popups_dismissed: self.popups_dismissed,

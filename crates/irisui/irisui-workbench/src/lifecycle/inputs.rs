@@ -112,11 +112,27 @@ impl LifecycleInputs {
         self
     }
 
+    /// Combines an external menu activity signal via logical OR with the workbench state.
+    #[inline]
+    #[must_use]
+    pub const fn or_menu_active(mut self, active: bool) -> Self {
+        self.is_menu_active = self.is_menu_active || active;
+        self
+    }
+
     /// Sets whether a modal dialog or blocker backdrop is active.
     #[inline]
     #[must_use]
     pub const fn with_modal_active(mut self, active: bool) -> Self {
         self.is_modal_active = active;
+        self
+    }
+
+    /// Combines an external modal activity signal via logical OR with the workbench state.
+    #[inline]
+    #[must_use]
+    pub const fn or_modal_active(mut self, active: bool) -> Self {
+        self.is_modal_active = self.is_modal_active || active;
         self
     }
 
@@ -205,6 +221,14 @@ impl LifecycleInputs {
     #[must_use]
     pub const fn with_popup_active(mut self, active: bool) -> Self {
         self.is_popup_active = active;
+        self
+    }
+
+    /// Combines an external pop-up activity signal via logical OR with the workbench state.
+    #[inline]
+    #[must_use]
+    pub const fn or_popup_active(mut self, active: bool) -> Self {
+        self.is_popup_active = self.is_popup_active || active;
         self
     }
 

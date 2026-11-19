@@ -127,7 +127,9 @@ pub fn route_event_invalidation<TabId: Copy + Eq>(
     let Some(dock_frame) = dock_frame else {
         let is_continuous_motion = matches!(
             event,
-            UiEvent::MouseMove { .. } | UiEvent::FileHovered { .. }
+            UiEvent::MouseMove { .. }
+                | UiEvent::FileHovered { .. }
+                | UiEvent::ModifiersChanged { .. }
         );
         let is_pointer_dragging = tree.event_state.is_pointer_drag_active;
         if !is_continuous_motion || is_pointer_dragging {
@@ -165,7 +167,7 @@ pub fn route_event_invalidation<TabId: Copy + Eq>(
     // (e.g. clicking top menubar, statusbar, modal dialogs, or moving a dragging window/popup)
     let is_continuous_motion = matches!(
         event,
-        UiEvent::MouseMove { .. } | UiEvent::FileHovered { .. }
+        UiEvent::MouseMove { .. } | UiEvent::FileHovered { .. } | UiEvent::ModifiersChanged { .. }
     );
     let is_pointer_dragging = tree.event_state.is_pointer_drag_active;
 
