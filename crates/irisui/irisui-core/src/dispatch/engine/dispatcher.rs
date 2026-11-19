@@ -63,14 +63,26 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
             is_pressed,
             ctrl_held,
             shift_held,
-        } => handle_keyboard(
-            tree,
-            *key,
-            text.clone(),
-            *is_pressed,
-            *ctrl_held,
-            *shift_held,
-        ),
+        } => {
+            tree.event_state.modifiers =
+                crate::event::InputModifiers::from_ctrl_shift(*ctrl_held, *shift_held);
+            handle_keyboard(
+                tree,
+                *key,
+                text.clone(),
+                *is_pressed,
+                *ctrl_held,
+                *shift_held,
+            )
+        }
+        UiEvent::ModifiersChanged {
+            ctrl_held,
+            shift_held,
+        } => {
+            tree.event_state.modifiers =
+                crate::event::InputModifiers::from_ctrl_shift(*ctrl_held, *shift_held);
+            DispatchResult::default()
+        }
         UiEvent::Ime(ime_event) => handle_ime(tree, ime_event.clone()),
         UiEvent::FileHovered { point, path } => handle_file_hovered(tree, *point, path),
         UiEvent::FileDropped { point, paths } => handle_file_dropped(tree, *point, paths),

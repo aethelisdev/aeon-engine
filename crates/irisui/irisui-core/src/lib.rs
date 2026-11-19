@@ -38,8 +38,8 @@ pub use dispatch::{
 };
 pub use error::IrisCoreError;
 pub use event::{
-    EventDispatcher, FileDropTarget, FocusManager, HitTestResult, ImeEvent, InteractionEvent,
-    KeyCode, MouseButton, UiEvent, WidgetState,
+    EventDispatcher, FileDropTarget, FocusManager, HitTestResult, ImeEvent, InputModifiers,
+    InteractionEvent, KeyCode, MouseButton, UiEvent, WidgetState,
 };
 pub use frame_sync::{IrisSurfaceFrameFlags, SurfaceRefreshMode};
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
@@ -63,7 +63,7 @@ pub mod prelude {
         AlignItems, Border, BoxShadow, CanvasOrigin, CanvasPrimitive, ClipboardProvider, Color,
         CornerRadii, DirtyFlags, DispatchResult, EventDispatcher, EventState, ExternalTextureId,
         FileDropTarget, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
-        ImeEvent, InMemoryClipboard, Insets, InteractionEvent, IrisCoreError,
+        ImeEvent, InMemoryClipboard, InputModifiers, Insets, InteractionEvent, IrisCoreError,
         IrisSurfaceFrameFlags, JustifyContent, KeyCode, MemoCache, MouseButton, Point,
         PopupMenuState, Position, Rect, ResponseFlags, Size, Style, SurfaceRefreshMode, TextAlign,
         TextMeasurer, TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId,

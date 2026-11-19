@@ -42,6 +42,8 @@ pub struct UiTree {
     pub active_submenus: HashMap<u64, u64>,
     /// Persistent state map tracking active modal dialogs, keyed by 64-bit semantic tag.
     pub modal_state: HashMap<u64, bool>,
+    /// Persistent user-saved color swatches for custom palette widgets, keyed by palette tag.
+    pub custom_palettes: HashMap<u64, Vec<[f32; 4]>>,
     /// Persistent state map tracking computed bounding rectangles across tree rebuilds, keyed by 64-bit semantic tag.
     pub tag_rects: HashMap<u64, Rect>,
     /// Set of widget IDs acting as invalidation boundaries that are currently marked dirty.
@@ -76,6 +78,7 @@ impl UiTree {
             active_popup_tags: std::collections::HashSet::new(),
             active_submenus: HashMap::new(),
             modal_state: HashMap::new(),
+            custom_palettes: HashMap::new(),
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
@@ -105,6 +108,7 @@ impl UiTree {
             active_popup_tags: std::collections::HashSet::new(),
             active_submenus: HashMap::new(),
             modal_state: HashMap::new(),
+            custom_palettes: HashMap::new(),
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),

@@ -185,6 +185,27 @@ impl Color {
     pub const fn to_array(self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
     }
+
+    /// Formats the RGB channels into a lowercase 7-byte ASCII hex buffer (`#rrggbb`) without heap allocation.
+    ///
+    /// Out-of-range channel components are clamped cleanly to `[0.0, 1.0]`.
+    #[inline]
+    #[must_use]
+    pub fn to_hex_rgb_bytes(self) -> [u8; 7] {
+        const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
+        let r = (self.r.clamp(0.0, 1.0) * 255.0) as u8;
+        let g = (self.g.clamp(0.0, 1.0) * 255.0) as u8;
+        let b = (self.b.clamp(0.0, 1.0) * 255.0) as u8;
+        [
+            b'#',
+            HEX_DIGITS[(r >> 4) as usize],
+            HEX_DIGITS[(r & 0xf) as usize],
+            HEX_DIGITS[(g >> 4) as usize],
+            HEX_DIGITS[(g & 0xf) as usize],
+            HEX_DIGITS[(b >> 4) as usize],
+            HEX_DIGITS[(b & 0xf) as usize],
+        ]
+    }
 }
 
 impl Default for Color {
@@ -224,6 +245,12 @@ mod tests {
         assert!((gray.r - 0.5).abs() < 0.001);
         assert!((gray.g - 0.5).abs() < 0.001);
         assert!((gray.b - 0.5).abs() < 0.001);
+
+        assert_eq!(Color::RED.to_hex_rgb_bytes(), *b"#ff0000");
+        assert_eq!(
+            Color::new(2.0, -0.5, 1.0, 1.0).to_hex_rgb_bytes(),
+            *b"#ff00ff"
+        );
     }
 
     #[test]

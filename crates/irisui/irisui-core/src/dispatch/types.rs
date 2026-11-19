@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use crate::dispatch::numeric_undo::NumericUndoStack;
 use crate::dispatch::undo::{TextSnapshot, TextUndoStack};
-use crate::event::{KeyCode, MouseButton};
+use crate::event::{InputModifiers, KeyCode, MouseButton};
 use crate::geometry::Point;
 use crate::id::WidgetId;
 use crate::node::WidgetCursor;
@@ -148,6 +148,8 @@ pub struct EventState {
     pub frame_ctrl_held: bool,
     /// Whether the Shift modifier key was held during the current keyboard interaction.
     pub frame_shift_held: bool,
+    /// Persistent keyboard modifier flags maintained across frames via `ModifiersChanged` / `KeyboardInput`.
+    pub modifiers: InputModifiers,
     /// Active context menu or popup anchor state, if one is currently opened.
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline text or numeric input editing session tracking tag, buffer, cursor, and selection.
@@ -230,6 +232,7 @@ impl EventState {
             frame_key_pressed: false,
             frame_ctrl_held: false,
             frame_shift_held: false,
+            modifiers: InputModifiers::new(),
             active_context_menu: None,
             active_text_edit: None,
             last_completed_text_edit: None,
@@ -337,6 +340,7 @@ impl EventState {
         self.frame_key_pressed = false;
         self.frame_ctrl_held = false;
         self.frame_shift_held = false;
+        self.modifiers = InputModifiers::new();
         self.is_pointer_drag_active = false;
         self.active_tooltip = None;
         self.hovered_file = None;

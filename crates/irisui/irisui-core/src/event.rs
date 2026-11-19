@@ -55,6 +55,48 @@ pub enum KeyCode {
     Other,
 }
 
+/// Snapshot of active keyboard modifier keys maintained across UI event dispatches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct InputModifiers {
+    /// Whether the Control (or Command on macOS) modifier key is currently held.
+    pub ctrl: bool,
+    /// Whether the Shift modifier key is currently held.
+    pub shift: bool,
+}
+
+impl InputModifiers {
+    /// Creates an empty modifier state with no keys held.
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            ctrl: false,
+            shift: false,
+        }
+    }
+
+    /// Creates a modifier snapshot from explicit `ctrl` and `shift` booleans.
+    #[inline]
+    #[must_use]
+    pub const fn from_ctrl_shift(ctrl: bool, shift: bool) -> Self {
+        Self { ctrl, shift }
+    }
+
+    /// Returns `true` if Control (or Command on macOS) is currently held.
+    #[inline]
+    #[must_use]
+    pub const fn ctrl(&self) -> bool {
+        self.ctrl
+    }
+
+    /// Returns `true` if Shift is currently held.
+    #[inline]
+    #[must_use]
+    pub const fn shift(&self) -> bool {
+        self.shift
+    }
+}
+
 /// Interactive state of a widget node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum WidgetState {
@@ -115,6 +157,13 @@ pub enum UiEvent {
         /// Whether the Shift modifier key was held.
         shift_held: bool,
     },
+    /// Keyboard modifier flags changed (Ctrl / Shift press or release).
+    ModifiersChanged {
+        /// Whether the Control (or Command on macOS) modifier key is currently held.
+        ctrl_held: bool,
+        /// Whether the Shift modifier key is currently held.
+        shift_held: bool,
+    },
     /// Operating system IME input composition or commit.
     Ime(ImeEvent),
     /// A file is hovered over the window at a specific coordinate.
@@ -150,7 +199,10 @@ impl UiEvent {
             | Self::MouseScroll { point, .. }
             | Self::FileHovered { point, .. }
             | Self::FileDropped { point, .. } => Some(*point),
-            Self::KeyboardInput { .. } | Self::Ime(_) | Self::FileCancelled => None,
+            Self::KeyboardInput { .. }
+            | Self::ModifiersChanged { .. }
+            | Self::Ime(_)
+            | Self::FileCancelled => None,
         }
     }
 
@@ -508,6 +560,7 @@ impl EventDispatcher {
                 }
             }
             UiEvent::MouseScroll { .. }
+            | UiEvent::ModifiersChanged { .. }
             | UiEvent::FileHovered { .. }
             | UiEvent::FileDropped { .. }
             | UiEvent::FileCancelled => {}

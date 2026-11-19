@@ -456,6 +456,25 @@ impl UiTree {
         self.active_submenus.clear();
     }
 
+    /// Returns the user-saved custom color swatches slice stored under `palette_key`.
+    ///
+    /// Returns an empty slice when no custom swatches have been saved for `palette_key`.
+    #[inline]
+    #[must_use]
+    pub fn custom_palette(&self, palette_key: u64) -> &[[f32; 4]] {
+        self.custom_palettes
+            .get(&palette_key)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    /// Returns a mutable reference to the user-saved custom color swatches list stored under `palette_key`,
+    /// allocating an empty entry if one does not yet exist.
+    #[inline]
+    pub fn custom_palette_mut(&mut self, palette_key: u64) -> &mut Vec<[f32; 4]> {
+        self.custom_palettes.entry(palette_key).or_default()
+    }
+
     /// Returns the persistent vertical scroll position for the given semantic `tag`.
     ///
     /// Defaults to `0.0` if this tag has never been scrolled.
@@ -694,6 +713,27 @@ impl UiTree {
         let result = self.dispatch_event(event);
         focus.auto_sync_focus_state(self);
         result
+    }
+
+    /// Returns the persistent keyboard modifier flags (`ctrl` / `shift`) held on the tree.
+    #[inline]
+    #[must_use]
+    pub const fn modifiers(&self) -> crate::event::InputModifiers {
+        self.event_state.modifiers
+    }
+
+    /// Assigns keyboard focus directly to the widget matching semantic `tag` (or clears focus when `tag == 0`).
+    ///
+    /// Keeps [`UiTree::event_state`] as the single source of truth by updating both
+    /// `focused_tag` and resolved `focused` node ID.
+    #[inline]
+    pub fn set_focus_tag(&mut self, tag: u64) {
+        if tag == 0 {
+            self.event_state.clear_focus();
+            return;
+        }
+        self.event_state.focused_tag = Some(tag);
+        self.event_state.focused = self.find_node_by_tag(tag);
     }
 
     /// Evaluates whether the scroll container associated with the specified semantic tag was scrolled in the current frame.
