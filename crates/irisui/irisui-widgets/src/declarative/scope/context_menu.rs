@@ -77,6 +77,49 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Opens or maintains an autonomous context menu popup anchored to a semantic [`irisui_core::UiTag`].
+    ///
+    /// Resolves the anchor widget identifier dynamically from `UiTree` without requiring callers to track
+    /// raw [`WidgetId`] handles or store custom `Option<(Entity, Point)>` menu state in panel structs.
+    pub fn context_menu_for_tag<F>(
+        &mut self,
+        anchor_tag: irisui_core::UiTag,
+        is_secondary_clicked: bool,
+        pointer_pos: Option<Point>,
+        add_contents: F,
+    ) where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        if is_secondary_clicked {
+            let pos = pointer_pos
+                .or(self.tree.event_state.frame_clicked_pos)
+                .or(self.tree.event_state.last_pointer_pos)
+                .unwrap_or(Point::ZERO);
+            let owner_id = self
+                .tree
+                .find_node_by_tag(anchor_tag.raw())
+                .unwrap_or(self.parent);
+            self.tree.event_state.active_context_menu = Some(PopupMenuState {
+                owner_id,
+                owner_tag: anchor_tag.raw(),
+                anchor_pos: pos,
+                container_id: None,
+            });
+        }
+
+        let active_anchor = self.tree.event_state.active_context_menu.and_then(|menu| {
+            if anchor_tag.raw() != 0 && menu.owner_tag == anchor_tag.raw() {
+                Some(menu.anchor_pos)
+            } else {
+                None
+            }
+        });
+
+        if let Some(anchor) = active_anchor {
+            self.render_context_menu_popup(anchor, add_contents);
+        }
+    }
+
     /// Emits a floating context menu popup card container at the given screen anchor.
     fn render_context_menu_popup<F>(&mut self, anchor_pos: Point, add_contents: F)
     where
@@ -353,5 +396,53 @@ impl ContextMenuExt for crate::declarative::widget::virtual_list::VirtualListRes
             add_contents,
         );
         self
+    }
+}
+
+impl<T: ContextMenuExt> ContextMenuExt for Option<T> {
+    #[inline]
+    fn context_menu<F>(self, scope: &mut UiScope<'_>, add_contents: F) -> Self
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        self.map(|inner| inner.context_menu(scope, add_contents))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::{UiTag, UiTree};
+
+    #[test]
+    fn test_context_menu_for_tag_opens_and_closes_in_tree_ssot() {
+        const ROW_TAG: UiTag = UiTag::from_str("row.alpha");
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.context_menu_for_tag(ROW_TAG, true, Some(Point::new(80.0, 120.0)), |menu| {
+                menu.context_menu_item("Delete");
+            });
+        }
+
+        assert!(tree.event_state.active_context_menu.is_some());
+        assert_eq!(
+            tree.event_state.active_context_menu.map(|m| m.owner_tag),
+            Some(ROW_TAG.raw())
+        );
+
+        tree.event_state.frame_clicked_tag = Some(crate::declarative::types::hash_label("Delete"));
+        let mut clicked = false;
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.context_menu_for_tag(ROW_TAG, false, None, |menu| {
+                menu.context_menu_item("Delete").on_click(|| clicked = true);
+            });
+        }
+
+        assert!(clicked);
+        assert!(tree.event_state.active_context_menu.is_none());
     }
 }

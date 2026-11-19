@@ -9,7 +9,9 @@
 pub mod anchored;
 pub mod bar_controls;
 pub mod dropdown;
+pub mod spec;
 pub mod submenu;
 pub mod types;
 
+pub use spec::CascadingMenuEntry;
 pub use types::{CascadingPopupConfig, DropdownIcon, PopupExt, PopupPlacement};

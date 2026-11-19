@@ -73,7 +73,79 @@ impl<'a, 'b, A> MenuScope<'a, 'b, A> {
         self.scope.dropdown_item(tag, icon, label, shortcut, false);
     }
 
-    /// Emits a visual horizontal divider between grouped menu items.
+    /// Emits an interactive menu item with a unified [`irisui_core::UiIcon`] and bound action.
+    ///
+    /// When clicked, registers the action and signals the menu bar to close the popup.
+    pub fn item_ui_icon(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        action: A,
+    ) {
+        let resp = self
+            .scope
+            .dropdown_item_with_ui_icon(tag, icon, label, shortcut, true);
+        if resp.clicked() {
+            self.selected_action = Some(action);
+            self.closed = true;
+        }
+    }
+
+    /// Emits an active interactive menu item with a unified icon whose click is reported by tag without closing/binding `A`.
+    ///
+    /// Useful for triggering declarative modals (`scope.open_modal(modal_tag)`) or side-effect-only entries.
+    pub fn item_ui_icon_trigger(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> bool {
+        let resp = self
+            .scope
+            .dropdown_item_with_ui_icon(tag, icon, label, shortcut, enabled);
+        if resp.clicked() {
+            self.closed = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Emits an interactive menu item with a unified [`irisui_core::UiIcon`] that opens `modal_tag` directly on click.
+    ///
+    /// Eliminates manual modal tag routing outside the menu bar descriptor.
+    pub fn item_ui_icon_modal(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        modal_tag: irisui_core::UiTag,
+        enabled: bool,
+    ) {
+        if self.item_ui_icon_trigger(tag, icon, label, shortcut, enabled) {
+            self.scope.tree.open_modal(modal_tag.raw());
+        }
+    }
+
+    /// Emits a disabled (grayed-out) menu item with a unified [`irisui_core::UiIcon`].
+    pub fn item_ui_icon_disabled(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+    ) {
+        let _ = self
+            .scope
+            .dropdown_item_with_ui_icon(tag, icon, label, shortcut, false);
+    }
+
+    /// Emits a horizontal visual divider between grouped menu items.
     pub fn separator(&mut self) {
         self.scope.dropdown_separator();
     }

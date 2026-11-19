@@ -107,6 +107,38 @@ impl<'a> UiScope<'a> {
         self.render_dropdown_item_impl(tag, icon_val, label, shortcut, enabled)
     }
 
+    /// Emits an interactive item row inside an elevated dropdown menu card using a unified [`irisui_core::UiIcon`].
+    pub fn dropdown_item_with_ui_icon(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> WidgetResponse {
+        self.render_dropdown_item_impl(tag.raw(), icon.into(), label, shortcut, enabled)
+    }
+
+    /// Emits a [`irisui_core::UiIcon`]-backed dropdown item that autonomously closes all open popups when clicked.
+    ///
+    /// Preserves the returned [`WidgetResponse`] so consumers can attach fluent `.on_click(...)` callbacks
+    /// with zero manual popup boolean resets or intermediate `let` bindings.
+    #[inline]
+    pub fn dropdown_item_autoclose_ui_icon(
+        &mut self,
+        tag: irisui_core::UiTag,
+        icon: Option<irisui_core::UiIcon>,
+        label: &str,
+        shortcut: Option<&str>,
+        enabled: bool,
+    ) -> WidgetResponse {
+        let resp = self.dropdown_item_with_ui_icon(tag, icon, label, shortcut, enabled);
+        if resp.clicked() {
+            self.tree.close_all_popups();
+        }
+        resp
+    }
+
     /// Emits an interactive item row inside an elevated dropdown menu card with an optional text or texture icon.
     pub fn dropdown_item_with_icon(
         &mut self,

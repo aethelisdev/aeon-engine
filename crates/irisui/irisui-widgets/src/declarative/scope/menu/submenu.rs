@@ -51,6 +51,23 @@ impl<'a> UiScope<'a> {
         self.render_submenu_impl(popup_name, label, icon.into(), tag, f)
     }
 
+    /// Emits an elevated, cascading branching submenu item row using unified [`irisui_core::UiIcon`] and [`irisui_core::UiTag`].
+    ///
+    /// Hovering opens the nested submenu automatically using `UiTree` SSOT state without caller-side submenu booleans.
+    pub fn submenu_named_with_ui_icon_inner<R, F>(
+        &mut self,
+        popup_name: &'static str,
+        label: impl Into<String>,
+        icon: Option<irisui_core::UiIcon>,
+        tag: irisui_core::UiTag,
+        f: F,
+    ) -> InnerResponse<Option<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.render_submenu_impl(popup_name, label, icon.into(), tag.raw(), f)
+    }
+
     /// Internal rendering implementation for cascading submenu rows and floating popup cards.
     fn render_submenu_impl<R, F>(
         &mut self,
