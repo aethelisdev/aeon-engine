@@ -295,6 +295,8 @@ where
     pub selected_nodes: HashSet<Id>,
     /// Primary or active item receiving keyboard focus / primary cursor.
     pub primary_selected: Option<Id>,
+    /// Monotonic counter incremented whenever branch expansion/collapse changes.
+    expansion_revision: u64,
 }
 
 impl<Id> Default for TreeState<Id>
@@ -309,6 +311,7 @@ where
             default_expanded: false,
             selected_nodes: HashSet::new(),
             primary_selected: None,
+            expansion_revision: 0,
         }
     }
 }
@@ -332,6 +335,7 @@ where
             default_expanded: true,
             selected_nodes: HashSet::new(),
             primary_selected: None,
+            expansion_revision: 0,
         }
     }
 
@@ -344,7 +348,17 @@ where
             default_expanded: false,
             selected_nodes: HashSet::new(),
             primary_selected: None,
+            expansion_revision: 0,
         }
+    }
+
+    /// Returns a monotonic revision incremented on every expansion/collapse state mutation.
+    ///
+    /// Enables downstream flattened row caches to skip redundant tree walks in $O(1)$ time.
+    #[inline]
+    #[must_use]
+    pub const fn expansion_revision(&self) -> u64 {
+        self.expansion_revision
     }
 
     /// Checks whether an item with identifier `id` is currently expanded.
@@ -361,7 +375,7 @@ where
     ///
     /// Returns `true` if the state changed, or `false` if it was already in that state.
     pub fn set_expanded(&mut self, id: Id, expanded: bool) -> bool {
-        if self.default_expanded {
+        let changed = if self.default_expanded {
             if expanded {
                 self.collapsed_nodes.remove(&id)
             } else {
@@ -371,13 +385,18 @@ where
             self.expanded_nodes.insert(id)
         } else {
             self.expanded_nodes.remove(&id)
+        };
+        if changed {
+            self.expansion_revision = self.expansion_revision.wrapping_add(1);
         }
+        changed
     }
 
     /// Toggles the expanded status of an item with identifier `id`.
     ///
     /// Returns the new expansion status (`true` if now expanded, `false` if collapsed).
     pub fn toggle_expanded(&mut self, id: &Id) -> bool {
+        self.expansion_revision = self.expansion_revision.wrapping_add(1);
         if self.default_expanded {
             if self.collapsed_nodes.contains(id) {
                 self.collapsed_nodes.remove(id);
@@ -397,6 +416,7 @@ where
 
     /// Expands all nodes in the given sequence.
     pub fn expand_all(&mut self, ids: impl IntoIterator<Item = Id>) {
+        self.expansion_revision = self.expansion_revision.wrapping_add(1);
         if self.default_expanded {
             for id in ids {
                 self.collapsed_nodes.remove(&id);
@@ -411,6 +431,7 @@ where
     /// Collapses all currently expanded nodes.
     #[inline]
     pub fn collapse_all(&mut self) {
+        self.expansion_revision = self.expansion_revision.wrapping_add(1);
         if self.default_expanded {
             self.collapsed_nodes.clear();
         } else {

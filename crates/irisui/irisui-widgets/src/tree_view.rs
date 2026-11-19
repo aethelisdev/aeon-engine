@@ -6,10 +6,12 @@
 //! Exposes hierarchical tree data structures, branch line math, node indentation,
 //! and selection state management for scene hierarchies, folder trees, and AST inspectors.
 
+pub mod data_source;
 pub mod model;
 pub mod navigation;
 pub mod selection;
 
+pub use data_source::{TreeDataSource, TreeModel, TreeNodeCollector, TreeRowEntry};
 pub use model::{
     DEFAULT_TREE_BASE_PADDING, DEFAULT_TREE_INDENT_STEP, DEFAULT_TREE_LINE_ARM_GAP,
     DEFAULT_TREE_LINE_ARM_LENGTH, DEFAULT_TREE_LINE_THICKNESS, DEFAULT_TREE_ROW_HEIGHT,
