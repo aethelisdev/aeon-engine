@@ -118,4 +118,21 @@ impl<'a> UiScope<'a> {
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
+
+    /// Emits a filter pill whose caption is formatted into a zero-heap [`irisui_core::StackString`].
+    pub fn filter_pill_tagged_fmt<const N: usize, F>(
+        &mut self,
+        is_active: bool,
+        accent_color: Color,
+        width: f32,
+        tag: u64,
+        fmt_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.filter_pill_tagged(buf.as_str(), is_active, accent_color, width, tag)
+    }
 }

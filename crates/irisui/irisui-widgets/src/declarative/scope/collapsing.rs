@@ -11,7 +11,7 @@
 use super::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};
 use irisui_core::{
-    AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
+    AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, UiTag, WidgetCursor,
     WidgetRole,
 };
 
@@ -490,6 +490,29 @@ impl<'a> UiScope<'a> {
     ) -> CollapsingCardBuilder<'_, 'a> {
         CollapsingCardBuilder::new(self, title)
     }
+
+    /// Emits an autonomous collapsible card section keyed directly by a persistent [`UiTag`] or `&str`.
+    ///
+    /// Stores and evaluates open/collapsed state internally within [`irisui_core::UiTree`], eliminating
+    /// external host-side `HashSet` state bags and manual bit-encoding shims.
+    ///
+    /// # Arguments
+    /// * `key` - Persistent tag or static string key identifying the section state.
+    /// * `title` - Visible header caption displayed in the collapsible card titlebar.
+    /// * `default_open` - Initial expanded state when no prior interaction has been recorded.
+    /// * `add_contents` - Body scope closure evaluated only when the section is expanded.
+    pub fn collapsing_section<R>(
+        &mut self,
+        key: impl Into<UiTag>,
+        title: impl Into<String>,
+        default_open: bool,
+        add_contents: impl FnOnce(&mut UiScope<'_>) -> R,
+    ) -> CollapsingResponse<R> {
+        self.collapsing_card_builder(title)
+            .tag(key.into().raw())
+            .default_open(default_open)
+            .show(add_contents)
+    }
 }
 
 #[cfg(test)]
@@ -537,5 +560,37 @@ mod tests {
         assert!(resp_opened.is_open());
         assert_eq!(resp_opened.body(), Some(&42));
         assert!(tree.is_collapsing_open(card_tag, false));
+    }
+
+    #[test]
+    fn test_collapsing_section_uses_semantic_key_without_external_hashset() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root creation must succeed");
+        let section_key = "graphics_shadows";
+
+        let first = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.collapsing_section(section_key, "Shadows", true, |body| {
+                body.label("Bias");
+                7
+            })
+        };
+        assert!(first.is_open());
+        assert_eq!(first.body(), Some(&7));
+
+        tree.event_state.frame_clicked_id = Some(first.header_response().id);
+        tree.event_state.frame_clicked_tag = Some(UiTag::from(section_key).raw());
+        let root2 = tree.create_node();
+        let _ = tree.add_child(root, root2);
+        let second = {
+            let mut scope = UiScope::new(&mut tree, root2);
+            scope.collapsing_section(section_key, "Shadows", true, |body| {
+                body.label("Bias");
+                7
+            })
+        };
+        assert!(!second.is_open());
+        assert_eq!(second.body(), None);
+        assert!(!tree.is_collapsing_open(UiTag::from(section_key).raw(), true));
     }
 }

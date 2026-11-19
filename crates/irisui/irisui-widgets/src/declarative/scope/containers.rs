@@ -11,6 +11,7 @@ pub mod cards;
 pub mod flex;
 pub mod generic;
 pub mod scroll;
+pub mod surface_card;
 
 pub use builder::{ColumnBuilder, RowBuilder};
 pub use cards::{CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse};

@@ -155,6 +155,18 @@ impl<'a> UiScope<'a> {
         self.multiline_editor_with_props(&props, state)
     }
 
+    /// Emits a declarative multi-line editor sized to occupy the remaining vertical space below
+    /// `reserved_above` inside the enclosing scope without consumer pixel arithmetic.
+    pub fn multiline_editor_remaining(
+        &mut self,
+        tag: u64,
+        reserved_above: f32,
+        state: &mut MultilineTextState,
+    ) -> WidgetResponse {
+        let remaining_height = (self.available_rect().height - reserved_above).max(40.0);
+        self.multiline_editor(tag, remaining_height, state)
+    }
+
     /// Emits a declarative multi-line editor with customized visual properties.
     pub fn multiline_editor_with_props(
         &mut self,

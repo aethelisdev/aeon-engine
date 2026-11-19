@@ -103,6 +103,27 @@ impl<'a> UiScope<'a> {
         self.container(style, f)
     }
 
+    /// Emits a flex-growing column container vertically centered with stretched horizontal children.
+    ///
+    /// Ideal for empty states, missing-selection notices, and placeholder viewports that must fill
+    /// all available panel height while stretching enclosed cards or banners across the full width.
+    ///
+    /// # Arguments
+    /// * `padding` - Uniform outer padding inset applied around all edges in logical pixels.
+    /// * `f` - Child scope closure emitting vertically centered content.
+    pub fn centered_stretch<R, F>(&mut self, padding: f32, f: F) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .align_items(AlignItems::Stretch)
+            .justify_content(JustifyContent::Center)
+            .padding_insets(Insets::new(padding, padding, padding, padding));
+        self.container(style, f)
+    }
+
     /// Emits a horizontal toolbar container with a fixed height and centered flex alignment.
     ///
     /// # Arguments
@@ -179,7 +200,7 @@ mod tests {
     fn test_space_between_and_centered_shortcuts() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let (sb_resp, ctr_resp, sb_id, ctr_id) = {
+        let (sb_resp, ctr_resp, fill_resp, sb_id, ctr_id, fill_id) = {
             let mut scope = UiScope::new(&mut tree, root);
 
             let sb_resp = scope.space_between(|row| {
@@ -193,7 +214,19 @@ mod tests {
                 999
             });
 
-            (sb_resp, ctr_resp, sb_resp.response.id, ctr_resp.response.id)
+            let fill_resp = scope.centered_stretch(12.0, |col| {
+                col.label("Stretched empty state");
+                42
+            });
+
+            (
+                sb_resp,
+                ctr_resp,
+                fill_resp,
+                sb_resp.response.id,
+                ctr_resp.response.id,
+                fill_resp.response.id,
+            )
         };
 
         assert!(sb_resp.inner);
@@ -211,5 +244,18 @@ mod tests {
             irisui_core::JustifyContent::Center
         );
         assert_eq!(ctr_node.style.align_items, irisui_core::AlignItems::Center);
+
+        assert_eq!(fill_resp.inner, 42);
+        let fill_node = tree.get(fill_id).expect("Centered stretch node exists");
+        assert_eq!(fill_node.style.flex_grow, 1.0);
+        assert_eq!(
+            fill_node.style.align_items,
+            irisui_core::AlignItems::Stretch
+        );
+        assert_eq!(
+            fill_node.style.justify_content,
+            irisui_core::JustifyContent::Center
+        );
+        assert_eq!(fill_node.style.padding.left, 12.0);
     }
 }
