@@ -112,14 +112,32 @@ where
             self.tree.event_state.frame_clicked_tag = None;
         }
         let triggered_title_bar_action = self.take_triggered_window_control_action();
-        let route = if modal_click_consumed || triggered_title_bar_action.is_some() {
+        let prev_widget = self.last_hit_widget;
+        let prev_tag = self.last_hovered_tag;
+        let hover = self.resolve_hover_targets(self.last_cursor_pos);
+        let popup_hover_changed = (self.tree.has_open_popup()
+            || self.tree.is_any_modal_open()
+            || self.dialog_host.is_active())
+            && hover.hover_target_changed
+            && [prev_widget, hover.hit_widget]
+                .into_iter()
+                .flatten()
+                .any(|id| {
+                    self.tree.get(id).is_some_and(|n| {
+                        matches!(
+                            n.layer,
+                            irisui_core::UiLayer::Popup | irisui_core::UiLayer::Modal
+                        )
+                    })
+                });
+        let route = if modal_click_consumed
+            || triggered_title_bar_action.is_some()
+            || popup_hover_changed
+        {
             EventInvalidationRoute::Shell
         } else {
             self.route_event_invalidation(event, &dispatch)
         };
-        let prev_widget = self.last_hit_widget;
-        let prev_tag = self.last_hovered_tag;
-        let hover = self.resolve_hover_targets(self.last_cursor_pos);
         if hover.hover_target_changed {
             for widget_opt in [prev_widget, hover.hit_widget] {
                 if let Some(id) = widget_opt

@@ -289,19 +289,17 @@ where
     ///
     /// # Errors
     /// Returns [`LayoutError`] if shell or dirty panel layout solving fails.
-    pub fn update_frame_with_registry<Ctx, R, FInputs, FChrome, FLive>(
+    pub fn update_frame_with_registry<Ctx, R, FInputs, FChrome>(
         &mut self,
         params: WorkbenchOwnedFrameParams,
         external: WorkbenchExternalContext<'_, Ctx, R>,
         host_inputs: FInputs,
         on_shell_chrome: FChrome,
-        on_live_refresh: FLive,
     ) -> Result<WorkbenchFrameOutcome<TabId>, LayoutError>
     where
         R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
         FInputs: FnOnce(LifecycleInputs) -> LifecycleInputs,
         FChrome: FnOnce(&mut UiScope<'_>, &mut Ctx, Size),
-        FLive: FnOnce(&mut UiScope<'_>, &mut Ctx),
     {
         let dock = std::mem::take(&mut self.descriptor.dock_state);
         let result = self.update_frame_live_with_registry(
@@ -315,7 +313,7 @@ where
             external,
             host_inputs,
             on_shell_chrome,
-            on_live_refresh,
+            |_scope, _ctx| {},
         );
         self.descriptor.dock_state = dock;
         result
@@ -340,7 +338,10 @@ where
         FChrome: FnOnce(&mut UiScope<'_>, &mut Ctx, Size),
         FLive: FnOnce(&mut UiScope<'_>, &mut Ctx),
     {
-        let has_live = self.tree.has_live_nodes();
+        let has_live = self.tree.has_live_nodes()
+            || self
+                .live_scheduler
+                .has_active_live_panel(self.dock_frame.as_ref(), external.registry);
         let (selection_changed, domain_revision_changed, lifecycle_branch) = self
             .begin_frame_lifecycle(&params, |inputs| {
                 host_inputs(inputs.with_volatile_updates(has_live))
@@ -349,6 +350,7 @@ where
         let mut volatile_refresh = VolatileRefreshResult::none();
         let (needs_text_prepare, needs_quad_reupload) = match &lifecycle_branch {
             LifecycleBranch::FullShellRebuild => {
+                self.live_scheduler.clear_all();
                 self.rebuild_shell_with_external_registry(
                     params.dock,
                     params.is_cursor_occluded,
@@ -359,6 +361,7 @@ where
                 (true, true)
             }
             LifecycleBranch::GranularPanels(tabs) => {
+                self.live_scheduler.clear_tabs(tabs);
                 for &tab in tabs {
                     self.notifier.tag_redraw(tab);
                 }
@@ -385,6 +388,12 @@ where
                 let _ = self.tree.take_live_refresh_flags();
                 if let Some(root) = self.tree.root() {
                     let mut scope = UiScope::new(&mut self.tree, root);
+                    self.live_scheduler.dispatch(
+                        &mut scope,
+                        self.dock_frame.as_ref(),
+                        external.registry,
+                        external.context,
+                    );
                     on_live_refresh(&mut scope, external.context);
                 }
                 let (needs_text, needs_quad) = self.tree.take_live_refresh_flags();
@@ -498,6 +507,23 @@ where
         self.dual_layout.mark_needs_text_prepare();
         self.dock_frame = Some(dock_frame);
         Ok(())
+    }
+
+    /// Merges dialogs staged by panel drawers during a frame pass into [`Self::dialog_host`] and
+    /// immediately renders the active dialog overlay onto the retained shell root.
+    pub fn append_dialogs(&mut self, staged: &mut crate::dialogs::DialogHost<Action>) {
+        if !staged.is_active() {
+            return;
+        }
+        self.dialog_host.append(staged);
+        if let Some(root) = self.tree.root() {
+            let screen_size = self.screen_size().unwrap_or_default();
+            let screen_rect = Rect::new(0.0, 0.0, screen_size.width, screen_size.height);
+            let mut modal_scope = UiScope::new(&mut self.tree, root);
+            self.dialog_host
+                .render(&mut modal_scope, screen_rect, false, &mut self.action_bus);
+            self.dual_layout.mark_needs_text_prepare();
+        }
     }
 
     fn finish_frame_outcome(

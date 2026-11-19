@@ -33,12 +33,12 @@ pub mod workbench;
 
 pub use action_bus::ActionBus;
 pub use descriptors::{
-    MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
-    MenuSectionDescriptor, PanelCatalog, PanelDrawFn, PanelMetadata, PanelRegistry,
-    PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer, ScopedPanelContext,
-    ScopedPanelDrawFn, ScopedPanelRegistry, ScopedWorkbenchPanel, StatusBarDescriptor,
-    StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanel,
-    WorkbenchPanelRegistry,
+    LiveRefreshInterval, MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor,
+    MenuRightItemDescriptor, MenuSectionDescriptor, PanelCatalog, PanelDrawFn, PanelMetadata,
+    PanelRegistry, PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer,
+    ScopedPanelContext, ScopedPanelDrawFn, ScopedPanelRegistry, ScopedWorkbenchPanel,
+    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
+    WorkbenchPanel, WorkbenchPanelRegistry,
 };
 pub use dialogs::{
     ActiveDialog, ConfirmDialogDescriptor, ConfirmationDialogDescriptor, CustomDialogDescriptor,
@@ -66,5 +66,6 @@ pub use lifecycle::{
 pub use workbench::{
     HoverTargetResolution, PointerState, Workbench, WorkbenchExternalContext,
     WorkbenchFrameOutcome, WorkbenchFrameSync, WorkbenchFrameSyncParams,
-    WorkbenchFrameUpdateParams, WorkbenchOutcome, WorkbenchOwnedFrameParams, resolve_hover_targets,
+    WorkbenchFrameUpdateParams, WorkbenchOutcome, WorkbenchOwnedFrameParams,
+    WorkbenchSurfaceRender, resolve_hover_targets,
 };

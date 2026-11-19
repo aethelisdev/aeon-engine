@@ -48,6 +48,13 @@ impl<Action: 'static + Send + Sync> DialogHost<Action> {
         !self.dialog_stack.is_empty()
     }
 
+    /// Appends all queued modal dialogues from `other` onto the top of this dialog host stack,
+    /// leaving `other` empty.
+    #[inline]
+    pub fn append(&mut self, other: &mut Self) {
+        self.dialog_stack.append(&mut other.dialog_stack);
+    }
+
     /// Returns the number of stacked modal dialogues currently open.
     #[must_use]
     #[inline]

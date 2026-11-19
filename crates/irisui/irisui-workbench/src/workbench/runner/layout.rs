@@ -306,4 +306,57 @@ where
         self.descriptor.dock_state = dock_state;
         self.notifier.tag_all();
     }
+
+    /// Synchronizes logical workbench screen bounds from physical pixel dimensions and the
+    /// active UI scale factor, returning `Some((logical_w, logical_h))` when updated.
+    ///
+    /// Ignores zero-sized minimized windows and non-positive or non-finite scale factors.
+    pub fn sync_physical_window_size(
+        &mut self,
+        physical_width: u32,
+        physical_height: u32,
+    ) -> Option<(f32, f32)> {
+        let logical =
+            compute_logical_screen_size(physical_width, physical_height, self.scale_factor())?;
+        self.set_screen_size(logical);
+        Some(logical)
+    }
+
+    /// Propagates shell or panel invalidation flags from a [`WorkbenchOutcome`](crate::WorkbenchOutcome)
+    /// into [`Self::notifier`].
+    #[inline]
+    pub fn sync_outcome_invalidation<OAction>(
+        &mut self,
+        outcome: &crate::WorkbenchOutcome<OAction, TabId>,
+    ) {
+        if outcome.shell_dirty {
+            self.notifier.tag_all();
+        } else if let Some(panel) = outcome.invalidated_panel {
+            self.notifier.tag_redraw(panel);
+        }
+    }
+}
+
+/// Computes logical screen dimensions from physical pixel extents and an active UI scale factor.
+///
+/// Returns `None` when either physical extent is zero (e.g. minimized window) or when the scale
+/// factor is non-finite or non-positive.
+#[inline]
+#[must_use]
+pub fn compute_logical_screen_size(
+    physical_width: u32,
+    physical_height: u32,
+    scale_factor: f32,
+) -> Option<(f32, f32)> {
+    if physical_width == 0
+        || physical_height == 0
+        || !scale_factor.is_finite()
+        || scale_factor <= 0.0
+    {
+        return None;
+    }
+    Some((
+        physical_width as f32 / scale_factor,
+        physical_height as f32 / scale_factor,
+    ))
 }

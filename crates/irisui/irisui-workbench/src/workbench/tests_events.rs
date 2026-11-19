@@ -624,3 +624,36 @@ fn test_workbench_prepare_viewport_layout_resolves_and_caches_non_ui_tab() {
         Rect::ZERO
     );
 }
+
+#[test]
+fn test_hover_transition_over_popup_layer_escalates_invalidation_to_shell() {
+    let mut wb = create_test_workbench();
+    wb.set_screen_size((1280.0, 720.0));
+    let root = wb.tree.create_root().expect("Root node");
+    let _ = wb.tree.set_root(root);
+
+    let popup_item_id = wb.tree.create_node();
+    if let Some(node) = wb.tree.get_mut(popup_item_id) {
+        node.set_layer(irisui_core::UiLayer::Popup);
+        node.set_role(WidgetRole::DropdownItem);
+        node.interactive = true;
+        node.tag = 0x1234;
+        node.computed_rect = Rect::new(50.0, 50.0, 140.0, 24.0);
+    }
+    let _ = wb.tree.add_child(root, popup_item_id);
+    wb.tree.open_popup(0x1234);
+
+    let mut win = MockWindow {
+        logical_size: Size::new(1280.0, 720.0),
+        ..Default::default()
+    };
+    let out = wb.handle_event(
+        &mut win,
+        &UiEvent::MouseMove {
+            point: Point::new(60.0, 60.0),
+        },
+    );
+
+    assert!(out.hover_target_changed);
+    assert_eq!(out.invalidation_route, Some(EventInvalidationRoute::Shell));
+}

@@ -15,6 +15,7 @@ use crate::hooks::overlay::{OverlayHook, OverlayHost, OverlayId};
 use crate::hooks::volatile::VolatileHookRegistry;
 use crate::layout_sync::dual_layout::DualLayoutEliminator;
 use crate::lifecycle::WorkbenchLifecycle;
+use crate::workbench::live_scheduler::LivePanelScheduler;
 use crate::workbench::pointer::PointerState;
 use irisui_core::geometry::{Point, Rect, Size};
 use irisui_core::node::{UiLayer, WidgetCursor};
@@ -159,6 +160,9 @@ pub struct Workbench<
 
     /// Cached sanitized screen rectangle of `non_ui_tab` paired with `cached_viewport_layout_key`.
     pub(super) cached_non_ui_viewport_rect: Rect,
+
+    /// Periodic timer & iteration scheduler for registered [`ScopedWorkbenchPanel::refresh_live`] hooks.
+    pub(in crate::workbench) live_scheduler: LivePanelScheduler<TabId>,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -213,6 +217,7 @@ where
             cached_floating_rects: Vec::new(),
             cached_viewport_layout_key: None,
             cached_non_ui_viewport_rect: Rect::ZERO,
+            live_scheduler: LivePanelScheduler::new(),
         }
     }
 
@@ -621,6 +626,23 @@ where
         } else {
             self.last_synced_window_cursor = None;
         }
+    }
+
+    /// Synchronizes panel metadata and domain-bound panel identifiers from an external
+    /// [`ScopedPanelRegistry`](crate::descriptors::ScopedPanelRegistry) into the workbench
+    /// catalog, notifier, and lifecycle state machine as a single source of truth.
+    pub fn sync_domain_panels_from_registry<Ctx>(
+        &mut self,
+        registry: &crate::descriptors::scoped_registry::ScopedPanelRegistry<TabId, Ctx>,
+    ) where
+        Ctx: crate::descriptors::panel::ScopedPanelContext,
+    {
+        self.panel_registry
+            .catalog_mut()
+            .import_metadata_from(registry.catalog());
+        registry.sync_domain_panels_to_notifier(&mut self.notifier);
+        self.lifecycle
+            .register_domain_panels(registry.domain_panels().iter().copied());
     }
 
     /// Returns a mutable reference to the underlying docking state.

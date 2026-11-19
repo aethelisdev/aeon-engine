@@ -19,6 +19,8 @@ pub mod coordinator;
 pub mod events;
 pub mod layout;
 pub mod navigation;
+pub mod surface;
 
 pub use action_types::{FileDropActionBuilder, PreferencesActionBuilder, ZoomActionBuilder};
 pub use coordinator::Workbench;
+pub use surface::WorkbenchSurfaceRender;

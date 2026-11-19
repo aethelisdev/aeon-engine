@@ -2055,11 +2055,13 @@ dependencies = [
  "irisui-dock",
  "irisui-layout",
  "irisui-text",
+ "irisui-wgpu",
  "irisui-widgets",
  "irisui-winit",
  "log",
  "serde",
  "thiserror 2.0.21",
+ "wgpu",
 ]
 
 [[package]]

@@ -328,7 +328,7 @@ where
         )
         .with_menu_active(self.tree.active_menu_bar_tag.is_some())
         .with_modal_active(self.tree.is_any_modal_open() || self.dialog_host.is_active())
-        .with_popup_active(self.tree.has_active_popup_nodes());
+        .with_popup_active(self.tree.has_open_popup() || self.tree.has_active_popup_nodes());
         self.lifecycle.ingest_notifier(&self.notifier);
         self.lifecycle.evaluate(host_inputs(base))
     }
@@ -541,6 +541,13 @@ where
     #[must_use]
     pub const fn is_caret_visible(&self) -> bool {
         self.last_caret_blink.is_visible
+    }
+
+    /// Returns `true` when an external OS file drag is actively hovering over the workbench surface.
+    #[inline]
+    #[must_use]
+    pub const fn is_file_drop_hovered(&self) -> bool {
+        self.tree.event_state.hovered_file.is_some()
     }
 
     /// Returns an immutable reference to the active docking interaction frame, if available.

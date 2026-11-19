@@ -863,3 +863,87 @@ fn test_workbench_sync_window_cursor_deduplicates_os_ipc() {
     wb.last_cursor_pos = Some(Point::new(600.0, 400.0));
     assert_eq!(wb.resolve_window_cursor(&dock), None);
 }
+
+#[test]
+fn test_workbench_sync_domain_panels_and_file_drop_query() {
+    use crate::descriptors::{ScopedPanelContext, ScopedPanelRegistry, ScopedWorkbenchPanel};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    enum TwoTab {
+        Main,
+        Detail,
+    }
+
+    struct TestScope;
+    impl ScopedPanelContext for TestScope {
+        type Context<'a> = ();
+    }
+
+    struct DomainPanel(TwoTab);
+    impl ScopedWorkbenchPanel<TwoTab, TestScope> for DomainPanel {
+        fn id(&self) -> TwoTab {
+            self.0
+        }
+        fn title(&self) -> &str {
+            "Domain"
+        }
+        fn is_domain_bound(&self) -> bool {
+            self.0 == TwoTab::Detail
+        }
+        fn render<'a>(
+            &mut self,
+            _scope: &mut irisui_widgets::declarative::UiScope<'_>,
+            _ctx: &mut (),
+        ) {
+        }
+    }
+
+    let mut dock_tree = DockTree::new();
+    let root = dock_tree.create_leaf(vec![TwoTab::Main]);
+    dock_tree.set_root(root);
+    let mut wb: Workbench<TwoTab, MockAction, ()> = Workbench::new(
+        crate::descriptors::WorkbenchDescriptor::new("Test", DockState::new(dock_tree)),
+    );
+    assert!(!wb.is_file_drop_hovered());
+    wb.tree.event_state.hovered_file = Some((std::path::PathBuf::from("asset.glb"), Point::ZERO));
+    assert!(wb.is_file_drop_hovered());
+
+    let mut registry: ScopedPanelRegistry<TwoTab, TestScope> = ScopedPanelRegistry::new();
+    registry.register(DomainPanel(TwoTab::Main));
+    registry.register(DomainPanel(TwoTab::Detail));
+
+    wb.sync_domain_panels_from_registry(&registry);
+    assert!(wb.lifecycle.domain_panels().contains(&TwoTab::Detail));
+    assert!(!wb.lifecycle.domain_panels().contains(&TwoTab::Main));
+    assert!(wb.sync_selection_with_notifier(Some(77)));
+    assert!(wb.lifecycle.is_tab_dirty(&TwoTab::Detail));
+    assert!(!wb.lifecycle.is_tab_dirty(&TwoTab::Main));
+    assert!(wb.notifier.dirty_panels().contains(&TwoTab::Detail));
+}
+
+#[test]
+fn test_compute_logical_screen_size_and_sync_physical_window_size() {
+    use super::runner::layout::compute_logical_screen_size;
+
+    assert_eq!(
+        compute_logical_screen_size(1920, 1080, 1.0),
+        Some((1920.0, 1080.0))
+    );
+    assert_eq!(
+        compute_logical_screen_size(1920, 1080, 1.5),
+        Some((1280.0, 720.0))
+    );
+    assert_eq!(compute_logical_screen_size(0, 1080, 1.0), None);
+    assert_eq!(compute_logical_screen_size(1920, 0, 1.0), None);
+    assert_eq!(compute_logical_screen_size(1920, 1080, 0.0), None);
+    assert_eq!(compute_logical_screen_size(1920, 1080, f32::NAN), None);
+
+    let mut wb = create_test_workbench();
+    wb.zoom_factor = 1.25;
+    assert_eq!(
+        wb.sync_physical_window_size(2500, 1250),
+        Some((2000.0, 1000.0))
+    );
+    assert_eq!(wb.screen_size(), Some(Size::new(2000.0, 1000.0)));
+    assert_eq!(wb.sync_physical_window_size(0, 1000), None);
+}

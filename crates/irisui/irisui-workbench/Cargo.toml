@@ -11,7 +11,9 @@ irisui-layout = { workspace = true }
 irisui-text = { workspace = true }
 irisui-widgets = { workspace = true }
 irisui-dock = { workspace = true }
+irisui-wgpu = { workspace = true }
 irisui-winit = { workspace = true }
+wgpu = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }

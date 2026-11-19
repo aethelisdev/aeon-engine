@@ -9,6 +9,7 @@
 
 pub mod escape;
 pub mod frame;
+pub(crate) mod live_scheduler;
 pub mod outcome;
 pub mod outside_click;
 pub mod pointer;
@@ -40,5 +41,5 @@ pub use frame::{
 };
 pub use outcome::WorkbenchOutcome;
 pub use pointer::{HoverTargetResolution, PointerState, resolve_hover_targets};
-pub use runner::Workbench;
+pub use runner::{Workbench, WorkbenchSurfaceRender};
 pub use shell::{WorkbenchFrameSync, WorkbenchFrameSyncParams};
