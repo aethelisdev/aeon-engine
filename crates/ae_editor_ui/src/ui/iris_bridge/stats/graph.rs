@@ -4,109 +4,106 @@
 //! # Frame Pacing & Stutter Analyzer Oscilloscope Builder
 //!
 //! Visualizes real-time historical frametimes with milestone threshold lines,
-//! dynamic stutter indicators, and declarative 2x2 statistical metrics purely using [`UiScope`].
+//! dynamic stutter indicators, and declarative zero-heap 2x2 statistical metrics.
 
-use super::types::{STATS_TAG_CANVAS, StatsPanelParams};
-use ae_core::telemetry::FrameRingBuffer;
+use super::types::{
+    STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_JITTER, STATS_TAG_LOW_01, STATS_TAG_LOW_1,
+    STATS_TAG_SUMMARY, StatsPanelParams,
+};
+use ae_core::telemetry::{FramePacingStats, FrameRingBuffer};
 use irisui::prelude::*;
 use irisui::widgets::canvas::ChartDrawer;
+use std::fmt::Write;
 
 /// Builds the Frame Pacing & Stutter Analyzer section inside the declarative stats card.
 pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
-    scope.container(Style::new().flex_col().gap(6.0), |s| {
-        s.container(Style::new().flex_row().gap(6.0), |r| {
-            build_metric_pill(
-                r,
+    scope.metric_grid(6.0, |s| {
+        s.metric_row(6.0, |r| {
+            r.metric_pill_fmt::<32, _>(
                 "Avg FPS",
-                &format!(
-                    "{:.0} ({:.2}ms)",
-                    params.frame_pacing_stats.average_fps,
-                    params.frame_pacing_stats.average_frametime_ms
-                ),
+                STATS_TAG_AVG_FPS,
                 get_fps_color(params.frame_pacing_stats.average_fps),
-                super::types::STATS_TAG_AVG_FPS,
+                |buf| {
+                    buf.write_fmt(format_args!(
+                        "{:.0} ({:.2}ms)",
+                        params.frame_pacing_stats.average_fps,
+                        params.frame_pacing_stats.average_frametime_ms
+                    ))
+                    .ok();
+                },
             );
-            build_metric_pill(
-                r,
+            r.metric_pill_fmt::<24, _>(
                 "1% Low",
-                &format!("{:.0} FPS", params.frame_pacing_stats.low_1_percent_fps),
+                STATS_TAG_LOW_1,
                 get_fps_color(params.frame_pacing_stats.low_1_percent_fps),
-                super::types::STATS_TAG_LOW_1,
+                |buf| {
+                    buf.write_fmt(format_args!(
+                        "{:.0} FPS",
+                        params.frame_pacing_stats.low_1_percent_fps
+                    ))
+                    .ok();
+                },
             );
         });
 
-        s.container(Style::new().flex_row().gap(6.0), |r| {
-            build_metric_pill(
-                r,
+        s.metric_row(6.0, |r| {
+            r.metric_pill_fmt::<24, _>(
                 "0.1% Low",
-                &format!("{:.0} FPS", params.frame_pacing_stats.low_0_1_percent_fps),
+                STATS_TAG_LOW_01,
                 get_fps_color(params.frame_pacing_stats.low_0_1_percent_fps),
-                super::types::STATS_TAG_LOW_01,
+                |buf| {
+                    buf.write_fmt(format_args!(
+                        "{:.0} FPS",
+                        params.frame_pacing_stats.low_0_1_percent_fps
+                    ))
+                    .ok();
+                },
             );
-            build_metric_pill(
-                r,
+            r.metric_pill_fmt::<24, _>(
                 "Jitter",
-                &format!("±{:.2} ms", params.frame_pacing_stats.variance_ms),
+                STATS_TAG_JITTER,
                 get_jitter_color(params.frame_pacing_stats.variance_ms),
-                super::types::STATS_TAG_JITTER,
+                |buf| {
+                    buf.write_fmt(format_args!(
+                        "±{:.2} ms",
+                        params.frame_pacing_stats.variance_ms
+                    ))
+                    .ok();
+                },
             );
         });
 
-        s.live_canvas_tagged(
+        s.live_canvas_styled(
             "OscilloscopeCanvas",
             STATS_TAG_CANVAS,
-            Size::new((params.panel_rect.width - 24.0).max(100.0), 92.0),
+            Style::new().height(92.0),
             |canvas| {
                 draw_oscilloscope_canvas(canvas, Some(params.frame_pacing));
             },
         );
 
-        s.text_colored_tagged(
-            format_pacing_summary(params.frame_pacing_stats),
+        s.text_colored_tagged_fmt::<64, _>(
             get_summary_color(params.frame_pacing_stats),
-            super::types::STATS_TAG_SUMMARY,
+            STATS_TAG_SUMMARY,
+            |buf| write_pacing_summary(buf, params.frame_pacing_stats),
         );
     });
 }
 
-/// Helper function to build a single metric pill container purely with flexbox.
-fn build_metric_pill(
-    scope: &mut UiScope<'_>,
-    label: &str,
-    value: &str,
-    val_color: Color,
-    value_tag: u64,
-) {
-    scope.container(
-        Style::new()
-            .flex_row()
-            .flex_grow(1.0)
-            .align_items(AlignItems::Center)
-            .height(24.0)
-            .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-            .background(Color::rgba(0.04, 0.04, 0.06, 0.90))
-            .border(1.0, Color::rgba(0.14, 0.15, 0.20, 0.80))
-            .border_radius(4.0),
-        |p| {
-            p.text_colored(label, Color::rgba(0.60, 0.62, 0.70, 1.0));
-            p.spacer();
-            p.text_colored_tagged(value, val_color, value_tag);
-        },
-    );
-}
-
 #[inline]
-fn format_pacing_summary(stats: &ae_core::telemetry::FramePacingStats) -> String {
+fn write_pacing_summary<const N: usize>(buf: &mut StackString<N>, stats: &FramePacingStats) {
     if stats.spikes_over_16ms == 0 {
-        format!(
+        buf.write_fmt(format_args!(
             "✓ Spikes (>16ms): 0  •  Stutter Rate: {:.1}%",
             stats.stutter_rate_percent
-        )
+        ))
+        .ok();
     } else {
-        format!(
+        buf.write_fmt(format_args!(
             "⚠ Spikes (>16ms): {}  •  Stutter Rate: {:.1}%",
             stats.spikes_over_16ms, stats.stutter_rate_percent
-        )
+        ))
+        .ok();
     }
 }
 
@@ -122,7 +119,7 @@ fn get_jitter_color(variance_ms: f32) -> Color {
 }
 
 #[inline]
-fn get_summary_color(stats: &ae_core::telemetry::FramePacingStats) -> Color {
+fn get_summary_color(stats: &FramePacingStats) -> Color {
     if stats.spikes_over_16ms == 0 && stats.stutter_rate_percent < 1.0 {
         Color::rgba(0.0, 0.82, 0.63, 1.0)
     } else if stats.spikes_over_16ms < 5 && stats.stutter_rate_percent < 5.0 {
@@ -189,35 +186,46 @@ fn draw_threshold_line(
     );
 }
 
-/// Updates oscilloscope telemetry text labels in place via [`UiScope::update_live_text`].
-pub fn update_oscilloscope_texts(
-    scope: &mut UiScope<'_>,
-    stats: &ae_core::telemetry::FramePacingStats,
-) -> bool {
-    if scope
-        .node_id_tagged(super::types::STATS_TAG_AVG_FPS)
-        .is_none()
-    {
+/// Updates oscilloscope telemetry text labels in place using zero-heap [`StackString`] formatting.
+pub fn update_oscilloscope_texts(scope: &mut UiScope<'_>, stats: &FramePacingStats) -> bool {
+    if scope.node_id_tagged(STATS_TAG_AVG_FPS).is_none() {
         return false;
     }
-    scope.update_live_text(
-        super::types::STATS_TAG_AVG_FPS,
-        &format!(
-            "{:.0} ({:.2}ms)",
-            stats.average_fps, stats.average_frametime_ms
-        ),
-    ) | scope.update_live_text(
-        super::types::STATS_TAG_LOW_1,
-        &format!("{:.0} FPS", stats.low_1_percent_fps),
-    ) | scope.update_live_text(
-        super::types::STATS_TAG_LOW_01,
-        &format!("{:.0} FPS", stats.low_0_1_percent_fps),
-    ) | scope.update_live_text(
-        super::types::STATS_TAG_JITTER,
-        &format!("±{:.2} ms", stats.variance_ms),
-    ) | scope.update_live_text(
-        super::types::STATS_TAG_SUMMARY,
-        &format_pacing_summary(stats),
+    scope.update_live_text_colored_fmt::<32, _>(
+        STATS_TAG_AVG_FPS,
+        get_fps_color(stats.average_fps),
+        |buf| {
+            buf.write_fmt(format_args!(
+                "{:.0} ({:.2}ms)",
+                stats.average_fps, stats.average_frametime_ms
+            ))
+            .ok();
+        },
+    ) | scope.update_live_text_colored_fmt::<24, _>(
+        STATS_TAG_LOW_1,
+        get_fps_color(stats.low_1_percent_fps),
+        |buf| {
+            buf.write_fmt(format_args!("{:.0} FPS", stats.low_1_percent_fps))
+                .ok();
+        },
+    ) | scope.update_live_text_colored_fmt::<24, _>(
+        STATS_TAG_LOW_01,
+        get_fps_color(stats.low_0_1_percent_fps),
+        |buf| {
+            buf.write_fmt(format_args!("{:.0} FPS", stats.low_0_1_percent_fps))
+                .ok();
+        },
+    ) | scope.update_live_text_colored_fmt::<24, _>(
+        STATS_TAG_JITTER,
+        get_jitter_color(stats.variance_ms),
+        |buf| {
+            buf.write_fmt(format_args!("±{:.2} ms", stats.variance_ms))
+                .ok();
+        },
+    ) | scope.update_live_text_colored_fmt::<64, _>(
+        STATS_TAG_SUMMARY,
+        get_summary_color(stats),
+        |buf| write_pacing_summary(buf, stats),
     )
 }
 
@@ -225,7 +233,7 @@ pub fn update_oscilloscope_texts(
 pub fn refresh_live_oscilloscope(
     scope: &mut UiScope<'_>,
     pacing: &FrameRingBuffer,
-    stats: &ae_core::telemetry::FramePacingStats,
+    stats: &FramePacingStats,
 ) -> bool {
     if scope.node_id_tagged(STATS_TAG_CANVAS).is_none() {
         return false;
@@ -255,25 +263,25 @@ pub fn append_oscilloscope_quads(
 /// Computes frametime curve segment color based on millisecond milestones.
 pub(crate) fn get_frametime_color(ms: f32) -> Color {
     if ms <= 8.33 {
-        Color::rgba(0.0, 0.82, 0.63, 1.0) // 120+ FPS: Mint Emerald
+        Color::rgba(0.0, 0.82, 0.63, 1.0)
     } else if ms <= 16.67 {
-        Color::rgba(0.0, 0.75, 0.90, 1.0) // 60+ FPS: Neon Cyan
+        Color::rgba(0.0, 0.75, 0.90, 1.0)
     } else if ms <= 33.33 {
-        Color::rgba(1.0, 0.73, 0.0, 1.0) // 30+ FPS: Amber
+        Color::rgba(1.0, 0.73, 0.0, 1.0)
     } else {
-        Color::rgba(0.92, 0.24, 0.24, 1.0) // <30 FPS: Crimson Red
+        Color::rgba(0.92, 0.24, 0.24, 1.0)
     }
 }
 
 /// Computes FPS color based on standard performance milestones.
 fn get_fps_color(fps: f32) -> Color {
     if fps >= 100.0 {
-        Color::rgba(0.0, 0.82, 0.63, 1.0) // Mint Emerald
+        Color::rgba(0.0, 0.82, 0.63, 1.0)
     } else if fps >= 55.0 {
-        Color::rgba(0.0, 0.75, 0.90, 1.0) // Cyan
+        Color::rgba(0.0, 0.75, 0.90, 1.0)
     } else if fps >= 28.0 {
-        Color::rgba(1.0, 0.73, 0.0, 1.0) // Amber
+        Color::rgba(1.0, 0.73, 0.0, 1.0)
     } else {
-        Color::rgba(0.92, 0.24, 0.24, 1.0) // Crimson
+        Color::rgba(0.92, 0.24, 0.24, 1.0)
     }
 }

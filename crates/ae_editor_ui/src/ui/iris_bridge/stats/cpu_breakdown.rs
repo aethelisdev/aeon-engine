@@ -4,146 +4,114 @@
 //! # CPU Thread Synchronization Breakdown Builder
 //!
 //! Renders the CPU multi-segmented subsystem timing bar, detailed subsystem timings,
-//! and thread balance bottleneck indicator purely using [`UiScope`].
+//! and thread balance bottleneck indicator purely using declarative zero-`let` [`UiScope`]
+//! calls and zero-heap [`StackString`] formatting.
 
-use super::types::StatsPanelParams;
+use super::types::{
+    STATS_TAG_CPU_BALANCE, STATS_TAG_CPU_ECS, STATS_TAG_CPU_PHYSICS, STATS_TAG_CPU_RENDER,
+    STATS_TAG_CPU_TOTAL, STATS_TAG_CPU_UI, STATS_TAG_CPU_WAIT, StatsPanelParams,
+};
+use ae_core::telemetry::CpuSyncTimings;
 use irisui::prelude::*;
+use std::fmt::Write;
 
-/// Builds the CPU Thread & Synchronization breakdown section inside the stats card.
-pub fn build_cpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
-    let cpu = params.cpu_timings;
-    let total_cpu_ms = (cpu.main_logic_ms
+#[inline]
+fn total_cpu_ms(cpu: &CpuSyncTimings) -> f32 {
+    (cpu.main_logic_ms
         + cpu.physics_ms
         + cpu.render_prep_ms
         + cpu.wait_for_gpu_ms
         + cpu.ui_editor_ms)
-        .max(0.0001);
+        .max(0.0001)
+}
 
-    let container_style = Style::new().flex_col().gap(4.0);
+/// Builds the CPU Thread & Synchronization breakdown section inside the stats card.
+pub fn build_cpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
+    build_cpu_breakdown_with_total(scope, params.cpu_timings, total_cpu_ms(params.cpu_timings));
+}
 
-    scope.container(container_style, |s| {
-        // 1. Thread Balance Status Row
-        build_thread_balance_row(s, total_cpu_ms);
+fn build_cpu_breakdown_with_total(scope: &mut UiScope<'_>, cpu: &CpuSyncTimings, total_ms: f32) {
+    scope.container(Style::new().flex_col().gap(4.0), |s| {
+        build_thread_balance_row(s, total_ms);
 
-        // 2. Multi-segmented composite bar
-        let segments = [
+        s.segmented_bar(&[
             (
-                cpu.main_logic_ms / total_cpu_ms,
+                cpu.main_logic_ms / total_ms,
                 Color::rgba(0.0, 0.75, 0.90, 1.0),
-            ), // ECS (Cyan)
+            ),
             (
-                cpu.physics_ms / total_cpu_ms,
+                cpu.physics_ms / total_ms,
                 Color::rgba(0.96, 0.57, 0.12, 1.0),
-            ), // Physics (Orange)
+            ),
             (
-                cpu.render_prep_ms / total_cpu_ms,
+                cpu.render_prep_ms / total_ms,
                 Color::rgba(0.35, 0.51, 0.94, 1.0),
-            ), // Render Prep (Blue)
+            ),
             (
-                cpu.wait_for_gpu_ms / total_cpu_ms,
+                cpu.wait_for_gpu_ms / total_ms,
                 Color::rgba(0.63, 0.39, 0.86, 1.0),
-            ), // Wait for GPU (Purple)
+            ),
             (
-                cpu.ui_editor_ms / total_cpu_ms,
+                cpu.ui_editor_ms / total_ms,
                 Color::rgba(0.86, 0.71, 0.20, 1.0),
-            ), // UI (Yellow)
-        ];
-        build_multi_segment_bar(s, &segments);
+            ),
+        ]);
 
-        // 3. Subsystem Timing Rows
-        let rows = [
+        [
             (
                 "ECS / Logic",
                 cpu.main_logic_ms,
                 Color::rgba(0.0, 0.75, 0.90, 1.0),
-                super::types::STATS_TAG_CPU_ECS,
+                STATS_TAG_CPU_ECS,
             ),
             (
                 "Physics Simulation",
                 cpu.physics_ms,
                 Color::rgba(0.96, 0.57, 0.12, 1.0),
-                super::types::STATS_TAG_CPU_PHYSICS,
+                STATS_TAG_CPU_PHYSICS,
             ),
             (
                 "Render Preparation",
                 cpu.render_prep_ms,
                 Color::rgba(0.35, 0.51, 0.94, 1.0),
-                super::types::STATS_TAG_CPU_RENDER,
+                STATS_TAG_CPU_RENDER,
             ),
             (
                 "Wait for GPU (VSync)",
                 cpu.wait_for_gpu_ms,
                 Color::rgba(0.63, 0.39, 0.86, 1.0),
-                super::types::STATS_TAG_CPU_WAIT,
+                STATS_TAG_CPU_WAIT,
             ),
             (
                 "UI / Editor Passes",
                 cpu.ui_editor_ms,
                 Color::rgba(0.86, 0.71, 0.20, 1.0),
-                super::types::STATS_TAG_CPU_UI,
+                STATS_TAG_CPU_UI,
             ),
-        ];
+        ]
+        .iter()
+        .for_each(|&(name, val, col, tag)| build_timing_row_tagged(s, name, val, col, tag));
 
-        for (name, val, col, tag) in rows {
-            build_timing_row_tagged(s, name, val, col, tag);
-        }
-
-        // 4. Total CPU Frame Footer
-        build_total_row(
-            s,
-            "Total CPU Frame:",
-            total_cpu_ms,
-            super::types::STATS_TAG_CPU_TOTAL,
-        );
+        build_total_row(s, "Total CPU Frame:", total_ms, STATS_TAG_CPU_TOTAL);
     });
 }
 
-/// Helper emitting the Thread Balance indicator row.
 fn build_thread_balance_row(scope: &mut UiScope<'_>, total_ms: f32) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(16.0);
-
-    scope.container(row_style, |r| {
-        r.text_colored("Thread Balance:", Color::rgba(0.59, 0.61, 0.67, 1.0));
-
-        r.spacer();
-
-        let (status_text, status_col) = if total_ms < 8.33 {
-            ("Optimal (120+ FPS)", Color::rgba(0.0, 0.82, 0.63, 1.0))
-        } else if total_ms < 16.67 {
-            ("Good (60+ FPS)", Color::rgba(0.0, 0.75, 0.90, 1.0))
-        } else if total_ms < 33.33 {
-            ("Moderate Load", Color::rgba(1.0, 0.73, 0.0, 1.0))
-        } else {
-            ("Heavy Bottleneck", Color::rgba(0.92, 0.24, 0.24, 1.0))
-        };
-
-        r.text_colored_tagged(status_text, status_col, super::types::STATS_TAG_CPU_BALANCE);
-    });
-}
-
-/// Emits a declarative multi-segmented proportional progress bar.
-pub fn build_multi_segment_bar(scope: &mut UiScope<'_>, segments: &[(f32, Color)]) {
-    let bar_style = Style::new()
-        .flex_row()
-        .height(4.0)
-        .border_radius(2.0)
-        .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
-        .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.80))
-        .clip_children(true);
-
-    scope.container(bar_style, |bar_scope| {
-        for &(ratio, col) in segments {
-            let flex_ratio = ratio.clamp(0.001, 1.0);
-            let seg_style = Style::new()
-                .background(col)
-                .flex_grow(flex_ratio)
-                .height(4.0);
-            bar_scope.empty_box(seg_style);
-        }
-    });
+    scope.container(
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(16.0),
+        |r| {
+            r.text_colored("Thread Balance:", Color::rgba(0.59, 0.61, 0.67, 1.0));
+            r.spacer();
+            r.text_colored_tagged(
+                cpu_balance_label(total_ms),
+                cpu_balance_color(total_ms),
+                STATS_TAG_CPU_BALANCE,
+            );
+        },
+    );
 }
 
 /// Emits a standard timing or metric row with color dot indicator, name, and right-aligned value.
@@ -159,81 +127,34 @@ pub fn build_timing_row_tagged(
     dot_col: Color,
     tag: u64,
 ) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .gap(6.0)
-        .height(16.0);
-
-    scope.container(row_style, |r| {
-        // Color dot indicator
-        let dot_style = Style::new()
-            .width(6.0)
-            .height(6.0)
-            .border_radius(3.0)
-            .background(dot_col);
-        r.empty_box(dot_style);
-
-        // Subsystem label
-        r.text_colored(name, Color::rgba(0.78, 0.80, 0.86, 1.0));
-
-        r.spacer();
-
-        // Timing value
-        let val_text = format!("{:.2} ms", val_ms);
-        if tag != 0 {
-            r.text_colored_tagged(&val_text, Color::rgba(0.86, 0.88, 0.92, 1.0), tag);
-        } else {
-            r.text_colored(&val_text, Color::rgba(0.86, 0.88, 0.92, 1.0));
-        }
+    scope.metric_dot_row_fmt::<24, _>(name, tag, dot_col, None, |buf| {
+        write_ms_fixed2(buf, val_ms);
     });
 }
 
-/// Emits a summary total row with bold accent text.
 fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32, tag: u64) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(18.0)
-        .margin_insets(Insets::new(2.0, 0.0, 0.0, 0.0));
-
-    scope.container(row_style, |r| {
-        r.text_colored(label, Color::rgba(0.86, 0.88, 0.92, 1.0));
-
-        r.spacer();
-
-        let val_text = format!("{:.2} ms", total_ms);
-        if tag != 0 {
-            r.text_colored_tagged(&val_text, Color::rgba(0.78, 0.90, 1.0, 1.0), tag);
-        } else {
-            r.text_colored(&val_text, Color::rgba(0.78, 0.90, 1.0, 1.0));
-        }
-    });
+    scope.container(
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .height(18.0)
+            .margin_insets(Insets::new(2.0, 0.0, 0.0, 0.0)),
+        |r| {
+            r.text_colored(label, Color::rgba(0.86, 0.88, 0.92, 1.0));
+            r.spacer();
+            r.text_colored_tagged_fmt::<24, _>(Color::rgba(0.78, 0.90, 1.0, 1.0), tag, |buf| {
+                write_ms_fixed2(buf, total_ms)
+            });
+        },
+    );
 }
 
 /// Updates CPU timing breakdown labels in-place without tree reconstruction or layout passes.
-///
-/// Returns `true` if any label was modified.
-pub fn update_cpu_breakdown_texts(
-    scope: &mut UiScope<'_>,
-    cpu: &ae_core::telemetry::CpuSyncTimings,
-) -> bool {
-    if scope
-        .node_id_tagged(super::types::STATS_TAG_CPU_TOTAL)
-        .is_none()
-    {
+pub fn update_cpu_breakdown_texts(scope: &mut UiScope<'_>, cpu: &CpuSyncTimings) -> bool {
+    if scope.node_id_tagged(STATS_TAG_CPU_TOTAL).is_none() {
         return false;
     }
-    update_cpu_breakdown_with_total(
-        scope,
-        cpu,
-        (cpu.main_logic_ms
-            + cpu.physics_ms
-            + cpu.render_prep_ms
-            + cpu.wait_for_gpu_ms
-            + cpu.ui_editor_ms)
-            .max(0.0001),
-    )
+    update_cpu_breakdown_with_total(scope, cpu, total_cpu_ms(cpu))
 }
 
 #[inline]
@@ -250,55 +171,51 @@ fn cpu_balance_label(total_cpu_ms: f32) -> &'static str {
 }
 
 #[inline]
-fn format_ms_fixed2(val_ms: f32, buf: &mut [u8; 24]) -> &str {
-    use std::io::{Cursor, Write};
-    let mut cursor = Cursor::new(&mut buf[..]);
-    let clamped = if val_ms.is_finite() {
-        val_ms.clamp(0.0, 99999.99)
+fn cpu_balance_color(total_cpu_ms: f32) -> Color {
+    if total_cpu_ms < 8.33 {
+        Color::rgba(0.0, 0.82, 0.63, 1.0)
+    } else if total_cpu_ms < 16.67 {
+        Color::rgba(0.0, 0.75, 0.90, 1.0)
+    } else if total_cpu_ms < 33.33 {
+        Color::rgba(1.0, 0.73, 0.0, 1.0)
     } else {
-        0.0
-    };
-    if write!(cursor, "{clamped:.2} ms").is_ok() {
-        let len = cursor.position() as usize;
-        std::str::from_utf8(&buf[..len]).unwrap_or("0.00 ms")
-    } else {
-        "0.00 ms"
+        Color::rgba(0.92, 0.24, 0.24, 1.0)
     }
+}
+
+#[inline]
+pub(super) fn write_ms_fixed2<const N: usize>(buf: &mut StackString<N>, val_ms: f32) {
+    buf.write_fmt(format_args!(
+        "{:.2} ms",
+        if val_ms.is_finite() {
+            val_ms.clamp(0.0, 99_999.99)
+        } else {
+            0.0
+        }
+    ))
+    .ok();
 }
 
 fn update_cpu_breakdown_with_total(
     scope: &mut UiScope<'_>,
-    cpu: &ae_core::telemetry::CpuSyncTimings,
+    cpu: &CpuSyncTimings,
     total_cpu_ms: f32,
 ) -> bool {
-    let mut buf = [0u8; 24];
-    let mut changed = scope.update_live_text(
-        super::types::STATS_TAG_CPU_BALANCE,
+    scope.update_live_text_colored(
+        STATS_TAG_CPU_BALANCE,
         cpu_balance_label(total_cpu_ms),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_ECS,
-        format_ms_fixed2(cpu.main_logic_ms, &mut buf),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_PHYSICS,
-        format_ms_fixed2(cpu.physics_ms, &mut buf),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_RENDER,
-        format_ms_fixed2(cpu.render_prep_ms, &mut buf),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_WAIT,
-        format_ms_fixed2(cpu.wait_for_gpu_ms, &mut buf),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_UI,
-        format_ms_fixed2(cpu.ui_editor_ms, &mut buf),
-    );
-    changed |= scope.update_live_text(
-        super::types::STATS_TAG_CPU_TOTAL,
-        format_ms_fixed2(total_cpu_ms, &mut buf),
-    );
-    changed
+        cpu_balance_color(total_cpu_ms),
+    ) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_ECS, |b| {
+        write_ms_fixed2(b, cpu.main_logic_ms);
+    }) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_PHYSICS, |b| {
+        write_ms_fixed2(b, cpu.physics_ms);
+    }) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_RENDER, |b| {
+        write_ms_fixed2(b, cpu.render_prep_ms);
+    }) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_WAIT, |b| {
+        write_ms_fixed2(b, cpu.wait_for_gpu_ms);
+    }) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_UI, |b| {
+        write_ms_fixed2(b, cpu.ui_editor_ms);
+    }) | scope.update_live_text_fmt::<24, _>(STATS_TAG_CPU_TOTAL, |b| {
+        write_ms_fixed2(b, total_cpu_ms);
+    })
 }
