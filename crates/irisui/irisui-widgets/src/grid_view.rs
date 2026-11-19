@@ -9,7 +9,7 @@
 //! Handles column computation, row distribution, total scroll height estimation,
 //! and virtualized visible cell filtering.
 
-use irisui_core::geometry::Rect;
+use irisui_core::geometry::{Point, Rect};
 
 /// Configuration and layout calculator for responsive, wrapping grid views.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,18 +71,23 @@ impl ResponsiveGrid {
         2.0 * self.padding.1 + (rows as f32 * row_stride) - self.spacing.1
     }
 
-    /// Computes the visible cells and their layout bounding boxes within a viewport rectangle.
+    /// Iterates visible cells intersecting `vp_rect` at vertical offset `scroll_y` without
+    /// allocating an intermediate heap vector.
     ///
-    /// Applies viewport culling to skip all rows completely outside the visible viewport area,
-    /// returning only visible items with their global 0-based indices and `Rect` positions.
-    pub fn compute_visible_cells(
+    /// Invokes `f(item_idx, local_pos, world_rect)` where `local_pos` is the un-scrolled
+    /// cell position relative to `vp_rect.origin()` (for child nodes inside a `ScrollAreaViewport`
+    /// that applies `scroll_offset_y`), and `world_rect` is the screen-space cell bounding box.
+    pub fn for_each_visible_cell<F>(
         &self,
         vp_rect: Rect,
         total_items: usize,
         scroll_y: f32,
-    ) -> Vec<(usize, Rect)> {
+        mut f: F,
+    ) where
+        F: FnMut(usize, Point, Rect),
+    {
         if total_items == 0 {
-            return Vec::new();
+            return;
         }
 
         let cols = self.compute_columns(vp_rect.width);
@@ -92,12 +97,16 @@ impl ResponsiveGrid {
         let col_stride = self.item_size.0 + self.spacing.0;
 
         let total_rows = total_items.div_ceil(cols);
-        let mut visible = Vec::with_capacity(cols * 8);
+        let first_row = if row_stride > 0.0 {
+            ((scroll_y - self.padding.1 - self.item_size.1).max(0.0) / row_stride).floor() as usize
+        } else {
+            0
+        };
 
-        for row_idx in 0..total_rows {
+        for row_idx in first_row..total_rows {
+            let local_y = self.padding.1 + (row_idx as f32 * row_stride);
             let row_y = start_y + (row_idx as f32 * row_stride);
 
-            // Viewport Scissor Cull: skip rows completely outside visible screen
             if row_y + self.item_size.1 <= vp_rect.y {
                 continue;
             }
@@ -109,12 +118,28 @@ impl ResponsiveGrid {
             let end_item_idx = (start_item_idx + cols).min(total_items);
 
             for (col_idx, item_idx) in (start_item_idx..end_item_idx).enumerate() {
+                let local_x = self.padding.0 + (col_idx as f32 * col_stride);
                 let card_x = start_x + (col_idx as f32 * col_stride);
                 let cell_rect = Rect::new(card_x, row_y, self.item_size.0, self.item_size.1);
-                visible.push((item_idx, cell_rect));
+                f(item_idx, Point::new(local_x, local_y), cell_rect);
             }
         }
+    }
 
+    /// Computes the visible cells and their layout bounding boxes within a viewport rectangle.
+    ///
+    /// Applies viewport culling to skip all rows completely outside the visible viewport area,
+    /// returning only visible items with their global 0-based indices and `Rect` positions.
+    pub fn compute_visible_cells(
+        &self,
+        vp_rect: Rect,
+        total_items: usize,
+        scroll_y: f32,
+    ) -> Vec<(usize, Rect)> {
+        let mut visible = Vec::new();
+        self.for_each_visible_cell(vp_rect, total_items, scroll_y, |item_idx, _local, rect| {
+            visible.push((item_idx, rect));
+        });
         visible
     }
 }

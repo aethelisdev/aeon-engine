@@ -16,6 +16,7 @@ pub mod conditional;
 pub mod containers;
 pub mod context_menu;
 pub mod core;
+pub mod data_table;
 pub mod display;
 pub mod input;
 pub mod input_box;
@@ -33,6 +34,7 @@ pub mod properties;
 pub mod root;
 pub mod scoped_popup;
 pub mod scroll_area;
+pub mod select_pill;
 pub mod selection_card;
 pub mod spacing;
 pub mod tabs;
@@ -40,12 +42,16 @@ pub mod tag_events;
 pub mod title_bar;
 pub mod tooltip;
 pub mod tree_view;
+pub mod tree_view_virtual;
+pub mod virtual_grid;
 
 pub use action_card::{ActionCardButton, ActionCardConfig};
 pub use collapsing::{CollapsingBuilder, CollapsingCardBuilder, CollapsingResponse};
+pub use data_table::{DataTableBuilder, DataTableConfig, TableColumnSpec, TableColumnWidth};
 pub use labeled_input::{LabeledInputButton, LabeledInputConfig};
 pub use menu_bar::{
-    MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
+    MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarRightScope,
+    MenuBarScope, MenuScope,
 };
 pub use modal::ModalDescriptor;
 pub use multiline::MultilineEditorProps;
@@ -58,6 +64,8 @@ pub use tabs::TabBarResponse;
 pub use title_bar::TitleBarBuilder;
 pub use tooltip::TooltipExt;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
+pub use tree_view_virtual::{TreeSelectionEvent, VirtualTreeBuilder, VirtualTreeConfig};
+pub use virtual_grid::{VirtualGridBuilder, VirtualGridConfig};
 
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
@@ -78,15 +86,16 @@ pub use input::ComboRowLayout;
 pub use input_box::{
     InputBoxProps, InputBoxStyle, calculate_visible_slice_and_caret, measure_text_advance,
 };
-pub use menu::{CascadingPopupConfig, PopupExt, PopupPlacement};
+pub use menu::{CascadingMenuEntry, CascadingPopupConfig, PopupExt, PopupPlacement};
 pub use properties::{
     ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags,
-    ComboBoxActionResponse, PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
-    PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
-    PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, euler_deg_to_quat_xyzw, property_vec3_axis_tag,
-    property_vec3_reset_tag, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
-    resolve_hsv_from_color, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
-    resolve_property_vec3_tag,
+    ComboBoxActionResponse, ComboBoxMapConfig, PropertyActionRow, PropertyColorResponse,
+    PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
+    PropertyPaletteResponse, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
+    PropertyVec3Options, PropertyVec3Response, PropertyVec3Target, euler_deg_to_quat_xyzw,
+    property_vec3_axis_tag, property_vec3_reset_tag, quat_xyzw_to_euler_deg,
+    resolve_euler_deg_from_quat_xyzw, resolve_hsv_from_color, resolve_property_vec3_for_seed,
+    resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };
 pub use scoped_popup::{AnchoredPopupConfig, DropdownCardConfig, PopupCardStyle};
+pub use select_pill::{AnchoredSelectOption, AnchoredSelectPillSpec, SelectPillTriggerStyle};

@@ -35,12 +35,15 @@ pub use declarative::caret_sync::{
     sync_caret_blink_with_delta_for_tree,
 };
 pub use declarative::scope::{
-    ActionBarButton, AnchoredPopupConfig, AssetSlotConfig, AssetSlotResponse,
-    ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout,
-    DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle,
+    ActionBarButton, AnchoredPopupConfig, AnchoredSelectOption, AnchoredSelectPillSpec,
+    AssetSlotConfig, AssetSlotResponse, CascadingMenuEntry, ColorPickerPopupConfig,
+    ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout, DataTableBuilder,
+    DataTableConfig, DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle,
     LabeledStatusDescriptor, LiveTextProps, LogRowDescriptor, ModalDescriptor,
     MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle, PropertyActionRow,
-    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, TabBarResponse, UiScope,
+    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, SelectPillTriggerStyle,
+    TabBarResponse, TableColumnSpec, TableColumnWidth, TreeSelectionEvent, UiScope,
+    VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
     WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
@@ -51,9 +54,9 @@ pub use declarative::widget::{
     DropTargetId, DropTargetResponse, DropdownHost, DropdownItem, EmptyBox, FloatingDragPreview,
     FloatingDragPreviewStyle, NumericDrag, POPUP_HOST_ITEM_SEED, TITLE_BAR_CONTROL_SEED, TitleBar,
     TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
-    VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice, VirtualSliceParams, Widget,
-    compute_slice, compute_virtual_slice, title_bar_close_tag, title_bar_maximize_tag,
-    title_bar_minimize_tag,
+    ViewportDropOverlay, VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice,
+    VirtualSliceParams, Widget, compute_slice, compute_virtual_slice, title_bar_close_tag,
+    title_bar_maximize_tag, title_bar_minimize_tag,
 };
 pub use floating_panel::{
     DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
@@ -73,18 +76,22 @@ pub mod prelude {
         sync_caret_blink_for_tree, sync_caret_blink_with_delta_for_tree,
     };
     pub use crate::declarative::scope::{
-        ActionBarButton, ActionCardButton, ActionCardConfig, AnchoredPopupConfig, AssetSlotConfig,
-        AssetSlotResponse, CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions,
-        CardResponse, ColorPaletteCardConfig, ColorPickerPopupConfig, ColorPickerPopupResponse,
-        ColorPickerPopupTags, ComboBoxActionResponse, ComboRowLayout, DropdownCardConfig,
+        ActionBarButton, ActionCardButton, ActionCardConfig, AnchoredPopupConfig,
+        AnchoredSelectOption, AnchoredSelectPillSpec, AssetSlotConfig, AssetSlotResponse,
+        CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse,
+        CascadingMenuEntry, CascadingPopupConfig, ColorPaletteCardConfig, ColorPickerPopupConfig,
+        ColorPickerPopupResponse, ColorPickerPopupTags, ComboBoxActionResponse, ComboBoxMapConfig,
+        ComboRowLayout, DataTableBuilder, DataTableConfig, DropdownCardConfig,
         DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle, LabeledInputButton,
         LabeledInputConfig, LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
-        MultilineEditorProps, NavItemConfig, NumberLabelDescriptor, PopupCardStyle,
+        MultilineEditorProps, NavItemConfig, NumberLabelDescriptor, PopupCardStyle, PopupPlacement,
         PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
         PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
-        PropertyPaletteResponse, PropertyTextOptions, SelectionCardConfig, TabBarResponse, UiScope,
-        VerticalScrollbarSpec, WrappedLabelDescriptor, euler_deg_to_quat_xyzw,
-        quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
+        PropertyPaletteResponse, PropertyTextOptions, SelectPillTriggerStyle, SelectionCardConfig,
+        TabBarResponse, TableColumnSpec, TableColumnWidth, TreeSelectionEvent, TreeViewConfig,
+        UiScope, VerticalScrollbarSpec, VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder,
+        VirtualTreeConfig, WrappedLabelDescriptor, euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg,
+        resolve_euler_deg_from_quat_xyzw,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
@@ -98,9 +105,9 @@ pub mod prelude {
         DropdownHost, DropdownItem, EmptyBox, FloatingDragPreview, FloatingDragPreviewStyle,
         NumericDrag, POPUP_HOST_ITEM_SEED, TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction,
         TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup, Vec2Response,
-        Vec3Response, VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice,
-        VirtualSliceParams, compute_slice, compute_virtual_slice, title_bar_close_tag,
-        title_bar_maximize_tag, title_bar_minimize_tag,
+        Vec3Response, ViewportDropOverlay, VirtualList, VirtualListBuilder, VirtualListResponse,
+        VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
+        title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
     };
     pub use crate::floating_panel::{
         FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,
@@ -123,7 +130,10 @@ pub mod prelude {
     };
     pub use crate::input::TextInputState;
     pub use crate::scroll_area::ScrollAreaState;
-    pub use crate::tree_view::TreeState;
+    pub use crate::tree_view::{
+        TreeDataSource, TreeIndentConfig, TreeModel, TreeNodeCollector, TreeRowEntry, TreeRowStyle,
+        TreeState,
+    };
 }
 
 #[cfg(test)]
