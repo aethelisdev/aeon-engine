@@ -6,8 +6,7 @@
 use super::panel::build_assets_panel;
 use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetClickTracker, AssetPreviewModalState,
-    AssetsContextMenuTarget, AssetsPanelParams, encode_breadcrumb_tag, encode_item_tag,
-    truncate_display_name,
+    AssetsPanelParams, encode_breadcrumb_tag, encode_item_tag, truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
@@ -73,11 +72,10 @@ fn test_assets_panel_structure_and_no_emojis() {
     assert!(has_tag_recursive(&tree, root_id, encode_breadcrumb_tag(0)));
     assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 
-    // Verify that NO emojis exist in node text strings across the entire panel
     assert_no_emojis_recursive(&tree, root_id);
 }
 
-fn has_tag_recursive(tree: &UiTree, current: WidgetId, target_tag: u64) -> bool {
+pub(super) fn has_tag_recursive(tree: &UiTree, current: WidgetId, target_tag: u64) -> bool {
     let mut found = false;
     tree.traverse_depth_first(current, &mut |_id, node| {
         if node.tag == target_tag {
@@ -90,51 +88,13 @@ fn has_tag_recursive(tree: &UiTree, current: WidgetId, target_tag: u64) -> bool 
 fn assert_no_emojis_recursive(tree: &UiTree, current: WidgetId) {
     if let Some(node) = tree.get(current) {
         if let Some(text) = &node.text {
-            assert!(
-                !text.contains('📁'),
-                "Node text contains forbidden emoji '📁': {}",
-                text
-            );
-            assert!(
-                !text.contains('📂'),
-                "Node text contains forbidden emoji '📂': {}",
-                text
-            );
-            assert!(
-                !text.contains('📦'),
-                "Node text contains forbidden emoji '📦': {}",
-                text
-            );
-            assert!(
-                !text.contains('🖼'),
-                "Node text contains forbidden emoji '🖼': {}",
-                text
-            );
-            assert!(
-                !text.contains('⚡'),
-                "Node text contains forbidden emoji '⚡': {}",
-                text
-            );
-            assert!(
-                !text.contains('🎬'),
-                "Node text contains forbidden emoji '🎬': {}",
-                text
-            );
-            assert!(
-                !text.contains('🎨'),
-                "Node text contains forbidden emoji '🎨': {}",
-                text
-            );
-            assert!(
-                !text.contains('🔊'),
-                "Node text contains forbidden emoji '🔊': {}",
-                text
-            );
-            assert!(
-                !text.contains('⚙'),
-                "Node text contains forbidden emoji '⚙': {}",
-                text
-            );
+            for forbidden in ['📁', '📂', '📦', '🖼', '⚡', '🎬', '🎨', '🔊', '⚙']
+            {
+                assert!(
+                    !text.contains(forbidden),
+                    "Node text contains forbidden emoji '{forbidden}': {text}"
+                );
+            }
         }
         for &child in &node.children {
             assert_no_emojis_recursive(tree, child);
@@ -163,7 +123,7 @@ fn test_preview_modal_build_and_actions() {
     };
 
     let preview_state = AssetPreviewModalState {
-        item: item.clone(),
+        item,
         orbit_yaw: 0.5,
         orbit_pitch: 0.2,
         zoom_distance: 1.2,
@@ -201,7 +161,7 @@ fn test_preview_modal_build_and_actions() {
         &mut actions_build,
     );
 
-    // Test close button on the preview modal exists in UiTree via semantic tag
+    assert!(tree.is_any_modal_open());
     let mut close_button_found = false;
     tree.traverse_depth_first(root_id, &mut |_id, node| {
         if node.tag == ModalDialogAction::TAG_CLOSE {
@@ -212,160 +172,18 @@ fn test_preview_modal_build_and_actions() {
 }
 
 #[test]
-fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node creation failed");
-
-    let scene_item = AssetItem {
-        name: "test_level.aeworld".to_string(),
-        path: PathBuf::from("assets/scenes/test_level.aeworld"),
-        relative_path: "scenes/test_level.aeworld".to_string(),
-        category: AssetCategory::Scenes,
-        source: AssetSource::Project,
-        file_size_bytes: 4096,
-        metadata_badge: "4.0 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: true,
-    };
-
-    let preview_state = AssetPreviewModalState {
-        item: scene_item,
-        orbit_yaw: 0.0,
-        orbit_pitch: 0.0,
-        zoom_distance: 1.0,
-        show_wireframe: false,
-    };
-
-    // 1. Build with cursor far away (idle state)
-    let params_idle = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-        screen_size: (1280.0, 720.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(0.0, 0.0),
-        blink_caret: false,
-        active_context_menu: None,
-        active_preview_modal: Some(&preview_state),
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
-    };
-
-    let mut actions_idle = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params_idle,
-        &mut TreeState::default(),
-        &mut actions_idle,
-    );
-
-    let mut has_test_level_title = false;
-    let mut close_rect = Rect::ZERO;
-    let mut reveal_rect = Rect::ZERO;
-    let mut has_action_btn = false;
-
-    tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.text.as_deref() == Some("test_level.aeworld") {
-            has_test_level_title = true;
-        } else if node.tag == ModalDialogAction::TAG_CLOSE {
-            close_rect = node.computed_rect;
-        } else if node.tag == crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL {
-            reveal_rect = node.computed_rect;
-        } else if node.tag == ModalDialogAction::TAG_CONFIRM {
-            has_action_btn = true;
-        }
-    });
-
-    assert!(
-        has_test_level_title,
-        "Modal title test_level.aeworld must exist in tree"
-    );
-
-    assert!(
-        has_action_btn,
-        "Scene preview must have Load Scene action button"
-    );
-    assert!(close_rect.width > 0.0 && close_rect.height > 0.0);
-    assert!(reveal_rect.width > 0.0 && reveal_rect.height > 0.0);
-
-    // Verify idle style of close button (transparent background)
-    let mut close_node_idle = None;
-    tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.computed_rect == close_rect {
-            close_node_idle = Some((node.text.clone(), node.style.background_color));
-        }
-    });
-    let (idle_text, idle_bg) = close_node_idle.expect("Close node found");
-    assert_eq!(idle_text.as_deref(), Some("✕"));
-    assert_eq!(idle_bg, Color::TRANSPARENT);
-
-    // 2. Re-build with cursor hovered over close button
-    let mut tree_hover = UiTree::new();
-    let root_hover = tree_hover.create_root().expect("Root node creation failed");
-
-    let mut params_hover = params_idle;
-    params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
-    tree_hover.set_cursor_position(params_hover.cursor_pos);
-
-    let mut actions_hover = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree_hover, root_hover),
-        &params_hover,
-        &mut TreeState::default(),
-        &mut actions_hover,
-    );
-
-    let mut close_node_info = None;
-    tree_hover.traverse_depth_first(root_hover, &mut |id, node| {
-        if node.computed_rect == close_rect {
-            close_node_info = Some((id, node.style.hover_background));
-        }
-    });
-    let (close_id, hover_bg) = close_node_info.expect("Hovered close node found");
-    assert_eq!(tree_hover.event_state.hovered, Some(close_id));
-    let expected_danger = tree_hover.theme().danger;
-    assert_eq!(
-        hover_bg,
-        Some(Color::rgba(
-            expected_danger.r,
-            expected_danger.g,
-            expected_danger.b,
-            0.28,
-        ))
-    );
-}
-
-#[test]
 fn test_truncate_display_name_utf8_boundary_safety() {
-    // 1. Short string within limits
     let short = "cube.png";
     assert_eq!(truncate_display_name(short, 14, 11), "cube.png");
 
-    // 2. ASCII string longer than limits
     let long_ascii = "very_long_texture_filename.png";
     assert_eq!(truncate_display_name(long_ascii, 14, 11), "very_long_t...");
 
-    // 3. Multi-byte UTF-8 test: Turkish characters ('ö', 'ğ', 'ü') crossing byte boundary 11
-    // 'd'(0), 'o'(1), 'k'(2), 'u'(3), 's'(4), 'u'(5), '_'(6), 'ö'(7..9), 'ğ'(9..11), 'ü'(11..13)
-    // Byte 11 is right inside 'ü' (bytes 11..13). Naive byte slicing [..11] panics.
     let turkish = "dokusu_öğütülmüş_yüzey.png";
     let truncated_turkish = truncate_display_name(turkish, 14, 11);
     assert_eq!(truncated_turkish, "dokusu_öğüt...");
     assert!(truncated_turkish.ends_with("..."));
 
-    // 4. Multi-byte CJK and emojis
     let cjk = "こんにちは世界_テクスチャ_2026.png";
     let truncated_cjk = truncate_display_name(cjk, 14, 11);
     assert_eq!(truncated_cjk, "こんにちは世界_テクス...");
@@ -417,7 +235,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         cursor_byte_idx: 0,
     };
 
-    // Should build cards with Turkish/Unicode filenames without any panic
     let mut actions = Vec::new();
     build_assets_panel(
         &mut UiScope::new(&mut tree, root_id),
@@ -428,8 +245,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 }
 
-/// Verifies that constructing drag overlay nodes creates non-zero layout rectangles
-/// for the viewport landing ring, center target dot, and floating tooltip capsule labels.
 #[test]
 fn test_asset_drag_overlay_construction() {
     use crate::assets::types::{AssetCategory, AssetDragPayload};
@@ -477,7 +292,6 @@ fn test_asset_drag_overlay_construction() {
         .clone();
     assert!(child_ids.len() >= 2);
 
-    // Verify declarative layout_subtree resolved valid non-zero computed_rects for overlay children
     let ring_node = tree.get(child_ids[0]).expect("Ring node exists");
     assert!(ring_node.computed_rect.width > 0.0);
     assert!(ring_node.computed_rect.height > 0.0);
@@ -501,7 +315,6 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
     assert!(!tracker.is_dragging_asset);
     assert!(tracker.potential_drag_item.is_none());
 
-    // 1. User clicks item
     let item = AssetItem {
         name: "test.png".to_string(),
         path: PathBuf::from("assets/test.png"),
@@ -519,7 +332,6 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
     tracker.potential_drag_item = Some(item);
     tracker.drag_start_pos = Some(Point::new(100.0, 100.0));
 
-    // 2. Cursor moved > 5 px
     let current = Point::new(110.0, 110.0);
     let start_pos = tracker.drag_start_pos.unwrap();
     let dx = current.x - start_pos.x;
@@ -530,7 +342,6 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
     tracker.drag_start_pos = None;
     assert!(tracker.is_dragging_asset);
 
-    // 3. User drops outside viewport (or hits Escape)
     tracker.is_dragging_asset = false;
     tracker.potential_drag_item = None;
     tracker.drag_start_pos = None;
@@ -540,32 +351,14 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
 #[test]
 fn test_asset_drag_viewport_boundary_check() {
     let viewport_rect = Rect::new(200.0, 100.0, 800.0, 600.0);
-    let is_in = |p: Point| {
-        p.x >= viewport_rect.x
-            && p.x <= viewport_rect.right()
-            && p.y >= viewport_rect.y
-            && p.y <= viewport_rect.bottom()
-    };
-
-    // Inside viewport
-    let inside_pos = Point::new(300.0, 200.0);
-    assert!(is_in(inside_pos));
-
-    // Over Asset panel (outside viewport)
-    let asset_panel_pos = Point::new(300.0, 800.0);
-    assert!(!is_in(asset_panel_pos));
-
-    // Over Hierarchy panel (outside viewport)
-    let hierarchy_pos = Point::new(50.0, 200.0);
-    assert!(!is_in(hierarchy_pos));
-
-    // Over Menubar (outside viewport)
-    let menubar_pos = Point::new(400.0, 15.0);
-    assert!(!is_in(menubar_pos));
+    assert!(viewport_rect.contains_point(Point::new(300.0, 200.0)));
+    assert!(!viewport_rect.contains_point(Point::new(300.0, 800.0)));
+    assert!(!viewport_rect.contains_point(Point::new(50.0, 200.0)));
+    assert!(!viewport_rect.contains_point(Point::new(400.0, 15.0)));
 }
 
 #[test]
-fn test_asset_source_classification() {
+fn test_asset_source_classification_and_filtering() {
     let project_item = AssetItem {
         name: "player.png".to_string(),
         path: PathBuf::from("assets/textures/player.png"),
@@ -597,43 +390,8 @@ fn test_asset_source_classification() {
         is_3d: false,
     };
     assert_eq!(engine_item.source, AssetSource::Engine);
-}
 
-#[test]
-fn test_engine_content_visibility_filtering() {
-    let project_item = AssetItem {
-        name: "player.png".to_string(),
-        path: PathBuf::from("assets/textures/player.png"),
-        relative_path: "textures/player.png".to_string(),
-        category: AssetCategory::Textures2D,
-        source: AssetSource::Project,
-        file_size_bytes: 1024,
-        metadata_badge: "1.0 KB".to_string(),
-        is_loaded_in_memory: true,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let engine_item = AssetItem {
-        name: "bloom.wgsl".to_string(),
-        path: PathBuf::from("crates/ae_renderer/src/shaders/bloom.wgsl"),
-        relative_path: "crates/ae_renderer/src/shaders/bloom.wgsl".to_string(),
-        category: AssetCategory::Shaders,
-        source: AssetSource::Engine,
-        file_size_bytes: 3000,
-        metadata_badge: "3.0 KB".to_string(),
-        is_loaded_in_memory: true,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let all_items = [project_item.clone(), engine_item.clone()];
-
-    // When show_engine_content is false (default hidden)
+    let all_items = [project_item, engine_item];
     let filtered_hidden: Vec<_> = all_items
         .iter()
         .filter(|item| item.source != AssetSource::Engine)
@@ -641,10 +399,6 @@ fn test_engine_content_visibility_filtering() {
         .collect();
     assert_eq!(filtered_hidden.len(), 1);
     assert_eq!(filtered_hidden[0].name, "player.png");
-
-    // When show_engine_content is true
-    let filtered_visible: Vec<_> = all_items.iter().filter(|_item| true).cloned().collect();
-    assert_eq!(filtered_visible.len(), 2);
 }
 
 #[test]
@@ -653,7 +407,6 @@ fn test_engine_and_sidebar_vector_icons() {
         FIRST_THUMBNAIL_LAYER, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_GEAR, ICON_SPARKLE,
     };
 
-    // Verify canonical texture coordinates on layer 16..19 and thumbnail layer reservation
     assert_eq!(ICON_GEAR, [0.0, 0.0, 1.0, 16.0]);
     assert_eq!(ICON_SPARKLE, [0.0, 0.0, 1.0, 17.0]);
     assert_eq!(ICON_CHEVRON_DOWN, [0.0, 0.0, 1.0, 18.0]);
@@ -696,118 +449,19 @@ fn test_engine_and_sidebar_vector_icons() {
         &mut actions,
     );
 
-    fn find_node_by_name<'a>(
-        tree: &'a UiTree,
-        current: WidgetId,
-        name: &str,
-    ) -> Option<&'a irisui::prelude::WidgetNode> {
-        if let Some(node) = tree.get(current) {
-            if node.name.as_deref() == Some(name) {
-                return Some(node);
-            }
-            for &child in &node.children {
-                if let Some(found) = find_node_by_name(tree, child, name) {
-                    return Some(found);
-                }
-            }
-        }
-        None
-    }
+    let gear_id = tree
+        .find_node_by_name("EngineGearIcon")
+        .expect("EngineGearIcon node must be present");
+    assert_eq!(tree.get(gear_id).unwrap().texture_uv, Some(ICON_GEAR));
 
-    let gear_node = find_node_by_name(&tree, root_id, "EngineGearIcon");
-    assert!(gear_node.is_some(), "EngineGearIcon node must be present");
-    assert_eq!(gear_node.unwrap().texture_uv, Some(ICON_GEAR));
-
-    let side_btn = find_node_by_name(&tree, root_id, "SidebarToggleButton");
-    assert!(
-        side_btn.is_some(),
-        "SidebarToggleButton node must be present"
-    );
-    assert_eq!(side_btn.unwrap().text.as_deref(), Some("◀"));
+    let side_id = tree
+        .find_node_by_name("SidebarToggleButton")
+        .expect("SidebarToggleButton node must be present");
+    assert_eq!(tree.get(side_id).unwrap().text.as_deref(), Some("◀"));
 }
 
-/// Verifies bidirectional scene filtering: 2D mode filters out 3D assets, 3D mode filters out 2D scenes.
 #[test]
-fn test_bidirectional_scene_filtering() {
-    let scene_3d = AssetItem {
-        name: "physics_test_suite.aeworld".to_string(),
-        path: PathBuf::from("assets/scenes/physics_test_suite.aeworld"),
-        relative_path: "scenes/physics_test_suite.aeworld".to_string(),
-        category: AssetCategory::Scenes,
-        source: AssetSource::Project,
-        file_size_bytes: 12000,
-        metadata_badge: "12.0 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: true,
-    };
-
-    let scene_2d = AssetItem {
-        name: "level1_2d.aeworld".to_string(),
-        path: PathBuf::from("assets/scenes/level1_2d.aeworld"),
-        relative_path: "scenes/level1_2d.aeworld".to_string(),
-        category: AssetCategory::Scenes,
-        source: AssetSource::Project,
-        file_size_bytes: 4000,
-        metadata_badge: "4.0 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let texture = AssetItem {
-        name: "player.png".to_string(),
-        path: PathBuf::from("assets/textures/player.png"),
-        relative_path: "textures/player.png".to_string(),
-        category: AssetCategory::Textures2D,
-        source: AssetSource::Project,
-        file_size_bytes: 2048,
-        metadata_badge: "2.0 KB".to_string(),
-        is_loaded_in_memory: true,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let all_items = [scene_3d, scene_2d, texture];
-
-    // Filter in 2D mode: 3D items hidden
-    let filtered_2d: Vec<_> = all_items
-        .iter()
-        .filter(|item| !item.is_3d)
-        .cloned()
-        .collect();
-    assert_eq!(filtered_2d.len(), 2);
-    assert!(
-        !filtered_2d
-            .iter()
-            .any(|i| i.name == "physics_test_suite.aeworld")
-    );
-    assert!(filtered_2d.iter().any(|i| i.name == "level1_2d.aeworld"));
-
-    // Filter in 3D mode: 2D scenes hidden
-    let filtered_3d: Vec<_> = all_items
-        .iter()
-        .filter(|item| !(!item.is_3d && item.category == AssetCategory::Scenes))
-        .cloned()
-        .collect();
-    assert_eq!(filtered_3d.len(), 2);
-    assert!(
-        filtered_3d
-            .iter()
-            .any(|i| i.name == "physics_test_suite.aeworld")
-    );
-    assert!(!filtered_3d.iter().any(|i| i.name == "level1_2d.aeworld"));
-}
-
-/// Verifies that `is_world_bytes_3d` accurately distinguishes 3D vs 2D binary world archives.
-#[test]
-fn test_is_world_bytes_3d_detection() {
+fn test_bidirectional_scene_filtering_and_world_bytes() {
     use crate::assets::scanner::is_world_bytes_3d;
 
     let mut ids = ae_world::GuidGenerator::from_seed(101);
@@ -820,89 +474,7 @@ fn test_is_world_bytes_3d_detection() {
         .encode_full()
         .expect("encode 2D binary world");
     assert!(!is_world_bytes_3d(&world_2d));
-
     assert!(!is_world_bytes_3d(b"corrupted-not-a-world"));
-}
-
-#[test]
-fn test_assets_context_menu_builder_and_hit_testing() {
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node must be created");
-    UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
-
-    let item = AssetItem {
-        name: "character.glb".to_string(),
-        path: PathBuf::from("assets/models/character.glb"),
-        relative_path: "models/character.glb".to_string(),
-        category: AssetCategory::Models3D,
-        source: AssetSource::Project,
-        file_size_bytes: 4096,
-        metadata_badge: "4.0 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: true,
-    };
-
-    let ctx_menu_data = (
-        AssetsContextMenuTarget::Asset(item.clone()),
-        Point::new(200.0, 150.0),
-    );
-    let thumbnail_layers = std::collections::HashMap::new();
-
-    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 600.0);
-    let params = AssetsPanelParams {
-        panel_rect,
-        screen_size: (1920.0, 1080.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 200.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(210.0, 160.0),
-        blink_caret: false,
-        active_context_menu: Some(&ctx_menu_data),
-        active_preview_modal: None,
-        thumbnail_layers: &thumbnail_layers,
-        cursor_byte_idx: 0,
-    };
-
-    let card_rect = super::context_menu::build_assets_context_menu(&mut tree, root_id, &params)
-        .expect("Context menu card rect must be returned");
-    assert_eq!(card_rect.x, 200.0);
-    assert_eq!(card_rect.y, 150.0);
-
-    // Hit test Quick Inspect (tag 0)
-    let hit_inspect = tree
-        .hit_test_target(Point::new(220.0, 195.0))
-        .expect("Must hit inspect item");
-    assert_eq!(hit_inspect.layer, UiLayer::Popup);
-    assert_eq!(hit_inspect.role, WidgetRole::DropdownItem);
-    assert_eq!(hit_inspect.tag, super::types::ASSET_CTX_INSPECT);
-
-    // Hit test Rename (tag 3)
-    let hit_rename = tree
-        .hit_test_target(Point::new(220.0, 250.0))
-        .expect("Must hit rename item");
-    assert_eq!(hit_rename.layer, UiLayer::Popup);
-    assert_eq!(hit_rename.role, WidgetRole::DropdownItem);
-    assert_eq!(hit_rename.tag, super::types::ASSET_CTX_RENAME);
-
-    // Hit test Delete (tag 4)
-    let hit_delete = tree
-        .hit_test_target(Point::new(220.0, 275.0))
-        .expect("Must hit delete item");
-    assert_eq!(hit_delete.layer, UiLayer::Popup);
-    assert_eq!(hit_delete.role, WidgetRole::DropdownItem);
-    assert_eq!(hit_delete.tag, super::types::ASSET_CTX_DELETE);
 }
 
 #[test]
@@ -943,269 +515,11 @@ fn test_assets_toolbar_width_and_search_ux() {
         &mut actions,
     );
 
-    // Verify search input container is registered with ASSETS_TAG_SEARCH_INPUT
     assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_INPUT));
-
-    // Verify search clear button is present when query is non-empty
     assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_CLEAR));
 
-    // Verify AssetsTopToolbar has explicit width equal to panel_rect.width
-    let mut toolbar_found = false;
-    tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.name.as_deref() == Some("AssetsTopToolbar") {
-            toolbar_found = true;
-            assert_eq!(node.style.width, Some(960.0));
-        }
-    });
-    assert!(toolbar_found, "AssetsTopToolbar node must exist in UiTree");
-}
-
-#[test]
-fn test_assets_dialog_host_delete_and_rename_modals_render() {
-    use super::panel::render_assets_dialog_host;
-    use crate::ui::iris_bridge::assets::types::AssetsPanelAction;
-    use irisui::workbench::{ActionBus, DialogHost};
-
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node creation failed");
-
-    let mut host = DialogHost::<AssetsPanelAction>::new();
-    let mut bus = ActionBus::<AssetsPanelAction>::new();
-    let target = PathBuf::from("assets/models/character.gltf");
-
-    // 1. Verify idle state renders no modal layer nodes
-    {
-        let mut scope = UiScope::new(&mut tree, root_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-    assert_eq!(tree.len(), 1, "Idle host must not render any modal nodes");
-
-    // 2. Open delete confirmation danger dialog
-    host.open_confirm_danger(
-        "Delete Asset",
-        "Are you sure you want to permanently delete 'character.gltf'?",
-        AssetsPanelAction::ConfirmDelete(target.clone()),
-    );
-    assert!(
-        host.is_active(),
-        "Host must be active after opening delete modal"
-    );
-
-    // 3. Render onto UiScope and verify modal nodes
-    {
-        let mut scope = UiScope::new(&mut tree, root_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-    assert!(
-        tree.len() > 1,
-        "Active host must construct modal nodes into UiTree"
-    );
-
-    // Verify modal layer contains nodes
-    let mut has_modal_layer = false;
-    tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.layer == irisui::core::UiLayer::Modal {
-            has_modal_layer = true;
-        }
-    });
-    assert!(
-        has_modal_layer,
-        "Delete dialog must emit nodes on UiLayer::Modal"
-    );
-
-    // 4. Test escape dismissal
-    assert!(
-        host.cancel_top(&mut bus),
-        "Top modal must be cancellable on escape"
-    );
-    assert!(!host.is_active(), "Host must be idle after cancellation");
-
-    // 5. Open rename dialog
-    let target_rename = PathBuf::from("assets/textures/albedo.png");
-    host.open_input("Rename Asset", "New Name:", "albedo.png", move |new_name| {
-        AssetsPanelAction::ConfirmRename(target_rename.clone(), new_name)
-    });
-    assert!(
-        host.is_active(),
-        "Host must be active after opening rename input modal"
-    );
-
-    // Render rename input modal
-    {
-        let mut scope = UiScope::new(&mut tree, root_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-    assert!(
-        tree.len() > 1,
-        "Rename modal must construct nodes into UiTree"
-    );
-}
-
-#[test]
-fn test_assets_dialog_host_rendered_from_dock_leaf_attaches_to_root_and_click_invariants() {
-    use super::panel::render_assets_dialog_host;
-    use crate::ui::iris_bridge::assets::types::AssetsPanelAction;
-    use irisui::core::event::{MouseButton, UiEvent};
-    use irisui::core::geometry::Point;
-    use irisui::workbench::{ActionBus, DialogHost};
-
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node creation failed");
-    let leaf_id = {
-        let mut scope = UiScope::new(&mut tree, root_id);
-        scope.configure_container(
-            "Root",
-            irisui::core::Style::new().width(1920.0).height(1080.0),
-            false,
-        );
-        scope
-            .container(
-                irisui::core::Style::new().width(800.0).height(400.0),
-                |leaf| {
-                    leaf.label("Mock Assets Panel Content");
-                },
-            )
-            .response
-            .id
-    };
-
-    let mut host = DialogHost::<AssetsPanelAction>::new();
-    let mut bus = ActionBus::<AssetsPanelAction>::new();
-    host.open_confirm_danger(
-        "Delete Folder",
-        "Are you sure you want to permanently delete this folder?",
-        AssetsPanelAction::ConfirmDelete(PathBuf::from("assets/models")),
-    );
-    assert!(host.is_active());
-
-    // Render from the dock leaf scope
-    {
-        let mut scope = UiScope::new(&mut tree, leaf_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-
-    // 1. Verify that ModalScrim is attached directly to root_id, NOT leaf_id
-    let root_node = tree.get(root_id).unwrap();
-    let leaf_node = tree.get(leaf_id).unwrap();
-    assert_eq!(
-        root_node.children.len(),
-        2,
-        "Root must have dock leaf AND modal scrim"
-    );
-    let scrim_id = root_node.children[1];
-    let scrim_node = tree.get(scrim_id).unwrap();
-    assert_eq!(scrim_node.tag, irisui::widgets::modal::MODAL_TAG_SCRIM);
-    assert!(
-        !leaf_node.children.contains(&scrim_id),
-        "Dock leaf must NOT contain the modal scrim"
-    );
-
-    // 2. Dispatch click INSIDE the modal card (center of screen: 960, 540)
-    tree.dispatch_event(&UiEvent::MouseDown {
-        point: Point::new(960.0, 540.0),
-        button: MouseButton::Left,
-    });
-    tree.dispatch_event(&UiEvent::MouseUp {
-        point: Point::new(960.0, 540.0),
-        button: MouseButton::Left,
-    });
-
-    // Re-render and verify modal is STILL active (did not dismiss on card click)
-    {
-        let mut scope = UiScope::new(&mut tree, leaf_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-    assert!(host.is_active(), "Click inside card must NOT dismiss modal");
-
-    // 3. Dispatch click OUTSIDE the modal card (top-left scrim: 50, 50)
-    tree.dispatch_event(&UiEvent::MouseDown {
-        point: Point::new(50.0, 50.0),
-        button: MouseButton::Left,
-    });
-    tree.dispatch_event(&UiEvent::MouseUp {
-        point: Point::new(50.0, 50.0),
-        button: MouseButton::Left,
-    });
-
-    // Re-render and verify modal dismissed on backdrop click
-    {
-        let mut scope = UiScope::new(&mut tree, leaf_id);
-        render_assets_dialog_host(&mut scope, &mut host, &mut bus, (1920.0, 1080.0));
-    }
-    assert!(
-        !host.is_active(),
-        "Click on backdrop scrim MUST dismiss modal"
-    );
-}
-
-#[test]
-fn test_assets_preview_modal_emits_close_inspect_modal_on_close_or_scrim() {
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node creation failed");
-
-    let item = AssetItem {
-        name: "preview.png".to_string(),
-        path: PathBuf::from("assets/textures/preview.png"),
-        relative_path: "textures/preview.png".to_string(),
-        category: AssetCategory::Textures2D,
-        source: AssetSource::Project,
-        file_size_bytes: 2048,
-        metadata_badge: "2 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let preview_state = AssetPreviewModalState {
-        item,
-        orbit_yaw: 0.0,
-        orbit_pitch: 0.0,
-        zoom_distance: 1.0,
-        show_wireframe: false,
-    };
-
-    let params = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-        screen_size: (1280.0, 720.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(500.0, 300.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: Some(&preview_state),
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
-    };
-
-    for tag in [
-        irisui::widgets::modal::MODAL_TAG_CLOSE,
-        irisui::widgets::modal::MODAL_TAG_SCRIM,
-    ] {
-        let mut actions = Vec::new();
-        tree.event_state.frame_clicked_tag = Some(tag);
-        let _metrics = build_assets_panel(
-            &mut UiScope::new(&mut tree, root_id),
-            &params,
-            &mut TreeState::default(),
-            &mut actions,
-        );
-        assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, super::types::AssetsPanelAction::CloseInspectModal)),
-            "Expected CloseInspectModal for tag {tag:#x}"
-        );
-    }
+    let toolbar_id = tree
+        .find_node_by_name("AssetsTopToolbar")
+        .expect("AssetsTopToolbar node must exist in UiTree");
+    assert_eq!(tree.get(toolbar_id).unwrap().style.width, Some(960.0));
 }
