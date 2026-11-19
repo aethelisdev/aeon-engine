@@ -6,11 +6,11 @@
 //! Declarative inspector for active texture parameters, dimensions, mipmap telemetry,
 //! sampler modes, and hardware texture actions using [`UiScope`].
 
-use super::types::{
-    MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_SPRITE_CHANGE, MATERIAL_TAG_SPRITE_REMOVE,
-};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
+use std::fmt::Write;
 
 /// Parameters for rendering the 2D Sprite material inspector view.
 pub struct SpriteViewParams<'a> {
@@ -22,72 +22,80 @@ pub struct SpriteViewParams<'a> {
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
 }
 
+#[inline]
+fn resolve_sprite_texture<'a>(
+    params: &'a SpriteViewParams<'a>,
+) -> Option<&'a ae_renderer::render::TextureAsset> {
+    params
+        .world
+        .get::<&ae_core::ecs::SpriteId>(params.entity)
+        .ok()
+        .and_then(|s| params.textures.get(s.0))
+}
+
+#[inline]
+fn asset_filename(source_path: &str) -> &str {
+    std::path::Path::new(source_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(source_path)
+}
+
+#[inline]
+fn mip_count(width: u32, height: u32) -> u32 {
+    if width.max(height) > 0 {
+        width.max(height).ilog2() + 1
+    } else {
+        1
+    }
+}
+
 /// Builds the 2D Sprite material, texture inspector, and sampler setting cards directly on [`UiScope`].
 pub fn build_sprite_view(
     scope: &mut UiScope<'_>,
     params: &SpriteViewParams<'_>,
-    actions: &mut Vec<super::types::MaterialAction>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    let sprite_handle = params
-        .world
-        .get::<&ae_core::ecs::SpriteId>(params.entity)
-        .map(|s| s.0)
-        .ok();
-
-    // Texture details or fallback
-    let mut file_name = "Embedded Texture".to_string();
-    let mut info_text = "Standard sRGB".to_string();
-
-    if let Some(handle) = sprite_handle
-        && let Some(asset) = params.textures.get(handle)
-    {
-        file_name = std::path::Path::new(&asset.source_path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| asset.source_path.clone());
-
-        let max_dim = asset.width.max(asset.height);
-        let mip_levels = if max_dim > 0 { max_dim.ilog2() + 1 } else { 1 };
-        info_text = format!(
-            "{} x {} px • sRGB • Mips: {}",
-            asset.width, asset.height, mip_levels
-        );
-    }
-
-    // ── 1. Active Texture Asset Card ──────────────────────────────────────────
     scope.card("Active Texture Asset", None, None, |card| {
-        card.colored_label(
-            Color::rgba(0.35, 0.75, 0.98, 1.0),
-            format!("File: {}", file_name),
-        );
-        card.colored_label(Color::rgba(0.30, 0.82, 0.45, 1.0), info_text);
+        card.text_colored_fmt::<128, _>(Color::rgba(0.35, 0.75, 0.98, 1.0), |buf| {
+            _ = write!(
+                buf,
+                "File: {}",
+                resolve_sprite_texture(params).map_or("Embedded Texture", |asset| asset_filename(
+                    &asset.source_path
+                ))
+            );
+        });
+        card.text_colored_fmt::<96, _>(Color::rgba(0.30, 0.82, 0.45, 1.0), |buf| {
+            if let Some(asset) = resolve_sprite_texture(params) {
+                _ = write!(
+                    buf,
+                    "{} x {} px • sRGB • Mips: {}",
+                    asset.width,
+                    asset.height,
+                    mip_count(asset.width, asset.height)
+                );
+            } else {
+                _ = buf.write_str("Standard sRGB");
+            }
+        });
         card.row(|row| {
-            if row
-                .add(
-                    Button::new("Change Texture")
-                        .icon(ICON_FOLDER, 16.0)
-                        .fill(Color::rgba(0.95, 0.80, 0.25, 0.25))
-                        .text_color(Color::rgba(0.95, 0.80, 0.25, 0.95))
-                        .tag(MATERIAL_TAG_SPRITE_CHANGE),
-                )
-                .clicked()
-            {
-                actions.push(super::types::MaterialAction::PickAndAssignEntityTexture(
-                    params.entity,
-                ));
-            }
-            if row
-                .add(Button::new("🗑 Remove").tag(MATERIAL_TAG_SPRITE_REMOVE))
-                .clicked()
-            {
-                actions.push(super::types::MaterialAction::RemoveTextureFromEntity(
-                    params.entity,
-                ));
-            }
+            row.add(
+                Button::new("Change Texture")
+                    .icon(ICON_FOLDER, 16.0)
+                    .fill(Color::rgba(0.95, 0.80, 0.25, 0.25))
+                    .text_color(Color::rgba(0.95, 0.80, 0.25, 0.95)),
+            )
+            .on_click(|| {
+                action_bus.emit(EngineUiAction::PickAndAssignEntityTexture(params.entity));
+            });
+
+            row.add(Button::new("🗑 Remove")).on_click(|| {
+                action_bus.emit(EngineUiAction::RemoveTextureFromEntity(params.entity));
+            });
         });
     });
 
-    // ── 2. Surface Tiling & Sampler Settings Card ──────────────────────────────
     scope.card("Surface Tiling & Sampler Settings", None, None, |card| {
         card.row(|row| {
             row.key_value_badge("Wrap U:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
@@ -100,37 +108,46 @@ pub fn build_sprite_view(
         );
     });
 
-    // ── 3. Object Tint / Color Swatch Card ─────────────────────────────────────
     scope.card("Object Base Color", None, None, |card| {
-        if let Ok(color_ref) = params.world.get::<&ae_core::ecs::Color>(params.entity) {
-            let hex_str = format!(
-                "#{:02X}{:02X}{:02X}",
-                (color_ref.r * 255.0).clamp(0.0, 255.0) as u8,
-                (color_ref.g * 255.0).clamp(0.0, 255.0) as u8,
-                (color_ref.b * 255.0).clamp(0.0, 255.0) as u8,
-            );
-            card.row(|row| {
-                row.label("Color Swatch:");
-                row.color_swatch(
-                    Color::rgba(color_ref.r, color_ref.g, color_ref.b, color_ref.a),
-                    36.0,
-                    20.0,
-                );
-                row.colored_label(Color::rgba(0.85, 0.88, 0.92, 1.0), hex_str);
-            });
-        } else if card
-            .button_with_icon_styled_tagged(
-                ICON_PLUS,
-                Color::rgba(0.0, 0.85, 1.0, 0.95),
-                "Add Color Tint",
-                None,
-                MATERIAL_TAG_ADD_COLOR,
-            )
-            .clicked()
-        {
-            actions.push(super::types::MaterialAction::AddColorComponent(
-                params.entity,
-            ));
-        }
+        card.when_ok(
+            params.world.get::<&ae_core::ecs::Color>(params.entity),
+            |c, color_ref| {
+                c.row(|row| {
+                    row.label("Color Swatch:");
+                    row.color_swatch(
+                        Color::rgba(color_ref.r, color_ref.g, color_ref.b, color_ref.a),
+                        36.0,
+                        20.0,
+                    );
+                    row.text_colored_fmt::<16, _>(Color::rgba(0.85, 0.88, 0.92, 1.0), |buf| {
+                        _ = write!(
+                            buf,
+                            "#{:02X}{:02X}{:02X}",
+                            (color_ref.r * 255.0).clamp(0.0, 255.0) as u8,
+                            (color_ref.g * 255.0).clamp(0.0, 255.0) as u8,
+                            (color_ref.b * 255.0).clamp(0.0, 255.0) as u8,
+                        );
+                    });
+                });
+            },
+        );
+        card.when(
+            params
+                .world
+                .get::<&ae_core::ecs::Color>(params.entity)
+                .is_err(),
+            |c| {
+                c.button_with_icon_styled_tagged(
+                    ICON_PLUS,
+                    Color::rgba(0.0, 0.85, 1.0, 0.95),
+                    "Add Color Tint",
+                    None,
+                    c.tag_for("Add Color Tint"),
+                )
+                .on_click(|| {
+                    action_bus.emit(EngineUiAction::AddComponent(params.entity, "Color"));
+                });
+            },
+        );
     });
 }

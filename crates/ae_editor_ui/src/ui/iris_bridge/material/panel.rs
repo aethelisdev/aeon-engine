@@ -14,92 +14,96 @@ use super::types::{
     MATERIAL_TAG_SCROLLBAR_THUMB, MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_VIEWPORT,
     MaterialPanelParams,
 };
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
+
+#[derive(Clone, Copy)]
+enum MaterialSurfaceKind {
+    NoSelection,
+    Model(hecs::Entity),
+    Sprite(hecs::Entity),
+    UnsupportedGeometry,
+}
+
+impl MaterialSurfaceKind {
+    fn resolve(world: &hecs::World, entity: Option<hecs::Entity>) -> Self {
+        match entity {
+            None => Self::NoSelection,
+            Some(entity) if world.get::<&ae_core::ecs::ModelId>(entity).is_ok() => {
+                Self::Model(entity)
+            }
+            Some(entity) if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() => {
+                Self::Sprite(entity)
+            }
+            Some(_) => Self::UnsupportedGeometry,
+        }
+    }
+}
 
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
-///
-/// Returns the computed maximum vertical scroll limit in physical pixels.
 pub fn build_material_panel(
     scope: &mut UiScope<'_>,
     params: &MaterialPanelParams<'_>,
-    actions: &mut Vec<super::types::MaterialAction>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    let panel_bg = scope.theme().panel_bg;
-    scope
-        .panel("MaterialPanelRoot")
-        .background(panel_bg)
-        .show(|panel_scope| {
-            // 1. Top Header Bar
-            build_material_header(panel_scope, params.entity, params.world);
+    scope.panel("MaterialPanelRoot").show(|panel_scope| {
+        build_material_header(panel_scope, params.entity, params.world);
+        build_material_body(panel_scope, params, action_bus);
+    });
+}
 
-            // 2. Main Body Content Area
-            match params.entity {
-                None => {
-                    let center_style = Style::new()
-                        .flex_col()
-                        .flex_grow(1.0)
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center)
-                        .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
-                    panel_scope.container(center_style, |center_scope| {
-                        build_no_entity_selected(center_scope, params.panel_rect.width);
-                    });
-                }
-                Some(entity) => {
-                    let model_handle = params
-                        .world
-                        .get::<&ae_core::ecs::ModelId>(entity)
-                        .ok()
-                        .map(|m| m.0);
-                    let has_model = model_handle.is_some();
-                    let has_sprite = params.world.get::<&ae_core::ecs::SpriteId>(entity).is_ok();
+fn build_material_body(
+    scope: &mut UiScope<'_>,
+    params: &MaterialPanelParams<'_>,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) {
+    match MaterialSurfaceKind::resolve(params.world, params.entity) {
+        MaterialSurfaceKind::NoSelection => {
+            scope.centered_stretch(12.0, |center_scope| {
+                build_no_entity_selected(center_scope);
+            });
+        }
+        MaterialSurfaceKind::UnsupportedGeometry => {
+            scope.centered_stretch(12.0, |center_scope| {
+                build_no_renderable_geometry(center_scope, params.entity, action_bus);
+            });
+        }
+        MaterialSurfaceKind::Model(entity) => {
+            render_material_viewport(scope, |vp_scope| {
+                build_submesh_view(
+                    vp_scope,
+                    &SubmeshViewParams {
+                        entity,
+                        world: params.world,
+                        models: params.models,
+                        textures: params.textures,
+                    },
+                    action_bus,
+                );
+            });
+        }
+        MaterialSurfaceKind::Sprite(entity) => {
+            render_material_viewport(scope, |vp_scope| {
+                build_sprite_view(
+                    vp_scope,
+                    &SpriteViewParams {
+                        entity,
+                        world: params.world,
+                        textures: params.textures,
+                    },
+                    action_bus,
+                );
+            });
+        }
+    }
+}
 
-                    if has_model {
-                        panel_scope.scroll_area(
-                            "MaterialViewport",
-                            MATERIAL_TAG_VIEWPORT,
-                            Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
-                            |vp_scope| {
-                                let submesh_params = SubmeshViewParams {
-                                    entity,
-                                    world: params.world,
-                                    models: params.models,
-                                    textures: params.textures,
-                                };
-                                build_submesh_view(vp_scope, &submesh_params, actions);
-                            },
-                        );
-                    } else if has_sprite {
-                        panel_scope.scroll_area(
-                            "MaterialViewport",
-                            MATERIAL_TAG_VIEWPORT,
-                            Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
-                            |vp_scope| {
-                                let sprite_params = SpriteViewParams {
-                                    entity,
-                                    world: params.world,
-                                    textures: params.textures,
-                                };
-                                build_sprite_view(vp_scope, &sprite_params, actions);
-                            },
-                        );
-                    } else {
-                        let center_style = Style::new()
-                            .flex_col()
-                            .flex_grow(1.0)
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::Center)
-                            .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
-                        panel_scope.container(center_style, |center_scope| {
-                            build_no_renderable_geometry(
-                                center_scope,
-                                params.panel_rect.width,
-                                params.entity,
-                                actions,
-                            );
-                        });
-                    }
-                }
-            }
-        });
+fn render_material_viewport(scope: &mut UiScope<'_>, f: impl FnOnce(&mut UiScope<'_>)) {
+    scope.scroll_area(
+        "MaterialViewport",
+        MATERIAL_TAG_VIEWPORT,
+        Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
+        f,
+    );
 }

@@ -6,10 +6,20 @@
 //! Declarative inspector for active 3D model geometry, submesh slot alpha blending,
 //! material parameters, and texture slot bindings using [`UiScope`].
 
-use super::types::{make_submesh_alpha_tag, make_submesh_texture_tag};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_WORLD};
-use ae_renderer::render::types::SubmeshAlphaMode;
+use crate::ui::types::EngineUiAction;
+use ae_renderer::asset::{AssetHandle, AssetStorage};
+use ae_renderer::render::types::{ModelSubmesh, SubmeshAlphaMode};
+use ae_renderer::render::{ModelAsset, TextureAsset};
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
+use std::fmt::Write;
+
+const ALPHA_MODES: [(SubmeshAlphaMode, &str); 3] = [
+    (SubmeshAlphaMode::Opaque, "🟫 Opaque"),
+    (SubmeshAlphaMode::Mask, "✂️ Cutout"),
+    (SubmeshAlphaMode::Blend, "💧 Blend"),
+];
 
 /// Parameters for rendering the 3D Submesh material inspector view.
 pub struct SubmeshViewParams<'a> {
@@ -23,152 +33,190 @@ pub struct SubmeshViewParams<'a> {
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
 }
 
+#[inline]
+fn asset_filename(source_path: &str) -> &str {
+    std::path::Path::new(source_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(source_path)
+}
+
+#[inline]
+fn submesh_texture_name<'a>(
+    model: &'a ae_renderer::render::ModelAsset,
+    textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    texture_index: Option<usize>,
+) -> &'a str {
+    texture_index
+        .and_then(|t_idx| model.embedded_textures.get(t_idx))
+        .and_then(|&t_h| textures.get(t_h))
+        .map_or("Default Embedded Texture", |t| {
+            asset_filename(&t.source_path)
+        })
+}
+
+struct SubmeshSlotContext<'a> {
+    model_handle: AssetHandle,
+    model: &'a ModelAsset,
+    textures: &'a AssetStorage<TextureAsset>,
+    idx: usize,
+    submesh: &'a ModelSubmesh,
+}
+
 /// Builds the 3D Model overview card and submesh material slot cards directly on [`UiScope`].
 pub fn build_submesh_view(
     scope: &mut UiScope<'_>,
     params: &SubmeshViewParams<'_>,
-    actions: &mut Vec<super::types::MaterialAction>,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    let model_handle = match params.world.get::<&ae_core::ecs::ModelId>(params.entity) {
-        Ok(m) => m.0,
-        Err(_) => return,
-    };
+    scope.when_some(
+        params
+            .world
+            .get::<&ae_core::ecs::ModelId>(params.entity)
+            .ok()
+            .and_then(|m| params.models.get(m.0).map(|model| (m.0, model))),
+        |view, (model_handle, model)| {
+            render_model_overview(view, model);
 
-    let model = match params.models.get(model_handle) {
-        Some(m) => m,
-        None => return,
-    };
-
-    let file_name = std::path::Path::new(&model.source_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| model.source_path.clone());
-
-    let tri_count = model.num_indices / 3;
-    let stats_text = format!(
-        "{} Submesh Slots • {} Vertices • {} Tris",
-        model.submeshes.len(),
-        model.gpu_vertices.len(),
-        tri_count
-    );
-
-    // ── 1. Model Overview Card ────────────────────────────────────────────────
-    scope.card_custom(
-        |header| {
-            header.row(|row| {
-                row.icon(ICON_CUBE, Color::rgba(0.0, 0.85, 1.0, 0.95), 14.0);
-                row.colored_label(
-                    Color::rgba(0.88, 0.90, 0.94, 1.0),
-                    format!("3D Model: {}", file_name),
+            for (idx, submesh) in model.submeshes.iter().enumerate() {
+                render_submesh_slot(
+                    view,
+                    &SubmeshSlotContext {
+                        model_handle,
+                        model,
+                        textures: params.textures,
+                        idx,
+                        submesh,
+                    },
+                    action_bus,
                 );
-            });
-        },
-        |card| {
-            card.divider(Color::rgba(0.16, 0.17, 0.20, 0.85));
-            card.colored_label(Color::rgba(0.35, 0.82, 0.50, 1.0), stats_text);
-            card.colored_label(
-                Color::rgba(0.55, 0.58, 0.64, 1.0),
-                "Configure alpha blending and textures per submesh slot below:",
-            );
+            }
         },
     );
+}
 
-    // ── 2. Submesh Slots List ─────────────────────────────────────────────────
-    let alpha_modes = [
-        (SubmeshAlphaMode::Opaque, "🟫 Opaque"),
-        (SubmeshAlphaMode::Mask, "✂️ Cutout"),
-        (SubmeshAlphaMode::Blend, "💧 Blend"),
-    ];
+fn render_model_overview(scope: &mut UiScope<'_>, model: &ModelAsset) {
+    scope.card_custom(
+        |header| render_model_overview_header(header, model),
+        |card| render_model_overview_body(card, model),
+    );
+}
 
-    for (idx, submesh) in model.submeshes.iter().enumerate() {
-        let card_title = format!("Submesh #{} ({} tris)", idx, submesh.index_count / 3);
-        let current_tex_name = submesh
-            .texture_index
-            .and_then(|t_idx| model.embedded_textures.get(t_idx))
-            .and_then(|&t_h| params.textures.get(t_h))
-            .map(|t| {
-                std::path::Path::new(&t.source_path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| t.source_path.clone())
-            })
-            .unwrap_or_else(|| "Default Embedded Texture".to_string());
+fn render_model_overview_header(header: &mut UiScope<'_>, model: &ModelAsset) {
+    header.row(|row| {
+        row.icon(ICON_CUBE, Color::rgba(0.0, 0.85, 1.0, 0.95), 14.0);
+        row.text_colored_fmt::<128, _>(Color::rgba(0.88, 0.90, 0.94, 1.0), |buf| {
+            _ = write!(buf, "3D Model: {}", asset_filename(&model.source_path));
+        });
+    });
+}
 
-        let swatch_color = Color::rgba(
-            submesh.base_color[0],
-            submesh.base_color[1],
-            submesh.base_color[2],
-            submesh.base_color[3],
+fn render_model_overview_body(card: &mut UiScope<'_>, model: &ModelAsset) {
+    card.divider(Color::rgba(0.16, 0.17, 0.20, 0.85));
+    card.text_colored_fmt::<96, _>(Color::rgba(0.35, 0.82, 0.50, 1.0), |buf| {
+        _ = write!(
+            buf,
+            "{} Submesh Slots • {} Vertices • {} Tris",
+            model.submeshes.len(),
+            model.gpu_vertices.len(),
+            model.num_indices / 3
         );
+    });
+    card.colored_label(
+        Color::rgba(0.55, 0.58, 0.64, 1.0),
+        "Configure alpha blending and textures per submesh slot below:",
+    );
+}
 
-        scope.card_custom(
-            |header| {
-                header.colored_label(Color::rgba(0.95, 0.82, 0.35, 1.0), card_title);
-                header.color_swatch(swatch_color, 20.0, 16.0);
-            },
-            |card| {
-                // Alpha Mode: Dedicated label and responsive flex-grow pills dividing width equally
-                card.label("Alpha Mode:");
-                card.row(|row| {
-                    for (mode, label) in &alpha_modes {
-                        if row
-                            .add(
-                                Button::new(*label)
-                                    .small()
-                                    .active(submesh.alpha_mode == *mode)
-                                    .flex(true)
-                                    .tag(make_submesh_alpha_tag(idx, *mode)),
-                            )
-                            .clicked()
-                        {
-                            actions.push(super::types::MaterialAction::SetModelSubmeshAlphaMode(
-                                model_handle,
-                                idx,
-                                *mode,
-                            ));
-                        }
-                    }
-                });
-
-                // Texture Assignment: Label, flex-expanding name badge, and content-sized button
-                card.row(|row| {
-                    row.label("Texture:");
-
-                    let badge_style = Style::new()
-                        .flex_row()
-                        .flex_grow(1.0)
-                        .clip_children(true)
-                        .align_items(AlignItems::Center)
-                        .gap(5.0)
-                        .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-                        .background(Color::rgba(0.12, 0.13, 0.16, 0.95))
-                        .border(1.0, Color::rgba(0.20, 0.22, 0.27, 0.85))
-                        .border_radius(3.0)
-                        .height(24.0);
-
-                    row.container(badge_style, |badge| {
-                        badge.icon(ICON_WORLD, Color::rgba(0.0, 0.85, 1.0, 0.85), 12.0);
-                        badge.colored_label(Color::rgba(0.35, 0.75, 0.98, 1.0), &current_tex_name);
-                    });
-
-                    let chg_tag = make_submesh_texture_tag(idx);
-                    if row
-                        .button_with_icon_styled_tagged(
-                            ICON_FOLDER,
-                            Color::rgba(0.95, 0.80, 0.25, 0.95),
-                            "Change",
-                            None,
-                            chg_tag,
-                        )
-                        .clicked()
-                    {
-                        actions.push(super::types::MaterialAction::PickAndSetSubmeshTexture(
-                            model_handle,
-                            idx,
-                        ));
-                    }
-                });
-            },
+fn render_submesh_slot(
+    scope: &mut UiScope<'_>,
+    ctx: &SubmeshSlotContext<'_>,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) {
+    scope.with_id(ctx.idx, |sub_scope| {
+        sub_scope.card_custom(
+            |header| render_submesh_header(header, ctx),
+            |card| render_submesh_body(card, ctx, action_bus),
         );
+    });
+}
+
+fn render_submesh_header(header: &mut UiScope<'_>, ctx: &SubmeshSlotContext<'_>) {
+    header.text_colored_fmt::<64, _>(Color::rgba(0.95, 0.82, 0.35, 1.0), |buf| {
+        _ = write!(
+            buf,
+            "Submesh #{} ({} tris)",
+            ctx.idx,
+            ctx.submesh.index_count / 3
+        );
+    });
+    header.color_swatch(
+        Color::rgba(
+            ctx.submesh.base_color[0],
+            ctx.submesh.base_color[1],
+            ctx.submesh.base_color[2],
+            ctx.submesh.base_color[3],
+        ),
+        20.0,
+        16.0,
+    );
+}
+
+fn render_submesh_body(
+    card: &mut UiScope<'_>,
+    ctx: &SubmeshSlotContext<'_>,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) {
+    card.label("Alpha Mode:");
+    card.row(|row| render_alpha_mode_buttons(row, ctx, action_bus));
+    card.row(|row| render_submesh_texture_row(row, ctx, action_bus));
+}
+
+fn render_alpha_mode_buttons(
+    row: &mut UiScope<'_>,
+    ctx: &SubmeshSlotContext<'_>,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) {
+    for (mode, label) in &ALPHA_MODES {
+        row.add(
+            Button::new(*label)
+                .small()
+                .active(ctx.submesh.alpha_mode == *mode)
+                .flex(true),
+        )
+        .on_click(|| {
+            action_bus.emit(EngineUiAction::SetModelSubmeshAlphaMode(
+                ctx.model_handle,
+                ctx.idx,
+                *mode,
+            ));
+        });
     }
+}
+
+fn render_submesh_texture_row(
+    row: &mut UiScope<'_>,
+    ctx: &SubmeshSlotContext<'_>,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) {
+    row.label("Texture:");
+    row.icon_label_badge(
+        ICON_WORLD,
+        Color::rgba(0.0, 0.85, 1.0, 0.85),
+        submesh_texture_name(ctx.model, ctx.textures, ctx.submesh.texture_index),
+        Color::rgba(0.35, 0.75, 0.98, 1.0),
+    );
+    row.button_with_icon_styled_tagged(
+        ICON_FOLDER,
+        Color::rgba(0.95, 0.80, 0.25, 0.95),
+        "Change",
+        None,
+        row.tag_for("Change"),
+    )
+    .on_click(|| {
+        action_bus.emit(EngineUiAction::PickAndSetSubmeshTexture(
+            ctx.model_handle,
+            ctx.idx,
+        ));
+    });
 }

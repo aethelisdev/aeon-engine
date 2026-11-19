@@ -4,20 +4,22 @@
 //! # Material & Surface Studio Panel Autonomous Builder
 //!
 //! Autonomous builder coordinating material property inspection, texture maps,
-//! shader parameter cards, and scroll offsets.
+//! shader parameter cards, and scroll offsets via [`irisui::workbench::ActionBus`].
 
 use super::panel::build_material_panel;
-use super::types::{MaterialPanelParams, MaterialPanelState};
+use super::types::{MATERIAL_TAG_VIEWPORT, MaterialPanelParams, MaterialPanelState};
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
 impl MaterialPanelState {
-    /// Builds the Material & Surface Studio panel directly using typed material state and `UiScope`.
+    /// Builds the Material & Surface Studio panel directly using typed material state and [`UiScope`].
     pub(crate) fn build_view(
         &mut self,
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
-        cursor_pos: Point,
+        action_bus: &mut ActionBus<EngineUiAction>,
     ) {
         if scope.is_collapsed() {
             self.active_model = None;
@@ -26,21 +28,18 @@ impl MaterialPanelState {
 
         if self.selected_entity != params.scene.selected_entity {
             self.selected_entity = params.scene.selected_entity;
-            scope.set_scroll_offset(super::types::MATERIAL_TAG_VIEWPORT, 0.0);
+            scope.set_scroll_offset(MATERIAL_TAG_VIEWPORT, 0.0);
         }
 
         build_material_panel(
             scope,
             &MaterialPanelParams {
-                panel_rect: scope.parent_rect(),
                 entity: params.scene.selected_entity,
                 world: params.scene.world,
                 textures: params.panel_data.textures,
                 models: params.panel_data.models,
-                cursor_pos,
-                events: &std::mem::take(&mut self.pending_interaction_events),
             },
-            &mut self.actions,
+            action_bus,
         );
         self.active_model = params
             .scene

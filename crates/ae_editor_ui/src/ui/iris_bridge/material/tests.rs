@@ -4,8 +4,10 @@
 //! Material and Surface Studio unit tests.
 
 use super::*;
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
-use irisui::widgets::panel::PanelBuilder;
+use irisui::widgets::declarative::{combine_seeds, hash_label, hash_label_with_seed};
+use irisui::workbench::ActionBus;
 
 fn find_tag_recursive(tree: &UiTree, node_id: WidgetId, target_tag: u64) -> bool {
     find_node_by_tag(tree, node_id, target_tag).is_some()
@@ -25,37 +27,69 @@ fn find_node_by_tag(tree: &UiTree, node_id: WidgetId, target_tag: u64) -> Option
     None
 }
 
+#[inline]
+fn material_root_tag(label: &str) -> u64 {
+    hash_label_with_seed(combine_seeds(0, hash_label("MaterialPanelRoot")), label)
+}
+
+fn render_material_host(
+    tree: &mut UiTree,
+    panel_rect: Rect,
+    params: &MaterialPanelParams<'_>,
+    bus: &mut ActionBus<EngineUiAction>,
+    events: &[(u64, InteractionEvent)],
+) -> WidgetId {
+    let root = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .expect("root");
+    let mut scope = UiScope::with_tagged_interactions(tree, root, events, None);
+    scope.container(
+        Style::new()
+            .position_absolute()
+            .left(panel_rect.x)
+            .top(panel_rect.y)
+            .width(panel_rect.width)
+            .height(panel_rect.height)
+            .flex_col(),
+        |s| build_material_panel(s, params, bus),
+    );
+    scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+    root
+}
+
 #[test]
 fn test_material_panel_build_empty_state() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
+    let root = tree.create_root().unwrap();
     let world = hecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(100.0, 100.0, 300.0, 400.0);
 
     let params = MaterialPanelParams {
-        panel_rect,
         entity: None,
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
 
-    let mut actions = Vec::new();
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
-    let max_scroll = tree.max_scroll(MATERIAL_TAG_VIEWPORT);
+    let mut bus = ActionBus::new();
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .panel("MaterialHost")
+            .bounds(panel_rect)
+            .show(|s| build_material_panel(s, &params, &mut bus));
+    }
 
-    assert_eq!(params.panel_rect, panel_rect);
-    assert!(max_scroll >= 0.0);
+    assert!(tree.find_node_by_name("MaterialPanelRoot").is_some());
+    assert_eq!(tree.max_scroll(MATERIAL_TAG_VIEWPORT), 0.0);
 }
 
 #[test]
 fn test_material_panel_build_no_geometry() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
     let mut world = hecs::World::new();
     let ent = world.spawn(("TestEntity",));
     let textures = ae_renderer::asset::AssetStorage::new();
@@ -63,25 +97,25 @@ fn test_material_panel_build_no_geometry() {
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 400.0);
 
     let params = MaterialPanelParams {
-        panel_rect,
         entity: Some(ent),
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
 
-    let mut actions = Vec::new();
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut bus = ActionBus::new();
+    let root = render_material_host(&mut tree, panel_rect, &params, &mut bus, &[]);
 
-    assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_ADD_TEXTURE));
+    assert!(find_tag_recursive(
+        &tree,
+        root,
+        material_root_tag("Add Texture / Sprite")
+    ));
 }
 
 #[test]
 fn test_material_panel_build_sprite_view() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
     let mut world = hecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
@@ -93,20 +127,25 @@ fn test_material_panel_build_sprite_view() {
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 450.0);
 
     let params = MaterialPanelParams {
-        panel_rect,
         entity: Some(ent),
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
 
-    let mut actions = Vec::new();
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut bus = ActionBus::new();
+    let root = render_material_host(&mut tree, panel_rect, &params, &mut bus, &[]);
 
-    assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_CHANGE));
-    assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_REMOVE));
+    assert!(find_tag_recursive(
+        &tree,
+        root,
+        material_root_tag("Change Texture")
+    ));
+    assert!(find_tag_recursive(
+        &tree,
+        root,
+        material_root_tag("🗑 Remove")
+    ));
 }
 
 #[test]
@@ -133,25 +172,15 @@ fn test_material_panel_does_not_mutate_parent_rect() {
     let world = hecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let panel_rect = Rect::new(
-        1400.0,
-        crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
-        520.0,
-        600.0,
-    );
-
     let params = MaterialPanelParams {
-        panel_rect,
         entity: None,
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
 
-    let mut actions = Vec::new();
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let mut bus = ActionBus::new();
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut bus);
 
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
@@ -170,7 +199,6 @@ fn test_material_panel_does_not_mutate_parent_rect() {
 #[test]
 fn test_material_panel_scroll_offset_and_empty_centering() {
     let mut tree = UiTree::new();
-    let root = tree.create_root().unwrap();
     let mut world = hecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
@@ -180,79 +208,54 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(100.0, 50.0, 300.0, 600.0);
+    let change_tag = material_root_tag("Change Texture");
 
-    // 1. Build with scroll_y = 0.0
     let params_0 = MaterialPanelParams {
-        panel_rect,
         entity: Some(ent),
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
-    let mut actions_0 = Vec::new();
-    build_material_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params_0,
-        &mut actions_0,
-    );
+    let mut bus_0 = ActionBus::new();
+    let root = render_material_host(&mut tree, panel_rect, &params_0, &mut bus_0, &[]);
 
-    // Find the sprite change button's Y position at scroll 0
-    let change_btn_0 =
-        find_node_by_tag(&tree, root, MATERIAL_TAG_SPRITE_CHANGE).expect("Button must exist");
+    let change_btn_0 = find_node_by_tag(&tree, root, change_tag).expect("Button must exist");
     let y_0 = change_btn_0.y;
 
-    // 2. Build with tree scroll offset = 50.0
     let mut tree_scroll = UiTree::new();
-    let root_scroll = tree_scroll.create_root().unwrap();
     tree_scroll.set_scroll_offset(MATERIAL_TAG_VIEWPORT, 50.0);
-    let params_50 = MaterialPanelParams {
-        panel_rect,
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
-    };
-    let mut actions_50 = Vec::new();
-    build_material_panel(
-        &mut UiScope::new(&mut tree_scroll, root_scroll),
-        &params_50,
-        &mut actions_50,
-    );
+    let mut bus_50 = ActionBus::new();
+    let root_scroll =
+        render_material_host(&mut tree_scroll, panel_rect, &params_0, &mut bus_50, &[]);
 
-    let change_btn_50 = find_node_by_tag(&tree_scroll, root_scroll, MATERIAL_TAG_SPRITE_CHANGE)
-        .expect("Button must exist");
+    let change_btn_50 =
+        find_node_by_tag(&tree_scroll, root_scroll, change_tag).expect("Button must exist");
     let y_50 = change_btn_50.y;
-
-    // The button must have moved up by exactly 50.0 pixels!
     assert_eq!(y_0 - y_50, 50.0);
 
-    // 3. Verify empty state vertical centering (must not be at top 36px)
     let mut tree_empty = UiTree::new();
-    let root_empty = tree_empty.create_root().unwrap();
     let empty_ent = world.spawn(("EmptyEntity",));
     let params_empty = MaterialPanelParams {
-        panel_rect,
         entity: Some(empty_ent),
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &[],
     };
-    let mut actions_empty = Vec::new();
-    build_material_panel(
-        &mut UiScope::new(&mut tree_empty, root_empty),
+    let mut bus_empty = ActionBus::new();
+    let root_empty = render_material_host(
+        &mut tree_empty,
+        panel_rect,
         &params_empty,
-        &mut actions_empty,
+        &mut bus_empty,
+        &[],
     );
 
-    let add_btn = find_node_by_tag(&tree_empty, root_empty, MATERIAL_TAG_ADD_TEXTURE)
-        .expect("Add texture button must exist in empty state");
-    // Button must be vertically centered in the 600px panel, well past y = 150.0
+    let add_btn = find_node_by_tag(
+        &tree_empty,
+        root_empty,
+        material_root_tag("Add Texture / Sprite"),
+    )
+    .expect("Add texture button must exist in empty state");
     assert!(
         add_btn.y > panel_rect.y + 150.0,
         "Empty state button must be centered in panel body, got y={}",
@@ -263,7 +266,6 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
 #[test]
 fn test_material_panel_declarative_actions_dispatch() {
     let mut tree = UiTree::new();
-    let root = tree.create_root().unwrap();
     let mut world = hecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
@@ -274,54 +276,85 @@ fn test_material_panel_declarative_actions_dispatch() {
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 450.0);
 
-    // 1. Click Change Texture on sprite
     let events = [(
-        MATERIAL_TAG_SPRITE_CHANGE,
+        material_root_tag("Change Texture"),
         InteractionEvent::Click {
             button: MouseButton::Left,
         },
     )];
     let params = MaterialPanelParams {
-        panel_rect,
         entity: Some(ent),
         world: &world,
         textures: &textures,
         models: &models,
-        cursor_pos: Point::new(0.0, 0.0),
-        events: &events,
     };
 
-    let mut actions = Vec::new();
-    build_material_panel(
-        &mut UiScope::with_tagged_interactions(&mut tree, root, &events, None),
-        &params,
-        &mut actions,
-    );
+    let mut bus = ActionBus::new();
+    render_material_host(&mut tree, panel_rect, &params, &mut bus, &events);
 
     assert!(
-        actions
-            .iter()
-            .any(|a| matches!(a, MaterialAction::PickAndAssignEntityTexture(e) if *e == ent)),
-        "Clicking Change Texture button must dispatch MaterialAction::PickAndAssignEntityTexture"
+        bus.drain()
+            .any(|a| matches!(a, EngineUiAction::PickAndAssignEntityTexture(e) if e == ent)),
+        "Clicking Change Texture button must emit EngineUiAction::PickAndAssignEntityTexture"
     );
 
-    // 2. Click Remove Texture on sprite
     let events_remove = [(
-        MATERIAL_TAG_SPRITE_REMOVE,
+        material_root_tag("🗑 Remove"),
         InteractionEvent::Click {
             button: MouseButton::Left,
         },
     )];
-    let mut actions_remove = Vec::new();
-    build_material_panel(
-        &mut UiScope::with_tagged_interactions(&mut UiTree::new(), root, &events_remove, None),
+    let mut bus_remove = ActionBus::new();
+    render_material_host(
+        &mut UiTree::new(),
+        panel_rect,
         &params,
-        &mut actions_remove,
+        &mut bus_remove,
+        &events_remove,
     );
     assert!(
-        actions_remove
-            .iter()
-            .any(|a| matches!(a, MaterialAction::RemoveTextureFromEntity(e) if *e == ent)),
-        "Clicking Remove button must dispatch MaterialAction::RemoveTextureFromEntity"
+        bus_remove
+            .drain()
+            .any(|a| matches!(a, EngineUiAction::RemoveTextureFromEntity(e) if e == ent)),
+        "Clicking Remove button must emit EngineUiAction::RemoveTextureFromEntity"
     );
+}
+
+#[test]
+fn test_material_add_color_tint_and_scope_seed_isolation() {
+    let mut tree = UiTree::new();
+    let mut world = hecs::World::new();
+    let sprite_h = ae_renderer::asset::AssetHandle::default();
+    let ent = world.spawn((ae_core::ecs::SpriteId(sprite_h),));
+    let textures = ae_renderer::asset::AssetStorage::new();
+    let models = ae_renderer::asset::AssetStorage::new();
+
+    let events = [(
+        material_root_tag("Add Color Tint"),
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params = MaterialPanelParams {
+        entity: Some(ent),
+        world: &world,
+        textures: &textures,
+        models: &models,
+    };
+    let mut bus = ActionBus::new();
+    render_material_host(
+        &mut tree,
+        Rect::new(0.0, 0.0, 320.0, 450.0),
+        &params,
+        &mut bus,
+        &events,
+    );
+    assert!(
+        bus.drain()
+            .any(|a| matches!(a, EngineUiAction::AddComponent(e, "Color") if e == ent))
+    );
+
+    let slot0_tag = hash_label_with_seed(combine_seeds(0, 0usize.into_seed()), "💧 Blend");
+    let slot1_tag = hash_label_with_seed(combine_seeds(0, 1usize.into_seed()), "💧 Blend");
+    assert_ne!(slot0_tag, slot1_tag);
 }
