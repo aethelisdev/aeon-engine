@@ -25,6 +25,6 @@ pub use types::{
     CONSOLE_TAG_SCRATCHPAD_EDITOR, CONSOLE_TAG_SCRATCHPAD_RESET, CONSOLE_TAG_SCROLLBAR_THUMB,
     CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
     CONSOLE_TAG_TAB_LOGS, CONSOLE_TAG_TAB_SCRATCHPAD, CONSOLE_TAG_TOOLBAR, CONSOLE_TAG_VIEWPORT,
-    ConsoleAction, ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsolePanelParams,
-    ConsolePanelState, ConsoleState, ConsoleTab, DEFAULT_SCRATCHPAD_TEXT,
+    ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsolePanelState, ConsoleState,
+    ConsoleTab, DEFAULT_SCRATCHPAD_TEXT, contains_ignore_case,
 };

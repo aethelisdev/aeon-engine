@@ -3,8 +3,8 @@
 
 //! # Developer Console Main Panel Builder
 //!
-//! Orchestrates the top toolbar and virtualized scrollable log entries viewport
-//! exclusively through declarative [`UiScope`] sub-methods.
+//! Orchestrates the wrapping toolbar, severity filter pills, zero-heap telemetry labels,
+//! virtualized log feed, and multi-line scratchpad purely through zero-`let` [`UiScope`] calls.
 
 use super::rows::build_console_rows;
 use super::types::{
@@ -12,269 +12,242 @@ use super::types::{
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
     CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SCRATCHPAD_CLEAR, CONSOLE_TAG_SCRATCHPAD_EDITOR,
     CONSOLE_TAG_SCRATCHPAD_RESET, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
-    CONSOLE_TAG_TAB_LOGS, CONSOLE_TAG_TAB_SCRATCHPAD, CONSOLE_TAG_TOOLBAR, ConsoleAction,
-    ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams, ConsoleTab,
+    CONSOLE_TAG_TAB_LOGS, CONSOLE_TAG_TAB_SCRATCHPAD, CONSOLE_TAG_TOOLBAR, ConsoleEntry,
+    ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelState, ConsoleTab,
 };
 use irisui::prelude::*;
 use irisui::widgets::declarative::InputBoxProps;
+use std::fmt::Write;
 
 /// Height of the console header toolbar in physical pixels.
 pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;
 
-/// Constructs the complete Developer Console panel widget hierarchy into the Iris `UiTree`.
-///
-/// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`, `multiline_editor`).
+const CONSOLE_FILTER_SPECS: &[(ConsoleFilterLevel, f32, Color, u64)] = &[
+    (
+        ConsoleFilterLevel::All,
+        58.0,
+        Color::rgba(0.0, 0.85, 1.0, 0.95),
+        CONSOLE_TAG_FILTER_ALL,
+    ),
+    (
+        ConsoleFilterLevel::Error,
+        76.0,
+        Color::rgba(0.95, 0.30, 0.30, 0.95),
+        CONSOLE_TAG_FILTER_ERROR,
+    ),
+    (
+        ConsoleFilterLevel::Warn,
+        88.0,
+        Color::rgba(0.95, 0.70, 0.15, 0.95),
+        CONSOLE_TAG_FILTER_WARN,
+    ),
+    (
+        ConsoleFilterLevel::Info,
+        68.0,
+        Color::rgba(0.20, 0.70, 0.95, 0.95),
+        CONSOLE_TAG_FILTER_INFO,
+    ),
+    (
+        ConsoleFilterLevel::Debug,
+        76.0,
+        Color::rgba(0.65, 0.50, 0.95, 0.95),
+        CONSOLE_TAG_FILTER_DEBUG,
+    ),
+];
+
+/// Builds the complete Developer Console panel tree purely using [`UiScope`].
 pub fn build_console_panel(
     scope: &mut UiScope<'_>,
-    params: &mut ConsolePanelParams<'_>,
-    scratchpad: &mut MultilineTextState,
-    actions: &mut Vec<ConsoleAction>,
+    state: &mut ConsolePanelState,
+    entries: &[ConsoleEntry],
+    blink_caret: bool,
 ) {
-    // 1. Count metrics for toolbar badges
-    let mut count_err = 0;
-    let mut count_warn = 0;
-    let mut count_info = 0;
-    let mut count_debug = 0;
-    for entry in params.entries {
-        match entry.level {
-            log::Level::Error => count_err += 1,
-            log::Level::Warn => count_warn += 1,
-            log::Level::Info => count_info += 1,
-            log::Level::Debug | log::Level::Trace => count_debug += 1,
-        }
-    }
-    let counts = ConsoleLogCounts::new(
-        params.entries.len(),
-        count_err,
-        count_warn,
-        count_info,
-        count_debug,
-    );
-
-    // 2. Panel Base Container via declarative UiScope
     scope
         .panel("ConsolePanelRoot")
         .tagged(CONSOLE_TAG_PANEL_ROOT)
-        .bounds(params.panel_rect)
         .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
         .show(|panel_scope| {
-            // 3. Declarative Toolbar Header Bar
             Toolbar::new("ConsoleToolbar")
-                .width(params.panel_rect.width)
                 .height(CONSOLE_TOOLBAR_HEIGHT)
                 .gap(6.0)
                 .wrap()
                 .tag(CONSOLE_TAG_TOOLBAR)
                 .background(Color::rgba(0.02, 0.02, 0.03, 0.98))
                 .show(panel_scope, |tb| {
-                    let is_logs = params.active_tab == ConsoleTab::Logs;
-                    let is_scratchpad = params.active_tab == ConsoleTab::Scratchpad;
+                    tb.filter_pill_tagged(
+                        "📋 Logs",
+                        state.active_tab == ConsoleTab::Logs,
+                        Color::rgba(0.0, 0.85, 1.0, 0.95),
+                        78.0,
+                        CONSOLE_TAG_TAB_LOGS,
+                    )
+                    .on_click(|| state.select_tab(ConsoleTab::Logs));
 
-                    if tb
-                        .filter_pill_tagged(
-                            "📋 Logs",
-                            is_logs,
-                            Color::rgba(0.0, 0.85, 1.0, 0.95),
-                            78.0,
-                            CONSOLE_TAG_TAB_LOGS,
-                        )
-                        .clicked()
-                    {
-                        actions.push(ConsoleAction::SelectTab(ConsoleTab::Logs));
-                    }
-
-                    if tb
-                        .filter_pill_tagged(
-                            "📝 Scratchpad",
-                            is_scratchpad,
-                            Color::rgba(0.95, 0.70, 0.15, 0.95),
-                            116.0,
-                            CONSOLE_TAG_TAB_SCRATCHPAD,
-                        )
-                        .clicked()
-                    {
-                        actions.push(ConsoleAction::SelectTab(ConsoleTab::Scratchpad));
-                    }
+                    tb.filter_pill_tagged(
+                        "📝 Scratchpad",
+                        state.active_tab == ConsoleTab::Scratchpad,
+                        Color::rgba(0.95, 0.70, 0.15, 0.95),
+                        116.0,
+                        CONSOLE_TAG_TAB_SCRATCHPAD,
+                    )
+                    .on_click(|| state.select_tab(ConsoleTab::Scratchpad));
 
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
-                    if is_logs {
-                        if tb
-                            .add(
-                                ToolbarButton::new("🧹 Clear")
-                                    .width(76.0)
-                                    .tag(CONSOLE_TAG_CLEAR),
-                            )
-                            .clicked()
-                        {
-                            actions.push(ConsoleAction::ClearLogs);
-                        }
-                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-
-                        _ = tb.input_box_tagged(
-                            &InputBoxProps::new(
-                                params.search_query,
-                                "Search logs...",
-                                190.0,
-                                false,
-                                params.blink_caret,
-                            )
-                            .with_icon("🔍")
-                            .with_cursor_byte_idx(params.cursor_byte_idx)
-                            .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR),
-                            CONSOLE_TAG_SEARCH_INPUT,
+                    if state.active_tab == ConsoleTab::Logs {
+                        build_logs_toolbar(
+                            tb,
+                            state,
+                            ConsoleLogCounts::from_entries(entries),
+                            blink_caret,
                         );
-                        if tb.is_tag_clicked(CONSOLE_TAG_SEARCH_CLEAR) {
-                            actions.push(ConsoleAction::ClearSearch);
-                        }
-
-                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-
-                        let filters = [
-                            (
-                                ConsoleFilterLevel::All,
-                                format!("All ({})", counts.all),
-                                58.0_f32,
-                                Color::rgba(0.0, 0.85, 1.0, 0.95),
-                                CONSOLE_TAG_FILTER_ALL,
-                            ),
-                            (
-                                ConsoleFilterLevel::Error,
-                                format!("Errors ({})", counts.error),
-                                76.0_f32,
-                                Color::rgba(0.95, 0.30, 0.30, 0.95),
-                                CONSOLE_TAG_FILTER_ERROR,
-                            ),
-                            (
-                                ConsoleFilterLevel::Warn,
-                                format!("Warnings ({})", counts.warn),
-                                88.0_f32,
-                                Color::rgba(0.95, 0.70, 0.15, 0.95),
-                                CONSOLE_TAG_FILTER_WARN,
-                            ),
-                            (
-                                ConsoleFilterLevel::Info,
-                                format!("Info ({})", counts.info),
-                                68.0_f32,
-                                Color::rgba(0.20, 0.70, 0.95, 0.95),
-                                CONSOLE_TAG_FILTER_INFO,
-                            ),
-                            (
-                                ConsoleFilterLevel::Debug,
-                                format!("Debug ({})", counts.debug),
-                                76.0_f32,
-                                Color::rgba(0.65, 0.50, 0.95, 0.95),
-                                CONSOLE_TAG_FILTER_DEBUG,
-                            ),
-                        ];
-                        for (filter_lvl, label, width, color, tag) in &filters {
-                            let is_active = params.filter == *filter_lvl;
-                            if tb
-                                .filter_pill_tagged(label, is_active, *color, *width, *tag)
-                                .clicked()
-                            {
-                                actions.push(ConsoleAction::SetFilter(*filter_lvl));
-                            }
-                        }
-
-                        tb.spacer();
-
-                        tb.label_with_width(
-                            format!("{} logs", counts.all),
-                            64.0,
-                            10.5,
-                            Color::rgba(0.45, 0.49, 0.58, 1.0),
-                            TextAlign::Right,
-                        );
-
-                        if tb
-                            .add(
-                                Button::new(if *params.auto_scroll {
-                                    "✓ Auto-Scroll"
-                                } else {
-                                    "⏸ Auto-Scroll"
-                                })
-                                .small()
-                                .active(*params.auto_scroll)
-                                .tag(CONSOLE_TAG_AUTOSCROLL),
-                            )
-                            .clicked()
-                        {
-                            actions.push(ConsoleAction::ToggleAutoScroll);
-                        }
                     } else {
-                        if tb
-                            .add(
-                                ToolbarButton::new("🧹 Clear")
-                                    .width(76.0)
-                                    .tag(CONSOLE_TAG_SCRATCHPAD_CLEAR),
-                            )
-                            .clicked()
-                        {
-                            actions.push(ConsoleAction::ClearScratchpad);
-                        }
-
-                        if tb
-                            .add(
-                                ToolbarButton::new("↺ Reset Sample")
-                                    .width(112.0)
-                                    .tag(CONSOLE_TAG_SCRATCHPAD_RESET),
-                            )
-                            .clicked()
-                        {
-                            actions.push(ConsoleAction::ResetScratchpad);
-                        }
-
-                        tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-
-                        let line_info = format!(
-                            "Line {}, Col {}",
-                            scratchpad.cursor.0 + 1,
-                            scratchpad.cursor.1 + 1
-                        );
-                        tb.label_with_width(
-                            line_info,
-                            100.0,
-                            11.0,
-                            Color::rgba(0.0, 0.85, 1.0, 0.9),
-                            TextAlign::Left,
-                        );
-
-                        let total_lines = format!("{} lines", scratchpad.line_count());
-                        tb.label_with_width(
-                            total_lines,
-                            60.0,
-                            11.0,
-                            Color::rgba(0.65, 0.70, 0.80, 1.0),
-                            TextAlign::Left,
-                        );
-
-                        tb.spacer();
-
-                        tb.label_with_width(
-                            "Click to focus • Type/Arrow/Enter/Backspace",
-                            270.0,
-                            11.0,
-                            Color::rgba(0.45, 0.49, 0.58, 1.0),
-                            TextAlign::Right,
-                        );
+                        build_scratchpad_toolbar(tb, state);
                     }
                 });
 
-            // 4. Body Viewport: Logs Table or Multi-line Code/Text Editor
-            match params.active_tab {
-                ConsoleTab::Logs => {
-                    build_console_rows(panel_scope, params);
-                }
+            match state.active_tab {
+                ConsoleTab::Logs => build_console_rows(panel_scope, state, entries),
                 ConsoleTab::Scratchpad => {
-                    let available_height =
-                        (params.panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(40.0);
-                    panel_scope.multiline_editor(
+                    panel_scope.multiline_editor_remaining(
                         CONSOLE_TAG_SCRATCHPAD_EDITOR,
-                        available_height,
-                        scratchpad,
+                        CONSOLE_TOOLBAR_HEIGHT,
+                        &mut state.scratchpad_state,
                     );
                 }
             }
         });
+}
+
+fn build_logs_toolbar(
+    tb: &mut irisui::widgets::declarative::ToolbarScope<'_, '_>,
+    state: &mut ConsolePanelState,
+    counts: ConsoleLogCounts,
+    blink_caret: bool,
+) {
+    tb.add(
+        ToolbarButton::new("🧹 Clear")
+            .width(76.0)
+            .tag(CONSOLE_TAG_CLEAR),
+    )
+    .on_click(|| state.clear_logs(tb.scope_mut()));
+
+    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+    tb.input_box_tagged(
+        &InputBoxProps::new(
+            state.search_input.text(),
+            "Search logs...",
+            190.0,
+            false,
+            blink_caret,
+        )
+        .with_icon("🔍")
+        .with_cursor_byte_idx(state.search_input.cursor_byte_idx)
+        .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR),
+        CONSOLE_TAG_SEARCH_INPUT,
+    );
+    if tb.is_tag_clicked(CONSOLE_TAG_SEARCH_CLEAR) {
+        state.clear_search(tb.scope_mut());
+    }
+
+    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+    CONSOLE_FILTER_SPECS
+        .iter()
+        .for_each(|&(level, width, accent, tag)| {
+            tb.filter_pill_tagged_fmt::<24, _>(state.filter == level, accent, width, tag, |buf| {
+                buf.write_fmt(format_args!(
+                    "{} ({})",
+                    level.label(),
+                    counts.count_for(level)
+                ))
+                .ok();
+            })
+            .on_click(|| state.set_filter(level));
+        });
+
+    tb.spacer();
+
+    tb.label_fmt::<24, _>(
+        64.0,
+        10.5,
+        Color::rgba(0.45, 0.49, 0.58, 1.0),
+        TextAlign::Right,
+        |buf| {
+            buf.write_fmt(format_args!("{} logs", counts.all)).ok();
+        },
+    );
+
+    tb.add(
+        Button::new(if state.auto_scroll {
+            "✓ Auto-Scroll"
+        } else {
+            "⏸ Auto-Scroll"
+        })
+        .small()
+        .active(state.auto_scroll)
+        .tag(CONSOLE_TAG_AUTOSCROLL),
+    )
+    .on_click(|| state.toggle_auto_scroll());
+}
+
+fn build_scratchpad_toolbar(
+    tb: &mut irisui::widgets::declarative::ToolbarScope<'_, '_>,
+    state: &mut ConsolePanelState,
+) {
+    tb.add(
+        ToolbarButton::new("🧹 Clear")
+            .width(76.0)
+            .tag(CONSOLE_TAG_SCRATCHPAD_CLEAR),
+    )
+    .on_click(|| state.clear_scratchpad());
+
+    tb.add(
+        ToolbarButton::new("↺ Reset Sample")
+            .width(112.0)
+            .tag(CONSOLE_TAG_SCRATCHPAD_RESET),
+    )
+    .on_click(|| state.reset_scratchpad());
+
+    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
+    tb.label_fmt::<32, _>(
+        100.0,
+        11.0,
+        Color::rgba(0.0, 0.85, 1.0, 0.9),
+        TextAlign::Left,
+        |buf| {
+            buf.write_fmt(format_args!(
+                "Line {}, Col {}",
+                state.scratchpad_state.cursor.0 + 1,
+                state.scratchpad_state.cursor.1 + 1
+            ))
+            .ok();
+        },
+    );
+
+    tb.label_fmt::<24, _>(
+        60.0,
+        11.0,
+        Color::rgba(0.65, 0.70, 0.80, 1.0),
+        TextAlign::Left,
+        |buf| {
+            buf.write_fmt(format_args!(
+                "{} lines",
+                state.scratchpad_state.line_count()
+            ))
+            .ok();
+        },
+    );
+
+    tb.spacer();
+
+    tb.label_with_width(
+        "Click to focus • Type/Arrow/Enter/Backspace",
+        270.0,
+        11.0,
+        Color::rgba(0.45, 0.49, 0.58, 1.0),
+        TextAlign::Right,
+    );
 }

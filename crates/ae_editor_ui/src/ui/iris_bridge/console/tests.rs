@@ -7,6 +7,16 @@ use super::*;
 use crate::ui::types::ConsoleEntry;
 use irisui::prelude::*;
 
+fn build_in_host(
+    tree: &mut UiTree,
+    root: WidgetId,
+    bounds: Rect,
+    f: impl FnOnce(&mut UiScope<'_>),
+) {
+    let mut scope = UiScope::new(tree, root);
+    scope.panel("ConsoleTestHost").bounds(bounds).show(f);
+}
+
 #[test]
 fn test_console_filter_level_matching() {
     assert!(ConsoleFilterLevel::All.matches(log::Level::Error));
@@ -26,38 +36,53 @@ fn test_console_filter_level_matching() {
     assert!(!ConsoleFilterLevel::Debug.matches(log::Level::Info));
 }
 
+#[test]
+fn test_console_contains_ignore_case_and_log_counts() {
+    assert!(contains_ignore_case("RendererPipeline", ""));
+    assert!(contains_ignore_case("RendererPipeline", "pipeline"));
+    assert!(contains_ignore_case("RendererPipeline", "RENDER"));
+    assert!(!contains_ignore_case("Short", "LongerNeedle"));
+    assert!(contains_ignore_case("Ümit Güneş", "ümit"));
+
+    let entries = vec![
+        ConsoleEntry {
+            level: log::Level::Error,
+            target: "a".to_string(),
+            msg: "err".to_string(),
+            timestamp: "00:00:00".to_string(),
+        },
+        ConsoleEntry {
+            level: log::Level::Warn,
+            target: "a".to_string(),
+            msg: "wrn".to_string(),
+            timestamp: "00:00:01".to_string(),
+        },
+        ConsoleEntry {
+            level: log::Level::Trace,
+            target: "a".to_string(),
+            msg: "trc".to_string(),
+            timestamp: "00:00:02".to_string(),
+        },
+    ];
+    let counts = ConsoleLogCounts::from_entries(&entries);
+    assert_eq!(counts, ConsoleLogCounts::new(3, 1, 1, 0, 1));
+    assert_eq!(counts.count_for(ConsoleFilterLevel::Debug), 1);
+}
+
 use super::types::ConsoleFilterExt;
 
 #[test]
 fn test_console_click_target_routing() {
-    let mut tree = irisui::prelude::UiTree::new();
+    let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
-
     let entries = vec![];
-    let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &entries,
-        filter: ConsoleFilterLevel::All,
-        search_query: "test",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(15.0, 15.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
+    let mut state = ConsolePanelState::default();
+    state.search_input.set_text("test");
 
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
+        build_console_panel(s, &mut state, &entries, false);
+    });
 
-    // Verify Clear button exists in tree with correct tag
     let mut clear_node_found = false;
     tree.traverse_depth_first(root, &mut |_id, node| {
         if node.tag == CONSOLE_TAG_CLEAR {
@@ -70,7 +95,7 @@ fn test_console_click_target_routing() {
 
 #[test]
 fn test_console_virtualized_empty_and_matching() {
-    let mut tree = irisui::prelude::UiTree::new();
+    let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
 
     let entries = vec![
@@ -88,24 +113,16 @@ fn test_console_virtualized_empty_and_matching() {
         },
     ];
 
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
-        entries: &entries,
+    let mut state = ConsolePanelState {
         filter: ConsoleFilterLevel::Error,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(50.0, 50.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
+        ..Default::default()
     };
 
-    let mut scope = UiScope::new(&mut tree, root);
-    build_console_rows(&mut scope, &mut params);
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 400.0, 200.0), |s| {
+        build_console_rows(s, &mut state, &entries);
+    });
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
 
-    // Only 1 log matches Error filter
     assert_eq!(max_scroll, 0.0);
     let row_count = tree
         .iter()
@@ -116,35 +133,17 @@ fn test_console_virtualized_empty_and_matching() {
         "Exactly 1 matching error log row must be rendered in tree"
     );
 
-    // 2. When All logs match, all rows must be rendered
     let mut tree_all = UiTree::new();
     let root_all = tree_all.create_root().unwrap();
-    params.filter = ConsoleFilterLevel::All;
-    let mut scope_all = UiScope::new(&mut tree_all, root_all);
-    build_console_rows(&mut scope_all, &mut params);
-    let all_row_count = tree_all
-        .iter()
-        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
-        .count();
-    assert_eq!(
-        all_row_count, 2,
-        "All matching log rows must be rendered in tree"
+    state.filter = ConsoleFilterLevel::All;
+    build_in_host(
+        &mut tree_all,
+        root_all,
+        Rect::new(0.0, 0.0, 400.0, 200.0),
+        |s| {
+            build_console_rows(s, &mut state, &entries);
+        },
     );
-    let row_count = tree
-        .iter()
-        .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
-        .count();
-    assert_eq!(
-        row_count, 1,
-        "Exactly 1 matching error log row must be rendered in tree"
-    );
-
-    // 2. When All logs match, all rows must be rendered
-    let mut tree_all = UiTree::new();
-    let root_all = tree_all.create_root().unwrap();
-    params.filter = ConsoleFilterLevel::All;
-    let mut scope_all = UiScope::new(&mut tree_all, root_all);
-    build_console_rows(&mut scope_all, &mut params);
     let all_row_count = tree_all
         .iter()
         .filter(|(_, n)| n.tag == CONSOLE_TAG_ROW)
@@ -157,34 +156,20 @@ fn test_console_virtualized_empty_and_matching() {
 
 #[test]
 fn test_console_panel_clipping_and_clear_action() {
-    let mut tree = irisui::prelude::UiTree::new();
+    let mut tree = UiTree::new();
     let parent_id = tree.create_root().unwrap();
 
     let entries = vec![];
-    let panel_rect = Rect::new(0.0, 0.0, 500.0, 300.0);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &entries,
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(15.0, 15.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
-
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, parent_id),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
+    let mut state = ConsolePanelState::default();
+    build_in_host(
+        &mut tree,
+        parent_id,
+        Rect::new(0.0, 0.0, 500.0, 300.0),
+        |s| {
+            build_console_panel(s, &mut state, &entries, false);
+        },
     );
 
-    // Find ConsolePanelRoot and ConsoleViewport and verify clip_children is true
     let mut found_root = false;
     let mut found_vp = false;
 
@@ -204,7 +189,7 @@ fn test_console_panel_clipping_and_clear_action() {
 
 #[test]
 fn test_console_scrollbar_rendered_when_content_overflows() {
-    let mut tree = irisui::prelude::UiTree::new();
+    let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
 
     let mut entries = Vec::new();
@@ -213,31 +198,17 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
             timestamp: "00:00:00".to_string(),
             level: log::Level::Info,
             target: "test".to_string(),
-            msg: format!("Log entry {}", i),
+            msg: format!("Log entry {i}"),
         });
     }
 
-    let mut auto_scroll = false;
-    let mut params = ConsolePanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
-        entries: &entries,
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(395.0, 80.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
+    let mut state = ConsolePanelState {
+        auto_scroll: false,
+        ..Default::default()
     };
-
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 400.0, 200.0), |s| {
+        build_console_panel(s, &mut state, &entries, false);
+    });
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
     assert!(
         max_scroll > 0.0,
@@ -271,27 +242,10 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
 
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
-
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
+    let mut state = ConsolePanelState::default();
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
+        build_console_panel(s, &mut state, &[], false);
+    });
 
     let (_, clear_node) = tree
         .iter()
@@ -322,10 +276,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     );
     assert_eq!(
         search_node.style.hover_border,
-        Some(irisui::prelude::Border::uniform(
-            1.0,
-            expected_style.hover_border_color
-        )),
+        Some(Border::uniform(1.0, expected_style.hover_border_color)),
         "Search input must have declarative illuminated hover border"
     );
 }
@@ -334,29 +285,14 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
 fn test_console_search_focused_caret_positioning() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
-    let panel_rect = Rect::new(0.0, 0.0, 800.0, 300.0);
     tree.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "error_trace",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(0.0, 0.0),
-        blink_caret: true,
-        cursor_byte_idx: 5,
-        active_tab: ConsoleTab::Logs,
-    };
 
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
+    let mut state = ConsolePanelState::default();
+    state.search_input.set_text("error_trace");
+    state.search_input.cursor_byte_idx = 5;
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 800.0, 300.0), |s| {
+        build_console_panel(s, &mut state, &[], true);
+    });
 
     let (_, search_box) = tree
         .iter()
@@ -365,15 +301,14 @@ fn test_console_search_focused_caret_positioning() {
 
     assert_eq!(search_box.tag, CONSOLE_TAG_SEARCH_INPUT);
 
-    // Verify caret exists and is offset by cursor_byte_idx
     let caret_node = search_box
         .children
         .iter()
         .filter_map(|&cid| tree.get(cid))
-        .find(|n| n.role == irisui::prelude::WidgetRole::TextInputCaret)
+        .find(|n| n.role == WidgetRole::TextInputCaret)
         .expect("Caret must exist when focused and blinking");
 
-    let expected_offset = irisui::prelude::measure_text_advance("error", 11.0);
+    let expected_offset = measure_text_advance("error", 11.0);
     let text_start = search_box
         .children
         .iter()
@@ -387,57 +322,23 @@ fn test_console_search_focused_caret_positioning() {
 }
 
 #[test]
-fn test_console_declarative_action_generation() {
+fn test_console_declarative_direct_state_mutation() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
-    let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
+    let bounds = Rect::new(0.0, 0.0, 600.0, 300.0);
 
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
-    assert!(actions.is_empty());
+    let mut state = ConsolePanelState::default();
+    build_in_host(&mut tree, root, bounds, |s| {
+        build_console_panel(s, &mut state, &[], false);
+    });
+    assert!(!state.dirty_rebuild);
 
-    tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_CLEAR);
-
-    let mut clicked_actions = Vec::new();
-    let mut auto_scroll_clicked = true;
-    let mut params_clicked = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll_clicked,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params_clicked,
-        &mut scratchpad,
-        &mut clicked_actions,
-    );
-
-    assert_eq!(clicked_actions.len(), 1);
-    assert_eq!(clicked_actions[0], ConsoleAction::ClearLogs);
+    tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_FILTER_ERROR);
+    build_in_host(&mut tree, root, bounds, |s| {
+        build_console_panel(s, &mut state, &[], false);
+    });
+    assert_eq!(state.filter, ConsoleFilterLevel::Error);
+    assert!(state.dirty_rebuild);
 }
 
 #[test]
@@ -445,37 +346,23 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(20.0, 20.0),
-        blink_caret: true,
-        cursor_byte_idx: 0,
+
+    let mut state = ConsolePanelState {
         active_tab: ConsoleTab::Scratchpad,
+        scratchpad_state: MultilineTextState::new("let a = 10;\nlet b = 20;\na + b"),
+        ..Default::default()
     };
+    build_in_host(&mut tree, root, panel_rect, |s| {
+        build_console_panel(s, &mut state, &[], true);
+    });
 
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new("let a = 10;\nlet b = 20;\na + b");
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
-
-    // 1. Verify Scratchpad editor container exists with correct tag and role
     let editor_id = tree
         .find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_EDITOR)
         .expect("Scratchpad editor container must exist");
     let editor_node = tree.get(editor_id).expect("Editor node exists");
     assert_eq!(editor_node.role, WidgetRole::TextInput);
-    assert_eq!(editor_node.children.len(), 3); // 3 lines of code
+    assert_eq!(editor_node.children.len(), 3);
 
-    // 2. Verify Toolbar elements for scratchpad
     assert!(
         tree.find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_CLEAR)
             .is_some(),
@@ -486,14 +373,11 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
             .is_some(),
         "Scratchpad reset button exists"
     );
-
-    // 3. Verify logs viewport is NOT rendered when in Scratchpad mode
     assert!(
         tree.find_node_by_tag(CONSOLE_TAG_VIEWPORT).is_none(),
         "Logs viewport must not be rendered when Scratchpad is active"
     );
 
-    // 4. Test ClearScratchpad click interaction cleanly via declarative widget click
     let mut layout_engine = irisui::layout::LayoutEngine::new();
     let _ = layout_engine.compute_layout(&mut tree, panel_rect.size());
     let clear_rect = tree
@@ -516,34 +400,18 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         point: clear_center,
         button: MouseButton::Left,
     });
-    let mut actions_after = Vec::new();
-    let mut auto_scroll_after = true;
-    let mut params_after = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll_after,
-        cursor_pos: clear_center,
-        blink_caret: true,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Scratchpad,
-    };
     let rebuild_root = tree.root().unwrap();
-    build_console_panel(
-        &mut UiScope::new(&mut tree, rebuild_root),
-        &mut params_after,
-        &mut scratchpad,
-        &mut actions_after,
-    );
-    assert!(actions_after.contains(&ConsoleAction::ClearScratchpad));
+    build_in_host(&mut tree, rebuild_root, panel_rect, |s| {
+        build_console_panel(s, &mut state, &[], true);
+    });
+    assert_eq!(state.scratchpad_state.text, "");
+    assert!(state.dirty_rebuild);
 }
 
 #[test]
 fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
-    let panel_rect = Rect::new(0.0, 0.0, 600.0, 300.0);
 
     let entries = vec![
         ConsoleEntry {
@@ -560,35 +428,16 @@ fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
         },
     ];
 
-    // Simulate upward mouse wheel scroll on the console viewport
     tree.event_state.frame_scrolled_tag = Some(CONSOLE_TAG_VIEWPORT);
     tree.event_state.frame_scroll_delta = Some((0.0, 15.0));
 
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &entries,
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
+    let mut state = ConsolePanelState::default();
+    build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
+        build_console_panel(s, &mut state, &entries, false);
+    });
 
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
-
-    // Assert that the declarative hook automatically flipped auto_scroll to false!
     assert!(
-        !auto_scroll,
+        !state.auto_scroll,
         "Auto-scroll must be automatically disabled when scrolled up via the declarative hook"
     );
 }
@@ -609,21 +458,8 @@ fn test_floating_console_toolbar_text_sections_not_culled() {
         }
 
         fn ui(&mut self, scope: &mut UiScope<'_>, _tab: &u8) {
-            let mut auto_scroll = true;
-            let mut params = ConsolePanelParams {
-                panel_rect: scope.parent_rect(),
-                entries: self.entries,
-                filter: ConsoleFilterLevel::All,
-                search_query: "",
-                auto_scroll: &mut auto_scroll,
-                cursor_pos: Point::new(0.0, 0.0),
-                blink_caret: false,
-                cursor_byte_idx: 0,
-                active_tab: ConsoleTab::Logs,
-            };
-            let mut actions = Vec::new();
-            let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-            build_console_panel(scope, &mut params, &mut scratchpad, &mut actions);
+            let mut state = ConsolePanelState::default();
+            build_console_panel(scope, &mut state, self.entries, false);
         }
     }
 
@@ -661,7 +497,7 @@ fn test_floating_console_toolbar_text_sections_not_culled() {
     };
     text_system.measure_subtree_text(&mut tree, root);
     layout_engine
-        .compute_layout(&mut tree, irisui::core::Size::new(2516.0, 1440.0))
+        .compute_layout(&mut tree, Size::new(2516.0, 1440.0))
         .expect("layout");
     for &(_, cid) in &frame.leaf_containers {
         text_system.measure_subtree_text(&mut tree, cid);
@@ -693,32 +529,16 @@ fn test_console_toolbar_wraps_without_overlap_in_narrow_pane() {
         msg: "Narrow console log row".to_string(),
         timestamp: "12:00:00".to_string(),
     }];
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect: narrow_rect,
-        entries: &entries,
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::ZERO,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
+    let mut state = ConsolePanelState::default();
+    build_in_host(&mut tree, root, narrow_rect, |s| {
+        build_console_panel(s, &mut state, &entries, false);
+    });
 
     let mut text_system = TextSystem::new();
     let mut layout_engine = LayoutEngine::new();
     text_system.measure_subtree_text(&mut tree, root);
     layout_engine
-        .compute_layout(&mut tree, irisui::core::Size::new(350.0, 500.0))
+        .compute_layout(&mut tree, Size::new(350.0, 500.0))
         .expect("narrow console layout");
 
     let toolbar_id = tree
