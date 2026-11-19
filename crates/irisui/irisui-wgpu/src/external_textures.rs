@@ -52,8 +52,9 @@ impl ExternalTextures {
     }
 
     /// Releases a host registration; subsequent commands using its identity draw nothing.
-    pub fn remove(&mut self, id: ExternalTextureId) {
-        self.textures.remove(&id);
+    /// Returns `true` if a texture view was previously registered for `id`.
+    pub fn remove(&mut self, id: ExternalTextureId) -> bool {
+        self.textures.remove(&id).is_some()
     }
 
     pub(crate) fn get(&self, id: ExternalTextureId) -> Option<&wgpu::BindGroup> {

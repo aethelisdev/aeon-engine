@@ -81,6 +81,7 @@ struct UnitVertex {
 /// by the caller so it can be recreated only when the external texture view changes.
 pub struct ExternalTexturePipeline {
     pipeline: wgpu::RenderPipeline,
+    cutout_pipeline: wgpu::RenderPipeline,
     globals_bind_group: wgpu::BindGroup,
     globals_buffer: wgpu::Buffer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -232,13 +233,15 @@ impl ExternalTexturePipeline {
             ],
         };
 
+        let buffers = [Some(vertex_layout), Some(instance_layout)];
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Iris UI External Texture Render Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(vertex_layout), Some(instance_layout)],
+                buffers: &buffers,
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -247,6 +250,46 @@ impl ExternalTexturePipeline {
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
+        let cutout_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Iris UI External Texture Cutout Pipeline Layout"),
+            bind_group_layouts: &[Some(&globals_layout)],
+            immediate_size: 0,
+        });
+
+        let cutout_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Iris UI External Texture Cutout Render Pipeline"),
+            layout: Some(&cutout_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &buffers,
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_cutout"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -280,6 +323,7 @@ impl ExternalTexturePipeline {
 
         Self {
             pipeline,
+            cutout_pipeline,
             globals_bind_group,
             globals_buffer,
             texture_bind_group_layout,
@@ -417,6 +461,28 @@ impl ExternalTexturePipeline {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.globals_bind_group, &[]);
         render_pass.set_bind_group(1, texture_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..6, 0, instance_index..instance_index + 1);
+    }
+
+    /// Writes `alpha = 0` (`vec4(0.0)`) into an offscreen surface cache at the prepared destination
+    /// `instance_index` so underlying live external textures shine through transparent regions.
+    pub fn render_cutout_instance<'render>(
+        &'render self,
+        render_pass: &mut wgpu::RenderPass<'render>,
+        instance_index: u32,
+    ) {
+        if instance_index >= self.instance_count {
+            return;
+        }
+        let Some(instance_buffer) = &self.instance_buffer else {
+            return;
+        };
+
+        render_pass.set_pipeline(&self.cutout_pipeline);
+        render_pass.set_bind_group(0, &self.globals_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);

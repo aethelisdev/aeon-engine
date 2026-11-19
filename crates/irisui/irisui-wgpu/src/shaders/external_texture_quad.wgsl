@@ -63,3 +63,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     return textureSample(t_external, s_external, in.uv) * in.tint;
 }
+
+// Punches a transparent alpha=0 hole into an offscreen static UI cache in exact Z-order
+// so live external textures composited underneath remain visible behind transparent regions.
+@fragment
+fn fs_cutout(in: VertexOutput) -> @location(0) vec4<f32> {
+    if (in.clip_bounds.x <= in.clip_bounds.z && in.clip_bounds.y <= in.clip_bounds.w) {
+        if (in.screen_pos.x < in.clip_bounds.x || in.screen_pos.x > in.clip_bounds.z ||
+            in.screen_pos.y < in.clip_bounds.y || in.screen_pos.y > in.clip_bounds.w) {
+            discard;
+        }
+    }
+
+    return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+}
