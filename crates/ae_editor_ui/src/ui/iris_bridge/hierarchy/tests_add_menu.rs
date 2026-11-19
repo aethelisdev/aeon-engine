@@ -13,14 +13,12 @@ use super::types::{
 };
 use hecs::World;
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 
 #[test]
 fn test_hierarchy_add_button_toggle_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
     let world = World::new();
-    let focus_state = FocusState::new();
 
     // 1. When menu is closed, clicking '+' activates HIERARCHY_TAG_ADD_BUTTON in UiTree
     tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON);
@@ -38,9 +36,6 @@ fn test_hierarchy_add_button_toggle_actions() {
             active_context_menu: None,
             cursor_pos: Point::new(10.0, 10.0),
             blink_caret: false,
-            ctrl_held: false,
-            shift_held: false,
-            focus_state: &focus_state,
             cursor_byte_idx: 0,
         };
         let mut scope = UiScope::new(&mut tree, root_id);
@@ -64,9 +59,6 @@ fn test_hierarchy_add_button_toggle_actions() {
             active_context_menu: None,
             cursor_pos: Point::new(10.0, 10.0),
             blink_caret: false,
-            ctrl_held: false,
-            shift_held: false,
-            focus_state: &focus_state,
             cursor_byte_idx: 0,
         };
         let mut scope = UiScope::new(&mut tree, root_id);
@@ -110,7 +102,6 @@ fn test_hierarchy_add_menu_outside_click() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = World::new();
-    let focus_state = FocusState::new();
 
     let mut actions = Vec::new();
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
@@ -146,9 +137,6 @@ fn test_hierarchy_add_menu_outside_click() {
         active_context_menu: None,
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &focus_state,
         cursor_byte_idx: 0,
     };
 

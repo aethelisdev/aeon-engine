@@ -15,7 +15,6 @@ use super::types::{
 };
 use hecs::World;
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 
 fn build_add_menu(
     tree: &mut UiTree,
@@ -60,9 +59,6 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -154,9 +150,6 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -205,9 +198,6 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -301,9 +291,6 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -343,9 +330,6 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -393,9 +377,6 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 50.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -438,9 +419,6 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         active_context_menu: Some((entity, Point::new(120.0, 200.0))),
         cursor_pos: Point::new(125.0, 210.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -499,9 +477,6 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -555,9 +530,6 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -635,9 +607,6 @@ fn test_hierarchy_panel_declarative_scope_build() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -709,9 +678,6 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -779,9 +745,6 @@ fn test_hierarchy_header_and_row_hover_styling() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        ctrl_held: false,
-        shift_held: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 

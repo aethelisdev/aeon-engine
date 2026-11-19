@@ -11,10 +11,9 @@ use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetsPanelAction, AssetsPanelParams,
     AssetsPanelState,
 };
-use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
-use irisui::widgets::controls::{FocusState, FocusTarget};
 
 impl AssetsPanelState {
     /// Synchronizes search query text when unfocused and tags `PanelId::Assets` for redraw
@@ -27,16 +26,10 @@ impl AssetsPanelState {
         notifier: &mut irisui::dock::UiNotifier<crate::ui::panel_layout::PanelId>,
     ) {
         if !is_search_focused {
-            self.interactions
-                .search_input
-                .set_text(&asset_browser.search_query);
+            self.search_input.set_text(&asset_browser.search_query);
         }
         if self.filtered_cache.is_dirty_with(|key| {
-            key.matches(
-                asset_browser,
-                self.interactions.search_input.text().trim(),
-                is_2d_mode,
-            )
+            key.matches(asset_browser, self.search_input.text().trim(), is_2d_mode)
         }) || !self.actions.is_empty()
         {
             notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
@@ -48,9 +41,7 @@ impl AssetsPanelState {
         &mut self,
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
-        focus_manager: &mut FocusManager,
-        focus_state: &mut FocusState<FocusTarget>,
-        notifier: &mut DeferredPanelNotifier<'_>,
+        notifier: &mut DeferredNotifier<PanelId>,
         (cursor_pos, blink_caret): (Point, bool),
     ) {
         if scope.is_collapsed() {
@@ -61,34 +52,32 @@ impl AssetsPanelState {
             self.context_menu = None;
         }
 
-        scope.auto_sync_search_input(
+        scope.auto_sync_text_input(
             ASSETS_TAG_SEARCH_INPUT,
             Some(ASSETS_TAG_SEARCH_CLEAR),
-            &mut self.interactions.search_input,
-            focus_manager,
-            focus_state,
+            &mut self.search_input,
         );
 
         self.filtered_cache.sync_with(
             |key| {
                 key.matches(
                     params.panel_data.asset_browser,
-                    self.interactions.search_input.text().trim(),
+                    self.search_input.text().trim(),
                     params.context.is_2d_mode,
                 )
             },
             || {
                 super::types::AssetsFilterKey::capture(
                     params.panel_data.asset_browser,
-                    self.interactions.search_input.text().trim(),
+                    self.search_input.text().trim(),
                     params.context.is_2d_mode,
                 )
             },
             || {
-                params.panel_data.asset_browser.filter_items(
-                    self.interactions.search_input.text(),
-                    params.context.is_2d_mode,
-                )
+                params
+                    .panel_data
+                    .asset_browser
+                    .filter_items(self.search_input.text(), params.context.is_2d_mode)
             },
         );
         self.pending_build_actions.clear();
@@ -99,7 +88,7 @@ impl AssetsPanelState {
                 panel_rect: scope.parent_rect(),
                 screen_size: (scope.screen_bounds().width, scope.screen_bounds().height),
                 current_folder: &params.panel_data.asset_browser.current_folder,
-                search_query: self.interactions.search_input.text(),
+                search_query: self.search_input.text(),
                 active_category: params.panel_data.asset_browser.active_category,
                 view_mode: params.panel_data.asset_browser.view_mode,
                 selected_asset: params.panel_data.asset_browser.selected_asset.as_deref(),
@@ -115,8 +104,7 @@ impl AssetsPanelState {
                 active_preview_modal: self.preview_modal.as_ref(),
                 subfolders: &params.panel_data.asset_browser.subfolders,
                 thumbnail_layers: &self.thumbnail_layers,
-                focus_state: &*focus_state,
-                cursor_byte_idx: self.interactions.search_input.cursor_byte_idx,
+                cursor_byte_idx: self.search_input.cursor_byte_idx,
             },
             &mut self.tree_state,
             &mut self.pending_build_actions,
@@ -125,17 +113,13 @@ impl AssetsPanelState {
         self.pending_build_actions.extend(self.action_bus.drain());
         std::mem::take(&mut self.pending_build_actions)
             .into_iter()
-            .for_each(|action| {
-                self.handle_panel_action(scope, focus_manager, focus_state, notifier, action)
-            });
+            .for_each(|action| self.handle_panel_action(scope, notifier, action));
     }
 
     fn handle_panel_action(
         &mut self,
         scope: &mut UiScope<'_>,
-        focus_manager: &mut FocusManager,
-        focus_state: &mut FocusState<FocusTarget>,
-        notifier: &mut DeferredPanelNotifier<'_>,
+        notifier: &mut DeferredNotifier<PanelId>,
         action: AssetsPanelAction,
     ) {
         match action {
@@ -152,11 +136,12 @@ impl AssetsPanelState {
                 notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             AssetsPanelAction::FocusSearch => {
-                scope.assign_focus_with(ASSETS_TAG_SEARCH_INPUT, focus_manager, focus_state);
+                scope.set_focus_tag(ASSETS_TAG_SEARCH_INPUT);
             }
             AssetsPanelAction::ClearSearch => {
-                self.interactions.search_input.clear();
-                scope.clear_focus_with(focus_manager, focus_state);
+                self.search_input.clear();
+                scope.clear_focus();
+                scope.clear_text_edit();
                 self.actions.push(AssetsPanelAction::ClearSearch);
                 notifier.tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }

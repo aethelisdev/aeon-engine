@@ -136,7 +136,6 @@ pub fn build_asset_list_table_scope(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-    use irisui::widgets::controls::FocusState;
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -183,7 +182,6 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
-            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
         };
 

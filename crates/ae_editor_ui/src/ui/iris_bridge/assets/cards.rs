@@ -136,14 +136,12 @@ fn render_grid_card(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-    use irisui::widgets::controls::{FocusState, FocusTarget};
     use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn test_assets_params<'a>(
         items: &'a [AssetItem],
         layers: &'a HashMap<PathBuf, u32>,
-        focus: &'a FocusState<FocusTarget>,
     ) -> AssetsPanelParams<'a> {
         AssetsPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
@@ -165,7 +163,6 @@ mod tests {
             active_preview_modal: None,
             subfolders: &[],
             thumbnail_layers: layers,
-            focus_state: focus,
             cursor_byte_idx: 0,
         }
     }
@@ -192,14 +189,13 @@ mod tests {
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let layers = HashMap::new();
-        let focus = FocusState::new();
         let mut actions = Vec::new();
 
         // 1. Empty items case -> triggers asset_empty_notice
         build_asset_grid_cards_scope(
             &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
-            &test_assets_params(&[], &layers, &focus),
+            &test_assets_params(&[], &layers),
             &mut actions,
         );
 
@@ -217,7 +213,7 @@ mod tests {
         build_asset_grid_cards_scope(
             &mut UiScope::new(&mut tree, root_id),
             Rect::new(0.0, 0.0, 600.0, 400.0),
-            &test_assets_params(&items, &layers, &focus),
+            &test_assets_params(&items, &layers),
             &mut actions,
         );
 

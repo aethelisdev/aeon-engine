@@ -11,7 +11,6 @@ use crate::assets::types::{
 };
 use irisui::core::MemoCache;
 use irisui::prelude::{Point, Rect, TreeState};
-use irisui::widgets::controls::{FocusState, FocusTarget};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -327,82 +326,6 @@ pub fn is_assets_tag(tag: u64) -> bool {
     (tag & ASSETS_TAG_DOMAIN_MASK) == ASSETS_TAG_DOMAIN
 }
 
-/// Target destination or action resolved from an Asset Browser semantic tag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssetsTagTarget {
-    /// Toggles the folder tree sidebar open/closed.
-    ToggleSidebar,
-    /// Prompts file import dialog.
-    Import,
-    /// Sweeps unreferenced VRAM assets.
-    CleanVram,
-    /// Switches to grid view mode.
-    ViewGrid,
-    /// Switches to tabular list view mode.
-    ViewList,
-    /// Toggles display of built-in engine content.
-    EngineContent,
-    /// Focuses search text input.
-    SearchInput,
-    /// Clears active search text query.
-    SearchClear,
-    /// Opens new subfolder creation dialog.
-    NewSubfolder,
-    /// Reveals folder in OS file explorer.
-    Reveal,
-    /// Asset card or list row target: `(item_idx, action)`.
-    Item(u32, AssetItemAction),
-    /// Folder tree row or chevron target: `(node_idx, is_chevron)`.
-    Tree(u32, bool),
-    /// Breadcrumb navigation item: `segment_idx`.
-    Breadcrumb(u8),
-    /// Category filter chip: `category_idx`.
-    Chip(u8),
-    /// Closes quick asset preview modal.
-    PreviewClose,
-    /// Reveals previewed asset in OS file manager.
-    PreviewReveal,
-    /// Quick asset preview 3D orbit canvas.
-    PreviewOrbit,
-    /// Toggles wireframe view in 3D preview.
-    PreviewWireframe,
-}
-
-/// Resolves a 64-bit semantic tag into a typed [`AssetsTagTarget`].
-#[inline]
-pub fn resolve_assets_tag(tag: u64) -> Option<AssetsTagTarget> {
-    if !is_assets_tag(tag) {
-        return None;
-    }
-    match tag {
-        ASSETS_TAG_TOGGLE_SIDEBAR => Some(AssetsTagTarget::ToggleSidebar),
-        ASSETS_TAG_IMPORT => Some(AssetsTagTarget::Import),
-        ASSETS_TAG_CLEAN_VRAM => Some(AssetsTagTarget::CleanVram),
-        ASSETS_TAG_VIEW_GRID => Some(AssetsTagTarget::ViewGrid),
-        ASSETS_TAG_VIEW_LIST => Some(AssetsTagTarget::ViewList),
-        ASSETS_TAG_ENGINE_CONTENT => Some(AssetsTagTarget::EngineContent),
-        ASSETS_TAG_SEARCH_INPUT => Some(AssetsTagTarget::SearchInput),
-        ASSETS_TAG_SEARCH_CLEAR => Some(AssetsTagTarget::SearchClear),
-        ASSETS_TAG_NEW_SUBFOLDER => Some(AssetsTagTarget::NewSubfolder),
-        ASSETS_TAG_REVEAL => Some(AssetsTagTarget::Reveal),
-        ASSETS_TAG_PREVIEW_CLOSE => Some(AssetsTagTarget::PreviewClose),
-        ASSETS_TAG_PREVIEW_REVEAL_BTN => Some(AssetsTagTarget::PreviewReveal),
-        ASSETS_TAG_PREVIEW_ORBIT_CANVAS => Some(AssetsTagTarget::PreviewOrbit),
-        ASSETS_TAG_PREVIEW_WIREFRAME_BTN => Some(AssetsTagTarget::PreviewWireframe),
-        _ => {
-            if let Some((item_idx, action)) = parse_item_tag(tag) {
-                Some(AssetsTagTarget::Item(item_idx, action))
-            } else if let Some((node_idx, is_chevron)) = parse_tree_tag(tag) {
-                Some(AssetsTagTarget::Tree(node_idx, is_chevron))
-            } else if let Some(segment_idx) = parse_breadcrumb_tag(tag) {
-                Some(AssetsTagTarget::Breadcrumb(segment_idx))
-            } else {
-                parse_chip_tag(tag).map(AssetsTagTarget::Chip)
-            }
-        }
-    }
-}
-
 /// Dynamic runtime state parameters for the 3D Quick Asset Preview orbital camera.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssetPreviewModalState {
@@ -547,8 +470,6 @@ pub struct AssetsPanelParams<'a> {
     pub subfolders: &'a [PathBuf],
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
-    /// Autonomous focus state machine providing SSOT for panel inputs.
-    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
 }
@@ -623,8 +544,10 @@ impl AssetsFilterKey {
 /// Persistent interactive state for the Asset Browser panel overlay.
 #[derive(Debug)]
 pub struct AssetsPanelState {
-    /// Common panel interaction state (scroll_y, search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>,
+    /// Search input text state managing asset filter buffer, cursor, and selection.
+    pub search_input: irisui::prelude::TextInputState,
+    /// Queued asset browser actions awaiting processor dispatch.
+    pub actions: Vec<AssetsPanelAction>,
     /// Double-click tracking state for asset spawning.
     pub click_tracker: AssetClickTracker,
     /// Active right-click context menu: `(target, click_pos)`.
@@ -647,10 +570,19 @@ pub struct AssetsPanelState {
     pub(crate) pending_build_actions: Vec<AssetsPanelAction>,
 }
 
+impl AssetsPanelState {
+    /// Drains and returns all queued asset browser actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<AssetsPanelAction> {
+        std::mem::take(&mut self.actions)
+    }
+}
+
 impl Default for AssetsPanelState {
     fn default() -> Self {
         Self {
-            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            search_input: irisui::prelude::TextInputState::default(),
+            actions: Vec::new(),
             click_tracker: AssetClickTracker::default(),
             context_menu: None,
             preview_modal: None,
@@ -666,19 +598,6 @@ impl Default for AssetsPanelState {
             },
             pending_build_actions: Vec::new(),
         }
-    }
-}
-
-impl std::ops::Deref for AssetsPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for AssetsPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
     }
 }
 

@@ -7,7 +7,6 @@
 //! for the 100% Iris UI GPU-accelerated Scene Hierarchy panel.
 
 use irisui::prelude::*;
-use irisui::widgets::controls::{FocusState, FocusTarget};
 use std::path::PathBuf;
 
 /// Pre-flattened lightweight POD representation of a single entity row in the scene hierarchy tree.
@@ -240,61 +239,6 @@ pub const fn is_hierarchy_tag(tag: u64) -> bool {
     (tag & 0xFFFF_FFFF_0000_0000) == 0x4849_4552_0000_0000
 }
 
-/// Strongly typed semantic hit target within the Scene Hierarchy panel.
-///
-/// Eliminates raw bitwise masking and arithmetic across event handling routines.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HierarchyTagTarget {
-    /// Primary panel root container.
-    PanelRoot,
-    /// Search query text input box.
-    SearchInput,
-    /// Search query clear button.
-    SearchClear,
-    /// Header Add Entity `➕` button.
-    AddButton,
-    /// Header Delete Selected `🗑` button.
-    DeleteButton,
-    /// Virtual rows scroll viewport.
-    Viewport,
-    /// Stationary scrollbar track.
-    ScrollbarTrack,
-    /// Draggable scrollbar thumb.
-    ScrollbarThumb,
-    /// Dynamic entity row item by index.
-    Row(usize),
-    /// Dynamic entity visibility toggle button by index.
-    Eye(usize),
-    /// Dynamic entity chevron expand/collapse toggle button by index.
-    Foldout(usize),
-}
-
-/// Resolves a 64-bit semantic tag into a strongly typed [`HierarchyTagTarget`].
-///
-/// Returns `None` if the tag does not belong to the Scene Hierarchy panel domain.
-#[inline]
-pub fn resolve_hierarchy_tag(tag: u64) -> Option<HierarchyTagTarget> {
-    match tag {
-        HIERARCHY_TAG_PANEL_ROOT => Some(HierarchyTagTarget::PanelRoot),
-        HIERARCHY_TAG_SEARCH_INPUT => Some(HierarchyTagTarget::SearchInput),
-        HIERARCHY_TAG_SEARCH_CLEAR => Some(HierarchyTagTarget::SearchClear),
-        HIERARCHY_TAG_ADD_BUTTON => Some(HierarchyTagTarget::AddButton),
-        HIERARCHY_TAG_DELETE_BUTTON => Some(HierarchyTagTarget::DeleteButton),
-        HIERARCHY_TAG_VIEWPORT => Some(HierarchyTagTarget::Viewport),
-        HIERARCHY_TAG_SCROLLBAR_TRACK => Some(HierarchyTagTarget::ScrollbarTrack),
-        HIERARCHY_TAG_SCROLLBAR_THUMB => Some(HierarchyTagTarget::ScrollbarThumb),
-        _ => {
-            if let Some(row_idx) = parse_eye_tag(tag) {
-                Some(HierarchyTagTarget::Eye(row_idx))
-            } else if let Some(row_idx) = parse_foldout_tag(tag) {
-                Some(HierarchyTagTarget::Foldout(row_idx))
-            } else {
-                parse_row_tag(tag).map(HierarchyTagTarget::Row)
-            }
-        }
-    }
-}
-
 /// Numerical tag for deleting the target entity via right-click context menu.
 pub const HIERARCHY_CTX_DELETE: u64 = 0xE100_0001;
 
@@ -325,21 +269,17 @@ pub struct HierarchyPanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Autonomous focus state machine providing SSOT for panel inputs.
-    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
-    /// Whether the Control (or Command on macOS) modifier key is held down.
-    pub ctrl_held: bool,
-    /// Whether the Shift modifier key is held down.
-    pub shift_held: bool,
 }
 
 /// Persistent interactive state for the Scene Hierarchy panel overlay.
 #[derive(Debug, Clone)]
 pub struct HierarchyPanelState {
-    /// Common panel interaction state (search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
+    /// Search input text state managing filter buffer, cursor, and selection.
+    pub search_input: irisui::prelude::TextInputState,
+    /// Queued hierarchy interaction actions awaiting processor dispatch.
+    pub actions: Vec<HierarchyAction>,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
     /// Unified TreeState managing expanded and selected entity nodes.
@@ -358,7 +298,8 @@ impl Default for HierarchyPanelState {
     #[inline]
     fn default() -> Self {
         Self {
-            interactions: Default::default(),
+            search_input: irisui::prelude::TextInputState::default(),
+            actions: Vec::new(),
             rows_cache: Vec::new(),
             tree_state: TreeState::expanded_by_default(),
             is_add_menu_open: false,
@@ -372,20 +313,13 @@ impl Default for HierarchyPanelState {
 /// Semantic alias for [`HierarchyPanelState`].
 pub type HierarchyState = HierarchyPanelState;
 
-impl std::ops::Deref for HierarchyPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for HierarchyPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
-    }
-}
-
 impl HierarchyPanelState {
+    /// Drains and returns all queued hierarchy actions.
+    #[inline]
+    pub fn take_actions(&mut self) -> Vec<HierarchyAction> {
+        std::mem::take(&mut self.actions)
+    }
+
     /// Dynamically activates a cascading submenu branch based on its hierarchical tier.
     ///
     /// Opening a primary tier submenu clears any active secondary sub-submenus,
@@ -439,44 +373,6 @@ mod tests {
         assert!(state.activate_submenu(AddSubmenuId::Objects3D));
         assert_eq!(state.active_submenu, Some(AddSubmenuId::Objects3D));
         assert_eq!(state.active_sub_submenu, None);
-    }
-
-    #[test]
-    fn test_resolve_hierarchy_tag_invariants() {
-        assert_eq!(
-            resolve_hierarchy_tag(HIERARCHY_TAG_SEARCH_INPUT),
-            Some(HierarchyTagTarget::SearchInput)
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(HIERARCHY_TAG_SEARCH_CLEAR),
-            Some(HierarchyTagTarget::SearchClear)
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(HIERARCHY_TAG_ADD_BUTTON),
-            Some(HierarchyTagTarget::AddButton)
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(HIERARCHY_TAG_DELETE_BUTTON),
-            Some(HierarchyTagTarget::DeleteButton)
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(HIERARCHY_TAG_VIEWPORT),
-            Some(HierarchyTagTarget::Viewport)
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(make_eye_tag(4)),
-            Some(HierarchyTagTarget::Eye(4))
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(make_foldout_tag(8)),
-            Some(HierarchyTagTarget::Foldout(8))
-        );
-        assert_eq!(
-            resolve_hierarchy_tag(make_row_tag(15)),
-            Some(HierarchyTagTarget::Row(15))
-        );
-        assert_eq!(resolve_hierarchy_tag(0), None);
-        assert_eq!(resolve_hierarchy_tag(0xFFFF_FFFF), None);
     }
 
     #[test]

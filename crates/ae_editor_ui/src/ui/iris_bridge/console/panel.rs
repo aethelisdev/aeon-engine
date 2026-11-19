@@ -111,19 +111,19 @@ pub fn build_console_panel(
                         }
                         tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
-                        let is_search_focused =
-                            params.focus_state.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT);
-                        let search_props = InputBoxProps::new(
-                            params.search_query,
-                            "Search logs...",
-                            190.0,
-                            is_search_focused,
-                            is_search_focused && params.blink_caret,
-                        )
-                        .with_icon("🔍")
-                        .with_cursor_byte_idx(params.cursor_byte_idx)
-                        .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
-                        let _ = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
+                        _ = tb.input_box_tagged(
+                            &InputBoxProps::new(
+                                params.search_query,
+                                "Search logs...",
+                                190.0,
+                                false,
+                                params.blink_caret,
+                            )
+                            .with_icon("🔍")
+                            .with_cursor_byte_idx(params.cursor_byte_idx)
+                            .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR),
+                            CONSOLE_TAG_SEARCH_INPUT,
+                        );
                         if tb.is_tag_clicked(CONSOLE_TAG_SEARCH_CLEAR) {
                             actions.push(ConsoleAction::ClearSearch);
                         }

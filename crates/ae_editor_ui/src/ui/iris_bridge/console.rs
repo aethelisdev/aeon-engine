@@ -26,6 +26,5 @@ pub use types::{
     CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
     CONSOLE_TAG_TAB_LOGS, CONSOLE_TAG_TAB_SCRATCHPAD, CONSOLE_TAG_TOOLBAR, CONSOLE_TAG_VIEWPORT,
     ConsoleAction, ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsolePanelParams,
-    ConsolePanelState, ConsoleState, ConsoleTab, ConsoleToolbarCursor, DEFAULT_SCRATCHPAD_TEXT,
-    evaluate_console_toolbar_click, evaluate_console_toolbar_cursor, is_console_tag,
+    ConsolePanelState, ConsoleState, ConsoleTab, DEFAULT_SCRATCHPAD_TEXT,
 };

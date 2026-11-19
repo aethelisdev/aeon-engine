@@ -190,7 +190,6 @@ fn render_folder_recursive(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetViewMode};
-    use irisui::widgets::controls::FocusState;
     use std::collections::HashMap;
 
     #[test]
@@ -226,7 +225,6 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
-            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
         };
 
@@ -294,7 +292,6 @@ mod tests {
                 active_preview_modal: None,
                 subfolders: &subfolders,
                 thumbnail_layers: &HashMap::new(),
-                focus_state: &FocusState::new(),
                 cursor_byte_idx: 0,
             };
 
@@ -347,7 +344,6 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
-            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
         };
         let mut tree_expanded = UiTree::new();

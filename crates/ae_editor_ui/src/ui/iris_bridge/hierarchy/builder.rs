@@ -13,7 +13,6 @@ use super::types::{
 };
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
 use irisui::prelude::*;
-use irisui::widgets::controls::{FocusState, FocusTarget};
 
 impl HierarchyPanelState {
     /// Builds the Scene Hierarchy panel directly using typed hierarchy state and `UiScope`.
@@ -21,9 +20,6 @@ impl HierarchyPanelState {
         &mut self,
         scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
-        focus_manager: &mut FocusManager,
-        focus_state: &mut FocusState<FocusTarget>,
-        (ctrl_held, shift_held): (bool, bool),
         (cursor_pos, blink_caret): (Point, bool),
     ) {
         if scope.is_collapsed() {
@@ -36,12 +32,10 @@ impl HierarchyPanelState {
             self.active_context_menu = None;
         }
 
-        scope.auto_sync_search_input(
+        scope.auto_sync_text_input(
             HIERARCHY_TAG_SEARCH_INPUT,
             Some(HIERARCHY_TAG_SEARCH_CLEAR),
-            &mut self.interactions.search_input,
-            focus_manager,
-            focus_state,
+            &mut self.search_input,
         );
 
         build_hierarchy_panel(
@@ -50,7 +44,7 @@ impl HierarchyPanelState {
                 panel_rect: scope.parent_rect(),
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: self.interactions.search_input.text(),
+                search_query: self.search_input.text(),
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
                 active_submenu: self.active_submenu,
@@ -58,27 +52,23 @@ impl HierarchyPanelState {
                 active_context_menu: self.active_context_menu,
                 cursor_pos: scope.resolved_cursor_pos(cursor_pos),
                 blink_caret,
-                focus_state: &*focus_state,
-                cursor_byte_idx: self.interactions.search_input.cursor_byte_idx,
-                ctrl_held,
-                shift_held,
+                cursor_byte_idx: self.search_input.cursor_byte_idx,
             },
             &mut self.rows_cache,
-            &mut self.interactions.actions,
+            &mut self.actions,
             &mut self.tree_state,
         );
 
         if self
-            .interactions
             .actions
             .iter()
             .any(|action| matches!(action, super::types::HierarchyAction::ClearSearchQuery))
         {
-            self.interactions.search_input.clear();
-            scope.clear_focus_with(focus_manager, focus_state);
+            self.search_input.clear();
+            scope.clear_focus();
+            scope.clear_text_edit();
         } else {
-            self.interactions
-                .actions
+            self.actions
                 .iter()
                 .filter_map(|action| match action {
                     super::types::HierarchyAction::SetSearchQuery(query) => Some(query.as_str()),
@@ -86,7 +76,7 @@ impl HierarchyPanelState {
                 })
                 .next_back()
                 .into_iter()
-                .for_each(|query| self.interactions.search_input.set_text(query));
+                .for_each(|query| self.search_input.set_text(query));
         }
     }
 }

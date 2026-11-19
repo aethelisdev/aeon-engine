@@ -108,14 +108,12 @@ mod tests {
 
     #[test]
     fn test_category_chips_renders_in_tree() {
-        use irisui::widgets::controls::FocusState;
         use std::collections::HashMap;
         use std::path::Path;
 
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let mut actions = Vec::new();
-        let focus_state = FocusState::new();
         let current_folder = Path::new("assets");
         let thumbnail_layers = HashMap::new();
 
@@ -139,7 +137,6 @@ mod tests {
             active_context_menu: None,
             active_preview_modal: None,
             thumbnail_layers: &thumbnail_layers,
-            focus_state: &focus_state,
             cursor_byte_idx: 0,
         };
 
@@ -164,14 +161,12 @@ mod tests {
     #[test]
     fn test_click_audio_category_chip() {
         use crate::ui::iris_bridge::assets::panel::build_assets_panel;
-        use irisui::widgets::controls::FocusState;
         use std::collections::HashMap;
         use std::path::Path;
 
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let mut actions = Vec::new();
-        let focus_state = FocusState::new();
         let current_folder = Path::new("assets");
         let thumbnail_layers = HashMap::new();
 
@@ -195,7 +190,6 @@ mod tests {
             active_context_menu: None,
             active_preview_modal: None,
             thumbnail_layers: &thumbnail_layers,
-            focus_state: &focus_state,
             cursor_byte_idx: 0,
         };
 

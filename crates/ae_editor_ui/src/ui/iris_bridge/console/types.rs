@@ -7,8 +7,7 @@
 //! resolvers for the hardware-accelerated Developer Console panel.
 
 pub use crate::ui::types::ConsoleEntry;
-use irisui::prelude::{MultilineTextState, Point, Rect, UiTree, WidgetRole};
-use irisui::widgets::controls::{FocusState, FocusTarget};
+use irisui::prelude::{MultilineTextState, Point, Rect};
 
 /// Semantic hit-testing tag for the Developer Console root panel container.
 pub const CONSOLE_TAG_PANEL_ROOT: u64 = 0x5000;
@@ -72,15 +71,6 @@ pub const CONSOLE_TAG_SCRATCHPAD_RESET: u64 = 0x5024;
 
 /// Default sample template pre-loaded into the multi-line scratchpad editor.
 pub const DEFAULT_SCRATCHPAD_TEXT: &str = "// Aeon Engine Multi-line Scratchpad\n// Type, edit, use arrow keys, Enter, and Backspace!\n\nfn update_simulation(delta_time: f32) {\n    let speed = 9.81 * delta_time;\n    println!(\"Simulation tick: {}\", speed);\n}\n\n// Gutter line numbers and active line highlighting active.";
-
-/// Determines whether the given semantic hit-testing tag belongs to the Developer Console subsystem.
-///
-/// Returns `true` if `tag` falls within the Developer Console tag range (`0x5000..=0x50ff`).
-#[inline]
-#[must_use]
-pub const fn is_console_tag(tag: u64) -> bool {
-    tag >= 0x5000 && tag <= 0x50ff
-}
 
 /// Log severity filter levels supported by the Developer Console.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -161,15 +151,6 @@ pub enum ConsoleAction {
     ClearScratchpad,
     /// Resets the scratchpad editor with the default template script.
     ResetScratchpad,
-}
-
-/// Cursor icon hints for console interactive hover targets.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConsoleToolbarCursor {
-    /// Interactive click target (button, filter tab, clear toggle).
-    Pointer,
-    /// Editable text input field.
-    Text,
 }
 
 /// Severity level representation for individual console log entries.
@@ -262,65 +243,6 @@ impl ConsoleLogCounts {
     }
 }
 
-/// Evaluates a mouse click coordinate against the semantic `UiTree` to resolve console toolbar actions.
-///
-/// Returns `Some(ConsoleAction)` if the click position hits a recognized console toolbar element.
-pub fn evaluate_console_toolbar_click(tree: &UiTree, click_pos: Point) -> Option<ConsoleAction> {
-    let hit = tree.hit_test_target(click_pos)?;
-    match hit.tag {
-        CONSOLE_TAG_CLEAR => Some(ConsoleAction::ClearLogs),
-        CONSOLE_TAG_FILTER_ALL => Some(ConsoleAction::SetFilter(ConsoleFilterLevel::All)),
-        CONSOLE_TAG_FILTER_ERROR => Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Error)),
-        CONSOLE_TAG_FILTER_WARN => Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Warn)),
-        CONSOLE_TAG_FILTER_INFO => Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Info)),
-        CONSOLE_TAG_FILTER_DEBUG => Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Debug)),
-        CONSOLE_TAG_AUTOSCROLL => Some(ConsoleAction::ToggleAutoScroll),
-        CONSOLE_TAG_SEARCH_CLEAR => Some(ConsoleAction::ClearSearch),
-        CONSOLE_TAG_SEARCH_INPUT => Some(ConsoleAction::FocusSearch),
-        CONSOLE_TAG_TAB_LOGS => Some(ConsoleAction::SelectTab(ConsoleTab::Logs)),
-        CONSOLE_TAG_TAB_SCRATCHPAD => Some(ConsoleAction::SelectTab(ConsoleTab::Scratchpad)),
-        CONSOLE_TAG_SCRATCHPAD_CLEAR => Some(ConsoleAction::ClearScratchpad),
-        CONSOLE_TAG_SCRATCHPAD_RESET => Some(ConsoleAction::ResetScratchpad),
-        _ => None,
-    }
-}
-
-/// Evaluates a mouse cursor coordinate against the semantic `UiTree` to resolve toolbar cursor hints.
-///
-/// Returns `Some(ConsoleToolbarCursor)` if hovering over a recognized console toolbar widget.
-pub fn evaluate_console_toolbar_cursor(
-    tree: &UiTree,
-    cursor_pos: Point,
-) -> Option<ConsoleToolbarCursor> {
-    let hit = tree.hit_test_target(cursor_pos)?;
-    match hit.tag {
-        CONSOLE_TAG_CLEAR
-        | CONSOLE_TAG_FILTER_ALL
-        | CONSOLE_TAG_FILTER_ERROR
-        | CONSOLE_TAG_FILTER_WARN
-        | CONSOLE_TAG_FILTER_INFO
-        | CONSOLE_TAG_FILTER_DEBUG
-        | CONSOLE_TAG_AUTOSCROLL
-        | CONSOLE_TAG_SEARCH_CLEAR
-        | CONSOLE_TAG_SCROLLBAR_TRACK
-        | CONSOLE_TAG_SCROLLBAR_THUMB
-        | CONSOLE_TAG_TAB_LOGS
-        | CONSOLE_TAG_TAB_SCRATCHPAD
-        | CONSOLE_TAG_SCRATCHPAD_CLEAR
-        | CONSOLE_TAG_SCRATCHPAD_RESET => Some(ConsoleToolbarCursor::Pointer),
-        CONSOLE_TAG_SEARCH_INPUT | CONSOLE_TAG_SCRATCHPAD_EDITOR => {
-            Some(ConsoleToolbarCursor::Text)
-        }
-        _ => {
-            if hit.role == WidgetRole::Button {
-                Some(ConsoleToolbarCursor::Pointer)
-            } else {
-                None
-            }
-        }
-    }
-}
-
 /// Parameters passed to the Developer Console layout builder.
 pub struct ConsolePanelParams<'a> {
     /// Bounding rectangle allocated for the docked console panel.
@@ -337,8 +259,6 @@ pub struct ConsolePanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Autonomous focus state machine providing SSOT for panel inputs.
-    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
     /// Active sub-tab mode within the console panel.
@@ -348,8 +268,10 @@ pub struct ConsolePanelParams<'a> {
 /// Persistent interactive state for the Developer Console panel overlay.
 #[derive(Debug, Clone)]
 pub struct ConsolePanelState {
-    /// Common panel interaction state (search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), ConsoleAction>,
+    /// Search input text state managing log filter buffer, cursor, and selection.
+    pub search_input: irisui::prelude::TextInputState,
+    /// Queued console actions consumed immediately by the console builder.
+    pub actions: Vec<ConsoleAction>,
     /// Active log level severity filter.
     pub filter: ConsoleFilterLevel,
     /// Whether Developer Console automatically scrolls down when new logs arrive.
@@ -363,25 +285,13 @@ pub struct ConsolePanelState {
 impl Default for ConsolePanelState {
     fn default() -> Self {
         Self {
-            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            search_input: irisui::prelude::TextInputState::default(),
+            actions: Vec::new(),
             filter: ConsoleFilterLevel::All,
             auto_scroll: true,
             active_tab: ConsoleTab::Logs,
             scratchpad_state: MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT),
         }
-    }
-}
-
-impl std::ops::Deref for ConsolePanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), ConsoleAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for ConsolePanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
     }
 }
 

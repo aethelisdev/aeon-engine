@@ -11,9 +11,8 @@ use super::types::{
     CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_VIEWPORT, ConsoleAction,
     ConsolePanelParams, ConsolePanelState,
 };
-use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
-use irisui::widgets::controls::{FocusState, FocusTarget};
 
 impl ConsolePanelState {
     /// Builds the Developer Console panel directly using typed console state and `UiScope`.
@@ -21,57 +20,46 @@ impl ConsolePanelState {
         &mut self,
         scope: &mut UiScope<'_>,
         entries: &[crate::ui::types::ConsoleEntry],
-        focus_manager: &mut FocusManager,
-        focus_state: &mut FocusState<FocusTarget>,
-        notifier: &mut DeferredPanelNotifier<'_>,
+        notifier: &mut DeferredNotifier<PanelId>,
         (cursor_pos, blink_caret): (Point, bool),
     ) {
         if scope.is_collapsed() {
             return;
         }
 
-        scope.auto_sync_search_input(
+        scope.auto_sync_text_input(
             CONSOLE_TAG_SEARCH_INPUT,
             Some(CONSOLE_TAG_SEARCH_CLEAR),
-            &mut self.interactions.search_input,
-            focus_manager,
-            focus_state,
+            &mut self.search_input,
         );
 
-        self.interactions.actions.clear();
+        self.actions.clear();
         build_console_panel(
             scope,
             &mut ConsolePanelParams {
                 panel_rect: scope.parent_rect(),
                 entries,
                 filter: self.filter,
-                search_query: self.interactions.search_input.text(),
+                search_query: self.search_input.text(),
                 auto_scroll: &mut self.auto_scroll,
                 cursor_pos: scope.resolved_cursor_pos(cursor_pos),
                 blink_caret,
-                focus_state,
-                cursor_byte_idx: self.interactions.search_input.cursor_byte_idx,
+                cursor_byte_idx: self.search_input.cursor_byte_idx,
                 active_tab: self.active_tab,
             },
             &mut self.scratchpad_state,
-            &mut self.interactions.actions,
+            &mut self.actions,
         );
 
-        if !self.interactions.actions.is_empty() {
-            std::mem::take(&mut self.interactions.actions)
+        if !self.actions.is_empty() {
+            std::mem::take(&mut self.actions)
                 .into_iter()
-                .for_each(|action| self.dispatch_action(scope, focus_manager, focus_state, action));
+                .for_each(|action| self.dispatch_action(scope, action));
             notifier.tag_redraw(crate::ui::panel_layout::PanelId::Console);
         }
     }
 
-    fn dispatch_action(
-        &mut self,
-        scope: &mut UiScope<'_>,
-        focus_manager: &mut FocusManager,
-        focus_state: &mut FocusState<FocusTarget>,
-        action: ConsoleAction,
-    ) {
+    fn dispatch_action(&mut self, scope: &mut UiScope<'_>, action: ConsoleAction) {
         match action {
             ConsoleAction::ClearLogs => {
                 ae_editor::editor_logger::LOGGER.clear();
@@ -84,11 +72,12 @@ impl ConsolePanelState {
                 self.auto_scroll = !self.auto_scroll;
             }
             ConsoleAction::FocusSearch => {
-                scope.assign_focus_with(CONSOLE_TAG_SEARCH_INPUT, focus_manager, focus_state);
+                scope.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
             }
             ConsoleAction::ClearSearch => {
-                self.interactions.search_input.clear();
-                scope.clear_focus_with(focus_manager, focus_state);
+                self.search_input.clear();
+                scope.clear_focus();
+                scope.clear_text_edit();
             }
             ConsoleAction::CopyLog(_) => {}
             ConsoleAction::SelectTab(tab) => {

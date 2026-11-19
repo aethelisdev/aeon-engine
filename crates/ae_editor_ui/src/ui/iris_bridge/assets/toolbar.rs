@@ -120,13 +120,13 @@ fn build_search_box(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let _ = scope.input_box_tagged(
+    _ = scope.input_box_tagged(
         &InputBoxProps::new(
             params.search_query,
             "Search assets...",
             180.0,
-            params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT),
-            params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT) && params.blink_caret,
+            false,
+            params.blink_caret,
         )
         .with_icon("🔍")
         .with_cursor_byte_idx(params.cursor_byte_idx)

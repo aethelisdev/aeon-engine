@@ -9,7 +9,6 @@
 //! interactive quick asset preview modal, and responsive grid/table views.
 
 pub mod builder;
-pub mod card_builder;
 pub mod cards;
 pub mod chips;
 pub mod components;
@@ -29,9 +28,6 @@ pub mod toolbar;
 pub mod tree;
 pub mod types;
 
-pub use card_builder::{
-    AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
-};
 pub use chips::build_category_chips_scope;
 pub use components::{
     ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, ASSET_LIST_ROW_HEIGHT,
@@ -53,9 +49,8 @@ pub use types::{
     ASSETS_TAG_TREE_SCROLLBAR_TRACK, ASSETS_TAG_TREE_VIEWPORT, ASSETS_TAG_VIEW_GRID,
     ASSETS_TAG_VIEW_LIST, AssetItemAction, AssetPreviewModalState, AssetsContextMenuAction,
     AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
-    AssetsPanelState, AssetsState, AssetsTagTarget, encode_breadcrumb_tag, encode_chip_tag,
-    encode_ctx_item_tag, encode_item_inspect_tag, encode_item_spawn_tag, encode_item_tag,
-    encode_tree_chevron_tag, encode_tree_row_tag, is_assets_tag, parse_breadcrumb_tag,
-    parse_chip_tag, parse_ctx_item_tag, parse_item_tag, parse_tree_tag, resolve_assets_ctx_action,
-    resolve_assets_tag,
+    AssetsPanelState, AssetsState, encode_breadcrumb_tag, encode_chip_tag, encode_ctx_item_tag,
+    encode_item_inspect_tag, encode_item_spawn_tag, encode_item_tag, encode_tree_chevron_tag,
+    encode_tree_row_tag, is_assets_tag, parse_breadcrumb_tag, parse_chip_tag, parse_ctx_item_tag,
+    parse_item_tag, parse_tree_tag, resolve_assets_ctx_action,
 };

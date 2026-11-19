@@ -31,6 +31,6 @@ pub use types::{
     HIERARCHY_TAG_INDEX_MASK, HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX,
     HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT,
     HierarchyAction, HierarchyPanelParams, HierarchyPanelState, HierarchyRow, HierarchyState,
-    HierarchyTagTarget, is_hierarchy_tag, make_eye_tag, make_foldout_tag, make_row_tag,
-    parse_eye_tag, parse_foldout_tag, parse_row_tag, resolve_hierarchy_tag,
+    is_hierarchy_tag, make_eye_tag, make_foldout_tag, make_row_tag, parse_eye_tag,
+    parse_foldout_tag, parse_row_tag,
 };

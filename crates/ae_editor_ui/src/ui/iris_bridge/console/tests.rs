@@ -6,7 +6,6 @@
 use super::*;
 use crate::ui::types::ConsoleEntry;
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 
 #[test]
 fn test_console_filter_level_matching() {
@@ -45,7 +44,6 @@ fn test_console_click_target_routing() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -99,7 +97,6 @@ fn test_console_virtualized_empty_and_matching() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -174,7 +171,6 @@ fn test_console_panel_clipping_and_clear_action() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -230,7 +226,6 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -285,7 +280,6 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -337,101 +331,11 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
 }
 
 #[test]
-fn test_console_toolbar_action_unification() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root creation failed");
-    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 400.0);
-    let mut auto_scroll = true;
-    let mut params = ConsolePanelParams {
-        panel_rect,
-        entries: &[],
-        filter: ConsoleFilterLevel::All,
-        search_query: "existing_query",
-        auto_scroll: &mut auto_scroll,
-        cursor_pos: Point::new(0.0, 0.0),
-        blink_caret: false,
-        focus_state: &FocusState::new(),
-        cursor_byte_idx: 0,
-        active_tab: ConsoleTab::Logs,
-    };
-
-    let mut actions = Vec::new();
-    let mut scratchpad = MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT);
-    build_console_panel(
-        &mut UiScope::new(&mut tree, root),
-        &mut params,
-        &mut scratchpad,
-        &mut actions,
-    );
-    let mut layout_engine = irisui::layout::LayoutEngine::new();
-    let _ = layout_engine.compute_layout(&mut tree, Size::new(1000.0, 400.0));
-
-    let get_center = |target_tag: u64| -> Point {
-        let (_, node) = tree
-            .iter()
-            .find(|(_, n)| n.tag == target_tag && n.interactive)
-            .unwrap_or_else(|| panic!("Node with tag {:#x} not found", target_tag));
-        let r = node.computed_rect;
-        Point::new(r.x + r.width * 0.5, r.y + r.height * 0.5)
-    };
-
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_CLEAR)),
-        Some(ConsoleAction::ClearLogs)
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_ALL)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::All))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_ERROR)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Error))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_WARN)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Warn))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_INFO)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Info))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_DEBUG)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Debug))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_AUTOSCROLL)),
-        Some(ConsoleAction::ToggleAutoScroll)
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_SEARCH_CLEAR)),
-        Some(ConsoleAction::ClearSearch)
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_SEARCH_INPUT)),
-        Some(ConsoleAction::FocusSearch)
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_TAB_LOGS)),
-        Some(ConsoleAction::SelectTab(ConsoleTab::Logs))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_TAB_SCRATCHPAD)),
-        Some(ConsoleAction::SelectTab(ConsoleTab::Scratchpad))
-    );
-    assert_eq!(
-        evaluate_console_toolbar_click(&tree, Point::new(9999.0, 9999.0)),
-        None
-    );
-}
-
-#[test]
 fn test_console_search_focused_caret_positioning() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 300.0);
-    let mut focus_state = FocusState::new();
-    focus_state.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+    tree.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
     let mut auto_scroll = true;
     let mut params = ConsolePanelParams {
         panel_rect,
@@ -441,7 +345,6 @@ fn test_console_search_focused_caret_positioning() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: true,
-        focus_state: &focus_state,
         cursor_byte_idx: 5,
         active_tab: ConsoleTab::Logs,
     };
@@ -497,7 +400,6 @@ fn test_console_declarative_action_generation() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -524,7 +426,6 @@ fn test_console_declarative_action_generation() {
         auto_scroll: &mut auto_scroll_clicked,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -553,7 +454,6 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(20.0, 20.0),
         blink_caret: true,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Scratchpad,
     };
@@ -593,7 +493,9 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         "Logs viewport must not be rendered when Scratchpad is active"
     );
 
-    // 4. Test ClearScratchpad and ResetScratchpad actions
+    // 4. Test ClearScratchpad click interaction cleanly via declarative widget click
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, panel_rect.size());
     let clear_rect = tree
         .get(tree.find_node_by_tag(CONSOLE_TAG_SCRATCHPAD_CLEAR).unwrap())
         .unwrap()
@@ -603,9 +505,38 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         clear_rect.y + clear_rect.height * 0.5,
     );
     assert_eq!(
-        evaluate_console_toolbar_click(&tree, clear_center),
-        Some(ConsoleAction::ClearScratchpad)
+        tree.hit_test_target(clear_center).map(|h| h.tag),
+        Some(CONSOLE_TAG_SCRATCHPAD_CLEAR)
     );
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: clear_center,
+        button: MouseButton::Left,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: clear_center,
+        button: MouseButton::Left,
+    });
+    let mut actions_after = Vec::new();
+    let mut auto_scroll_after = true;
+    let mut params_after = ConsolePanelParams {
+        panel_rect,
+        entries: &[],
+        filter: ConsoleFilterLevel::All,
+        search_query: "",
+        auto_scroll: &mut auto_scroll_after,
+        cursor_pos: clear_center,
+        blink_caret: true,
+        cursor_byte_idx: 0,
+        active_tab: ConsoleTab::Scratchpad,
+    };
+    let rebuild_root = tree.root().unwrap();
+    build_console_panel(
+        &mut UiScope::new(&mut tree, rebuild_root),
+        &mut params_after,
+        &mut scratchpad,
+        &mut actions_after,
+    );
+    assert!(actions_after.contains(&ConsoleAction::ClearScratchpad));
 }
 
 #[test]
@@ -642,7 +573,6 @@ fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };
@@ -688,7 +618,6 @@ fn test_floating_console_toolbar_text_sections_not_culled() {
                 auto_scroll: &mut auto_scroll,
                 cursor_pos: Point::new(0.0, 0.0),
                 blink_caret: false,
-                focus_state: &FocusState::new(),
                 cursor_byte_idx: 0,
                 active_tab: ConsoleTab::Logs,
             };
@@ -773,7 +702,6 @@ fn test_console_toolbar_wraps_without_overlap_in_narrow_pane() {
         auto_scroll: &mut auto_scroll,
         cursor_pos: Point::ZERO,
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
         active_tab: ConsoleTab::Logs,
     };

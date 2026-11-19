@@ -11,7 +11,6 @@ use super::types::{
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 use irisui::widgets::modal::ModalDialogAction;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -59,7 +58,6 @@ fn test_assets_panel_structure_and_no_emojis() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -192,7 +190,6 @@ fn test_preview_modal_build_and_actions() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -263,7 +260,6 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -418,7 +414,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -690,7 +685,6 @@ fn test_engine_and_sidebar_vector_icons() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -878,7 +872,6 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         active_context_menu: Some(&ctx_menu_data),
         active_preview_modal: None,
         thumbnail_layers: &thumbnail_layers,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -939,7 +932,6 @@ fn test_assets_toolbar_width_and_search_ux() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -1194,7 +1186,6 @@ fn test_assets_preview_modal_emits_close_inspect_modal_on_close_or_scrim() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 

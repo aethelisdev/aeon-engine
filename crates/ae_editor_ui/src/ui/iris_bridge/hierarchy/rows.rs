@@ -456,9 +456,13 @@ pub fn build_hierarchy_rows(
                 if handle_tree_row_click(
                     tree_state,
                     row.entity,
-                    TreeSelectionModifiers::from_ctrl_shift(params.ctrl_held, params.shift_held),
-                    params
-                        .shift_held
+                    TreeSelectionModifiers::from_ctrl_shift(
+                        row_scope.modifiers().ctrl(),
+                        row_scope.modifiers().shift(),
+                    ),
+                    row_scope
+                        .modifiers()
+                        .shift()
                         .then(|| rows.iter().map(|r| r.entity).collect::<Vec<_>>())
                         .as_deref(),
                 )
@@ -480,7 +484,6 @@ pub fn build_hierarchy_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use irisui::widgets::controls::FocusState;
 
     #[test]
     fn test_hierarchy_tree_depth_and_expansion_invariants() {
@@ -566,10 +569,7 @@ mod tests {
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
-            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
-            ctrl_held: false,
-            shift_held: false,
         };
 
         let mut actions = Vec::new();
@@ -635,10 +635,7 @@ mod tests {
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
-            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
-            ctrl_held: false,
-            shift_held: false,
         };
 
         let mut actions = Vec::new();

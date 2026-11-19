@@ -10,7 +10,6 @@ use super::types::{HierarchyPanelParams, HierarchyPanelState, parse_foldout_tag}
 use crate::ui::iris_bridge::hierarchy::rows::sync_hierarchy_rows;
 use hecs::World;
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 use irisui::widgets::tree_view::{
     TreeItemInfo, TreeSelectionModifiers, handle_tree_arrow_navigation, handle_tree_row_click,
 };
@@ -56,10 +55,7 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
-        ctrl_held: false,
-        shift_held: false,
     };
 
     let mut actions = Vec::new();
@@ -237,10 +233,7 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
         active_context_menu: None,
         cursor_pos: Point::new(100.0, 45.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
-        ctrl_held: false,
-        shift_held: false,
     };
 
     super::panel::build_hierarchy_panel(
@@ -259,17 +252,17 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
         Some(&super::types::HierarchyAction::SelectEntity(Some(ent1)))
     );
 
-    // 2. Second click on row 1 (ent2) with Ctrl modifier
+    // 2. Second click on row 1 (ent2) with Ctrl modifier via UiTree modifiers
     actions.clear();
-    tree.event_state.frame_clicked_tag = Some(super::types::make_row_tag(1));
-    let params_ctrl = HierarchyPanelParams {
+    tree.dispatch_event(&UiEvent::ModifiersChanged {
         ctrl_held: true,
-        ..params
-    };
+        shift_held: false,
+    });
+    tree.event_state.frame_clicked_tag = Some(super::types::make_row_tag(1));
 
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root),
-        &params_ctrl,
+        &params,
         &mut rows_cache,
         &mut actions,
         &mut tree_state,
@@ -307,10 +300,7 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
         active_context_menu: None,
         cursor_pos: Point::new(100.0, 45.0),
         blink_caret: false,
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
-        ctrl_held: false,
-        shift_held: false,
     };
 
     let mut actions = Vec::new();

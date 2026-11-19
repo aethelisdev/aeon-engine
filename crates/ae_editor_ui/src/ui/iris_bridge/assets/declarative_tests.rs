@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use irisui::prelude::*;
-use irisui::widgets::controls::FocusState;
 
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use crate::ui::iris_bridge::assets::panel::build_assets_panel;
@@ -46,7 +45,6 @@ fn test_assets_panel_declarative_toolbar_and_chip_actions() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -155,7 +153,6 @@ fn test_assets_panel_declarative_card_selection_action() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -253,7 +250,6 @@ fn test_assets_card_declarative_context_menu_interaction() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -394,7 +390,6 @@ fn test_assets_panel_declarative_drag_and_drop_actions() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -516,7 +511,6 @@ fn test_assets_panel_drag_and_drop_across_tree_rebuild() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -637,7 +631,6 @@ fn test_assets_content_drop_target_emits_import_action() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &std::collections::HashMap::new(),
-        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
     let mut tree_state = TreeState::new();
