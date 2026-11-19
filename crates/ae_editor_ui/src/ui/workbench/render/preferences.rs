@@ -8,7 +8,7 @@
 
 use crate::ui::iris_bridge;
 use crate::ui::types::EngineUiAction;
-use crate::ui::workbench::state::EngineUi;
+use crate::ui::workbench::EngineUi;
 
 /// Context bundle for mutating editor and graphics settings via Preferences actions.
 pub struct PreferencesActionContext<'a> {
@@ -41,7 +41,6 @@ impl EngineUi {
                     let _ = self.workbench.close_panel(&crate::ui::PanelId::Preferences);
                 }
                 iris_bridge::PreferencesAction::SelectTab(t) => {
-                    self.preferences_tab = t;
                     self.iris_overlay.preferences.tab = t;
                     self.iris_overlay.preferences.reset_scroll();
                     self.workbench.tree.set_scroll_offset(
@@ -51,10 +50,6 @@ impl EngineUi {
                     self.workbench
                         .notifier
                         .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
-                }
-                iris_bridge::PreferencesAction::Move(new_pos) => {
-                    self.iris_overlay.preferences.floating.pos = Some(new_pos);
-                    self.workbench.notifier.tag_all();
                 }
                 iris_bridge::PreferencesAction::SetUiScale(s) => {
                     self.ui_zoom_factor = s.clamp(0.6, 2.0);
@@ -71,7 +66,11 @@ impl EngineUi {
                 },
                 iris_bridge::PreferencesAction::ToggleSection(_) => {}
                 iris_bridge::PreferencesAction::SetTheme(t) => {
-                    self.iris_overlay.chrome.theme_preset = t;
+                    self.iris_overlay.preferences.theme_preset = t;
+                    let tokens = t.tokens();
+                    self.workbench.set_theme(tokens.to_iris_theme());
+                    self.workbench
+                        .set_dock_style(iris_bridge::editor_dock_style_with_tokens(&tokens));
                     self.workbench.notifier.tag_all();
                 }
             }

@@ -8,7 +8,7 @@
 
 use crate::ui::iris_bridge;
 use crate::ui::types::EngineUiAction;
-use crate::ui::workbench::state::EngineUi;
+use crate::ui::workbench::EngineUi;
 
 impl EngineUi {
     /// Dispatches all pending 2D Visual UI Designer panel actions.

@@ -8,7 +8,7 @@
 
 use crate::ui::iris_bridge;
 use crate::ui::types::EngineUiAction;
-use crate::ui::workbench::state::EngineUi;
+use crate::ui::workbench::EngineUi;
 
 impl EngineUi {
     /// Drains and processes queued actions from the Content / Asset Browser panel.
@@ -131,33 +131,28 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
                     let cursor_pos = self.workbench.effective_cursor_pos();
-                    let is_over_viewport = cursor_pos.x >= self.last_viewport_rect.x
-                        && cursor_pos.x <= self.last_viewport_rect.right()
-                        && cursor_pos.y >= self.last_viewport_rect.y
-                        && cursor_pos.y <= self.last_viewport_rect.bottom();
+                    let vp_rect = self.workbench.non_ui_viewport_rect();
+                    let is_over_viewport = self.workbench.is_cursor_over_non_ui_viewport();
 
                     log::info!(
                         "[DRAG-DROP] EndAssetDrag: cursor={:?}, viewport_rect={:?} (bounds: x=[{:.1}..{:.1}], y=[{:.1}..{:.1}]), is_over_viewport={}, has_payload={}",
                         cursor_pos,
-                        self.last_viewport_rect,
-                        self.last_viewport_rect.x,
-                        self.last_viewport_rect.right(),
-                        self.last_viewport_rect.y,
-                        self.last_viewport_rect.bottom(),
+                        vp_rect,
+                        vp_rect.x,
+                        vp_rect.right(),
+                        vp_rect.y,
+                        vp_rect.bottom(),
                         is_over_viewport,
                         self.asset_browser.drag_payload.is_some()
                     );
 
                     if let Some(payload) = self.asset_browser.drag_payload.take() {
-                        if is_over_viewport
-                            && self.last_viewport_rect.width > 20.0
-                            && self.last_viewport_rect.height > 20.0
-                        {
+                        if is_over_viewport && vp_rect.width > 20.0 && vp_rect.height > 20.0 {
                             let world_pos = if !is_2d_mode {
                                 if let Some(hit) =
                                     crate::assets::drag_drop::compute_ground_intersection(
                                         [cursor_pos.x, cursor_pos.y],
-                                        self.last_viewport_rect,
+                                        vp_rect,
                                         camera,
                                     )
                                 {
@@ -174,12 +169,8 @@ impl EngineUi {
                                     ]
                                 }
                             } else {
-                                let rel_x = cursor_pos.x
-                                    - self.last_viewport_rect.x
-                                    - self.last_viewport_rect.width * 0.5;
-                                let rel_y = cursor_pos.y
-                                    - self.last_viewport_rect.y
-                                    - self.last_viewport_rect.height * 0.5;
+                                let rel_x = cursor_pos.x - vp_rect.x - vp_rect.width * 0.5;
+                                let rel_y = cursor_pos.y - vp_rect.y - vp_rect.height * 0.5;
                                 [rel_x, -rel_y, 0.0]
                             };
 
@@ -260,8 +251,8 @@ impl EngineUi {
                             log::warn!(
                                 "[DRAG-DROP] Drop ignored: is_over_viewport={}, vp_size=({:.1}x{:.1})",
                                 is_over_viewport,
-                                self.last_viewport_rect.width,
-                                self.last_viewport_rect.height
+                                vp_rect.width,
+                                vp_rect.height
                             );
                         }
                     }
