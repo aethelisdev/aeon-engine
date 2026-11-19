@@ -54,8 +54,6 @@ pub fn inspector_color_picker_config<'a>(
             TAG_INSPECTOR_COLOR_PICKER_HUE_BAR,
         ),
     )
-    .with_initial_hsv(params.inspector_hsv)
-    .with_hex_override(params.inspector_color_hex)
 }
 
 /// Renders the floating 2D HSV Color Picker popup bound directly to `entity`'s [`ae_core::ecs::Color`]
@@ -171,21 +169,11 @@ mod tests {
         );
         scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 600.0));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
             world: &world,
             selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ff0000",
-            saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 1.0, 1.0],
         };
 
         tree.open_popup(appearance_color_swatch_tag());

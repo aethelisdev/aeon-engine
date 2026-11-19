@@ -43,10 +43,6 @@ pub enum EngineUiAction {
     ResetLayout,
     /// Opens the editor global preferences and configuration modal window.
     OpenPreferences,
-    /// Opens the editor 'About Aeon Engine' informational modal dialog.
-    OpenAbout,
-    /// Dispatches desktop window management operations (minimize, maximize, close) to the frameless host.
-    TitleBarAction(irisui::widgets::TitleBarAction),
     SetUiScale(f32),
     SelectEntity(Option<hecs::Entity>),
     SetCameraMode(ae_renderer::camera::ProjectionMode),
