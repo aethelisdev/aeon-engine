@@ -199,11 +199,9 @@ fn render_submenu_children(
     sub_card: &mut UiScope<'_>,
     children: &[CascadingMenuItem],
     selected_entity: Option<hecs::Entity>,
-    active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     children.iter().find_map(|child| {
         sub_card.dropdown_menu_item_autoclose(child).then_click(|| {
-            *active_submenu = None;
             resolve_component_name_from_tag(child.tag)
                 .zip(selected_entity)
                 .map(|(name, ent)| crate::ui::types::EngineUiAction::AddComponent(ent, name))
@@ -216,11 +214,9 @@ fn render_category_item(
     card: &mut UiScope<'_>,
     item: &CascadingMenuItem,
     params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if !item.has_submenu() {
-        card.dropdown_menu_item_autoclose(item)
-            .on_click(|| *active_submenu = None);
+        card.dropdown_menu_item_autoclose(item);
         return None;
     }
 
@@ -234,17 +230,10 @@ fn render_category_item(
                 sub_card,
                 item.submenu.as_deref().unwrap_or(&[]),
                 params.selected_entity,
-                active_submenu,
             )
         },
     )
-    .on_interact(|_| {
-        ComponentCategory::from_tag(item.tag)
-            .filter(|&cat| *active_submenu != Some(cat))
-            .inspect(|&cat| {
-                *active_submenu = Some(cat);
-            });
-    })
+    .inner
     .flatten()
 }
 
@@ -253,19 +242,22 @@ fn render_category_items(
     card: &mut UiScope<'_>,
     menu_items: &[CascadingMenuItem],
     params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     menu_items
         .iter()
-        .find_map(|item| render_category_item(card, item, params, active_submenu))
+        .find_map(|item| render_category_item(card, item, params))
 }
 
 /// Computes the fallback screen-space anchor bounds when the tagged button rectangle is unavailable.
 #[inline]
 #[must_use]
 fn fallback_add_menu_anchor(panel_rect: Rect) -> Rect {
-    let btn_w = ((panel_rect.width - 24.0) * 0.5).max(60.0);
-    Rect::new(panel_rect.x + 8.0, panel_rect.bottom() - 32.0, btn_w, 24.0)
+    Rect::new(
+        panel_rect.x + 8.0,
+        panel_rect.bottom() - 32.0,
+        ((panel_rect.width - 24.0) * 0.5).max(60.0),
+        24.0,
+    )
 }
 
 /// Renders the root Add Component popup menu card into [`UiScope`] when active in `UiTree`,
@@ -273,7 +265,6 @@ fn fallback_add_menu_anchor(panel_rect: Rect) -> Rect {
 pub fn draw_add_component_menu(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<ComponentCategory>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
     match get_add_component_menu_items(params.world, params.selected_entity) {
         items if !items.is_empty() => scope
@@ -282,9 +273,8 @@ pub fn draw_add_component_menu(
                 TAG_INSPECTOR_ADD_COMPONENT,
                 fallback_add_menu_anchor(params.panel_rect),
                 CascadingPopupConfig::new(175.0, PopupPlacement::Above)
-                    .with_item_count(items.len())
-                    .with_active_submenu(active_submenu.map(|c| c.to_tag())),
-                |card| render_category_items(card, &items, params, active_submenu),
+                    .with_item_count(items.len()),
+                |card| render_category_items(card, &items, params),
             )
             .map(|res| res.map_response(|rect, action| (Some(rect), action)))
             .unwrap_or((None, None)),
@@ -295,36 +285,27 @@ pub fn draw_add_component_menu(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::declarative::hash_label;
 
     #[test]
     fn test_declarative_add_component_menu_structure() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
         let world = hecs::World::new();
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
 
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
             world: &world,
             selected_entity: None,
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: Some(ComponentCategory::Physics),
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 0.0, 1.0],
         };
 
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
-        let mut active_submenu = Some(ComponentCategory::Physics);
-        draw_add_component_menu(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut active_submenu,
+        tree.set_active_submenu(
+            hash_label("AddComponentMenu"),
+            ComponentCategory::Physics.to_tag(),
         );
+        draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
 
         assert_eq!(
             tree.node_named("AddComponentMenu")
@@ -380,41 +361,27 @@ mod tests {
         let root = tree.create_root().expect("root node");
         let mut world = hecs::World::new();
         let entity = world.spawn(());
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
 
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
             world: &world,
             selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: Some(ComponentCategory::Physics),
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 0.0, 1.0],
         };
 
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
-        let mut active_submenu = Some(ComponentCategory::Physics);
-        let (_, action) = draw_add_component_menu(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut active_submenu,
+        tree.set_active_submenu(
+            hash_label("AddComponentMenu"),
+            ComponentCategory::Physics.to_tag(),
         );
+        let (_, action) = draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
         assert!(action.is_none());
 
         let tag = component_name_to_tag("RigidBody");
         tree.event_state.frame_clicked_tag = Some(tag);
 
-        let mut active_submenu = Some(ComponentCategory::Physics);
-        let (rect, ui_action) = draw_add_component_menu(
-            &mut UiScope::new(&mut tree, root),
-            &params,
-            &mut active_submenu,
-        );
+        let (rect, ui_action) =
+            draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
 
         assert!(rect.is_some(), "Menu rect must be returned");
         assert!(
@@ -431,9 +398,12 @@ mod tests {
             !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
             "Clicking a component item must clear TAG_INSPECTOR_ADD_COMPONENT in UiTree"
         );
-        assert_eq!(
-            active_submenu, None,
-            "Clicking a component item must reset active_submenu to None in-place"
+        assert!(
+            !tree.is_submenu_open(
+                hash_label("AddComponentMenu"),
+                ComponentCategory::Physics.to_tag()
+            ),
+            "Clicking a component item must clear active_submenus in UiTree"
         );
     }
 

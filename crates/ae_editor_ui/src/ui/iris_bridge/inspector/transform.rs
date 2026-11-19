@@ -177,10 +177,16 @@ mod tests {
         let root = tree.create_root().expect("Root must be created");
         let mut world = hecs::World::new();
 
+        let q = irisui::prelude::euler_deg_to_quat_xyzw(-34.0, 120.0, 0.0);
         let entity = world.spawn((
             Name("Dynamic Cube".to_string()),
             Position::new(0.0, 5.0, 0.0),
-            crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(-34.0, 120.0, 0.0),
+            Rotation {
+                x: q[0],
+                y: q[1],
+                z: q[2],
+                w: q[3],
+            },
             Scale::one(),
         ));
 
@@ -284,8 +290,14 @@ mod tests {
             (scope.tag_for("Rotation"), scope.tag_for("Scale"))
         };
 
+        let q = irisui::prelude::euler_deg_to_quat_xyzw(30.0, 45.0, 60.0);
         let mut pos = Position::zero();
-        let mut rot = super::super::euler_deg_to_quaternion(30.0, 45.0, 60.0);
+        let mut rot = Rotation {
+            x: q[0],
+            y: q[1],
+            z: q[2],
+            w: q[3],
+        };
         let mut scale = Scale::new(2.0, 3.0, 4.0);
 
         tree.event_state.frame_clicked_tag = Some(property_vec3_reset_tag(rot_base));

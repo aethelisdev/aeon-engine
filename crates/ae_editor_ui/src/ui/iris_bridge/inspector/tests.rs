@@ -17,34 +17,12 @@ use irisui::prelude::*;
 fn create_default_test_params<'a>(
     world: &'a hecs::World,
     selected_entity: Option<hecs::Entity>,
-    euler: &'a [f32; 3],
-    swatches: &'a [[f32; 4]],
 ) -> InspectorPanelParams<'a> {
     InspectorPanelParams {
         panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
         world,
         selected_entity,
-        inspector_euler: euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        inspector_hsv: [0.0, 0.0, 1.0],
-    }
-}
-
-/// Creates default [`InspectorSessionRefs`] for mutable session state testing.
-fn default_test_session<'a>(
-    name: &'a mut String,
-    swatches: &'a mut Vec<[f32; 4]>,
-    submenu: &'a mut Option<ComponentCategory>,
-) -> InspectorSessionRefs<'a> {
-    InspectorSessionRefs {
-        inspected_name: name,
-        saved_swatches: swatches,
-        active_submenu: submenu,
     }
 }
 
@@ -53,15 +31,13 @@ fn test_inspector_empty_selection_renders_placeholder() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = hecs::World::new();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
 
-    let params = create_default_test_params(&world, None, &euler, &swatches);
+    let params = create_default_test_params(&world, None);
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     let has_empty_label = tree
@@ -83,14 +59,12 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
         Scale::one(),
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     // Verify 3D Transform inputs are present via declarative assertions
@@ -115,14 +89,12 @@ fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
         Scale::one(),
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     // Capture initial geometric positions immediately after declarative build (layout_subtree pass)
@@ -199,14 +171,12 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
         },
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     // Verify 3D Transform inputs are NOT present
@@ -285,14 +255,12 @@ fn test_inspector_entity_isolation_invariant() {
         },
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(ent_a));
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     assert_eq!(
@@ -317,15 +285,13 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         Scale::default(),
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(ent));
 
     // 1. Initial State: Rotation Y must be 0.0
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
@@ -337,14 +303,20 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
 
     // 2. Modified State: Change Rotation component to 55.0 degrees Y
     if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
-        *r = super::euler_deg_to_quaternion(0.0, 55.0, 0.0);
+        let q = irisui::prelude::euler_deg_to_quat_xyzw(0.0, 55.0, 0.0);
+        *r = Rotation {
+            x: q[0],
+            y: q[1],
+            z: q[2],
+            w: q[3],
+        };
     }
     let mut tree2 = UiTree::new();
     let root2 = tree2.create_root().expect("root node");
     build_inspector_panel(
         &mut UiScope::new(&mut tree2, root2),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
@@ -363,7 +335,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     build_inspector_panel(
         &mut UiScope::new(&mut tree3, root3),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
@@ -429,14 +401,12 @@ fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
         ae_core::ecs::Shape::Cube,
     ));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
-        &mut default_test_session(&mut String::new(), &mut Vec::new(), &mut None),
+        &mut String::new(),
     );
 
     let find_node_rect = |tree: &UiTree, label: &str| -> Option<Rect> {

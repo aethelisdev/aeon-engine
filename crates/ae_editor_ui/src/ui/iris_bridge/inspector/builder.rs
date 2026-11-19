@@ -7,9 +7,9 @@
 //! live numeric math expression sessions, and rename inputs.
 
 use super::panel::build_inspector_panel;
-use super::types::{InspectorPanelParams, InspectorPanelState, InspectorSessionRefs};
-use crate::ui::iris_bridge::panel_views::DeferredPanelNotifier;
+use super::types::{InspectorPanelParams, InspectorPanelState};
 use crate::ui::iris_bridge::types::OverlayUpdateParams;
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 
 impl InspectorPanelState {
@@ -20,18 +20,11 @@ impl InspectorPanelState {
         params: &OverlayUpdateParams<'_>,
         cursor_pos: Point,
         pending_actions: &mut Vec<crate::ui::EngineUiAction>,
-        notifier: &mut DeferredPanelNotifier<'_>,
+        notifier: &mut DeferredNotifier<PanelId>,
     ) {
         if scope.is_collapsed() {
-            self.inspected_entity = None;
             self.inspected_entity_name.clear();
             return;
-        }
-
-        self.commit_pending_edits_on_selection_change(params.scene.selected_entity);
-
-        if scope.popups_dismissed() {
-            self.active_submenu = None;
         }
 
         build_inspector_panel(
@@ -40,28 +33,9 @@ impl InspectorPanelState {
                 panel_rect: scope.parent_rect(),
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                inspector_euler: params.panel_data.inspector_euler,
-                inspector_color_hex: params.panel_data.inspector_color_hex,
-                saved_swatches: params.panel_data.saved_swatches,
                 cursor_pos,
-                active_submenu: self.active_submenu,
-                active_rename_buffer: self
-                    .rename_input
-                    .as_ref()
-                    .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-                    .map(|(_, input)| input.text()),
-                is_rename_all_selected: self.rename_is_all_selected
-                    && self
-                        .rename_input
-                        .as_ref()
-                        .is_some_and(|(ent, _)| Some(*ent) == params.scene.selected_entity),
-                inspector_hsv: self.hsv,
             },
-            &mut InspectorSessionRefs {
-                inspected_name: &mut self.inspected_entity_name,
-                saved_swatches: &mut self.saved_swatches,
-                active_submenu: &mut self.active_submenu,
-            },
+            &mut self.inspected_entity_name,
         )
         .into_iter()
         .for_each(|ui_action| {
@@ -69,10 +43,6 @@ impl InspectorPanelState {
             notifier.tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
         });
 
-        self.sync_after_build(
-            params.scene.selected_entity,
-            *params.panel_data.inspector_euler,
-            params.scene.world,
-        );
+        self.sync_entity_name(params.scene.selected_entity, params.scene.world);
     }
 }

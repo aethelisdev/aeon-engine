@@ -23,7 +23,7 @@ pub const TAG_INSPECTOR_CARDS_CONTAINER: u64 = 0xDAFF_0001;
 pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    session: &mut super::types::InspectorSessionRefs<'_>,
+    inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
     scope
         .panel("InspectorPanelRoot")
@@ -32,7 +32,9 @@ pub fn build_inspector_panel(
         .background_themed(|t| t.panel_bg)
         .show(
             |panel_scope| match params.selected_entity.filter(|e| params.world.contains(*e)) {
-                Some(entity) => render_inspected_entity(panel_scope, entity, params, session),
+                Some(entity) => {
+                    render_inspected_entity(panel_scope, entity, params, inspected_name)
+                }
                 None => {
                     render_empty_selection_view(panel_scope, params);
                     None
@@ -47,7 +49,7 @@ fn render_inspected_entity(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
     params: &InspectorPanelParams<'_>,
-    session: &mut super::types::InspectorSessionRefs<'_>,
+    inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
         combine_card_actions(
@@ -57,7 +59,7 @@ fn render_inspected_entity(
                         scope,
                         entity,
                         &params.entity_display_name(entity),
-                        session.inspected_name,
+                        inspected_name,
                         params.panel_rect.width,
                     ),
                     scope
@@ -65,20 +67,13 @@ fn render_inspected_entity(
                             "InspectorCardsContainer",
                             TAG_INSPECTOR_CARDS_CONTAINER,
                             None,
-                            |cards_scope| {
-                                render_inspector_cards(
-                                    cards_scope,
-                                    entity,
-                                    params,
-                                    session.saved_swatches,
-                                )
-                            },
+                            |cards_scope| render_inspector_cards(cards_scope, entity, params),
                         )
                         .inner,
                 ),
-                footer::build_inspector_footer(scope, params, session.active_submenu),
+                footer::build_inspector_footer(scope, params),
             ),
-            add_menu::draw_add_component_menu(scope, params, session.active_submenu).1,
+            add_menu::draw_add_component_menu(scope, params).1,
         ),
         color_picker_popup::build_color_picker_popup_with_action(scope, params).1,
     )
@@ -89,15 +84,8 @@ fn render_inspector_cards(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
     params: &InspectorPanelParams<'_>,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    render_context_cards(
-        scope,
-        params.world,
-        entity,
-        params.inspector_color_hex,
-        saved_swatches,
-    )
+    render_context_cards(scope, params.world, entity)
 }
 
 /// Evaluates primary cards followed by dynamic registry cards for the active rendering context.
@@ -105,41 +93,13 @@ fn render_context_cards(
     scope: &mut UiScope<'_>,
     world: &hecs::World,
     entity: hecs::Entity,
-    hex_str: &str,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
-        render_primary_cards(scope, world, entity, hex_str, saved_swatches),
+        render_primary_cards(scope, world, entity),
         render_registry_cards(scope, world, entity).or_else(|| {
             super::components::hierarchy::draw_parent_card_if_present(scope, world, entity)
         }),
     )
-}
-
-/// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
-/// directly into the designated [`UiScope`] overlay or portal view, returning `(Option<Rect>, Option<EngineUiAction>)`.
-pub fn build_inspector_overlays_with_action(
-    scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<super::types::ComponentCategory>,
-) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
-    if scope.is_popup_tag_active(footer::TAG_INSPECTOR_ADD_COMPONENT) {
-        add_menu::draw_add_component_menu(scope, params, active_submenu)
-    } else {
-        color_picker_popup::build_color_picker_popup_with_action(scope, params)
-    }
-}
-
-/// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
-/// directly into the designated [`UiScope`] overlay or portal view, preventing panel boundary clipping (Mine 2).
-///
-/// Returns the screen-space bounding rectangle of the constructed overlay if one was active.
-pub fn build_inspector_overlays(
-    scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<super::types::ComponentCategory>,
-) -> Option<Rect> {
-    build_inspector_overlays_with_action(scope, params, active_submenu).0
 }
 
 /// Combines two optional UI actions, evaluating both child branches.
@@ -156,15 +116,13 @@ pub fn render_primary_cards(
     scope: &mut UiScope<'_>,
     world: &hecs::World,
     entity: hecs::Entity,
-    hex_str: &str,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if world.get::<&ae_core::ecs::UiElement>(entity).is_ok() {
         ui_transform::build_ui_transform_card(scope, world, entity);
         header::component_delete_action(scope, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
         transform::build_transform_card(scope, world, entity);
-        appearance::build_appearance_card(scope, world, entity, hex_str, saved_swatches)
+        appearance::build_appearance_card(scope, world, entity)
     }
 }
 
@@ -411,20 +369,11 @@ mod tests {
         let root = tree.create_root().expect("Root must be created");
         let world = hecs::World::new();
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
             world: &world,
             selected_entity: None,
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            active_submenu: None,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 0.0, 1.0],
         };
 
         let mut scope = UiScope::new(&mut tree, root);

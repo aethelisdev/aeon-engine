@@ -42,9 +42,9 @@ pub fn draw_audio_source_card(scope: &mut UiScope<'_>, world: &hecs::World, enti
                     .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
             )
             .on_pick(|| {
-                if let Some(path) = pick_audio_file_path() {
-                    apply_picked_audio_path(&mut audio, path);
-                }
+                pick_audio_file_path()
+                    .into_iter()
+                    .for_each(|path| apply_picked_audio_path(&mut audio, path));
             })
             .on_play_toggle(|| {
                 audio.is_playing = !audio.is_playing;

@@ -107,17 +107,7 @@ impl ComponentCategory {
     }
 }
 
-/// Mutable interaction references supplied to the Inspector panel layout builder.
-pub struct InspectorSessionRefs<'a> {
-    /// Inspected entity display name buffer.
-    pub inspected_name: &'a mut String,
-    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
-    pub saved_swatches: &'a mut Vec<[f32; 4]>,
-    /// Active open Add Component category flyout (if any).
-    pub active_submenu: &'a mut Option<ComponentCategory>,
-}
-
-/// Input parameters supplied to the Inspector panel layout builder.
+/// Input parameters supplied to the Scene Inspector panel layout builder.
 pub struct InspectorPanelParams<'a> {
     /// Bounding rectangle of the docked Inspector panel tab.
     pub panel_rect: Rect,
@@ -125,37 +115,18 @@ pub struct InspectorPanelParams<'a> {
     pub world: &'a hecs::World,
     /// Currently selected entity in the editor.
     pub selected_entity: Option<hecs::Entity>,
-    /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
-    pub inspector_euler: &'a [f32; 3],
-    /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).
-    pub inspector_color_hex: &'a str,
-    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
-    pub saved_swatches: &'a [[f32; 4]],
     /// Current mouse cursor position in global screen coordinates.
     pub cursor_pos: Point,
-    /// Active open Add Component category flyout (if any).
-    pub active_submenu: Option<ComponentCategory>,
-    /// Active entity rename text buffer if currently being edited.
-    pub active_rename_buffer: Option<&'a str>,
-    /// Whether all text in the active entity rename buffer is currently selected in blue.
-    pub is_rename_all_selected: bool,
-    /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
-    pub inspector_hsv: [f32; 3],
 }
 
 impl<'a> InspectorPanelParams<'a> {
-    /// Resolves the human-readable display name for the inspected entity,
-    /// giving precedence to the live rename buffer if active, followed by the
-    /// ECS [`ae_core::ecs::Name`] component, and falling back to a formatted entity ID.
+    /// Resolves the human-readable display name for the inspected entity from its
+    /// ECS [`ae_core::ecs::Name`] component, falling back to a formatted entity ID.
     pub fn entity_display_name(&self, entity: hecs::Entity) -> String {
-        self.active_rename_buffer
-            .map(String::from)
-            .or_else(|| {
-                self.world
-                    .get::<&ae_core::ecs::Name>(entity)
-                    .ok()
-                    .map(|n| n.0.clone())
-            })
+        self.world
+            .get::<&ae_core::ecs::Name>(entity)
+            .ok()
+            .map(|n| n.0.clone())
             .unwrap_or_else(|| format!("Entity ({:?})", entity))
     }
 }

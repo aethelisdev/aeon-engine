@@ -13,23 +13,12 @@ use crate::ui::types::EngineUiAction;
 use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, UiElement};
 use irisui::prelude::*;
 
-fn test_params<'a>(
-    world: &'a hecs::World,
-    entity: hecs::Entity,
-    euler: &'a [f32; 3],
-) -> InspectorPanelParams<'a> {
+fn test_params<'a>(world: &'a hecs::World, entity: hecs::Entity) -> InspectorPanelParams<'a> {
     InspectorPanelParams {
         panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
         world,
         selected_entity: Some(entity),
-        inspector_euler: euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: &[],
         cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        inspector_hsv: [0.0, 0.0, 1.0],
     }
 }
 
@@ -40,21 +29,13 @@ fn click_delete_and_rebuild(
     entity: hecs::Entity,
     component_name: &str,
 ) -> Option<EngineUiAction> {
-    let euler = [0.0, 0.0, 0.0];
-    let params = test_params(world, entity, &euler);
+    let params = test_params(world, entity);
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let mut name = String::new();
-    let mut swatches = Vec::new();
-    let mut submenu = None;
-    let mut session = super::types::InspectorSessionRefs {
-        inspected_name: &mut name,
-        saved_swatches: &mut swatches,
-        active_submenu: &mut submenu,
-    };
 
     assert!(
-        build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session,).is_none(),
+        build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name).is_none(),
         "No action may be emitted before any click"
     );
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
@@ -76,7 +57,7 @@ fn click_delete_and_rebuild(
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut session)
+    build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut name)
 }
 
 #[test]

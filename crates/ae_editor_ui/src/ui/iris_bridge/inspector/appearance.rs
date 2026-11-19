@@ -89,20 +89,16 @@ pub fn render_appearance_card(
     scope: &mut UiScope<'_>,
     current_col: ae_core::ecs::Color,
     entity: hecs::Entity,
-    hex_str: &str,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<EngineUiAction> {
     scope
-        .color_palette_card_scoped(
-            ColorPaletteCardConfig::new(
+        .color_palette_card_tree_scoped(
+            ColorPaletteCardConfig::with_auto_hex(
                 "AppearanceCard",
                 "🎨 Appearance",
                 to_iris_color(current_col),
-                hex_str,
                 &DEFAULT_PALETTE,
             )
             .with_tags(appearance_color_swatch_tag(), appearance_hex_input_tag()),
-            saved_swatches,
         )
         .map(|new_col| EngineUiAction::ModifyColor(entity, current_col, to_ecs_color(new_col)))
 }
@@ -114,16 +110,8 @@ pub fn draw_appearance_card(
     scope: &mut UiScope<'_>,
     world: &hecs::World,
     entity: hecs::Entity,
-    hex_str: &str,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<EngineUiAction> {
-    render_appearance_card(
-        scope,
-        entity_color(world, entity),
-        entity,
-        hex_str,
-        saved_swatches,
-    )
+    render_appearance_card(scope, entity_color(world, entity), entity)
 }
 
 /// Renders an in-place declarative property row using [`UiScope::prop_color_rgba`]
@@ -148,10 +136,8 @@ pub fn build_appearance_card(
     scope: &mut UiScope<'_>,
     world: &hecs::World,
     entity: hecs::Entity,
-    hex_str: &str,
-    saved_swatches: &mut Vec<[f32; 4]>,
 ) -> Option<EngineUiAction> {
-    draw_appearance_card(scope, world, entity, hex_str, saved_swatches)
+    draw_appearance_card(scope, world, entity)
 }
 
 #[cfg(test)]
@@ -181,7 +167,8 @@ mod tests {
             a: 1.0,
         },));
 
-        let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
+        tree.custom_palette_mut(appearance_color_swatch_tag())
+            .extend([[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]]);
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
         scope.container_rect(
@@ -189,7 +176,7 @@ mod tests {
             Style::new().width(280.0).height(300.0),
             Rect::new(10.0, 20.0, 280.0, 300.0),
             |card_scope| {
-                build_appearance_card(card_scope, &world, entity, "#3366cc", &mut saved_swatches);
+                build_appearance_card(card_scope, &world, entity);
             },
         );
 
@@ -217,20 +204,23 @@ mod tests {
     #[test]
     fn test_appearance_card_palette_direct_mutations() {
         let mut tree = UiTree::new();
-        let mut saved_swatches = Vec::new();
 
-        let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
-            let resp = card.prop_color_palette(
-                "Add to Palette:",
-                Color::rgba(0.25, 0.50, 0.75, 1.0),
-                &DEFAULT_PALETTE,
-                &mut saved_swatches,
-            );
-            assert_eq!(resp.selected_color, None);
-        });
+        {
+            let mut scope = UiScope::new(&mut tree, WidgetId::default());
+            scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
+                let resp = card.prop_color_palette_tree_scoped(
+                    appearance_color_swatch_tag(),
+                    PropertyPaletteConfig::new(
+                        "Add to Palette:",
+                        Color::rgba(0.25, 0.50, 0.75, 1.0),
+                        &DEFAULT_PALETTE,
+                    ),
+                );
+                assert_eq!(resp.selected_color, None);
+            });
+        }
 
-        assert_eq!(saved_swatches.len(), 0);
+        assert_eq!(tree.custom_palette(appearance_color_swatch_tag()).len(), 0);
     }
 
     #[test]
@@ -250,11 +240,9 @@ mod tests {
         tree.event_state.frame_key_pressed = true;
         tree.event_state.frame_key = Some(KeyCode::Enter);
 
-        let mut saved_swatches = Vec::new();
-
         let action = {
             let mut scope = UiScope::new(&mut tree, WidgetId::default());
-            build_appearance_card(&mut scope, &world, entity, "#1a334d", &mut saved_swatches)
+            build_appearance_card(&mut scope, &world, entity)
         };
 
         assert!(matches!(
@@ -298,10 +286,11 @@ mod tests {
             a: 1.0,
         },));
 
-        let mut saved_swatches = vec![[1.0, 0.5, 0.0, 1.0]];
+        tree.custom_palette_mut(appearance_color_swatch_tag())
+            .push([1.0, 0.5, 0.0, 1.0]);
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        draw_appearance_card(&mut scope, &world, entity, "#3366cc", &mut saved_swatches);
+        draw_appearance_card(&mut scope, &world, entity);
 
         assert!(
             tree.iter()

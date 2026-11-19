@@ -7,7 +7,7 @@
 
 /// Semantic tag for the `➕ Add Component` button in the Inspector footer.
 pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = 0xDA00_0001;
-use super::types::{ComponentCategory, InspectorPanelParams};
+use super::types::InspectorPanelParams;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
@@ -45,7 +45,6 @@ pub fn prefab_file_path_for_entity(
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
     params: &InspectorPanelParams<'_>,
-    active_submenu: &mut Option<ComponentCategory>,
 ) -> Option<EngineUiAction> {
     scope
         .dual_action_bar(
@@ -65,7 +64,6 @@ pub fn build_inspector_footer(
                 .with_text_name("SavePrefabBtnText")
                 .with_text_align(TextAlign::Center),
         )
-        .on_primary_click(|| *active_submenu = None)
         .then_secondary(|| {
             params.selected_entity.map(|entity| {
                 EngineUiAction::SaveEntityAsPrefab(
@@ -87,27 +85,17 @@ mod tests {
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::Name("Hero Guard".to_string()),));
 
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
             world: &world,
             selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
             cursor_pos: Point::new(12.0, 775.0),
-            active_submenu: None,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 0.0, 1.0],
         };
 
-        let mut active_submenu = None;
         {
             let mut scope = UiScope::new(&mut tree, root);
             scope.configure_container("TestRoot", Style::new().flex_col(), false);
-            let ui_action = build_inspector_footer(&mut scope, &params, &mut active_submenu);
+            let ui_action = build_inspector_footer(&mut scope, &params);
             assert!(ui_action.is_none());
             scope.finish_layout(params.panel_rect);
         }
@@ -145,7 +133,7 @@ mod tests {
         });
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let _ = build_inspector_footer(&mut scope, &params, &mut active_submenu);
+            let _ = build_inspector_footer(&mut scope, &params);
         }
         assert!(
             tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
@@ -164,7 +152,7 @@ mod tests {
         });
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let _ = build_inspector_footer(&mut scope, &params, &mut active_submenu);
+            let _ = build_inspector_footer(&mut scope, &params);
         }
         assert!(
             !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
@@ -185,7 +173,7 @@ mod tests {
 
         let emitted = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_inspector_footer(&mut scope, &params, &mut active_submenu)
+            build_inspector_footer(&mut scope, &params)
         };
         let Some(EngineUiAction::SaveEntityAsPrefab(ent, path)) = emitted else {
             panic!("Expected EngineUiAction::SaveEntityAsPrefab");

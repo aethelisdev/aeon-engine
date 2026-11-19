@@ -14,35 +14,24 @@ use irisui::prelude::*;
 fn create_default_test_params<'a>(
     world: &'a hecs::World,
     selected_entity: Option<hecs::Entity>,
-    euler: &'a [f32; 3],
-    swatches: &'a [[f32; 4]],
 ) -> InspectorPanelParams<'a> {
     InspectorPanelParams {
         panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
         world,
         selected_entity,
-        inspector_euler: euler,
-        inspector_color_hex: "#ffffff",
-        saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        inspector_hsv: [0.0, 0.0, 1.0],
     }
 }
 
 #[test]
 fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
+    use irisui::widgets::declarative::hash_label;
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.active_submenu = Some(ComponentCategory::Physics);
+    let params = create_default_test_params(&world, Some(entity));
 
     // Build Add Component button anchor via declarative UiScope directly in tree
     {
@@ -73,12 +62,11 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
 
     // Build the cascading add menu via declarative UiScope
     tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
-    let mut active_submenu = Some(ComponentCategory::Physics);
-    add_menu::draw_add_component_menu(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut active_submenu,
+    tree.set_active_submenu(
+        hash_label("AddComponentMenu"),
+        ComponentCategory::Physics.to_tag(),
     );
+    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
 
     // Find Physics category card item
     let mut physics_cat_node = None;
@@ -127,11 +115,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.inspector_hsv = [180.0, 0.5, 0.8];
-    params.inspector_color_hex = "#33cccc";
+    let params = create_default_test_params(&world, Some(entity));
 
     // Build Swatch trigger anchor via declarative UiScope directly in tree
     {
@@ -219,19 +203,10 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
     let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
 
     let mut name = String::new();
-    let mut swatches = Vec::new();
-    let mut active_submenu = None;
-    let mut session = super::types::InspectorSessionRefs {
-        inspected_name: &mut name,
-        saved_swatches: &mut swatches,
-        active_submenu: &mut active_submenu,
-    };
-    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut session);
+    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name);
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
 
     let swatch_rect = tree
@@ -256,8 +231,7 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    let _ =
-        panel::build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut session);
+    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut name);
 
     assert!(
         tree.is_popup_tag_active(appearance_color_swatch_tag()),
@@ -281,20 +255,11 @@ fn test_color_picker_drag_and_undo_restoration() {
     };
     let entity = world.spawn((initial_color,));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
     let params = InspectorPanelParams {
         panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
         world: &world,
         selected_entity: Some(entity),
-        inspector_euler: &euler,
-        inspector_color_hex: "#1a334d",
-        saved_swatches: &swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        active_submenu: None,
-        active_rename_buffer: None,
-        is_rename_all_selected: false,
-        inspector_hsv: [210.0, 0.66, 0.30],
     };
 
     tree.open_popup(appearance_color_swatch_tag());
@@ -409,9 +374,7 @@ fn test_color_picker_popup_close_button_interaction() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = hecs::World::new();
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let params = create_default_test_params(&world, None, &euler, &swatches);
+    let params = create_default_test_params(&world, None);
 
     tree.open_popup(appearance_color_swatch_tag());
     {
@@ -463,10 +426,6 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let mut active_submenu = None;
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-
     // 1. Create Add Component button anchor in tree
     {
         let mut scope = UiScope::new(&mut tree, root);
@@ -494,15 +453,11 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
     tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
 
     // 2. Build cascading add menu
-    add_menu::draw_add_component_menu(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut active_submenu,
-    );
+    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
 
     // 3. Verify TAG_INSPECTOR_ADD_COMPONENT is registered as active popup tag
     assert!(
@@ -546,9 +501,6 @@ fn test_inspector_color_picker_popup_outside_click() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-
     let swatch_tag = super::appearance::appearance_color_swatch_tag();
 
     // 1. Create color swatch trigger button in tree
@@ -569,7 +521,7 @@ fn test_inspector_color_picker_popup_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    let params = create_default_test_params(&world, Some(entity));
     tree.open_popup(swatch_tag);
 
     // 2. Build color picker popup
@@ -632,8 +584,7 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         ae_core::ecs::Velocity::default(),
     ));
 
-    let layout_state = crate::ui::panel_layout::PanelLayoutState::new_default();
-    let dock = layout_state.dock_state;
+    let dock = crate::ui::panel_layout::create_default_dock_state();
 
     let mut wb = Workbench::<PanelId, (), ()>::new(WorkbenchDescriptor::new(
         "RealInspectorTest",
@@ -643,20 +594,12 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     .with_statusbar_height(22.0)
     .with_screen_size((1920.0, 1080.0));
 
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
     let mut name = String::new();
-    let mut saved_swatches = Vec::new();
-    let mut active_submenu = None;
 
     struct Ctx<'a> {
         world: &'a hecs::World,
         entity: hecs::Entity,
-        euler: &'a [f32; 3],
-        swatches: &'a [[f32; 4]],
         name: &'a mut String,
-        saved_swatches: &'a mut Vec<[f32; 4]>,
-        active_submenu: &'a mut Option<super::types::ComponentCategory>,
     }
 
     let mut registry = WorkbenchPanelRegistry::<PanelId, Ctx<'_>>::new();
@@ -671,31 +614,15 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
             panel_rect,
             world: ctx.world,
             selected_entity: Some(ctx.entity),
-            inspector_euler: ctx.euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: ctx.swatches,
             cursor_pos: Point::ZERO,
-            active_submenu: *ctx.active_submenu,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            inspector_hsv: [0.0, 0.0, 1.0],
         };
-        let mut session = super::types::InspectorSessionRefs {
-            inspected_name: ctx.name,
-            saved_swatches: ctx.saved_swatches,
-            active_submenu: ctx.active_submenu,
-        };
-        let _ = panel::build_inspector_panel(scope, &params, &mut session);
+        let _ = panel::build_inspector_panel(scope, &params, ctx.name);
     });
 
     let mut ctx = Ctx {
         world: &world,
         entity,
-        euler: &euler,
-        swatches: &swatches,
         name: &mut name,
-        saved_swatches: &mut saved_swatches,
-        active_submenu: &mut active_submenu,
     };
 
     // Frame 0: initial build

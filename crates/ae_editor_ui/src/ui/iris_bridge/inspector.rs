@@ -13,8 +13,6 @@ pub mod color_picker_popup;
 pub mod components;
 pub mod footer;
 pub mod header;
-pub mod math;
-pub mod math_eval;
 pub mod panel;
 pub mod state;
 pub mod transform;
@@ -38,14 +36,7 @@ pub use color_picker_popup::{
 };
 pub use footer::TAG_INSPECTOR_ADD_COMPONENT;
 pub use header::{component_delete_action, entity_name_input_tag};
-pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg, resolve_euler_deg};
-pub use math_eval::{MathEvalError, evaluate_inspector_math};
-pub use panel::{
-    TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_overlays,
-    build_inspector_overlays_with_action, build_inspector_panel,
-};
+pub use panel::{TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_panel};
 pub use state::{InspectorPanelState, InspectorState};
 pub use transform::{build_transform_card, draw_transform_card};
-pub use types::{
-    ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams, InspectorSessionRefs,
-};
+pub use types::{ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams};
