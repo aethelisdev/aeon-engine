@@ -112,10 +112,6 @@ impl InputArbiter {
         engine.winit_state.set_scale_factor(zoom as f64);
         let ui_event = engine.winit_state.on_window_event(event);
 
-        // Synchronize keyboard modifier flags to editor UI
-        engine.ui.iris_overlay.chrome.ctrl_held = engine.winit_state.modifiers().ctrl();
-        engine.ui.iris_overlay.chrome.shift_held = engine.winit_state.modifiers().shift();
-
         let Some(ui_event) = ui_event else {
             return false;
         };
@@ -149,6 +145,9 @@ impl InputArbiter {
         if !outcome.actions.is_empty() {
             engine.ui.pending_actions.extend(outcome.actions);
         }
+        if outcome.close_requested {
+            engine.ui.should_exit = true;
+        }
         if let Some(zoom) = outcome.zoom_changed {
             engine.ui.ui_zoom_factor = zoom;
             let win_size = engine.render_state.window.inner_size();
@@ -157,9 +156,6 @@ impl InputArbiter {
                 win_size.width,
                 win_size.height,
             );
-        }
-        if outcome.toggle_preferences {
-            engine.ui.toggle_preferences();
         }
         if outcome.shell_dirty {
             engine.ui.workbench.notifier.tag_all();

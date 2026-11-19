@@ -227,26 +227,3 @@ pub(crate) fn sync_workbench_screen_size(
         ui.workbench.set_screen_size((logical_w, logical_h));
     }
 }
-
-/// Synchronizes active editor theme tokens and dock chrome styles onto [`irisui::workbench::Workbench`].
-pub(crate) fn sync_workbench_theme(ui: &mut ae_editor_ui::ui::EngineUi) {
-    let preset = ui.iris_overlay.chrome.theme_preset;
-    if ui.iris_overlay.chrome.last_synced_workbench_theme == Some(preset) {
-        return;
-    }
-    ui.iris_overlay.chrome.last_synced_workbench_theme = Some(preset);
-    let tokens = preset.tokens();
-    ui.workbench.set_theme(tokens.to_iris_theme());
-    ui.workbench
-        .set_dock_style(ae_editor_ui::ui::iris_bridge::editor_dock_style_with_tokens(&tokens));
-}
-
-/// Synchronizes both active theme styling and logical window dimensions onto [`irisui::workbench::Workbench`].
-pub(crate) fn sync_workbench_theme_and_screen_size(
-    ui: &mut ae_editor_ui::ui::EngineUi,
-    physical_width: u32,
-    physical_height: u32,
-) {
-    sync_workbench_screen_size(ui, physical_width, physical_height);
-    sync_workbench_theme(ui);
-}

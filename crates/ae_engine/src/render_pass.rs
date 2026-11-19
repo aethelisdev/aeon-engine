@@ -396,9 +396,8 @@ impl AeEngine {
              viewport_texture_view: Option<&wgpu::TextureView>| {
                 ui.sync_console();
                 let win_size = window.inner_size();
-                let prev_theme = ui.iris_overlay.chrome.theme_preset;
                 let prev_scale = ui.scale_factor();
-                crate::events::handlers::sync_workbench_theme_and_screen_size(
+                crate::events::handlers::sync_workbench_screen_size(
                     ui,
                     win_size.width,
                     win_size.height,
@@ -426,10 +425,8 @@ impl AeEngine {
                     is_2d_mode: self.dimension_mode.is_2d(),
                     ui_actions: &mut ui_actions,
                 });
-                if ui.iris_overlay.chrome.theme_preset != prev_theme
-                    || (ui.scale_factor() - prev_scale).abs() > f32::EPSILON
-                {
-                    crate::events::handlers::sync_workbench_theme_and_screen_size(
+                if (ui.scale_factor() - prev_scale).abs() > f32::EPSILON {
+                    crate::events::handlers::sync_workbench_screen_size(
                         ui,
                         win_size.width,
                         win_size.height,

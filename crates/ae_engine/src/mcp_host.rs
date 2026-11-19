@@ -106,7 +106,6 @@ impl McpHost for AeEngine {
                 target_view,
                 physical_screen_size: physical_size,
                 zoom_factor: scale_factor,
-                focused_tag_override: self.ui.iris_overlay.focus_manager.focused_tag,
                 extra_text_occluders: &[],
             },
         );

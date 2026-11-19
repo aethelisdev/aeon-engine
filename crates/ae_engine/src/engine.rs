@@ -124,7 +124,7 @@ impl AeEngine {
             &window,
         );
         let init_size = window.inner_size();
-        crate::events::handlers::sync_workbench_theme_and_screen_size(
+        crate::events::handlers::sync_workbench_screen_size(
             &mut ui,
             init_size.width,
             init_size.height,
