@@ -15,8 +15,54 @@ use super::Widget;
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use irisui_core::{
-    AlignItems, BoxShadow, Color, CornerRadii, Insets, Point, Style, TextAlign, UiLayer, WidgetRole,
+    AlignItems, BoxShadow, Color, CornerRadii, Insets, Point, Rect, Style, TextAlign, UiLayer,
+    WidgetRole,
 };
+
+/// Descriptor for a declarative viewport drop target landing ring and floating cursor preview.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewportDropOverlay<'a> {
+    /// Target viewport bounding rectangle in logical screen pixels.
+    pub viewport_rect: Rect,
+    /// Fallback cursor position when the retained tree has no active pointer event.
+    pub cursor_fallback: Point,
+    /// Primary title label for the floating drag preview capsule.
+    pub title: &'a str,
+    /// Badge text displayed on the floating drag preview capsule.
+    pub badge_text: &'a str,
+    /// Accent color for the badge pill on the floating drag preview capsule.
+    pub badge_color: Color,
+    /// Color of the viewport landing target indicator ring.
+    pub landing_ring_color: Color,
+    /// Outer radius of the landing indicator ring in logical pixels.
+    pub landing_outer_radius: f32,
+    /// Inner dot radius of the landing indicator ring in logical pixels.
+    pub landing_inner_radius: f32,
+}
+
+impl<'a> ViewportDropOverlay<'a> {
+    /// Creates a new viewport drop overlay descriptor with standard 18px/4px cyan landing ring metrics.
+    #[inline]
+    #[must_use]
+    pub const fn new(
+        viewport_rect: Rect,
+        cursor_fallback: Point,
+        title: &'a str,
+        badge_text: &'a str,
+        badge_color: Color,
+    ) -> Self {
+        Self {
+            viewport_rect,
+            cursor_fallback,
+            title,
+            badge_text,
+            badge_color,
+            landing_ring_color: Color::rgba(0.0, 0.90, 1.0, 1.0),
+            landing_outer_radius: 18.0,
+            landing_inner_radius: 4.0,
+        }
+    }
+}
 
 /// Default horizontal and vertical offset displacement from the pointer cursor in screen pixels.
 pub const DEFAULT_DRAG_PREVIEW_OFFSET: Point = Point::new(14.0, 14.0);

@@ -119,6 +119,19 @@ impl<'a, 's> ToolbarGroupScope<'a, 's> {
         resp
     }
 
+    /// Emits a layout-anchored select pill combining trigger visuals, popup toggle, and selection callbacks.
+    #[inline]
+    pub fn anchored_select_pill<F>(
+        &mut self,
+        spec: crate::declarative::scope::AnchoredSelectPillSpec<'_>,
+        on_select: F,
+    ) -> WidgetResponse
+    where
+        F: FnMut(usize),
+    {
+        self.scope.anchored_select_pill(spec, on_select)
+    }
+
     /// Emits a vertical divider line inside this group.
     #[inline]
     pub fn divider(&mut self) {

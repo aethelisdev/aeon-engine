@@ -33,7 +33,7 @@ pub use color_picker::{ColorPicker, ColorPickerResponse};
 pub use color_swatch::ColorSwatch;
 pub use combobox::{ComboBox, ComboBoxResponse};
 pub use drag_preview::{
-    DEFAULT_DRAG_PREVIEW_OFFSET, FloatingDragPreview, FloatingDragPreviewStyle,
+    DEFAULT_DRAG_PREVIEW_OFFSET, FloatingDragPreview, FloatingDragPreviewStyle, ViewportDropOverlay,
 };
 pub use drag_vec2::{DragVec2, Vec2Response};
 pub use drag_vec3::{DragVec3, Vec3Response};

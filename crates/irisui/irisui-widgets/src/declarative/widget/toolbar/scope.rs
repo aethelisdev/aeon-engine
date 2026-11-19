@@ -299,4 +299,21 @@ impl<'a, 's> ToolbarScope<'a, 's> {
     pub fn add<W: Widget>(&mut self, widget: W) -> W::Response {
         self.scope.add(widget)
     }
+
+    /// Formats text into a stack [`irisui_core::StackString`] and emits a fixed-width toolbar label.
+    pub fn label_fmt<const N: usize, F>(
+        &mut self,
+        width: f32,
+        font_size: f32,
+        color: Color,
+        align: irisui_core::TextAlign,
+        fmt_fn: F,
+    ) where
+        F: FnOnce(&mut irisui_core::StackString<N>),
+    {
+        let mut buf = irisui_core::StackString::<N>::new();
+        fmt_fn(&mut buf);
+        self.scope
+            .label_with_width(buf.as_str(), width, font_size, color, align);
+    }
 }

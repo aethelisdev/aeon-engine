@@ -14,10 +14,12 @@
 pub mod action_row;
 pub mod color;
 pub mod color_popup;
+pub mod combobox;
 pub mod numeric_input;
 pub mod palette;
 pub mod palette_card;
 pub mod rows;
+pub mod slider_mapped;
 pub mod sliders;
 pub mod swatch_row;
 pub mod text;
@@ -31,6 +33,7 @@ pub use color::PropertyColorResponse;
 pub use color_popup::{
     ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags, resolve_hsv_from_color,
 };
+pub use combobox::ComboBoxMapConfig;
 pub use numeric_input::{NumericEditConfig, NumericEditResult, handle_numeric_edit_interaction};
 pub use palette::{PropertyPaletteConfig, PropertyPaletteResponse};
 pub use palette_card::ColorPaletteCardConfig;
