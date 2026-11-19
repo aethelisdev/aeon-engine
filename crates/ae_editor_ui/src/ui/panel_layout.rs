@@ -47,27 +47,22 @@ impl PanelId {
         }
     }
 
-    /// Returns the unicode icon glyph associated with this panel.
-    pub fn icon(&self) -> &'static str {
+    /// Returns the unified declarative [`irisui::prelude::UiIcon`] associated with this panel.
+    #[must_use]
+    pub fn ui_icon(&self) -> irisui::prelude::UiIcon {
         match self {
-            Self::Viewport => "🎥",
-            Self::Hierarchy => "🏗️",
-            Self::Stats => "📊",
-            Self::Inspector => "⚙️",
-            Self::MaterialEditor => "🌐",
-            Self::Assets => "📂",
-            Self::Console => "📜",
-            Self::AnimationTimeline => "🎬",
-            Self::UiDesigner => "📐",
-            Self::Preferences => "⚙️",
-        }
-    }
-
-    /// Returns the optional texture array layer coordinates for panels with a dedicated GPU atlas icon.
-    pub fn atlas_icon(&self) -> Option<[f32; 4]> {
-        match self {
-            Self::Assets => Some(crate::ui::iris_bridge::icons::ICON_FOLDER),
-            _ => None,
+            Self::Viewport => irisui::prelude::UiIcon::Glyph("🎥"),
+            Self::Hierarchy => irisui::prelude::UiIcon::Glyph("🏗️"),
+            Self::Stats => irisui::prelude::UiIcon::Glyph("📊"),
+            Self::Inspector => irisui::prelude::UiIcon::Glyph("⚙️"),
+            Self::MaterialEditor => irisui::prelude::UiIcon::Glyph("🌐"),
+            Self::Assets => {
+                irisui::prelude::UiIcon::Atlas(crate::ui::iris_bridge::icons::ICON_FOLDER)
+            }
+            Self::Console => irisui::prelude::UiIcon::Glyph("📜"),
+            Self::AnimationTimeline => irisui::prelude::UiIcon::Glyph("🎬"),
+            Self::UiDesigner => irisui::prelude::UiIcon::Glyph("📐"),
+            Self::Preferences => irisui::prelude::UiIcon::Glyph("⚙️"),
         }
     }
 

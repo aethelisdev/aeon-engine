@@ -3,7 +3,6 @@
 
 //! Frame rendering execution for the editor workbench.
 
-use super::PreferencesActionContext;
 use super::iris_pass::IrisPassParams;
 use super::types::EditorUiRenderParams;
 use crate::ui::panel_layout::PanelId;
@@ -56,51 +55,22 @@ impl EngineUi {
         let mut cur_snap = *params.snapping;
         let mut cur_cfg = params.editor_state.config;
         let mut cur_live = params.editor_state.enable_live_editor_updates;
-        let mut gs_changed = false;
-        let mut snap_changed = false;
-        let mut cfg_changed = false;
-        let mut live_changed = false;
 
-        self.pending_preferences_actions
-            .append(&mut self.iris_overlay.preferences.actions);
-
-        self.process_preferences_actions(PreferencesActionContext {
-            graphics_settings: &mut cur_gs,
-            snapping: &mut cur_snap,
-            editor_config: &mut cur_cfg,
-            enable_live_updates: &mut cur_live,
-            gs_changed: &mut gs_changed,
-            snap_changed: &mut snap_changed,
-            cfg_changed: &mut cfg_changed,
-            live_changed: &mut live_changed,
-            ui_actions: params.ui_actions,
-        });
-
-        self.process_viewport_hud_actions(
-            &mut cur_snap,
-            &mut snap_changed,
-            params.camera,
-            params.ui_actions,
-        );
-        self.process_stats_actions();
-        self.process_hierarchy_actions(params.ui_actions);
         params
             .ui_actions
             .append(&mut self.iris_overlay.pending_actions);
 
-        crate::assets::scanner::rescan_assets_if_needed(
+        if crate::assets::scanner::rescan_assets_if_needed(
             &mut self.asset_browser,
             params.models,
             params.textures,
             params.shaders,
-        );
-        if self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode) {
+        ) {
             self.workbench
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
         self.process_timeline_actions(params.world, params.ui_actions);
-        self.process_material_actions(params.ui_actions);
         self.process_ui_designer_actions(params.world, params.ui_actions);
 
         // 3. Iris UI GPU SDF Native Render Pass
@@ -132,33 +102,12 @@ impl EngineUi {
         self.dispatch_action_bus(params.ui_actions);
 
         // 3b. Immediate post-pass action drain for declarative overlay actions produced during render
-        self.process_hierarchy_actions(params.ui_actions);
-        self.pending_preferences_actions
-            .append(&mut self.iris_overlay.preferences.actions);
-        if !self.pending_preferences_actions.is_empty() {
-            self.process_preferences_actions(PreferencesActionContext {
-                graphics_settings: &mut cur_gs,
-                snapping: &mut cur_snap,
-                editor_config: &mut cur_cfg,
-                enable_live_updates: &mut cur_live,
-                gs_changed: &mut gs_changed,
-                snap_changed: &mut snap_changed,
-                cfg_changed: &mut cfg_changed,
-                live_changed: &mut live_changed,
-                ui_actions: params.ui_actions,
-            });
-        }
-        if self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode) {
-            self.workbench
-                .notifier
-                .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
-        }
         params
             .ui_actions
             .append(&mut self.iris_overlay.pending_actions);
 
         // 3c. Dispatch any settings modifications mutated in-place by declarative two-way bindings
-        if gs_changed || cur_gs != *params.graphics_settings {
+        if cur_gs != *params.graphics_settings {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateGraphicsSettings(cur_gs));
@@ -166,7 +115,7 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
         }
-        if snap_changed || cur_snap != *params.snapping {
+        if cur_snap != *params.snapping {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateSnapSettings(cur_snap));
@@ -174,7 +123,7 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
         }
-        if cfg_changed || cur_cfg != params.editor_state.config {
+        if cur_cfg != params.editor_state.config {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateEditorConfig(cur_cfg));
@@ -182,7 +131,7 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
         }
-        if live_changed || cur_live != params.editor_state.enable_live_editor_updates {
+        if cur_live != params.editor_state.enable_live_editor_updates {
             params
                 .ui_actions
                 .push(EngineUiAction::SetLiveEditorUpdates(cur_live));
@@ -221,8 +170,57 @@ impl EngineUi {
                 EngineUiAction::OpenPreferences => {
                     self.workbench.open_or_focus_panel(PanelId::Preferences);
                 }
+                EngineUiAction::SetWireframe(enabled) => {
+                    self.wireframe_enabled = enabled;
+                    self.workbench.notifier.tag_redraw(PanelId::Viewport);
+                    self.workbench.notifier.tag_redraw(PanelId::Stats);
+                }
+                EngineUiAction::SetGridEnabled(enabled) => {
+                    self.grid_enabled = enabled;
+                    self.workbench.notifier.tag_redraw(PanelId::Viewport);
+                    self.workbench.notifier.tag_redraw(PanelId::Stats);
+                }
+                EngineUiAction::SetGizmoMode(mode) => {
+                    self.gizmo_mode = mode;
+                    self.workbench.notifier.tag_redraw(PanelId::Viewport);
+                }
+                EngineUiAction::ToggleGizmoSpace => {
+                    self.gizmo_space = self.gizmo_space.toggle();
+                    self.workbench.notifier.tag_redraw(PanelId::Viewport);
+                }
+                EngineUiAction::SetUiScale(scale) => {
+                    self.ui_zoom_factor = scale.clamp(0.6, 2.0);
+                    ui_actions.push(EngineUiAction::SetUiScale(scale));
+                }
+                EngineUiAction::SetThemePreset(preset) => {
+                    self.iris_overlay.preferences.theme_preset = preset;
+                    let tokens = preset.tokens();
+                    self.workbench.set_theme(tokens.to_iris_theme());
+                    self.workbench.set_dock_style(
+                        crate::ui::iris_bridge::editor_dock_style_with_tokens(&tokens),
+                    );
+                    self.workbench.notifier.tag_all();
+                }
+                EngineUiAction::PickAndAssignEntityTexture(ent) => {
+                    if let Some(path) = pick_texture_file_path() {
+                        ui_actions.push(EngineUiAction::AssignTextureToEntity(ent, path));
+                    }
+                }
+                EngineUiAction::PickAndSetSubmeshTexture(model_id, idx) => {
+                    if let Some(path) = pick_texture_file_path() {
+                        ui_actions
+                            .push(EngineUiAction::SetModelSubmeshTexture(model_id, idx, path));
+                    }
+                }
                 other => ui_actions.push(other),
             }
         }
     }
+}
+
+fn pick_texture_file_path() -> Option<String> {
+    rfd::FileDialog::new()
+        .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+        .pick_file()
+        .map(|path| path.to_string_lossy().into_owned())
 }

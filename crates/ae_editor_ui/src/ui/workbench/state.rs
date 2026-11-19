@@ -3,7 +3,7 @@
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::panel_layout::{PanelId, create_default_dock_state};
-use crate::ui::types::{ConsoleEntry, EngineUiAction};
+use crate::ui::types::{ConsoleEntry, EditorTelemetrySnapshot, EngineUiAction};
 use irisui::prelude::{Color, Rect};
 use winit::window::Window;
 
@@ -25,8 +25,6 @@ pub struct EngineUi {
     pub is_loading_assets: bool,
     pub gizmo_mode: ae_editor::gizmo::GizmoMode,
     pub gizmo_space: ae_editor::gizmo::GizmoSpace,
-    /// Pending preferences actions to execute on the engine state.
-    pub pending_preferences_actions: Vec<crate::ui::iris_bridge::PreferencesAction>,
     pub should_save_scene: bool,
     pub should_load_scene: bool,
     pub active_scene_path: String,
@@ -39,36 +37,12 @@ pub struct EngineUi {
     pub(crate) console_entries: Vec<ConsoleEntry>,
     /// The log count we last snapshotted from – used for change detection.
     pub(crate) console_last_count: u64,
-    /// Profiler snapshot (ms) – updated by engine before render
-    pub profiler_ecs_ms: f32,
-    pub profiler_physics_ms: f32,
-    pub profiler_render_ms: f32,
-    /// VSync/swapchain present blocking time (ms) – separated from render for accurate profiling.
-    pub profiler_present_ms: f32,
-    pub profiler_ui_ms: f32,
-    pub profiler_frame_ms: f32,
-    /// Detailed CPU thread execution and synchronization stage timings
-    pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
-    /// Detailed CPU command buffer recording and pass orchestration timings
-    pub pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
-    /// Live 240-frame ring buffer for real-time frame pacing analysis
-    pub frame_pacing: ae_core::telemetry::FrameRingBuffer<240>,
-    /// Precalculated statistical pacing metrics (1% Low, 0.1% Low, Jitter Variance, Spikes)
-    pub frame_pacing_stats: ae_core::telemetry::FramePacingStats,
-    /// Detailed draw calls and culling breakdown
-    pub draw_call_stats: ae_core::telemetry::DrawCallBreakdown,
-    /// Granular Video RAM (VRAM) consumption metrics
-    pub vram_stats: ae_core::telemetry::VramStats,
-    /// Memory usage snapshot (MB) – updated by engine before render
-    pub memory_models_mb: f32,
-    pub memory_textures_mb: f32,
-    /// Live rendering geometry metrics
-    pub render_draw_calls: u32,
-    pub render_triangles: u64,
-    pub render_vertices: u64,
-    /// Physical GPU adapter information
-    pub gpu_adapter_name: String,
-    pub gpu_backend: String,
+    /// Batched frame performance, memory, and rendering telemetry snapshot updated by the engine.
+    pub(crate) telemetry: EditorTelemetrySnapshot,
+    /// Physical GPU adapter display name cached after initialization.
+    pub(crate) gpu_adapter_name: String,
+    /// Active rendering backend identifier cached after initialization.
+    pub(crate) gpu_backend: String,
     /// Real-time frames per second (FPS) calculation updated per-frame directly from engine timing.
     pub fps: f32,
     /// Last recorded 3D viewport screen rectangle in logical coordinates.
@@ -80,18 +54,18 @@ pub struct EngineUi {
     /// Persistent 2D UI Designer canvas state (aspect ratio, zoom, pan, grid snap).
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
-    pub pending_actions: Vec<EngineUiAction>,
+    pub(crate) pending_actions: Vec<EngineUiAction>,
     /// Autonomous workbench orchestrator coordinating dock hierarchy, retained UI tree, layout, and modal dialogs.
-    pub workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
+    pub(crate) workbench: irisui::workbench::Workbench<PanelId, EngineUiAction, ()>,
     /// Persistent scoped panel registry retaining all 10 editor panel drawers across frames with zero allocation.
-    pub panel_registry:
+    pub(crate) panel_registry:
         irisui::workbench::ScopedPanelRegistry<PanelId, crate::ui::workbench::EditorPanelScope>,
     /// Reusable deferred invalidation queue replayed onto `workbench.notifier` after each frame pass.
     pub(crate) deferred_notifier: irisui::dock::DeferredNotifier<PanelId>,
     /// Framework-owned GPU surface host coordinating SDF quads, layered typography, and WGPU render passes.
-    pub surface: irisui::IrisSurfaceHost,
+    pub(crate) surface: irisui::IrisSurfaceHost,
     /// Editor overlay panel/modal state bag (transitional until panel views move into direct panel structs).
-    pub iris_overlay: IrisEditorOverlay,
+    pub(crate) iris_overlay: IrisEditorOverlay,
 }
 
 impl EngineUi {
@@ -123,17 +97,13 @@ impl EngineUi {
                 .with_zoom_action(EngineUiAction::SetUiScale)
                 .with_preferences_panel(PanelId::Preferences)
                 .with_window_control_tags(
-                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MINIMIZE,
-                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MAXIMIZE,
-                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_CLOSE,
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MINIMIZE.raw(),
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MAXIMIZE.raw(),
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_CLOSE.raw(),
                 );
 
         let panel_registry = crate::ui::workbench::create_editor_panel_registry();
-        workbench
-            .panel_registry
-            .catalog_mut()
-            .import_metadata_from(panel_registry.catalog());
-        panel_registry.sync_domain_panels_to_notifier(&mut workbench.notifier);
+        workbench.sync_domain_panels_from_registry(&panel_registry);
         let init_tokens = iris_overlay.preferences.theme_preset.tokens();
         workbench.set_theme(init_tokens.to_iris_theme());
         workbench.set_dock_style(crate::ui::iris_bridge::editor_dock_style_with_tokens(
@@ -155,7 +125,6 @@ impl EngineUi {
             is_loading_assets: false,
             gizmo_mode: ae_editor::gizmo::GizmoMode::Select,
             gizmo_space: ae_editor::gizmo::GizmoSpace::Local,
-            pending_preferences_actions: Vec::new(),
             should_save_scene: false,
             should_load_scene: false,
             active_scene_path: "scene.aeworld".to_string(),
@@ -166,23 +135,7 @@ impl EngineUi {
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
-            profiler_ecs_ms: 0.0,
-            profiler_physics_ms: 0.0,
-            profiler_render_ms: 0.0,
-            profiler_present_ms: 0.0,
-            profiler_ui_ms: 0.0,
-            profiler_frame_ms: 0.0,
-            cpu_timings: ae_core::telemetry::CpuSyncTimings::default(),
-            pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings::default(),
-            frame_pacing: ae_core::telemetry::FrameRingBuffer::new(),
-            frame_pacing_stats: ae_core::telemetry::FramePacingStats::default(),
-            draw_call_stats: ae_core::telemetry::DrawCallBreakdown::default(),
-            vram_stats: ae_core::telemetry::VramStats::default(),
-            memory_models_mb: 0.0,
-            memory_textures_mb: 0.0,
-            render_draw_calls: 0,
-            render_triangles: 0,
-            render_vertices: 0,
+            telemetry: EditorTelemetrySnapshot::default(),
             gpu_adapter_name: String::new(),
             gpu_backend: String::new(),
             fps: 60.0,
@@ -327,6 +280,94 @@ impl EngineUi {
     #[inline]
     pub fn wants_pointer_at(&self, pos: [f32; 2]) -> bool {
         self.workbench.wants_pointer_at_self(pos)
+    }
+
+    /// Routes a UI event via `Workbench::handle_event_with_surface` and applies host state flags.
+    pub fn handle_ui_event(&mut self, window: &Window, ui_event: &irisui::core::UiEvent) -> bool {
+        let mut window_ref = window;
+        let win_size = window.inner_size();
+        let outcome = self.workbench.handle_event_with_surface(
+            &mut self.surface,
+            &mut window_ref,
+            (win_size.width, win_size.height),
+            ui_event,
+        );
+        if !outcome.actions.is_empty() {
+            self.pending_actions.extend(outcome.actions);
+        }
+        if outcome.close_requested {
+            self.should_exit = true;
+        }
+        if let Some(zoom) = outcome.zoom_changed {
+            self.ui_zoom_factor = zoom;
+        }
+        outcome.consumed
+    }
+
+    /// Synchronizes logical workbench dimensions from physical window size.
+    #[inline]
+    pub fn on_window_resized(&mut self, physical_width: u32, physical_height: u32) {
+        self.workbench
+            .sync_physical_window_size(physical_width, physical_height);
+    }
+
+    /// Returns `true` when an external OS file drag is hovering over the window.
+    #[inline]
+    #[must_use]
+    pub const fn is_file_drop_hovered(&self) -> bool {
+        self.workbench.is_file_drop_hovered()
+    }
+
+    /// Updates cached frame performance and rendering telemetry snapshot.
+    #[inline]
+    pub fn update_telemetry(&mut self, snapshot: EditorTelemetrySnapshot) {
+        self.telemetry = snapshot;
+    }
+
+    /// Returns `true` once physical GPU adapter metadata is cached.
+    #[inline]
+    #[must_use]
+    pub fn has_gpu_adapter_info(&self) -> bool {
+        !self.gpu_adapter_name.is_empty()
+    }
+
+    /// Caches physical GPU adapter name and rendering backend identifier.
+    pub fn set_gpu_adapter_info(&mut self, adapter: impl Into<String>, backend: impl Into<String>) {
+        self.gpu_adapter_name = adapter.into();
+        self.gpu_backend = backend.into();
+    }
+
+    /// Returns mutable access to Export Project modal dialog state for progress reporting.
+    #[inline]
+    pub fn export_modal_mut(&mut self) -> &mut crate::ui::types::ExportDialogState {
+        &mut self.iris_overlay.export_modal
+    }
+
+    /// Returns read-only access to the retained UI tree for external inspection tooling.
+    #[inline]
+    #[must_use]
+    pub const fn ui_tree(&self) -> &irisui::core::UiTree {
+        self.workbench.tree()
+    }
+
+    /// Returns logical workbench dimensions `[width, height]`, if synchronized.
+    #[inline]
+    #[must_use]
+    pub fn logical_screen_size(&self) -> Option<[f32; 2]> {
+        self.workbench.screen_size().map(|s| [s.width, s.height])
+    }
+
+    /// Marks the entire UI tree dirty for redraw.
+    #[inline]
+    pub fn invalidate_all(&mut self) {
+        self.workbench.notifier.tag_all();
+    }
+
+    /// Updates entity selection and tags Inspector and Hierarchy panels dirty.
+    pub fn select_entity_and_refresh(&mut self, entity: Option<hecs::Entity>) {
+        self.selected_entity = entity;
+        self.workbench.notifier.tag_redraw(PanelId::Inspector);
+        self.workbench.notifier.tag_redraw(PanelId::Hierarchy);
     }
 }
 

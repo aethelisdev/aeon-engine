@@ -400,10 +400,7 @@ impl AeEngine {
                         }
                     }
                 }
-                self.ui.iris_overlay.export_modal.is_running = true;
-                self.ui.iris_overlay.export_modal.progress = 0.0;
-                self.ui.iris_overlay.export_modal.status_message =
-                    format!("Exporting to {}...", resolved_req.output_dir.display());
+                self.ui.export_modal_mut().begin(&resolved_req.output_dir);
                 self.export_rx = Some(ae_export::spawn_export_pipeline(resolved_req));
             }
             if let ae_editor_ui::ui::EngineUiAction::ResumeGame = action
@@ -482,24 +479,20 @@ impl AeEngine {
         while let Ok(evt) = rx.try_recv() {
             match evt {
                 ae_export::ExportPipelineEvent::Progress(prog) => {
-                    self.ui.iris_overlay.export_modal.progress = prog.fraction;
-                    self.ui.iris_overlay.export_modal.status_message = prog.message;
+                    self.ui
+                        .export_modal_mut()
+                        .set_progress(prog.fraction, prog.message);
                 }
                 ae_export::ExportPipelineEvent::Finished(outcome) => {
-                    self.ui.iris_overlay.export_modal.is_running = false;
-                    self.ui.iris_overlay.export_modal.progress = 1.0;
-                    self.ui.iris_overlay.export_modal.status_message = format!(
-                        "Exported {} worlds ({} assets) to {}",
+                    self.ui.export_modal_mut().finish_success(
                         outcome.worlds_packed,
                         outcome.summary.total_assets,
-                        outcome.output_dir.display()
+                        &outcome.output_dir,
                     );
                     finished = true;
                 }
                 ae_export::ExportPipelineEvent::Error(err) => {
-                    self.ui.iris_overlay.export_modal.is_running = false;
-                    self.ui.iris_overlay.export_modal.status_message =
-                        format!("Export failed: {err}");
+                    self.ui.export_modal_mut().finish_error(&err);
                     finished = true;
                 }
             }

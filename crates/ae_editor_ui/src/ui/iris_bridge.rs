@@ -35,27 +35,20 @@ pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
     build_assets_panel,
 };
-pub use console::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, build_console_panel};
-pub use hierarchy::{
-    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyRow, build_hierarchy_panel,
-};
+pub use console::{ConsoleFilterLevel, ConsolePanelState, build_console_panel};
+pub use hierarchy::{AddSubmenuId, HierarchyPanelParams, HierarchyRow, build_hierarchy_panel};
 pub use icons::*;
-pub use material::{MaterialAction, MaterialPanelParams, build_material_panel};
-pub use preferences::{
-    PreferencesAction, PreferencesParams, PreferencesToggleId, build_preferences_dialog,
-};
-pub use stats::{StatsPanelAction, StatsPanelParams, StatsPanelState, build_stats_panel};
+pub use material::{MaterialPanelParams, build_material_panel};
+pub use preferences::{PreferencesParams, build_preferences_view};
+pub use stats::{StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;
 pub use timeline::{TimelineAction, TimelinePanelParams, build_timeline_panel};
 pub use types::{
-    DialogParams, EditorContextParams, IrisEditorOverlay, OverlayPanelData,
-    OverlayPreferencesParams, OverlayUpdateParams, SceneParams, TelemetryParams, ViewportParams,
+    EditorContextParams, IrisEditorOverlay, OverlayPanelData, OverlayPreferencesParams,
+    OverlayUpdateParams, SceneParams, TelemetryParams, ViewportParams,
 };
 pub use ui_designer::{
     CanvasAspectRatio, UiDesignerAction, UiDesignerCanvasMetrics, UiDesignerPanelParams,
     UiDesignerState, UiDragState, UiElementDragContext, UiElementType, build_ui_designer_panel,
 };
-pub use viewport_hud::{
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
-    build_viewport_hud,
-};
+pub use viewport_hud::{ViewportHudParams, ViewportHudState, build_viewport_hud_scope};

@@ -44,7 +44,13 @@ pub enum EngineUiAction {
     /// Opens the editor global preferences and configuration modal window.
     OpenPreferences,
     SetUiScale(f32),
+    /// Updates the workspace color elevation theme preset cleanly via the workbench action bus.
+    SetThemePreset(crate::ui::iris_bridge::theme::ThemePreset),
     SelectEntity(Option<hecs::Entity>),
+    SetWireframe(bool),
+    SetGridEnabled(bool),
+    SetGizmoMode(ae_editor::gizmo::GizmoMode),
+    ToggleGizmoSpace,
     SetCameraMode(ae_renderer::camera::ProjectionMode),
     ToggleCameraProjection,
     SetCameraTransform {
@@ -66,12 +72,16 @@ pub enum EngineUiAction {
     ModifyLightColor(hecs::Entity, [f32; 3], [f32; 3]),
     AssignTextureToEntity(hecs::Entity, String),
     RemoveTextureFromEntity(hecs::Entity),
+    /// Opens the OS file dialog to pick and assign a texture to a 2D sprite entity.
+    PickAndAssignEntityTexture(hecs::Entity),
     SetModelSubmeshAlphaMode(
         ae_renderer::asset::AssetHandle,
         usize,
         ae_renderer::render::types::SubmeshAlphaMode,
     ),
     SetModelSubmeshTexture(ae_renderer::asset::AssetHandle, usize, String),
+    /// Opens the OS file dialog to pick and assign a texture for a 3D model submesh slot.
+    PickAndSetSubmeshTexture(ae_renderer::asset::AssetHandle, usize),
 
     // --- DYNAMIC COMPONENT ACTIONS (Generic ComponentRegistry Pattern) ---
     AddComponent(hecs::Entity, &'static str),
@@ -165,6 +175,44 @@ impl Default for ExportDialogState {
     }
 }
 
+impl ExportDialogState {
+    /// Marks project export active for `output_dir` and resets normalized progress.
+    pub fn begin(&mut self, output_dir: &std::path::Path) {
+        self.is_running = true;
+        self.progress = 0.0;
+        self.status_message = format!("Exporting to {}...", output_dir.display());
+    }
+
+    /// Updates progress fraction and diagnostic message while an export job runs.
+    pub fn set_progress(&mut self, progress: f32, message: impl Into<String>) {
+        self.progress = progress;
+        self.status_message = message.into();
+    }
+
+    /// Records successful project export completion metrics and output path.
+    pub fn finish_success(
+        &mut self,
+        worlds_packed: usize,
+        total_assets: usize,
+        output_dir: &std::path::Path,
+    ) {
+        self.is_running = false;
+        self.progress = 1.0;
+        self.status_message = format!(
+            "Exported {} worlds ({} assets) to {}",
+            worlds_packed,
+            total_assets,
+            output_dir.display()
+        );
+    }
+
+    /// Records export failure diagnostics and clears active running state.
+    pub fn finish_error(&mut self, error: &str) {
+        self.is_running = false;
+        self.status_message = format!("Export failed: {error}");
+    }
+}
+
 impl EngineUiAction {
     /// Creates a generic component modification action by serializing `component` data to binary `postcard` bytes.
     pub fn modify_component<T: serde::Serialize>(
@@ -184,6 +232,47 @@ pub struct ConsoleEntry {
     pub target: String,
     pub msg: String,
     pub timestamp: String,
+}
+
+/// Batched per-frame performance and rendering telemetry passed from `ae_engine` into `EngineUi`.
+///
+/// Copying one plain-data snapshot replaces scattered per-field telemetry mutations without heap allocation.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct EditorTelemetrySnapshot {
+    /// ECS frame execution time in milliseconds.
+    pub profiler_ecs_ms: f32,
+    /// Physics simulation frame time in milliseconds.
+    pub profiler_physics_ms: f32,
+    /// GPU scene rendering duration (excluding present wait and UI pass) in milliseconds.
+    pub profiler_render_ms: f32,
+    /// VSync / swapchain present blocking wait duration in milliseconds.
+    pub profiler_present_ms: f32,
+    /// UI pass CPU command recording duration in milliseconds.
+    pub profiler_ui_ms: f32,
+    /// Total frame duration in milliseconds.
+    pub profiler_frame_ms: f32,
+    /// Detailed CPU thread synchronization timings breakdown.
+    pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
+    /// Detailed CPU command recording timings per render pass.
+    pub pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
+    /// 240-frame rolling frame duration history ring buffer.
+    pub frame_pacing: ae_core::telemetry::FrameRingBuffer<240>,
+    /// Precalculated statistical pacing metrics (`1% Low`, `0.1% Low`, jitter).
+    pub frame_pacing_stats: ae_core::telemetry::FramePacingStats,
+    /// Draw call and batching breakdown counters.
+    pub draw_call_stats: ae_core::telemetry::DrawCallBreakdown,
+    /// Granular Video RAM (VRAM) usage breakdown.
+    pub vram_stats: ae_core::telemetry::VramStats,
+    /// Resident model memory usage in megabytes.
+    pub memory_models_mb: f32,
+    /// Resident texture memory usage in megabytes.
+    pub memory_textures_mb: f32,
+    /// Total rendered draw calls for the latest frame.
+    pub render_draw_calls: u32,
+    /// Total rendered triangles for the latest frame.
+    pub render_triangles: u64,
+    /// Total rendered vertices for the latest frame.
+    pub render_vertices: u64,
 }
 
 /// Canonical UI element type variants for spawning from the editor hierarchy.

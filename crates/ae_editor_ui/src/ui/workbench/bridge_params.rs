@@ -12,7 +12,6 @@ use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::core::{Color, Rect};
 use std::collections::HashSet;
-use std::path::Path;
 
 /// Global editor context, window dimensions, and interaction flags.
 pub struct EditorContextParams<'a> {
@@ -75,20 +74,6 @@ impl<'a> SceneParams<'a> {
     }
 }
 
-/// Modal dialog display flags and file system operation targets.
-pub struct DialogParams<'a> {
-    /// Whether the Preferences modal dialogue is currently visible.
-    pub show_preferences: bool,
-    /// Optional target path pending delete confirmation.
-    pub delete_target: Option<&'a Path>,
-    /// Optional new folder parent path.
-    pub new_folder_parent: Option<&'a Path>,
-    /// Optional rename target path and is_folder flag.
-    pub rename_target: Option<(&'a Path, bool)>,
-    /// Whether background assets are currently being loaded.
-    pub is_loading_assets: bool,
-}
-
 /// Engine configuration, snapping, and preferences settings references.
 pub struct OverlayPreferencesParams<'a> {
     /// Mutable reference to graphics settings for Preferences rendering and two-way data binding.
@@ -134,8 +119,8 @@ pub struct TelemetryParams<'a> {
 pub struct OverlayPanelData<'a> {
     /// Reference to persistent UI Designer state for canvas and toolbar rendering.
     pub ui_designer_state: &'a ae_uidesign::UiDesignerState,
-    /// Reference to persistent asset browser state for Content Browser rendering.
-    pub asset_browser: &'a crate::assets::AssetBrowserState,
+    /// Mutable reference to persistent asset browser state for Content Browser rendering.
+    pub asset_browser: &'a mut crate::assets::AssetBrowserState,
     /// Slice of active in-memory log entries for Developer Console rendering.
     pub console_entries: &'a [crate::ui::types::ConsoleEntry],
     /// GPU texture asset repository for material panel inspection.
@@ -154,19 +139,12 @@ pub struct OverlayUpdateParams<'a> {
     pub viewport: ViewportParams<'a>,
     /// Scene graph, active entity, and ECS world access.
     pub scene: SceneParams<'a>,
-    /// Modal dialog flags and file operations.
-    pub dialogs: DialogParams<'a>,
     /// Engine configuration and preferences data.
     pub preferences: OverlayPreferencesParams<'a>,
     /// Performance statistics, frame pacing, and hardware telemetry.
     pub telemetry: TelemetryParams<'a>,
     /// Subsystem data repositories and caches consumed by panel builders.
     pub panel_data: OverlayPanelData<'a>,
-    /// Framework modal dialog host managing confirmations, textual inputs, and custom modals.
-    pub dialog_host:
-        Option<&'a mut irisui::workbench::DialogHost<crate::ui::types::EngineUiAction>>,
-    /// Decoupled action bus collecting actions emitted by framework modal dialogs.
-    pub action_bus: Option<&'a mut irisui::workbench::ActionBus<crate::ui::types::EngineUiAction>>,
 }
 
 impl<'a> OverlayUpdateParams<'a> {
@@ -196,19 +174,5 @@ impl<'a> OverlayUpdateParams<'a> {
     #[must_use]
     pub fn selected_entity(&self) -> Option<hecs::Entity> {
         self.scene.selected_entity
-    }
-
-    /// Evaluates whether any modal dialog or preferences card is actively open.
-    #[inline]
-    #[must_use]
-    pub fn is_modal_active(&self) -> bool {
-        self.dialogs.delete_target.is_some()
-            || self.dialogs.new_folder_parent.is_some()
-            || self.dialogs.rename_target.is_some()
-            || self.dialogs.is_loading_assets
-            || self
-                .dialog_host
-                .as_ref()
-                .is_some_and(|host| host.active_dialog().is_some())
     }
 }

@@ -129,41 +129,13 @@ impl InputArbiter {
         Self::dispatch_ui_event(engine, &ui_event)
     }
 
-    /// Dispatches a translated [`irisui::prelude::UiEvent`] directly through the active
-    /// workbench and synchronizes hover, actions, zoom, preferences, and layout invalidation.
+    /// Dispatches a translated [`irisui::prelude::UiEvent`] to [`EngineUi`](ae_editor_ui::ui::EngineUi).
     ///
     /// Returns `true` when the UI consumed the event.
     pub fn dispatch_ui_event(engine: &mut AeEngine, ui_event: &irisui::prelude::UiEvent) -> bool {
-        let mut window = &engine.render_state.window;
-        let outcome = engine.ui.workbench.handle_event(&mut window, ui_event);
-
-        engine.ui.surface.apply_hover_flags(
-            outcome.is_hover_target_changed(),
-            outcome.hover_affects_text,
-            outcome.hover_requires_full_upload,
-        );
-        if !outcome.actions.is_empty() {
-            engine.ui.pending_actions.extend(outcome.actions);
-        }
-        if outcome.close_requested {
-            engine.ui.should_exit = true;
-        }
-        if let Some(zoom) = outcome.zoom_changed {
-            engine.ui.ui_zoom_factor = zoom;
-            let win_size = engine.render_state.window.inner_size();
-            super::handlers::sync_workbench_screen_size(
-                &mut engine.ui,
-                win_size.width,
-                win_size.height,
-            );
-        }
-        if outcome.shell_dirty {
-            engine.ui.workbench.notifier.tag_all();
-        } else if let Some(panel) = outcome.invalidated_panel {
-            engine.ui.workbench.notifier.tag_redraw(panel);
-        }
-
-        outcome.consumed
+        engine
+            .ui
+            .handle_ui_event(&engine.render_state.window, ui_event)
     }
 
     /// Routes keyboard input, handling global editor mode hotkeys and gameplay forwarding.

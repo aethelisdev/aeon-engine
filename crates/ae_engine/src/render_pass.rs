@@ -333,33 +333,37 @@ impl AeEngine {
         }
 
         // Sync profiler snapshot to UI for display
-        self.ui.profiler_ecs_ms = self.profiler.ecs_time;
-        self.ui.profiler_physics_ms = self.profiler.physics_time;
         // Separate true GPU render work from VSync/swapchain present blocking.
         let present_wait_ms = self.render_state.last_present_wait_secs * 1000.0;
         let ui_pass_ms = self.render_state.last_recording_timings.ui_pass_record_ms;
         self.profiler.ui_time = ui_pass_ms;
-        self.ui.profiler_render_ms =
-            (self.profiler.render_time - present_wait_ms - ui_pass_ms).max(0.0);
-        self.ui.profiler_present_ms = present_wait_ms;
-        self.ui.profiler_ui_ms = ui_pass_ms;
-        self.ui.profiler_frame_ms = self.profiler.total_frame_time;
-        self.ui.cpu_timings = self.profiler.get_cpu_sync_timings(present_wait_ms);
-        self.ui.pass_recording_timings = self.render_state.last_recording_timings;
-        self.ui.frame_pacing = self.profiler.frame_pacing;
-        self.ui.frame_pacing_stats = self.profiler.calculate_pacing_stats();
-        self.ui.draw_call_stats = self.render_state.last_render_stats.to_breakdown();
-        self.ui.vram_stats = self.render_state.get_vram_breakdown(&self.asset_manager);
-
         let (models_bytes, textures_bytes) = self.asset_manager.get_memory_usage();
-        self.ui.memory_models_mb = models_bytes as f32 / (1024.0 * 1024.0);
-        self.ui.memory_textures_mb = textures_bytes as f32 / (1024.0 * 1024.0);
-        self.ui.render_draw_calls = self.render_state.last_render_stats.draw_calls;
-        self.ui.render_triangles = self.render_state.last_render_stats.triangles;
-        self.ui.render_vertices = self.render_state.last_render_stats.vertices;
-        if self.ui.gpu_adapter_name.is_empty() {
-            self.ui.gpu_adapter_name = self.render_state.adapter_info.name.clone();
-            self.ui.gpu_backend = format!("{:?}", self.render_state.adapter_info.backend);
+        self.ui
+            .update_telemetry(ae_editor_ui::ui::EditorTelemetrySnapshot {
+                profiler_ecs_ms: self.profiler.ecs_time,
+                profiler_physics_ms: self.profiler.physics_time,
+                profiler_render_ms: (self.profiler.render_time - present_wait_ms - ui_pass_ms)
+                    .max(0.0),
+                profiler_present_ms: present_wait_ms,
+                profiler_ui_ms: ui_pass_ms,
+                profiler_frame_ms: self.profiler.total_frame_time,
+                cpu_timings: self.profiler.get_cpu_sync_timings(present_wait_ms),
+                pass_recording_timings: self.render_state.last_recording_timings,
+                frame_pacing: self.profiler.frame_pacing,
+                frame_pacing_stats: self.profiler.calculate_pacing_stats(),
+                draw_call_stats: self.render_state.last_render_stats.to_breakdown(),
+                vram_stats: self.render_state.get_vram_breakdown(&self.asset_manager),
+                memory_models_mb: models_bytes as f32 / (1024.0 * 1024.0),
+                memory_textures_mb: textures_bytes as f32 / (1024.0 * 1024.0),
+                render_draw_calls: self.render_state.last_render_stats.draw_calls,
+                render_triangles: self.render_state.last_render_stats.triangles,
+                render_vertices: self.render_state.last_render_stats.vertices,
+            });
+        if !self.ui.has_gpu_adapter_info() {
+            self.ui.set_gpu_adapter_info(
+                &self.render_state.adapter_info.name,
+                format!("{:?}", self.render_state.adapter_info.backend),
+            );
         }
 
         let render_options = ae_renderer::render::RenderOptions {
@@ -397,11 +401,7 @@ impl AeEngine {
                 ui.sync_console();
                 let win_size = window.inner_size();
                 let prev_scale = ui.scale_factor();
-                crate::events::handlers::sync_workbench_screen_size(
-                    ui,
-                    win_size.width,
-                    win_size.height,
-                );
+                ui.on_window_resized(win_size.width, win_size.height);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
@@ -426,11 +426,7 @@ impl AeEngine {
                     ui_actions: &mut ui_actions,
                 });
                 if (ui.scale_factor() - prev_scale).abs() > f32::EPSILON {
-                    crate::events::handlers::sync_workbench_screen_size(
-                        ui,
-                        win_size.width,
-                        win_size.height,
-                    );
+                    ui.on_window_resized(win_size.width, win_size.height);
                 }
                 #[cfg(feature = "mcp")]
                 if let Some(session) = mcp.as_mut() {

@@ -61,7 +61,7 @@ impl IrisEditorOverlay {
     #[inline]
     #[must_use]
     pub fn has_pending_actions(&self) -> bool {
-        !self.pending_actions.is_empty() || !self.assets.actions.is_empty()
+        !self.pending_actions.is_empty()
     }
 
     /// Initializes a new [`IrisEditorOverlay`] with default editor panel and dialog states.

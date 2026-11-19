@@ -42,16 +42,16 @@ fn test_ui_tree_text_input_focus_ssot() {
     assert!(!tree.is_text_input_focused());
     assert_eq!(tree.event_state.focused_tag, None);
 
-    tree.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
+    tree.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT.raw());
     assert_eq!(
         tree.event_state.focused_tag,
-        Some(HIERARCHY_TAG_SEARCH_INPUT)
+        Some(HIERARCHY_TAG_SEARCH_INPUT.raw())
     );
-    assert!(tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
+    assert!(tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT.raw()));
     assert!(!tree.is_tag_focused(99999));
 
     tree.event_state.clear_focus();
-    assert!(!tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
+    assert!(!tree.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT.raw()));
     assert_eq!(tree.event_state.focused_tag, None);
 }
 
@@ -62,12 +62,12 @@ fn test_live_search_query_filtering_sync() {
 
     let mut tree = UiTree::new();
     tree.event_state
-        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "aadsadsa", 8, None);
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT.raw(), "aadsadsa", 8, None);
 
     // Verify buffer resolution
     let buf = tree
         .event_state
-        .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT);
+        .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT.raw());
     assert_eq!(buf, Some("aadsadsa"));
 
     // Verify filtering predicate
@@ -84,11 +84,11 @@ fn test_live_search_query_filtering_sync() {
     );
 
     // Verify clear tag wipes EventState buffer
-    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_SEARCH_CLEAR);
+    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_SEARCH_CLEAR.raw());
     tree.event_state.clear_text_edit();
     assert_eq!(
         tree.event_state
-            .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT),
+            .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT.raw()),
         None
     );
 }
@@ -128,7 +128,7 @@ fn test_search_input_focus_blur_lifecycle() {
 
     // 3. Hierarchy search editing starts
     tree.event_state
-        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "cube", 4, None);
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT.raw(), "cube", 4, None);
     assert!(tree.is_text_input_focused());
 
     tree.event_state.clear_text_edit();
@@ -599,7 +599,7 @@ fn test_overlay_params_accessors_and_invariants() {
     let vram = ae_core::telemetry::VramStats::default();
 
     let ui_designer_state = ae_uidesign::UiDesignerState::default();
-    let asset_browser = crate::assets::AssetBrowserState::default();
+    let mut asset_browser = crate::assets::AssetBrowserState::default();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
     let mut live_updates = true;
@@ -640,13 +640,6 @@ fn test_overlay_params_accessors_and_invariants() {
             gizmo_space: ae_editor::gizmo::GizmoSpace::World,
         },
         scene,
-        dialogs: DialogParams {
-            show_preferences: false,
-            delete_target: None,
-            new_folder_parent: None,
-            rename_target: None,
-            is_loading_assets: false,
-        },
         preferences: OverlayPreferencesParams {
             graphics_settings: &mut gfx,
             snapping_settings: &mut snap,
@@ -669,20 +662,17 @@ fn test_overlay_params_accessors_and_invariants() {
         },
         panel_data: OverlayPanelData {
             ui_designer_state: &ui_designer_state,
-            asset_browser: &asset_browser,
+            asset_browser: &mut asset_browser,
             console_entries: &[],
             textures: &textures,
             models: &models,
         },
-        dialog_host: None,
-        action_bus: None,
     };
 
     assert_eq!(params.dimensions(), (1920.0, 1080.0));
     assert_eq!(params.zoom_factor(), 1.25);
     assert_eq!(params.world().len(), 2);
     assert_eq!(params.selected_entity(), Some(entity_a));
-    assert!(!params.is_modal_active());
 }
 
 #[test]

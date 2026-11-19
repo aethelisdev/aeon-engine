@@ -79,16 +79,6 @@ impl EngineUi {
         let view_panel_mask = self
             .workbench
             .tab_visibility_mask(&iris_bridge::menubar::VIEW_PANEL_IDS);
-        let extra_modal_active = self.iris_overlay.assets.dialog_host.is_active()
-            || self.iris_overlay.assets.preview_modal.is_some();
-        let extra_popup_active = self.iris_overlay.hierarchy.is_add_menu_open
-            || self.iris_overlay.hierarchy.active_context_menu.is_some();
-        let extra_overlay_revision = u64::from(self.iris_overlay.hierarchy.is_add_menu_open)
-            | (u64::from(self.iris_overlay.hierarchy.active_context_menu.is_some()) << 1);
-        let is_assets_search_focused = self
-            .workbench
-            .tree
-            .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
         let cursor_pos = self.workbench.effective_cursor_pos();
         let is_cursor_occluded = self.workbench.is_cursor_occluded();
         let selection_id = self.selected_entity.map(|e| e.to_bits().get());
@@ -121,13 +111,6 @@ impl EngineUi {
                 world: params.world,
                 active_entities_count: params.world.len() as usize,
             },
-            dialogs: iris_bridge::DialogParams {
-                show_preferences: false,
-                delete_target: None,
-                new_folder_parent: None,
-                rename_target: None,
-                is_loading_assets: false,
-            },
             preferences: iris_bridge::OverlayPreferencesParams {
                 graphics_settings: params.graphics_settings,
                 snapping_settings: params.snapping_settings,
@@ -137,41 +120,36 @@ impl EngineUi {
             },
             telemetry: iris_bridge::TelemetryParams {
                 fps: self.fps,
-                frame_pacing: &self.frame_pacing,
-                frame_pacing_stats: &self.frame_pacing_stats,
-                cpu_timings: &self.cpu_timings,
-                pass_recording_timings: &self.pass_recording_timings,
-                draw_call_stats: &self.draw_call_stats,
-                vram_stats: &self.vram_stats,
-                render_triangles: self.render_triangles as usize,
-                render_vertices: self.render_vertices as usize,
+                frame_pacing: &self.telemetry.frame_pacing,
+                frame_pacing_stats: &self.telemetry.frame_pacing_stats,
+                cpu_timings: &self.telemetry.cpu_timings,
+                pass_recording_timings: &self.telemetry.pass_recording_timings,
+                draw_call_stats: &self.telemetry.draw_call_stats,
+                vram_stats: &self.telemetry.vram_stats,
+                render_triangles: self.telemetry.render_triangles as usize,
+                render_vertices: self.telemetry.render_vertices as usize,
                 gpu_adapter_name: &self.gpu_adapter_name,
                 gpu_backend: &self.gpu_backend,
             },
             panel_data: iris_bridge::OverlayPanelData {
                 ui_designer_state: &self.ui_designer_state,
-                asset_browser: &self.asset_browser,
+                asset_browser: &mut self.asset_browser,
                 console_entries: &self.console_entries,
                 textures: params.textures,
                 models: params.models,
             },
-            dialog_host: None,
-            action_bus: None,
         };
 
-        self.iris_overlay.assets.sync_dirty_invalidation(
-            &self.asset_browser,
-            params.is_2d_mode,
-            is_assets_search_focused,
-            &mut self.workbench.notifier,
-        );
         let mut menubar_bus = std::mem::take(&mut self.workbench.action_bus);
+        let mut staged_dialogs = irisui::workbench::DialogHost::new();
         self.deferred_notifier.clear();
         let blink_caret = self.workbench.text_system.is_caret_visible();
         let frame_outcome = {
             let mut panel_ctx = EditorPanelContext {
                 overlay: &mut self.iris_overlay,
                 notifier: &mut self.deferred_notifier,
+                action_bus: &mut menubar_bus,
+                dialog_host: &mut staged_dialogs,
                 params: &mut overlay_params,
                 blink_caret,
                 cursor_pos,
@@ -189,11 +167,8 @@ impl EngineUi {
                 },
                 |inputs| {
                     inputs
-                        .or_modal_active(extra_modal_active)
-                        .or_popup_active(extra_popup_active)
                         .with_drag_active(is_drag_active)
                         .with_surface_revision(u64::from(params.viewport_texture_view.is_some()))
-                        .with_overlay_revision(extra_overlay_revision)
                 },
                 |scope, ctx, size| {
                     iris_bridge::menubar::build_top_menu_bar(
@@ -205,83 +180,23 @@ impl EngineUi {
                             can_redo: ctx.params.context.can_redo,
                             is_editing: ctx.params.context.is_editing,
                         },
-                        &mut menubar_bus,
+                        ctx.action_bus,
                     );
                     iris_bridge::export_modal::render_export_project_modal(
                         scope,
                         &mut ctx.overlay.export_modal,
-                        &mut menubar_bus,
+                        ctx.action_bus,
                     );
-                    if ctx.overlay.assets.dialog_host.is_active() {
-                        iris_bridge::assets::panel::render_assets_dialog_host(
-                            scope,
-                            &mut ctx.overlay.assets.dialog_host,
-                            &mut ctx.overlay.assets.action_bus,
-                            (size.width, size.height),
-                        );
-                    }
-                    iris_bridge::status_bar::build_bottom_status_bar_scope(
+                    iris_bridge::status_bar::render_workbench_status_bar(
                         scope,
-                        &iris_bridge::status_bar::StatusBarParams {
-                            screen_width: size.width,
-                            screen_height: size.height,
-                            status_spans: ctx.params.context.status_spans,
-                        },
+                        size.width,
+                        size.height,
+                        ctx.params.context.status_spans,
                     );
-                },
-                |scope, ctx| {
-                    let cam = ctx.params.viewport.camera;
-                    let vp_rect = ctx.params.viewport.viewport_rect;
-                    let cam_hud_key = (
-                        [
-                            (cam.position.x * 10.0).round() as i32,
-                            (cam.position.y * 10.0).round() as i32,
-                            (cam.position.z * 10.0).round() as i32,
-                        ],
-                        cam.pitch.0.to_degrees().round() as i32,
-                        cam.yaw.0.to_degrees().round() as i32,
-                        vp_rect,
-                    );
-                    if ctx.overlay.viewport_hud.last_camera_hud_key != Some(cam_hud_key) {
-                        ctx.overlay.viewport_hud.last_camera_hud_key = Some(cam_hud_key);
-                        iris_bridge::viewport_hud::camera_hud::update_camera_hud(
-                            scope, cam, vp_rect,
-                        );
-                    }
-                    let compass_key = (
-                        (cam.pitch.0 * 1000.0).round() as i32,
-                        (cam.yaw.0 * 1000.0).round() as i32,
-                        vp_rect,
-                    );
-                    if ctx.overlay.viewport_hud.last_compass_key != Some(compass_key) {
-                        ctx.overlay.viewport_hud.last_compass_key = Some(compass_key);
-                        iris_bridge::viewport_hud::compass::update_compass_canvas(
-                            scope, cam, vp_rect,
-                        );
-                    }
-                    if scope
-                        .node_id_tagged(iris_bridge::stats::STATS_TAG_CANVAS)
-                        .is_some()
-                        && ctx
-                            .overlay
-                            .stats
-                            .last_stats_refresh
-                            .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(33))
-                    {
-                        ctx.overlay.stats.last_stats_refresh = Some(std::time::Instant::now());
-                        iris_bridge::stats::graph::refresh_live_oscilloscope(
-                            scope,
-                            ctx.params.telemetry.frame_pacing,
-                            ctx.params.telemetry.frame_pacing_stats,
-                        );
-                        iris_bridge::stats::cpu_breakdown::update_cpu_breakdown_texts(
-                            scope,
-                            ctx.params.telemetry.cpu_timings,
-                        );
-                    }
                 },
             )
         };
+        self.workbench.append_dialogs(&mut staged_dialogs);
         self.workbench
             .notifier
             .apply_deferred(&mut self.deferred_notifier);
@@ -289,15 +204,6 @@ impl EngineUi {
             self.workbench.action_bus.emit(action);
         }
         if let Ok(ref outcome) = frame_outcome {
-            if outcome.is_full_shell_rebuild()
-                || matches!(
-                    outcome.lifecycle_branch,
-                    irisui::workbench::LifecycleBranch::GranularPanels(_)
-                )
-            {
-                self.iris_overlay.viewport_hud.reset_live_cache();
-                self.iris_overlay.stats.last_stats_refresh = None;
-            }
             let hovered_tag = self.workbench.hovered_tag();
             let blink_caret = self.workbench.text_system.is_caret_visible();
             self.surface.apply_frame_flags(
@@ -322,6 +228,30 @@ impl EngineUi {
                 physical_screen_size: (win_size.width, win_size.height),
                 zoom_factor: zoom,
                 extra_text_occluders: &[],
+            },
+        );
+    }
+
+    /// Uploads editor icon atlas if needed and renders the retained UI tree into `target_view`.
+    pub fn render_offscreen_snapshot(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target_view: &wgpu::TextureView,
+        physical_screen_size: (u32, u32),
+        zoom_factor: f32,
+    ) {
+        crate::ui::workbench::icons::ensure_editor_icon_atlas(&mut self.surface, device, queue);
+        self.workbench.render_to_surface(
+            &mut self.surface,
+            irisui::workbench::WorkbenchSurfaceRender {
+                device,
+                queue,
+                encoder,
+                target_view,
+                physical_screen_size,
+                zoom_factor,
             },
         );
     }

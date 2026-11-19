@@ -12,8 +12,7 @@ pub mod types;
 pub mod workbench;
 
 // Re-exports for  engine consumption
-pub use iris_bridge::IrisEditorOverlay;
-pub use iris_bridge::hierarchy::{HierarchyAction, HierarchyPanelParams, HierarchyRow};
+pub use iris_bridge::hierarchy::{HierarchyPanelParams, HierarchyRow};
 pub use panel_layout::PanelId;
-pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
+pub use types::{ConsoleEntry, EditorTelemetrySnapshot, EngineUiAction, UiElementType};
 pub use workbench::{EditorUiRenderParams, EngineUi, SceneDialogAction};

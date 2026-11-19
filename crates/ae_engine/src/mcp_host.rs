@@ -27,12 +27,11 @@ impl McpHost for AeEngine {
     }
 
     fn ui_tree(&self) -> &UiTree {
-        self.ui.workbench.tree()
+        self.ui.ui_tree()
     }
 
     fn floating_windows(&self) -> Vec<McpFloatingWindow> {
         self.ui
-            .workbench
             .dock_state()
             .floating_windows
             .iter()
@@ -46,7 +45,7 @@ impl McpHost for AeEngine {
     }
 
     fn logical_screen_size(&self) -> Option<[f32; 2]> {
-        self.ui.workbench.screen_size().map(|s| [s.width, s.height])
+        self.ui.logical_screen_size()
     }
 
     fn dispatch_ui_event(&mut self, event: &UiEvent) -> bool {
@@ -64,7 +63,7 @@ impl McpHost for AeEngine {
 
     fn invalidate_ui(&mut self, mark_all: bool) {
         if mark_all {
-            self.ui.workbench.notifier.tag_all();
+            self.ui.invalidate_all();
         }
         self.render_state.window.request_redraw();
     }
@@ -89,25 +88,13 @@ impl McpHost for AeEngine {
         physical_size: (u32, u32),
         scale_factor: f32,
     ) {
-        ae_editor_ui::ui::iris_bridge::icons::ensure_editor_icon_atlas(
-            &mut self.ui.surface,
+        self.ui.render_offscreen_snapshot(
             &self.render_state.device,
             &self.render_state.queue,
-        );
-        let hovered_tag = self.ui.workbench.hovered_tag();
-        self.ui.surface.render_to_view(
-            &mut self.ui.workbench.tree,
-            &mut self.ui.workbench.text_system,
-            hovered_tag,
-            irisui::IrisSurfaceRenderParams {
-                device: &self.render_state.device,
-                queue: &self.render_state.queue,
-                encoder,
-                target_view,
-                physical_screen_size: physical_size,
-                zoom_factor: scale_factor,
-                extra_text_occluders: &[],
-            },
+            encoder,
+            target_view,
+            physical_size,
+            scale_factor,
         );
     }
 
@@ -130,15 +117,7 @@ impl McpHost for AeEngine {
         self.editor.selected_entities.push(entity);
         self.editor.selected_entities_set.clear();
         self.editor.selected_entities_set.insert(entity);
-        self.ui.selected_entity = Some(entity);
-        self.ui
-            .workbench
-            .notifier
-            .tag_redraw(ae_editor_ui::ui::PanelId::Inspector);
-        self.ui
-            .workbench
-            .notifier
-            .tag_redraw(ae_editor_ui::ui::PanelId::Hierarchy);
+        self.ui.select_entity_and_refresh(Some(entity));
         self.render_state.window.request_redraw();
         Ok(entity.to_bits().get())
     }

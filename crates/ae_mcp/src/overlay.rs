@@ -399,9 +399,7 @@ fn push_circle_ring(
         border_color: border.to_linear().to_array(),
         border_width: [border_width; 4],
         corner_radii: [radius; 4],
-        shadow_color: [0.0; 4],
-        shadow_params: [0.0; 4],
-        clip_rect: [0.0; 4],
+        ..QuadInstance::default()
     });
 }
 
@@ -409,11 +407,7 @@ fn push_rect_quad(list: &mut DrawCommandList, rect: Rect, color: Color) {
     list.push_quad(QuadInstance {
         rect: rect.to_array(),
         color: color.to_linear().to_array(),
-        border_color: [0.0; 4],
-        border_width: [0.0; 4],
         corner_radii: [1.0; 4],
-        shadow_color: [0.0; 4],
-        shadow_params: [0.0; 4],
-        clip_rect: [0.0; 4],
+        ..QuadInstance::default()
     });
 }

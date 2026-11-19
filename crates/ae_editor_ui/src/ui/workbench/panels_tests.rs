@@ -103,5 +103,9 @@ fn test_editor_panel_registry_contains_all_panels_and_metadata() {
     let assets_meta = registry
         .panel_metadata(&PanelId::Assets)
         .expect("Assets metadata");
-    assert!(assets_meta.atlas_icon.is_some());
+    assert!(
+        assets_meta
+            .icon
+            .is_some_and(irisui::prelude::UiIcon::is_atlas)
+    );
 }

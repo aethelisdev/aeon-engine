@@ -124,17 +124,7 @@ impl AeEngine {
             &window,
         );
         let init_size = window.inner_size();
-        crate::events::handlers::sync_workbench_screen_size(
-            &mut ui,
-            init_size.width,
-            init_size.height,
-        );
-        ui.workbench.lifecycle.register_domain_panels([
-            ae_editor_ui::ui::PanelId::Inspector,
-            ae_editor_ui::ui::PanelId::Hierarchy,
-            ae_editor_ui::ui::PanelId::MaterialEditor,
-            ae_editor_ui::ui::PanelId::AnimationTimeline,
-        ]);
+        ui.on_window_resized(init_size.width, init_size.height);
         let gizmo_system = ae_editor::gizmo::GizmoSystem::new(
             &render_state.device,
             render_state.config.format,
