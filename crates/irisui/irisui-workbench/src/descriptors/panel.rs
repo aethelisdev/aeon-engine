@@ -10,6 +10,18 @@
 use irisui_dock::TabPlacement;
 use irisui_widgets::UiScope;
 
+/// Scheduling policy governing when a panel's [`ScopedWorkbenchPanel::refresh_live`] hook runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LiveRefreshInterval {
+    /// Refreshes only when invalidated or rebuilt (no periodic background tick).
+    #[default]
+    OnChange,
+    /// Invokes `refresh_live` on every `InPlaceRefresh` frame while visible.
+    EveryFrame,
+    /// Invokes `refresh_live` at most once per specified millisecond period while visible.
+    ThrottledMs(u32),
+}
+
 /// Common interface implemented by autonomous workbench tool panels.
 ///
 /// Decouples individual tool views (Hierarchy, Inspector, Console, Assets, Viewport)
@@ -35,13 +47,8 @@ pub trait ScopedWorkbenchPanel<TabId, S: ScopedPanelContext>: Send + Sync {
     /// Returns the user-facing title of this panel displayed in tab headers.
     fn title(&self) -> &str;
 
-    /// Returns an optional icon glyph or name for the tab header.
-    fn icon(&self) -> Option<&'static str> {
-        None
-    }
-
-    /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
-    fn atlas_icon(&self) -> Option<[f32; 4]> {
+    /// Returns an optional unified icon ([`irisui_core::UiIcon::Glyph`] or [`irisui_core::UiIcon::Atlas`]).
+    fn icon(&self) -> Option<irisui_core::UiIcon> {
         None
     }
 
@@ -65,6 +72,14 @@ pub trait ScopedWorkbenchPanel<TabId, S: ScopedPanelContext>: Send + Sync {
         None
     }
 
+    /// Declares the periodic [`LiveRefreshInterval`] governing [`Self::refresh_live`] execution.
+    fn live_refresh_interval(&self) -> LiveRefreshInterval {
+        LiveRefreshInterval::OnChange
+    }
+
+    /// Performs lightweight in-place live updates (canvas primitives, telemetry text) during `InPlaceRefresh`.
+    fn refresh_live<'frame>(&mut self, _scope: &mut UiScope<'_>, _state: &mut S::Context<'frame>) {}
+
     /// Declaratively renders the panel content into `scope` using the frame-borrowed `state`.
     fn render<'frame>(&mut self, scope: &mut UiScope<'_>, state: &mut S::Context<'frame>);
 }
@@ -80,13 +95,8 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
     /// Returns the user-facing title of this panel displayed in tab headers.
     fn title(&self) -> &str;
 
-    /// Returns an optional vector icon or icon glyph name for the tab header.
-    fn icon(&self) -> Option<&'static str> {
-        None
-    }
-
-    /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
-    fn atlas_icon(&self) -> Option<[f32; 4]> {
+    /// Returns an optional unified icon ([`irisui_core::UiIcon::Glyph`] or [`irisui_core::UiIcon::Atlas`]).
+    fn icon(&self) -> Option<irisui_core::UiIcon> {
         None
     }
 
@@ -111,6 +121,14 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
         false
     }
 
+    /// Declares the periodic [`LiveRefreshInterval`] governing [`Self::refresh_live`] execution.
+    fn live_refresh_interval(&self) -> LiveRefreshInterval {
+        LiveRefreshInterval::OnChange
+    }
+
+    /// Performs lightweight in-place live updates (canvas primitives, telemetry text) during `InPlaceRefresh`.
+    fn refresh_live(&mut self, _scope: &mut UiScope<'_>, _state: &mut AppState) {}
+
     /// Declaratively renders the panel content into the given [`UiScope`].
     ///
     /// # Arguments
@@ -126,10 +144,8 @@ pub struct PanelMetadata<TabId> {
     pub id: TabId,
     /// User-facing display title.
     pub title: String,
-    /// Optional icon identifier or vector name.
-    pub icon: Option<String>,
-    /// Optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
-    pub atlas_icon: Option<[f32; 4]>,
+    /// Optional unified icon ([`irisui_core::UiIcon::Glyph`] or [`irisui_core::UiIcon::Atlas`]).
+    pub icon: Option<irisui_core::UiIcon>,
     /// Whether the panel can be closed by the user.
     pub closeable: bool,
     /// Whether the background behind this tab's content should remain transparent.
@@ -138,6 +154,8 @@ pub struct PanelMetadata<TabId> {
     pub is_domain_bound: bool,
     /// Optional declarative docking/floating placement rule used when opening or toggling this tab.
     pub placement: Option<TabPlacement<TabId>>,
+    /// Scheduling policy for in-place [`refresh_live`](ScopedWorkbenchPanel::refresh_live) ticks.
+    pub live_refresh: LiveRefreshInterval,
 }
 
 impl<TabId: Clone> PanelMetadata<TabId> {
@@ -149,27 +167,19 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             id,
             title: title.into(),
             icon: None,
-            atlas_icon: None,
             closeable: true,
             clear_background: false,
             is_domain_bound: false,
             placement: None,
+            live_refresh: LiveRefreshInterval::OnChange,
         }
     }
 
-    /// Sets the optional unicode icon glyph or string icon identifier via fluent builder.
+    /// Sets the optional unified icon via fluent builder.
     #[inline]
     #[must_use]
-    pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
+    pub fn with_icon(mut self, icon: impl Into<irisui_core::UiIcon>) -> Self {
         self.icon = Some(icon.into());
-        self
-    }
-
-    /// Sets the optional texture atlas UV coordinates `[u0, v0, u1, v1]` via fluent builder.
-    #[inline]
-    #[must_use]
-    pub fn with_atlas_icon(mut self, atlas_icon: [f32; 4]) -> Self {
-        self.atlas_icon = Some(atlas_icon);
         self
     }
 
@@ -194,10 +204,10 @@ impl<TabId: Clone> PanelMetadata<TabId> {
     pub fn from_panel<AppState>(panel: &dyn WorkbenchPanel<TabId, AppState>) -> Self {
         Self::new(panel.id(), panel.title())
             .with_optional_icon(panel.icon())
-            .with_optional_atlas_icon(panel.atlas_icon())
             .with_closeable(panel.closeable())
             .with_clear_background(panel.clear_background())
             .with_domain_bound(panel.is_domain_bound())
+            .with_live_refresh(panel.live_refresh_interval())
     }
 
     /// Constructs panel metadata from an existing [`ScopedWorkbenchPanel`].
@@ -207,22 +217,24 @@ impl<TabId: Clone> PanelMetadata<TabId> {
     ) -> Self {
         Self::new(panel.id(), panel.title())
             .with_optional_icon(panel.icon())
-            .with_optional_atlas_icon(panel.atlas_icon())
             .with_closeable(panel.closeable())
             .with_clear_background(panel.clear_background())
             .with_domain_bound(panel.is_domain_bound())
             .with_optional_placement(panel.placement())
+            .with_live_refresh(panel.live_refresh_interval())
     }
 
+    /// Sets the periodic live-refresh scheduling policy via fluent builder.
     #[inline]
-    fn with_optional_icon(mut self, icon: Option<&str>) -> Self {
-        self.icon = icon.map(str::to_string);
+    #[must_use]
+    pub const fn with_live_refresh(mut self, interval: LiveRefreshInterval) -> Self {
+        self.live_refresh = interval;
         self
     }
 
     #[inline]
-    fn with_optional_atlas_icon(mut self, atlas_icon: Option<[f32; 4]>) -> Self {
-        self.atlas_icon = atlas_icon;
+    fn with_optional_icon(mut self, icon: Option<irisui_core::UiIcon>) -> Self {
+        self.icon = icon;
         self
     }
 

@@ -311,4 +311,11 @@ where
     ) -> WorkbenchResult<()> {
         Self::draw(self, tab, scope, context)
     }
+
+    #[inline]
+    fn refresh_live(&mut self, tab: &TabId, scope: &mut UiScope<'_>, context: &mut Context) {
+        if let Some(panel) = self.panels.get_mut(tab) {
+            panel.refresh_live(scope, context);
+        }
+    }
 }

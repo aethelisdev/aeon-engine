@@ -22,18 +22,20 @@ struct MockContext {
 
 #[test]
 fn test_menu_bar_descriptor_hierarchy_and_tags() {
-    let mut menu_bar = MenuBarDescriptor::new();
+    let mut menu_bar = MenuBarDescriptor::<MockMenuAction>::new();
 
-    let file_menu = MenuSectionDescriptor::new("File", 100)
-        .with_action_shortcut("New Scene", "Ctrl+N", 101)
-        .with_action_shortcut("Save Scene", "Ctrl+S", 102)
+    let file_tag = irisui_core::UiTag::from_str("File");
+    let new_scene_tag = file_tag.child("New Scene");
+    let file_menu = MenuSectionDescriptor::new("File", file_tag)
+        .with_command_shortcut("New Scene", "Ctrl+N", MockMenuAction::NewFile)
+        .with_command_shortcut("Save Scene", "Ctrl+S", MockMenuAction::SaveFile)
         .with_separator()
         .with_submenu(
             "Export",
-            103,
+            file_tag.child("Export"),
             vec![
-                MenuItemDescriptor::action("glTF 2.0", 104),
-                MenuItemDescriptor::disabled_action("FBX (Unavailable)", 105),
+                MenuItemDescriptor::command("glTF 2.0", MockMenuAction::SaveFile),
+                MenuItemDescriptor::disabled(None, "FBX (Unavailable)", None::<&str>),
             ],
         );
 
@@ -41,16 +43,16 @@ fn test_menu_bar_descriptor_hierarchy_and_tags() {
 
     assert_eq!(menu_bar.menus.len(), 1);
     let found = menu_bar.find_menu("File").expect("File menu must exist");
-    assert_eq!(found.tag, 100);
+    assert_eq!(found.tag, file_tag);
     assert_eq!(found.items.len(), 4);
 
-    // Item 0: Action with shortcut
-    assert_eq!(found.items[0].tag(), Some(101));
+    // Item 0: Command with shortcut and auto-resolved hierarchical tag
+    assert_eq!(found.items[0].resolved_tag(found.tag), Some(new_scene_tag));
     assert!(found.items[0].is_enabled());
     assert!(!found.items[0].is_separator());
 
     // Item 2: Separator
-    assert_eq!(found.items[2].tag(), None);
+    assert_eq!(found.items[2].resolved_tag(found.tag), None);
     assert!(!found.items[2].is_enabled());
     assert!(found.items[2].is_separator());
 
@@ -180,7 +182,7 @@ fn test_workbench_descriptor_shell_composition() {
     let dock_state = DockState::new(tree);
 
     let workbench = WorkbenchDescriptor::new("Aeon Engine Studio", dock_state)
-        .with_menubar(MenuBarDescriptor::new().with_menu(MenuSectionDescriptor::new("Edit", 200)))
+        .with_menubar(MenuBarDescriptor::new().with_menu(MenuSectionDescriptor::titled("Edit")))
         .with_statusbar(StatusBarDescriptor::new().with_left_status("Ready"));
 
     assert_eq!(workbench.title(), "Aeon Engine Studio");
@@ -196,7 +198,7 @@ fn test_menubar_descriptor_render_and_divider() {
     let root = tree.create_root().expect("Root node must exist");
     let mut scope = UiScope::new(&mut tree, root);
 
-    let menubar = MenuBarDescriptor::new()
+    let menubar = MenuBarDescriptor::<()>::new()
         .with_height(36.0)
         .with_branding(MenuBarBrandingDescriptor::new(
             [0.0, 0.0, 1.0, 1.0],
@@ -204,18 +206,18 @@ fn test_menubar_descriptor_render_and_divider() {
             28.0,
         ))
         .with_menu(
-            MenuSectionDescriptor::new("File", 100)
-                .with_action_full("🗎", "New Scene", Some("Ctrl+N"), 101)
+            MenuSectionDescriptor::titled("File")
+                .with_command_full("🗎", "New Scene", Some("Ctrl+N"), ())
                 .with_separator()
-                .with_action("Save Scene", 102),
+                .with_command("Save Scene", ()),
         )
-        .with_action_button(
+        .with_command_button(
             "▶ Play",
             irisui_core::Color::hex("#228b22"),
             irisui_core::Color::WHITE,
-            301,
+            (),
         )
-        .with_window_control("✕", true, 401);
+        .with_window_control("✕", true, irisui_core::UiTag::from_str("window.close"));
 
     let action = menubar.render(&mut scope, 1920.0);
     assert_eq!(
@@ -281,7 +283,7 @@ fn test_workbench_descriptor_render_chrome_integration() {
         .with_menubar(
             MenuBarDescriptor::new()
                 .with_height(36.0)
-                .with_menu(MenuSectionDescriptor::new("File", 100)),
+                .with_menu(MenuSectionDescriptor::titled("File")),
         )
         .with_statusbar(
             StatusBarDescriptor::new()
@@ -320,116 +322,69 @@ enum MockMenuAction {
 }
 
 #[test]
-fn test_menu_bar_descriptor_render_with_action_bus_emission() {
+fn test_menu_bar_descriptor_render_into_direct_action_emission() {
     let mut bus = ActionBus::<MockMenuAction>::new();
+    let about_modal_tag = irisui_core::UiTag::from_str("modal.about");
+
+    let file_section = MenuSectionDescriptor::titled("File")
+        .with_command_shortcut("New File", "Ctrl+N", MockMenuAction::NewFile)
+        .with_command_shortcut("Save File", "Ctrl+S", MockMenuAction::SaveFile)
+        .with_command_shortcut("Exit", "Alt+F4", MockMenuAction::RequestExit)
+        .with_modal_trigger(None, "About", None::<&str>, about_modal_tag);
+
+    let exit_tag = file_section.effective_tag().child("Exit");
+    let about_item_tag = file_section.effective_tag().child("About");
+    let play_tag = irisui_core::UiTag::from_str("btn.toggle_play");
 
     let menu_bar = MenuBarDescriptor::new()
         .with_height(36.0)
-        .with_menu(
-            MenuSectionDescriptor::new("File", 1000)
-                .with_action_shortcut("New File", "Ctrl+N", 1001)
-                .with_action_shortcut("Save File", "Ctrl+S", 1002)
-                .with_action_shortcut("Exit", "Alt+F4", 1003),
-        )
-        .with_window_control("□", false, 7002);
+        .with_menu(file_section)
+        .with_action_button(
+            "□",
+            irisui_core::Color::TRANSPARENT,
+            irisui_core::Color::WHITE,
+            play_tag,
+            Some(MockMenuAction::ToggleFullscreen),
+        );
 
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node must exist");
 
     // 1. Initial render without any click event
     let mut scope = UiScope::new(&mut tree, root);
-    let action_tag =
-        menu_bar.render_with_action_bus(&mut scope, 1920.0, &mut bus, |tag| match tag {
-            1001 => Some(MockMenuAction::NewFile),
-            1002 => Some(MockMenuAction::SaveFile),
-            1003 => Some(MockMenuAction::RequestExit),
-            7002 => Some(MockMenuAction::ToggleFullscreen),
-            _ => None,
-        });
+    let clicked = menu_bar.render_into(&mut scope, 1920.0, &mut bus);
+    assert_eq!(clicked, None);
+    assert!(bus.is_empty());
 
-    assert_eq!(action_tag, None);
-    assert!(
-        bus.is_empty(),
-        "No action should be emitted when not clicked"
+    // 2. Simulate opening "File" menu and clicking "Exit" directly without tag map closure
+    let file_header_tag = irisui_core::UiTag::from_str("File").raw();
+    tree.active_menu_bar_tag = Some(file_header_tag);
+    tree.event_state.frame_clicked_tag = Some(exit_tag.raw());
+    let mut scope2 = UiScope::new(&mut tree, root);
+    let clicked_exit = menu_bar.render_into(&mut scope2, 1920.0, &mut bus);
+
+    assert_eq!(clicked_exit, Some(exit_tag));
+    assert_eq!(
+        bus.drain().collect::<Vec<_>>(),
+        vec![MockMenuAction::RequestExit]
     );
 
-    // 2. Simulate opening "File" menu and then clicking "Exit" (tag 1003)
-    let file_header_tag = irisui_widgets::declarative::hash_label("File");
+    // 3. Simulate clicking "About" ModalTrigger directly opens modal_tag
     tree.active_menu_bar_tag = Some(file_header_tag);
-    tree.event_state.frame_clicked_tag = Some(1003);
-    let mut scope2 = UiScope::new(&mut tree, root);
-    let clicked_tag =
-        menu_bar.render_with_action_bus(&mut scope2, 1920.0, &mut bus, |tag| match tag {
-            1001 => Some(MockMenuAction::NewFile),
-            1002 => Some(MockMenuAction::SaveFile),
-            1003 => Some(MockMenuAction::RequestExit),
-            7002 => Some(MockMenuAction::ToggleFullscreen),
-            _ => None,
-        });
-
-    assert_eq!(clicked_tag, Some(1003));
-    assert_eq!(bus.len(), 1, "Clicked action must be pushed to ActionBus");
-    let drained: Vec<_> = bus.drain().collect();
-    assert_eq!(drained, vec![MockMenuAction::RequestExit]);
-    assert!(bus.is_empty(), "ActionBus drained successfully");
-
-    // 3. Simulate clicking window control button (tag 7002)
-    tree.event_state.frame_clicked_tag = Some(7002);
+    tree.event_state.frame_clicked_tag = Some(about_item_tag.raw());
     let mut scope3 = UiScope::new(&mut tree, root);
-    let win_btn_tag =
-        menu_bar.render_with_action_bus(&mut scope3, 1920.0, &mut bus, |tag| match tag {
-            1001 => Some(MockMenuAction::NewFile),
-            1002 => Some(MockMenuAction::SaveFile),
-            1003 => Some(MockMenuAction::RequestExit),
-            7002 => Some(MockMenuAction::ToggleFullscreen),
-            _ => None,
-        });
+    let _ = menu_bar.render_into(&mut scope3, 1920.0, &mut bus);
+    assert!(tree.is_modal_open(about_modal_tag.raw()));
 
-    assert_eq!(win_btn_tag, Some(7002));
-    assert_eq!(bus.len(), 1);
-    let drained_win: Vec<_> = bus.drain().collect();
-    assert_eq!(drained_win, vec![MockMenuAction::ToggleFullscreen]);
-}
-
-#[test]
-fn test_workbench_descriptor_render_chrome_with_action_bus() {
-    let mut tree = DockTree::new();
-    let leaf = tree.create_leaf(vec![MockTab::Viewport]);
-    tree.set_root(leaf);
-    let dock_state = DockState::new(tree);
-
-    let workbench = WorkbenchDescriptor::new("Aeon Studio", dock_state)
-        .with_menubar(MenuBarDescriptor::new().with_height(36.0).with_menu(
-            MenuSectionDescriptor::new("File", 2000).with_action_shortcut(
-                "Save Scene",
-                "Ctrl+S",
-                2001,
-            ),
-        ))
-        .with_statusbar(StatusBarDescriptor::new().with_height(22.0));
-
-    let mut bus = ActionBus::<MockMenuAction>::new();
-    let mut ui_tree = UiTree::new();
-    let root = ui_tree.create_root().expect("Root node must exist");
-
-    // Simulate File dropdown opened and Save Scene (tag 2001) clicked
-    let file_tag = irisui_widgets::declarative::hash_label("File");
-    ui_tree.active_menu_bar_tag = Some(file_tag);
-    ui_tree.event_state.frame_clicked_tag = Some(2001);
-    let mut scope = UiScope::new(&mut ui_tree, root);
-
-    let tag = workbench.render_chrome_with_action_bus(&mut scope, 1920.0, 1080.0, &mut bus, |t| {
-        if t == 2001 {
-            Some(MockMenuAction::SaveFile)
-        } else {
-            None
-        }
-    });
-
-    assert_eq!(tag, Some(2001));
-    assert_eq!(bus.len(), 1);
-    let events: Vec<_> = bus.drain().collect();
-    assert_eq!(events, vec![MockMenuAction::SaveFile]);
+    // 4. Simulate clicking typed right-aligned button
+    tree.event_state.frame_clicked_tag = Some(play_tag.raw());
+    let mut scope4 = UiScope::new(&mut tree, root);
+    let clicked_play = menu_bar.render_into(&mut scope4, 1920.0, &mut bus);
+    assert_eq!(clicked_play, Some(play_tag));
+    assert_eq!(
+        bus.drain().collect::<Vec<_>>(),
+        vec![MockMenuAction::ToggleFullscreen]
+    );
 }
 
 // =========================================================================
@@ -454,8 +409,8 @@ impl WorkbenchPanel<MockTab, MockPanelAppState> for MockViewportPanel {
         "3D Viewport"
     }
 
-    fn icon(&self) -> Option<&'static str> {
-        Some("viewport_icon")
+    fn icon(&self) -> Option<irisui_core::UiIcon> {
+        Some(irisui_core::UiIcon::Glyph("viewport_icon"))
     }
 
     fn closeable(&self) -> bool {
@@ -482,8 +437,8 @@ impl WorkbenchPanel<MockTab, MockPanelAppState> for MockInspectorPanel {
         "Entity Inspector"
     }
 
-    fn icon(&self) -> Option<&'static str> {
-        Some("inspector_icon")
+    fn icon(&self) -> Option<irisui_core::UiIcon> {
+        Some(irisui_core::UiIcon::Glyph("inspector_icon"))
     }
 
     fn closeable(&self) -> bool {
@@ -510,8 +465,8 @@ impl WorkbenchPanel<MockTab, MockPanelAppState> for MockHierarchyPanel {
         "Scene Hierarchy"
     }
 
-    fn icon(&self) -> Option<&'static str> {
-        Some("hierarchy_icon")
+    fn icon(&self) -> Option<irisui_core::UiIcon> {
+        Some(irisui_core::UiIcon::Glyph("hierarchy_icon"))
     }
 
     fn closeable(&self) -> bool {
@@ -546,7 +501,10 @@ fn test_workbench_panel_trait_registration_and_metadata() {
         .panel_metadata(&MockTab::Viewport)
         .expect("Viewport metadata");
     assert_eq!(vp_meta.title, "3D Viewport");
-    assert_eq!(vp_meta.icon.as_deref(), Some("viewport_icon"));
+    assert_eq!(
+        vp_meta.icon,
+        Some(irisui_core::UiIcon::Glyph("viewport_icon"))
+    );
     assert!(!vp_meta.closeable);
     assert!(!vp_meta.is_domain_bound);
 

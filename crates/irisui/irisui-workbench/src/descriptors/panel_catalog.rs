@@ -6,7 +6,7 @@
 //! Centralizes panel metadata lookup, domain-panel subscription tracking, [`TabViewer`]
 //! presentation helpers, and leaf drawing dispatch for both owned and scoped registries.
 
-use super::panel::PanelMetadata;
+use super::panel::{LiveRefreshInterval, PanelMetadata};
 use crate::error::WorkbenchResult;
 use irisui_core::{DirtyFlags, UiTree, WidgetId};
 use irisui_dock::TabViewer;
@@ -21,6 +21,7 @@ use std::hash::Hash;
 pub struct PanelCatalog<TabId> {
     metadata: HashMap<TabId, PanelMetadata<TabId>>,
     domain_panels: HashSet<TabId>,
+    live_panels: Vec<(TabId, LiveRefreshInterval)>,
 }
 
 impl<TabId> Default for PanelCatalog<TabId> {
@@ -28,7 +29,17 @@ impl<TabId> Default for PanelCatalog<TabId> {
         Self {
             metadata: HashMap::new(),
             domain_panels: HashSet::new(),
+            live_panels: Vec::new(),
         }
+    }
+}
+
+impl<TabId> PanelCatalog<TabId> {
+    /// Returns registered panels declaring periodic live refresh behavior without allocating.
+    #[inline]
+    #[must_use]
+    pub fn live_panels(&self) -> &[(TabId, LiveRefreshInterval)] {
+        &self.live_panels
     }
 }
 
@@ -49,6 +60,10 @@ where
             self.domain_panels.insert(meta.id.clone());
         } else {
             self.domain_panels.remove(&meta.id);
+        }
+        self.live_panels.retain(|(id, _)| id != &meta.id);
+        if meta.live_refresh != LiveRefreshInterval::OnChange {
+            self.live_panels.push((meta.id.clone(), meta.live_refresh));
         }
         self.metadata.insert(meta.id.clone(), meta);
     }
@@ -100,6 +115,7 @@ where
     /// Removes metadata and domain subscription records for `tab`.
     pub fn remove(&mut self, tab: &TabId) {
         self.domain_panels.remove(tab);
+        self.live_panels.retain(|(id, _)| id != tab);
         self.metadata.remove(tab);
     }
 
@@ -120,16 +136,12 @@ where
     /// Formats the user-visible tab title for `tab` (including optional unicode icon prefix).
     #[must_use]
     pub fn tab_title(&self, tab: &TabId) -> String {
-        if let Some(meta) = self.metadata.get(tab) {
-            if meta.atlas_icon.is_some() {
-                meta.title.clone()
-            } else if let Some(icon) = &meta.icon {
-                format!("{icon} {}", meta.title)
-            } else {
-                meta.title.clone()
-            }
-        } else {
-            format!("{tab:?}")
+        match self.metadata.get(tab) {
+            Some(meta) => match meta.icon {
+                Some(irisui_core::UiIcon::Glyph(glyph)) => format!("{glyph} {}", meta.title),
+                Some(irisui_core::UiIcon::Atlas(_)) | None => meta.title.clone(),
+            },
+            None => format!("{tab:?}"),
         }
     }
 
@@ -143,11 +155,11 @@ where
         }
     }
 
-    /// Returns optional texture atlas icon coordinates `[u0, v0, u1, v1]` for `tab`.
+    /// Returns the unified optional [`irisui_core::UiIcon`] registered for `tab`.
     #[inline]
     #[must_use]
-    pub fn tab_atlas_icon(&self, tab: &TabId) -> Option<[f32; 4]> {
-        self.metadata.get(tab).and_then(|m| m.atlas_icon)
+    pub fn tab_icon(&self, tab: &TabId) -> Option<irisui_core::UiIcon> {
+        self.metadata.get(tab).and_then(|m| m.icon)
     }
 
     /// Returns whether `tab` permits user closing in the dock tab bar.
@@ -183,6 +195,9 @@ pub trait PanelRegistryTarget<TabId, Ctx> {
         scope: &mut UiScope<'_>,
         context: &mut Ctx,
     ) -> WorkbenchResult<()>;
+
+    /// Executes [`ScopedWorkbenchPanel::refresh_live`] for `tab` during `InPlaceRefresh`.
+    fn refresh_live(&mut self, tab: &TabId, scope: &mut UiScope<'_>, context: &mut Ctx);
 }
 
 /// Draws `tab` into `leaf_id`, seals `leaf_id` as an Invalidation Boundary, and marks it dirty.
@@ -258,8 +273,8 @@ where
         self.catalog.tab_raw_title(tab)
     }
 
-    fn atlas_icon(&self, tab: &TabId) -> Option<[f32; 4]> {
-        self.catalog.tab_atlas_icon(tab)
+    fn icon(&self, tab: &TabId) -> Option<irisui_core::UiIcon> {
+        self.catalog.tab_icon(tab)
     }
 
     fn closeable(&self, tab: &TabId) -> bool {
@@ -306,8 +321,8 @@ where
         self.registry.catalog().tab_raw_title(tab)
     }
 
-    fn atlas_icon(&self, tab: &TabId) -> Option<[f32; 4]> {
-        self.registry.catalog().tab_atlas_icon(tab)
+    fn icon(&self, tab: &TabId) -> Option<irisui_core::UiIcon> {
+        self.registry.catalog().tab_icon(tab)
     }
 
     fn closeable(&self, tab: &TabId) -> bool {
