@@ -19,13 +19,16 @@ pub mod error;
 pub mod event;
 pub mod frame_sync;
 pub mod geometry;
+pub mod icon;
 pub mod id;
 pub mod measurer;
 pub mod memo;
 pub mod node;
 pub mod platform;
 pub mod response;
+pub mod stack_text;
 pub mod style;
+pub mod tag;
 pub mod theme;
 pub mod tree;
 
@@ -43,15 +46,18 @@ pub use event::{
 };
 pub use frame_sync::{IrisSurfaceFrameFlags, SurfaceRefreshMode};
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
+pub use icon::UiIcon;
 pub use id::WidgetId;
 pub use measurer::TextMeasurer;
 pub use memo::MemoCache;
 pub use node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 pub use platform::{ClipboardProvider, InMemoryClipboard};
 pub use response::{ResponseFlags, WidgetResponse};
+pub use stack_text::StackString;
 pub use style::{
     AlignItems, FlexDirection, FlexWrap, JustifyContent, Position, Style, TextAlign, TextWrap,
 };
+pub use tag::UiTag;
 pub use theme::Theme;
 pub use tree::{HitTargetInfo, UiTree};
 
@@ -65,9 +71,9 @@ pub mod prelude {
         FileDropTarget, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
         ImeEvent, InMemoryClipboard, InputModifiers, Insets, InteractionEvent, IrisCoreError,
         IrisSurfaceFrameFlags, JustifyContent, KeyCode, MemoCache, MouseButton, Point,
-        PopupMenuState, Position, Rect, ResponseFlags, Size, Style, SurfaceRefreshMode, TextAlign,
-        TextMeasurer, TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId,
-        WidgetNode, WidgetResponse, WidgetRole, WidgetState,
+        PopupMenuState, Position, Rect, ResponseFlags, Size, StackString, Style,
+        SurfaceRefreshMode, TextAlign, TextMeasurer, TextWrap, Theme, UiEvent, UiIcon, UiLayer,
+        UiTag, UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetResponse, WidgetRole, WidgetState,
     };
 }
 

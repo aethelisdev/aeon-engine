@@ -97,7 +97,10 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
             .tabs
             .iter()
             .map(|tab| {
-                let atlas_icon = params.viewer.atlas_icon(tab);
+                let atlas_icon = params
+                    .viewer
+                    .icon(tab)
+                    .and_then(irisui_core::UiIcon::as_atlas);
                 let title = if atlas_icon.is_some() {
                     params.viewer.raw_title(tab)
                 } else {

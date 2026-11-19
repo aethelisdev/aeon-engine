@@ -171,7 +171,7 @@ pub fn build_floating_windows_layer<Tab: Clone, V: TabViewer<Tab>>(
             if let DockNode::Leaf { tabs, active_tab } = node {
                 for (tab_idx, tab) in tabs.iter().enumerate() {
                     let is_active = tab_idx == *active_tab;
-                    let atlas_icon = viewer.atlas_icon(tab);
+                    let atlas_icon = viewer.icon(tab).and_then(irisui_core::UiIcon::as_atlas);
                     let title = if atlas_icon.is_some() {
                         viewer.raw_title(tab)
                     } else {

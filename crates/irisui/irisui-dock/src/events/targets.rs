@@ -54,7 +54,7 @@ pub fn compute_dock_interaction_targets<T: Clone + Copy, V: TabViewer<T>>(
             .tabs
             .iter()
             .map(|tab| {
-                let atlas_icon = viewer.atlas_icon(tab);
+                let atlas_icon = viewer.icon(tab).and_then(irisui_core::UiIcon::as_atlas);
                 let title = if atlas_icon.is_some() {
                     viewer.raw_title(tab)
                 } else {

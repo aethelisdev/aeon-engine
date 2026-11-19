@@ -317,7 +317,8 @@ pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
         for (leaf_id, node) in win.tree.iter() {
             if let DockNode::Leaf { tabs, .. } = node {
                 for (tab_idx, tab) in tabs.iter().enumerate() {
-                    let has_atlas_icon = viewer.atlas_icon(tab).is_some();
+                    let has_atlas_icon =
+                        viewer.icon(tab).is_some_and(irisui_core::UiIcon::is_atlas);
                     let icon_w = if has_atlas_icon { 18.0 } else { 0.0 };
                     let title_text = if has_atlas_icon {
                         viewer.raw_title(tab)

@@ -222,8 +222,12 @@ pub fn build_dock_overflow_menu<Tab, V: TabViewer<Tab>>(
         }
         let _ = tree.add_child(menu_card_id, item_id);
 
-        let atlas_icon = viewer.atlas_icon(tab);
-        let title = viewer.raw_title(tab);
+        let atlas_icon = viewer.icon(tab).and_then(irisui_core::UiIcon::as_atlas);
+        let title = if atlas_icon.is_some() {
+            viewer.raw_title(tab)
+        } else {
+            viewer.title(tab)
+        };
 
         // Optional texture atlas icon
         if let Some(uv) = atlas_icon {

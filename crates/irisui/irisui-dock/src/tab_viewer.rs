@@ -18,10 +18,10 @@ pub trait TabViewer<Tab> {
     /// Returns the user-facing display title for the specified tab.
     fn title(&self, tab: &Tab) -> String;
 
-    /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
+    /// Returns an optional unified icon ([`irisui_core::UiIcon::Glyph`] or [`irisui_core::UiIcon::Atlas`]).
     ///
     /// Defaults to `None`.
-    fn atlas_icon(&self, _tab: &Tab) -> Option<[f32; 4]> {
+    fn icon(&self, _tab: &Tab) -> Option<irisui_core::UiIcon> {
         None
     }
 

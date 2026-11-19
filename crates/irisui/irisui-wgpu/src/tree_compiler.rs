@@ -577,17 +577,13 @@ fn emit_canvas_primitives(
                 let sy = start.y + origin.y;
                 let ex = end.x + origin.x;
                 let ey = end.y + origin.y;
-                let seg_min_x = sx.min(ex);
-                let seg_min_y = sy.min(ey);
-                let seg_w = (ex - sx).abs().max(*thickness);
-                let seg_h = (ey - sy).abs().max(*thickness);
 
                 target_list.push_quad_with_boundary(
-                    QuadInstance::from_style(
-                        Rect::new(seg_min_x, seg_min_y, seg_w, seg_h),
-                        &irisui_core::Style::new()
-                            .background(*color)
-                            .border_radius(*thickness * 0.5),
+                    QuadInstance::line(
+                        irisui_core::Point::new(sx, sy),
+                        irisui_core::Point::new(ex, ey),
+                        *color,
+                        *thickness,
                         effective_clip,
                     ),
                     boundary,

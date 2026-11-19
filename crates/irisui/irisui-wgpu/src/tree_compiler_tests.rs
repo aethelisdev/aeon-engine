@@ -420,6 +420,66 @@ fn test_tree_compiler_immediate_canvas_primitives() {
 }
 
 #[test]
+fn test_tree_compiler_analytical_capsule_lines_horizontal_vertical_diagonal() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 200.0);
+        node.role = WidgetRole::ImmediateCanvas;
+    }
+
+    // Horizontal (0 deg)
+    tree.add_canvas_primitive(
+        root,
+        irisui_core::CanvasPrimitive::Line {
+            start: irisui_core::Point::new(10.0, 20.0),
+            end: irisui_core::Point::new(60.0, 20.0),
+            thickness: 2.0,
+            color: Color::RED,
+        },
+    );
+    // Vertical (90 deg)
+    tree.add_canvas_primitive(
+        root,
+        irisui_core::CanvasPrimitive::Line {
+            start: irisui_core::Point::new(30.0, 10.0),
+            end: irisui_core::Point::new(30.0, 80.0),
+            thickness: 4.0,
+            color: Color::GREEN,
+        },
+    );
+    // Diagonal (45 deg)
+    tree.add_canvas_primitive(
+        root,
+        irisui_core::CanvasPrimitive::Line {
+            start: irisui_core::Point::new(0.0, 0.0),
+            end: irisui_core::Point::new(50.0, 50.0),
+            thickness: 3.0,
+            color: Color::BLUE,
+        },
+    );
+
+    let mut options = TreeCompilerOptions::new();
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+    assert_eq!(cmd_list.quads.len(), 3);
+
+    // Horizontal: half_thickness = 1.0 -> [9.0, 19.0, 52.0, 2.0]
+    assert_eq!(cmd_list.quads[0].shape_params, [1.0, 1.0, 0.0, 0.0]);
+    assert_eq!(cmd_list.quads[0].line_endpoints, [10.0, 20.0, 60.0, 20.0]);
+    assert_eq!(cmd_list.quads[0].rect, [9.0, 19.0, 52.0, 2.0]);
+
+    // Vertical: half_thickness = 2.0 -> [28.0, 8.0, 4.0, 74.0]
+    assert_eq!(cmd_list.quads[1].shape_params, [1.0, 2.0, 0.0, 0.0]);
+    assert_eq!(cmd_list.quads[1].line_endpoints, [30.0, 10.0, 30.0, 80.0]);
+    assert_eq!(cmd_list.quads[1].rect, [28.0, 8.0, 4.0, 74.0]);
+
+    // Diagonal 45 deg: half_thickness = 1.5 -> [-1.5, -1.5, 53.0, 53.0]
+    assert_eq!(cmd_list.quads[2].shape_params, [1.0, 1.5, 0.0, 0.0]);
+    assert_eq!(cmd_list.quads[2].line_endpoints, [0.0, 0.0, 50.0, 50.0]);
+    assert_eq!(cmd_list.quads[2].rect, [-1.5, -1.5, 53.0, 53.0]);
+}
+
+#[test]
 fn test_tree_compiler_canvas_node_center_origin_and_styled_rect() {
     let mut tree = UiTree::new();
     let root = tree.create_node();

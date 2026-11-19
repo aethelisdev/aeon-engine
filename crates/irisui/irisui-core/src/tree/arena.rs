@@ -604,6 +604,28 @@ impl UiTree {
     /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` and records live text + quad refresh flags
     /// only when the text actually changed. Returns `true` when the text was updated.
     pub fn update_live_text_by_tag(&mut self, tag: u64, text: &str) -> bool {
+        self.update_live_text_inner(tag, text, None)
+    }
+
+    /// Updates both the retained text and foreground color of the node tagged `tag` in place
+    /// without mutating layout.
+    ///
+    /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` only when either text or color changed.
+    pub fn update_live_text_colored_by_tag(
+        &mut self,
+        tag: u64,
+        text: &str,
+        color: crate::color::Color,
+    ) -> bool {
+        self.update_live_text_inner(tag, text, Some(color))
+    }
+
+    fn update_live_text_inner(
+        &mut self,
+        tag: u64,
+        text: &str,
+        color: Option<crate::color::Color>,
+    ) -> bool {
         let Some(id) = self.node_tagged(tag).map(|n| n.id) else {
             return false;
         };
@@ -613,17 +635,26 @@ impl UiTree {
         let Some(node) = self.nodes.get_mut(id) else {
             return false;
         };
-        if node.text.as_deref() == Some(text) {
+        let text_same = node.text.as_deref() == Some(text);
+        let color_same = color.is_none_or(|c| node.text_color == c);
+        if text_same && color_same {
             return false;
         }
-        if let Some(existing) = &mut node.text {
-            existing.clear();
-            existing.push_str(text);
-        } else {
-            node.text = Some(text.to_owned());
+        if !text_same {
+            if let Some(existing) = &mut node.text {
+                existing.clear();
+                existing.push_str(text);
+            } else {
+                node.text = Some(text.to_owned());
+            }
+        }
+        if let Some(next_color) = color {
+            node.text_color = next_color;
         }
         self.mark_dirty(id, DirtyFlags::PAINT | DirtyFlags::TEXT);
-        self.record_live_text_update();
+        if !text_same {
+            self.record_live_text_update();
+        }
         self.record_live_quad_update();
         true
     }

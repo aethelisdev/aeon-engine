@@ -25,6 +25,8 @@ struct InstanceInput {
     @location(6) shadow_color: vec4<f32>,      // Shadow RGBA
     @location(7) shadow_params: vec4<f32>,     // [offset_x, offset_y, blur, spread]
     @location(8) clip_rect: vec4<f32>,         // [min_x, min_y, max_x, max_y]
+    @location(9) line_endpoints: vec4<f32>,    // [start_x, start_y, end_x, end_y]
+    @location(10) shape_params: vec4<f32>,     // [mode (0=box, 1=line), half_thickness, 0.0, 0.0]
 };
 
 struct VertexOutput {
@@ -39,6 +41,8 @@ struct VertexOutput {
     @location(7) shadow_params: vec4<f32>,
     @location(8) screen_pos: vec2<f32>,
     @location(9) clip_bounds: vec4<f32>,
+    @location(10) line_endpoints: vec4<f32>,
+    @location(11) shape_params: vec4<f32>,
 };
 
 @vertex
@@ -72,8 +76,19 @@ fn vs_main(
     out.shadow_params = instance.shadow_params;
     out.screen_pos = pixel_pos;
     out.clip_bounds = instance.clip_rect;
+    out.line_endpoints = instance.line_endpoints;
+    out.shape_params = instance.shape_params;
 
     return out;
+}
+
+// Analytical Euclidean signed distance from point p to line segment [a, b]
+fn sd_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+    let pa = p - a;
+    let ba = b - a;
+    let denom = max(dot(ba, ba), 0.000001);
+    let h = clamp(dot(pa, ba) / denom, 0.0, 1.0);
+    return length(pa - ba * h);
 }
 
 // Signed distance function for a 2D rounded rectangle with per-corner radii
@@ -111,6 +126,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             in.screen_pos.y < in.clip_bounds.y || in.screen_pos.y > in.clip_bounds.w) {
             discard;
         }
+    }
+
+    // Analytical oriented capsule line segment path (mode = 1.0)
+    if (in.shape_params.x > 0.5) {
+        let radius = in.shape_params.y;
+        let dist = sd_segment(in.screen_pos, in.line_endpoints.xy, in.line_endpoints.zw) - radius;
+        let aa = fwidth(dist) * 0.7071;
+        let alpha = clamp(0.5 - dist / max(aa, 0.001), 0.0, 1.0);
+        let out_color = vec4<f32>(in.color.rgb, in.color.a * alpha);
+        if (out_color.a < 0.001) {
+            discard;
+        }
+        return out_color;
     }
 
     let half_size = in.rect_size * 0.5;

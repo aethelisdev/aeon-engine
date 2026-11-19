@@ -495,6 +495,20 @@ impl WidgetResponse {
         self
     }
 
+    /// Executes the provided closure if this widget received a selection interaction
+    /// (primary click, secondary click, or primary press without an active drag or double-click).
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_select_interaction(self, f: impl FnOnce()) -> Self {
+        if (self.clicked() || self.secondary_clicked() || (self.pressed() && !self.dragged()))
+            && !self.double_clicked()
+        {
+            f();
+        }
+        self
+    }
+
     /// Executes the provided closure if this widget was double-clicked.
     ///
     /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
