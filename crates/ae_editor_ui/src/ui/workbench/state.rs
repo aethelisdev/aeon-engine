@@ -20,16 +20,11 @@ pub enum SceneDialogAction {
 pub struct EngineUi {
     pub selected_entity: Option<hecs::Entity>,
     pub status_message: Option<(Vec<(String, Color)>, std::time::Instant)>,
-    pub inspector_euler: [f32; 3],
-    pub last_selected_entity: Option<hecs::Entity>,
     pub wireframe_enabled: bool,
     pub grid_enabled: bool,
     pub is_loading_assets: bool,
     pub gizmo_mode: ae_editor::gizmo::GizmoMode,
     pub gizmo_space: ae_editor::gizmo::GizmoSpace,
-    pub inspector_color_hex: String,
-    pub saved_swatches: Vec<[f32; 4]>,
-    pub preferences_tab: u8,
     /// Pending preferences actions to execute on the engine state.
     pub pending_preferences_actions: Vec<crate::ui::iris_bridge::PreferencesAction>,
     pub should_save_scene: bool,
@@ -44,12 +39,6 @@ pub struct EngineUi {
     pub(crate) console_entries: Vec<ConsoleEntry>,
     /// The log count we last snapshotted from – used for change detection.
     pub(crate) console_last_count: u64,
-    /// All UI rects from the last frame (panels + floating windows)
-    pub(crate) ui_rects: Vec<Rect>,
-    /// Cached key `(dock_revision, floating_hash, workspace_rect, is_maximized)` for skipping redundant per-frame dock layout passes.
-    pub(crate) cached_dock_layout_key: Option<(u64, u64, Rect, bool)>,
-    /// Cached 3D viewport screen rectangle paired with `cached_dock_layout_key`.
-    pub(crate) cached_viewport_rect: Rect,
     /// Profiler snapshot (ms) – updated by engine before render
     pub profiler_ecs_ms: f32,
     pub profiler_physics_ms: f32,
@@ -82,10 +71,6 @@ pub struct EngineUi {
     pub gpu_backend: String,
     /// Real-time frames per second (FPS) calculation updated per-frame directly from engine timing.
     pub fps: f32,
-    /// Last registered viewport texture width.
-    pub viewport_rect_width: f32,
-    /// Last registered viewport texture height.
-    pub viewport_rect_height: f32,
     /// Last recorded 3D viewport screen rectangle in logical coordinates.
     pub last_viewport_rect: Rect,
     /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
@@ -101,8 +86,8 @@ pub struct EngineUi {
     /// Persistent scoped panel registry retaining all 10 editor panel drawers across frames with zero allocation.
     pub panel_registry:
         irisui::workbench::ScopedPanelRegistry<PanelId, crate::ui::workbench::EditorPanelScope>,
-    /// Reusable scratch buffer collecting panel redraw requests emitted mid-pass.
-    pub(crate) deferred_panels: Vec<PanelId>,
+    /// Reusable deferred invalidation queue replayed onto `workbench.notifier` after each frame pass.
+    pub(crate) deferred_notifier: irisui::dock::DeferredNotifier<PanelId>,
     /// Framework-owned GPU surface host coordinating SDF quads, layered typography, and WGPU render passes.
     pub surface: irisui::IrisSurfaceHost,
     /// Editor overlay panel/modal state bag (transitional until panel views move into direct panel structs).
@@ -136,7 +121,12 @@ impl EngineUi {
                     screen_pos: Some([pt.x, pt.y]),
                 })
                 .with_zoom_action(EngineUiAction::SetUiScale)
-                .with_preferences_action(|| EngineUiAction::OpenPreferences);
+                .with_preferences_panel(PanelId::Preferences)
+                .with_window_control_tags(
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MINIMIZE,
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_MAXIMIZE,
+                    crate::ui::iris_bridge::menubar::WINDOW_CONTROL_TAG_CLOSE,
+                );
 
         let panel_registry = crate::ui::workbench::create_editor_panel_registry();
         workbench
@@ -144,37 +134,27 @@ impl EngineUi {
             .catalog_mut()
             .import_metadata_from(panel_registry.catalog());
         panel_registry.sync_domain_panels_to_notifier(&mut workbench.notifier);
-        workbench
-            .tree
-            .set_theme(crate::ui::iris_bridge::theme::EditorThemeTokens::default().to_iris_theme());
+        let init_tokens = iris_overlay.preferences.theme_preset.tokens();
+        workbench.set_theme(init_tokens.to_iris_theme());
+        workbench.set_dock_style(crate::ui::iris_bridge::editor_dock_style_with_tokens(
+            &init_tokens,
+        ));
+        workbench.tree.set_theme(init_tokens.to_iris_theme());
 
         Self {
             iris_overlay,
             surface,
             workbench,
             panel_registry,
-            deferred_panels: Vec::new(),
+            deferred_notifier: irisui::dock::DeferredNotifier::new(),
             pending_actions: Vec::new(),
             selected_entity: None,
             status_message: None,
-            inspector_euler: [0.0; 3],
-            last_selected_entity: None,
             wireframe_enabled: false,
             grid_enabled: true,
             is_loading_assets: false,
             gizmo_mode: ae_editor::gizmo::GizmoMode::Select,
             gizmo_space: ae_editor::gizmo::GizmoSpace::Local,
-            inspector_color_hex: String::new(),
-            saved_swatches: vec![
-                [1.0, 1.0, 1.0, 1.0],
-                [0.5, 0.5, 0.5, 1.0],
-                [0.1, 0.1, 0.1, 1.0],
-                [1.0, 0.2, 0.2, 1.0],
-                [0.2, 1.0, 0.2, 1.0],
-                [0.2, 0.2, 1.0, 1.0],
-                [1.0, 1.0, 0.1, 1.0],
-            ],
-            preferences_tab: 1,
             pending_preferences_actions: Vec::new(),
             should_save_scene: false,
             should_load_scene: false,
@@ -186,9 +166,6 @@ impl EngineUi {
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
-            ui_rects: Vec::new(),
-            cached_dock_layout_key: None,
-            cached_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             profiler_ecs_ms: 0.0,
             profiler_physics_ms: 0.0,
             profiler_render_ms: 0.0,
@@ -209,8 +186,6 @@ impl EngineUi {
             gpu_adapter_name: String::new(),
             gpu_backend: String::new(),
             fps: 60.0,
-            viewport_rect_width: 0.0,
-            viewport_rect_height: 0.0,
             last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             ui_zoom_factor: 1.0,
             asset_browser: crate::assets::AssetBrowserState::new(),
@@ -260,8 +235,6 @@ impl EngineUi {
     /// Returns whether any modal dialog, search input, or inspector field currently captures keyboard events.
     pub fn wants_keyboard_input(&self) -> bool {
         self.workbench.wants_keyboard_input()
-            || self.iris_overlay.focus_manager.has_focus()
-            || self.iris_overlay.inspector.rename_input.is_some()
     }
 
     /// Polls asynchronous native file dialog receivers and applies their actions.
@@ -354,13 +327,6 @@ impl EngineUi {
     #[inline]
     pub fn wants_pointer_at(&self, pos: [f32; 2]) -> bool {
         self.workbench.wants_pointer_at_self(pos)
-    }
-
-    /// Compatibility alias forwarding to [`Self::wants_pointer_at`].
-    #[must_use]
-    #[inline]
-    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
-        self.wants_pointer_at(pos)
     }
 }
 

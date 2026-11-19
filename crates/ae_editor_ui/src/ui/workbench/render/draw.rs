@@ -3,13 +3,13 @@
 
 //! Frame rendering execution for the editor workbench.
 
+use super::PreferencesActionContext;
 use super::iris_pass::IrisPassParams;
-use super::overlay_actions::PreferencesActionContext;
 use super::types::EditorUiRenderParams;
 use crate::ui::panel_layout::PanelId;
 use crate::ui::types::EngineUiAction;
-use crate::ui::workbench::state::EngineUi;
-use irisui::prelude::Rect;
+use crate::ui::workbench::EngineUi;
+use irisui::prelude::Size;
 
 impl EngineUi {
     /// Orchestrates the drawing of all editor panels, toolbar menus, preference views,
@@ -19,22 +19,17 @@ impl EngineUi {
         params: EditorUiRenderParams<'_>,
     ) -> ae_renderer::render::ViewportRect {
         params.ui_actions.append(&mut self.pending_actions);
-        self.dispatch_action_bus(params.window, params.ui_actions);
+        self.dispatch_action_bus(params.ui_actions);
 
         // Track live engine frames per second (FPS) directly from timing parameters
         self.fps = params.fps;
 
         let win_size = params.window.inner_size();
         let zoom = self.scale_factor();
-        let screen_w = win_size.width as f32 / zoom;
-        let screen_h = win_size.height as f32 / zoom;
-
-        let clamp_bounds = crate::ui::iris_bridge::floating_layer::editor_floating_clamp_bounds(
-            screen_w, screen_h,
-        );
-        self.workbench
-            .dock_state_mut()
-            .clamp_floating_windows(&clamp_bounds);
+        let viewport_rect = self.workbench.prepare_viewport_layout(Size::new(
+            win_size.width as f32 / zoom,
+            win_size.height as f32 / zoom,
+        ));
 
         // Synchronize engine asset loading state with autonomous DialogHost progress modal
         if self.is_loading_assets {
@@ -52,147 +47,9 @@ impl EngineUi {
             let _ = self.workbench.dialog_host.close_progress();
         }
 
-        let workspace_rect = Rect::new(
-            0.0,
-            crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
-            screen_w,
-            (screen_h
-                - crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT
-                - crate::ui::iris_bridge::status_bar::STATUS_BAR_HEIGHT)
-                .max(0.0),
-        );
-
-        // 1. Compute Native Docking Layout only when dock topology, floating geometry,
-        // workspace size, or drag state changed.
-        let dock_state = self.workbench.dock_state();
-        let dock_rev = dock_state.revision();
-        let floating_hash = irisui::workbench::LifecycleInputs::hash_floating_rects(
-            dock_state.floating_windows.iter().map(|w| w.rect),
-        );
-        let is_maximized = dock_state.maximized_leaf.is_some();
-        let dock_key = (dock_rev, floating_hash, workspace_rect, is_maximized);
-        let is_dock_dragging =
-            dock_state.active_splitter.is_some() || dock_state.active_drag.is_some();
-
-        let viewport_rect = if !is_dock_dragging && self.cached_dock_layout_key == Some(dock_key) {
-            self.cached_viewport_rect
-        } else {
-            let computed = irisui::dock::compute_dock_layout_with_viewer(
-                &dock_state.tree,
-                workspace_rect,
-                irisui::dock::DEFAULT_SPLITTER_THICKNESS,
-                irisui::dock::DEFAULT_TAB_BAR_HEIGHT,
-                &self.panel_registry.tab_viewer(),
-            );
-
-            let is_floating = |panel: PanelId| {
-                crate::ui::iris_bridge::floating_layer::is_panel_in_floating_window(
-                    dock_state, panel,
-                )
-            };
-
-            let get_panel_rect = |panel: PanelId| -> Option<Rect> {
-                if is_floating(panel) {
-                    crate::ui::iris_bridge::floating_layer::active_panel_content_rect(
-                        dock_state, panel,
-                    )
-                } else {
-                    computed
-                        .leaves
-                        .iter()
-                        .find(|leaf| leaf.tabs.get(leaf.active_tab) == Some(&panel))
-                        .map(|leaf| leaf.content_rect)
-                }
-            };
-
-            let computed_vp = if is_floating(PanelId::Viewport) {
-                crate::ui::iris_bridge::floating_layer::resolve_floating_viewport_rect(dock_state)
-                    .unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0))
-            } else {
-                get_panel_rect(PanelId::Viewport).unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0))
-            };
-
-            // Cache all active UI bounds for point occlusion testing (exclude 3D viewport canvas)
-            self.ui_rects.clear();
-            for leaf in &computed.leaves {
-                if leaf.tabs.is_empty() {
-                    continue;
-                }
-                let is_viewport = leaf.tabs.get(leaf.active_tab) == Some(&PanelId::Viewport);
-                if is_viewport {
-                    // For docked viewport leaf, only the top tab strip is UI; canvas belongs to 3D scene
-                    self.ui_rects.push(leaf.tab_bar_rect);
-                } else {
-                    self.ui_rects.push(leaf.rect);
-                }
-            }
-            for win in &dock_state.floating_windows {
-                let is_viewport = win.tree.iter().any(|(_, node)| match node {
-                    irisui::dock::DockNode::Leaf { tabs, active_tab } => {
-                        tabs.get(*active_tab) == Some(&PanelId::Viewport)
-                    }
-                    _ => false,
-                });
-                if is_viewport {
-                    // For detached viewport window, only the top 26px title/tab strip is UI
-                    const TAB_BAR_H: f32 = 26.0;
-                    self.ui_rects.push(Rect::new(
-                        win.rect.x,
-                        win.rect.y,
-                        win.rect.width,
-                        TAB_BAR_H,
-                    ));
-                } else {
-                    self.ui_rects.push(Rect::new(
-                        win.rect.x,
-                        win.rect.y,
-                        win.rect.width,
-                        win.rect.height,
-                    ));
-                }
-            }
-            self.cached_dock_layout_key = if is_dock_dragging {
-                None
-            } else {
-                Some(dock_key)
-            };
-            self.cached_viewport_rect = computed_vp;
-            computed_vp
-        };
-
-        // Synchronize inspector Euler angles on entity selection change
-        let selected_ent = self
+        self.selected_entity = self
             .selected_entity
             .or_else(|| params.editor_state.selected_entities.first().copied());
-        self.selected_entity = selected_ent;
-        if selected_ent != self.last_selected_entity {
-            self.last_selected_entity = selected_ent;
-            if let Some(ent) = selected_ent
-                && let Ok(rot) = params.world.get::<&ae_core::ecs::Rotation>(ent)
-            {
-                self.inspector_euler =
-                    crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&rot);
-            } else {
-                self.inspector_euler = [0.0; 3];
-            }
-        } else if let Some(ent) = selected_ent
-            && let Ok(world_rot) = params.world.get::<&ae_core::ecs::Rotation>(ent)
-        {
-            let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-                self.inspector_euler[0],
-                self.inspector_euler[1],
-                self.inspector_euler[2],
-            );
-            let dot = (cached_quat.x * world_rot.x
-                + cached_quat.y * world_rot.y
-                + cached_quat.z * world_rot.z
-                + cached_quat.w * world_rot.w)
-                .abs();
-            if dot < 0.999 {
-                self.inspector_euler =
-                    crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot);
-            }
-        }
 
         // 2. Process Iris UI Overlay & Inspector Actions
         let mut cur_gs = *params.graphics_settings;
@@ -205,7 +62,7 @@ impl EngineUi {
         let mut live_changed = false;
 
         self.pending_preferences_actions
-            .append(&mut self.iris_overlay.preferences.interactions.actions);
+            .append(&mut self.iris_overlay.preferences.actions);
 
         self.process_preferences_actions(PreferencesActionContext {
             graphics_settings: &mut cur_gs,
@@ -272,12 +129,12 @@ impl EngineUi {
         });
 
         // 3a. Drain action bus events triggered during the Iris overlay render pass
-        self.dispatch_action_bus(params.window, params.ui_actions);
+        self.dispatch_action_bus(params.ui_actions);
 
         // 3b. Immediate post-pass action drain for declarative overlay actions produced during render
         self.process_hierarchy_actions(params.ui_actions);
         self.pending_preferences_actions
-            .append(&mut self.iris_overlay.preferences.interactions.actions);
+            .append(&mut self.iris_overlay.preferences.actions);
         if !self.pending_preferences_actions.is_empty() {
             self.process_preferences_actions(PreferencesActionContext {
                 graphics_settings: &mut cur_gs,
@@ -334,43 +191,20 @@ impl EngineUi {
                 .tag_redraw(crate::ui::panel_layout::PanelId::Preferences);
         }
 
-        // 4. Viewport Texture Re-registration Check
-        let mut new_rect = viewport_rect;
-        if new_rect.width <= 0.0
-            || new_rect.height <= 0.0
-            || !new_rect.x.is_finite()
-            || !new_rect.y.is_finite()
-            || !new_rect.width.is_finite()
-            || !new_rect.height.is_finite()
-        {
-            new_rect = Rect::new(0.0, 0.0, 0.0, 0.0);
-        }
-
-        if new_rect.width != self.viewport_rect_width
-            || new_rect.height != self.viewport_rect_height
-        {
-            self.viewport_rect_width = new_rect.width;
-            self.viewport_rect_height = new_rect.height;
-        }
-
-        self.last_viewport_rect = new_rect;
-        self.workbench.set_interactive_viewport(Some(new_rect));
+        // 4. Synchronize cached viewport screen rectangle
+        self.last_viewport_rect = viewport_rect;
 
         ae_renderer::render::ViewportRect {
-            min_x: new_rect.x,
-            min_y: new_rect.y,
-            max_x: new_rect.right(),
-            max_y: new_rect.bottom(),
+            min_x: viewport_rect.x,
+            min_y: viewport_rect.y,
+            max_x: viewport_rect.right(),
+            max_y: viewport_rect.bottom(),
         }
     }
 
-    /// Drains all queued actions from [`Self::action_bus`], routes window management and chrome
-    /// mutations internally, and passes remaining actions to `ui_actions`.
-    fn dispatch_action_bus(
-        &mut self,
-        window: &winit::window::Window,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
+    /// Drains all queued actions from [`Self::action_bus`], routes dock/layout mutations internally,
+    /// and passes remaining actions to `ui_actions`.
+    fn dispatch_action_bus(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
         if self.workbench.action_bus.is_empty() {
             return;
         }
@@ -385,20 +219,7 @@ impl EngineUi {
                         .reset_dock_state(crate::ui::panel_layout::create_default_dock_state());
                 }
                 EngineUiAction::OpenPreferences => {
-                    self.open_preferences();
-                }
-                EngineUiAction::OpenAbout => {
-                    // Handled declaratively on UiScope via tag 0x5001
-                }
-                EngineUiAction::TitleBarAction(action) => {
-                    let mut win = window;
-                    let outcome = self
-                        .workbench
-                        .drag_host
-                        .handle_title_bar_action(&mut win, action);
-                    if outcome.is_closed() {
-                        self.should_exit = true;
-                    }
+                    self.workbench.open_or_focus_panel(PanelId::Preferences);
                 }
                 other => ui_actions.push(other),
             }

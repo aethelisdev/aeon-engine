@@ -7,8 +7,8 @@
 //! and Iris UI GPU SDF WGPU render pass execution.
 
 use crate::ui::iris_bridge;
-use crate::ui::workbench::state::EngineUi;
-use irisui::prelude::{HsvColorPickerState, Rect};
+use crate::ui::workbench::{EditorPanelContext, EngineUi};
+use irisui::prelude::Rect;
 use winit::window::Window;
 
 /// Parameters descriptor for the Iris UI overlay update and rendering pass.
@@ -76,66 +76,21 @@ impl EngineUi {
             .as_ref()
             .map(|(spans, _)| spans.as_slice());
 
-        if let Some(entity) = self.selected_entity {
-            let col = params
-                .world
-                .get::<&ae_core::ecs::Color>(entity)
-                .map(|c| *c)
-                .unwrap_or(ae_core::ecs::Color {
-                    r: 0.60,
-                    g: 0.75,
-                    b: 0.95,
-                    a: 1.0,
-                });
-            let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
-            let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
-            let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
-            const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
-            let hex_bytes = [
-                b'#',
-                HEX_DIGITS[(r >> 4) as usize],
-                HEX_DIGITS[(r & 0xf) as usize],
-                HEX_DIGITS[(g >> 4) as usize],
-                HEX_DIGITS[(g & 0xf) as usize],
-                HEX_DIGITS[(b >> 4) as usize],
-                HEX_DIGITS[(b & 0xf) as usize],
-            ];
-            if self.inspector_color_hex.as_bytes() != hex_bytes {
-                let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
-                self.iris_overlay.inspector.hsv = [h, s, v];
-                self.inspector_color_hex.clear();
-                if let Ok(s) = std::str::from_utf8(&hex_bytes) {
-                    self.inspector_color_hex.push_str(s);
-                }
-            }
-        }
-
         let view_panel_mask = self
             .workbench
             .tab_visibility_mask(&iris_bridge::menubar::VIEW_PANEL_IDS);
-        let signals = self.iris_overlay.lifecycle_signals(
-            &self.workbench.tree,
-            self.workbench
-                .is_panel_open(&crate::ui::panel_layout::PanelId::Preferences),
-        );
+        let extra_modal_active = self.iris_overlay.assets.dialog_host.is_active()
+            || self.iris_overlay.assets.preview_modal.is_some();
+        let extra_popup_active = self.iris_overlay.hierarchy.is_add_menu_open
+            || self.iris_overlay.hierarchy.active_context_menu.is_some();
+        let extra_overlay_revision = u64::from(self.iris_overlay.hierarchy.is_add_menu_open)
+            | (u64::from(self.iris_overlay.hierarchy.active_context_menu.is_some()) << 1);
         let is_assets_search_focused = self
-            .iris_overlay
-            .focus_manager
-            .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT)
-            || self
-                .iris_overlay
-                .focus_state
-                .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT)
-            || self
-                .workbench
-                .tree
-                .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
+            .workbench
+            .tree
+            .is_tag_focused(iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
         let cursor_pos = self.workbench.effective_cursor_pos();
-        let is_cursor_occluded = self.workbench.is_point_over_overlay(cursor_pos)
-            || self
-                .workbench
-                .dock_state()
-                .is_point_over_floating_window(cursor_pos);
+        let is_cursor_occluded = self.workbench.is_cursor_occluded();
         let selection_id = self.selected_entity.map(|e| e.to_bits().get());
         let is_drag_active = self.asset_browser.drag_payload.is_some();
 
@@ -199,9 +154,6 @@ impl EngineUi {
                 console_entries: &self.console_entries,
                 textures: params.textures,
                 models: params.models,
-                inspector_euler: &self.inspector_euler,
-                inspector_color_hex: &self.inspector_color_hex,
-                saved_swatches: &self.saved_swatches,
             },
             dialog_host: None,
             action_bus: None,
@@ -214,19 +166,15 @@ impl EngineUi {
             &mut self.workbench.notifier,
         );
         let mut menubar_bus = std::mem::take(&mut self.workbench.action_bus);
-        self.deferred_panels.clear();
-        let mut deferred_tag_all = false;
+        self.deferred_notifier.clear();
         let blink_caret = self.workbench.text_system.is_caret_visible();
         let frame_outcome = {
-            let panel_views = self.iris_overlay.as_panel_views(
+            let mut panel_ctx = EditorPanelContext {
+                overlay: &mut self.iris_overlay,
+                notifier: &mut self.deferred_notifier,
+                params: &mut overlay_params,
                 blink_caret,
                 cursor_pos,
-                &mut self.deferred_panels,
-                &mut deferred_tag_all,
-            );
-            let mut panel_ctx = crate::ui::workbench::EditorPanelContext {
-                overlay: panel_views,
-                params: &mut overlay_params,
             };
             self.workbench.update_frame_with_registry(
                 irisui::workbench::WorkbenchOwnedFrameParams {
@@ -241,12 +189,11 @@ impl EngineUi {
                 },
                 |inputs| {
                     inputs
-                        .with_menu_active(signals.is_menu_active)
-                        .with_modal_active(signals.is_modal_active)
-                        .with_popup_active(signals.is_popup_active)
+                        .or_modal_active(extra_modal_active)
+                        .or_popup_active(extra_popup_active)
                         .with_drag_active(is_drag_active)
                         .with_surface_revision(u64::from(params.viewport_texture_view.is_some()))
-                        .with_overlay_revision(signals.overlay_revision)
+                        .with_overlay_revision(extra_overlay_revision)
                 },
                 |scope, ctx, size| {
                     iris_bridge::menubar::build_top_menu_bar(
@@ -262,7 +209,7 @@ impl EngineUi {
                     );
                     iris_bridge::export_modal::render_export_project_modal(
                         scope,
-                        ctx.overlay.export_modal,
+                        &mut ctx.overlay.export_modal,
                         &mut menubar_bus,
                     );
                     if ctx.overlay.assets.dialog_host.is_active() {
@@ -280,16 +227,6 @@ impl EngineUi {
                             screen_height: size.height,
                             status_spans: ctx.params.context.status_spans,
                         },
-                    );
-                    scope.empty_box_passive_named(
-                        "IrisBottomStatusBarDivider",
-                        irisui::prelude::Style::new()
-                            .position_absolute()
-                            .left(0.0)
-                            .top(size.height - iris_bridge::status_bar::STATUS_BAR_HEIGHT)
-                            .width(size.width)
-                            .height(1.0)
-                            .background(iris_bridge::theme::BORDER_MICRON),
                     );
                 },
                 |scope, ctx| {
@@ -327,11 +264,11 @@ impl EngineUi {
                         .is_some()
                         && ctx
                             .overlay
-                            .chrome
+                            .stats
                             .last_stats_refresh
                             .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(33))
                     {
-                        ctx.overlay.chrome.last_stats_refresh = Some(std::time::Instant::now());
+                        ctx.overlay.stats.last_stats_refresh = Some(std::time::Instant::now());
                         iris_bridge::stats::graph::refresh_live_oscilloscope(
                             scope,
                             ctx.params.telemetry.frame_pacing,
@@ -345,12 +282,9 @@ impl EngineUi {
                 },
             )
         };
-        if deferred_tag_all {
-            self.workbench.notifier.tag_all();
-        }
-        for pid in self.deferred_panels.drain(..) {
-            self.workbench.notifier.tag_redraw(pid);
-        }
+        self.workbench
+            .notifier
+            .apply_deferred(&mut self.deferred_notifier);
         for action in menubar_bus.drain() {
             self.workbench.action_bus.emit(action);
         }
@@ -362,7 +296,7 @@ impl EngineUi {
                 )
             {
                 self.iris_overlay.viewport_hud.reset_live_cache();
-                self.iris_overlay.chrome.last_stats_refresh = None;
+                self.iris_overlay.stats.last_stats_refresh = None;
             }
             let hovered_tag = self.workbench.hovered_tag();
             let blink_caret = self.workbench.text_system.is_caret_visible();
@@ -387,7 +321,6 @@ impl EngineUi {
                 target_view: params.window_surface_view,
                 physical_screen_size: (win_size.width, win_size.height),
                 zoom_factor: zoom,
-                focused_tag_override: self.iris_overlay.focus_manager.focused_tag,
                 extra_text_occluders: &[],
             },
         );

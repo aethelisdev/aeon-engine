@@ -6,9 +6,13 @@
 //! Coordinates frame rendering across the native Iris UI GPU SDF dock host,
 //! overlays, and action dispatchers for settings, hierarchy, and inspector mutations.
 
+pub mod assets;
 pub mod draw;
 pub mod iris_pass;
-pub mod overlay_actions;
+pub mod preferences;
 pub mod types;
+pub mod ui_designer;
+pub mod viewports;
 
+pub use preferences::PreferencesActionContext;
 pub use types::EditorUiRenderParams;

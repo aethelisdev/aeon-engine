@@ -7,19 +7,24 @@
 //! (`ViewportHudState`, `HierarchyPanelState`, `InspectorPanelState`, etc.) through a single
 //! data-driven [`ScopedWorkbenchPanel`] descriptor anchored to [`PanelId`] metadata (SSOT).
 
-use crate::ui::iris_bridge::panel_views::IrisPanelViews;
-use crate::ui::iris_bridge::types::OverlayUpdateParams;
+use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
 use crate::ui::panel_layout::PanelId;
-use irisui::dock::TabPlacement;
-use irisui::prelude::UiScope;
+use irisui::dock::{DeferredNotifier, TabPlacement};
+use irisui::prelude::{Point, UiScope};
 use irisui::workbench::{ScopedPanelContext, ScopedPanelRegistry, ScopedWorkbenchPanel};
 
 /// Execution context passed to editor workbench panels during rendering.
 pub struct EditorPanelContext<'a> {
-    /// Disjoint mutable view into active editor overlay panel and chrome state.
-    pub overlay: IrisPanelViews<'a>,
+    /// Mutable reference to active editor overlay panel, focus, and action state.
+    pub overlay: &'a mut IrisEditorOverlay,
+    /// Deferred invalidation queue applied to [`Workbench::notifier`] after the frame pass.
+    pub notifier: &'a mut DeferredNotifier<PanelId>,
     /// Mutable reference to the per-frame overlay parameters.
     pub params: &'a mut OverlayUpdateParams<'a>,
+    /// Caret visibility sampled from the persistent [`irisui::text::TextSystem`].
+    pub blink_caret: bool,
+    /// Logical cursor position sampled before panel dispatch.
+    pub cursor_pos: Point,
 }
 
 /// Lifetime scope marker projecting to [`EditorPanelContext`] for persistent panel registration.
@@ -90,31 +95,24 @@ fn draw_viewport_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelC
             state.params.viewport.viewport_rect
         },
         state.params,
-        state.overlay.cursor_pos,
+        state.cursor_pos,
     );
 }
 
 fn draw_hierarchy_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
-    state.overlay.hierarchy.build_view(
-        scope,
-        state.params,
-        state.overlay.focus_manager,
-        state.overlay.focus_state,
-        (
-            state.overlay.chrome.ctrl_held,
-            state.overlay.chrome.shift_held,
-        ),
-        (state.overlay.cursor_pos, state.overlay.blink_caret),
-    );
+    state
+        .overlay
+        .hierarchy
+        .build_view(scope, state.params, (state.cursor_pos, state.blink_caret));
 }
 
 fn draw_inspector_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
     state.overlay.inspector.build_view(
         scope,
         state.params,
-        state.overlay.cursor_pos,
-        state.overlay.pending_actions,
-        &mut state.overlay.notifier,
+        state.cursor_pos,
+        &mut state.overlay.pending_actions,
+        state.notifier,
     );
 }
 
@@ -122,10 +120,8 @@ fn draw_console_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelCo
     state.overlay.console.build_view(
         scope,
         state.params.panel_data.console_entries,
-        state.overlay.focus_manager,
-        state.overlay.focus_state,
-        &mut state.overlay.notifier,
-        (state.overlay.cursor_pos, state.overlay.blink_caret),
+        state.notifier,
+        (state.cursor_pos, state.blink_caret),
     );
 }
 
@@ -133,10 +129,8 @@ fn draw_assets_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelCon
     state.overlay.assets.build_view(
         scope,
         state.params,
-        state.overlay.focus_manager,
-        state.overlay.focus_state,
-        &mut state.overlay.notifier,
-        (state.overlay.cursor_pos, state.overlay.blink_caret),
+        state.notifier,
+        (state.cursor_pos, state.blink_caret),
     );
 }
 
@@ -144,38 +138,35 @@ fn draw_stats_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelCont
     state
         .overlay
         .stats
-        .build_view(scope, state.params, state.overlay.cursor_pos);
+        .build_view(scope, state.params, state.cursor_pos);
 }
 
 fn draw_material_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
     state
         .overlay
         .material
-        .build_view(scope, state.params, state.overlay.cursor_pos);
+        .build_view(scope, state.params, state.cursor_pos);
 }
 
 fn draw_timeline_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
     state
         .overlay
         .timeline
-        .build_view(scope, state.params, state.overlay.cursor_pos);
+        .build_view(scope, state.params, state.cursor_pos);
 }
 
 fn draw_ui_designer_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
-    state.overlay.ui_designer.build_view(
-        scope,
-        state.params,
-        state.overlay.cursor_pos,
-        &mut state.overlay.notifier,
-    );
+    state
+        .overlay
+        .ui_designer
+        .build_view(scope, state.params, state.cursor_pos, state.notifier);
 }
 
 fn draw_preferences_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
     state.overlay.preferences.build_view(
         scope,
         state.params,
-        state.overlay.chrome.theme_preset,
-        (state.overlay.cursor_pos, state.overlay.blink_caret),
+        (state.cursor_pos, state.blink_caret),
     );
 }
 
@@ -195,11 +186,12 @@ const EDITOR_PANEL_DRAWERS: &[(PanelId, EditorPanelDrawerFn)] = &[
 /// Constructs and populates a persistent [`ScopedPanelRegistry`] with all built-in editor workbench panels.
 #[must_use]
 pub fn create_editor_panel_registry() -> ScopedPanelRegistry<PanelId, EditorPanelScope> {
-    let mut registry = ScopedPanelRegistry::new();
-    for &(id, drawer) in EDITOR_PANEL_DRAWERS {
-        registry.register(EditorWorkbenchPanel { id, drawer });
-    }
-    registry
+    EDITOR_PANEL_DRAWERS
+        .iter()
+        .fold(ScopedPanelRegistry::new(), |mut registry, &(id, drawer)| {
+            registry.register(EditorWorkbenchPanel { id, drawer });
+            registry
+        })
 }
 
 #[cfg(test)]

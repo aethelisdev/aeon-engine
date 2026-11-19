@@ -6,97 +6,102 @@
 //! Verifies panel registration, metadata descriptors, and tab viewer adapters.
 
 use super::*;
+use crate::ui::PanelId;
 use irisui::dock::TabViewer;
 
 #[test]
 fn test_editor_panel_registry_contains_all_panels_and_metadata() {
     let registry = create_editor_panel_registry();
+    let viewer = registry.tab_viewer();
 
-    // 1. Verify all standard editor panels are registered
-    for &panel_id in PanelId::all() {
-        assert!(
-            registry.is_registered(&panel_id),
-            "Panel {panel_id:?} must be registered in workbench panel registry"
-        );
+    let expected: &[(PanelId, &str, &str, bool, bool, bool)] = &[
+        (
+            PanelId::Viewport,
+            "Viewport",
+            "🎥 Viewport",
+            false,
+            true,
+            false,
+        ),
+        (
+            PanelId::Hierarchy,
+            "Hierarchy",
+            "🏗️ Hierarchy",
+            true,
+            false,
+            true,
+        ),
+        (
+            PanelId::Inspector,
+            "Inspector",
+            "⚙️ Inspector",
+            true,
+            false,
+            true,
+        ),
+        (
+            PanelId::Console,
+            "Console",
+            "📜 Console",
+            true,
+            false,
+            false,
+        ),
+        (PanelId::Assets, "Assets", "Assets", true, false, false),
+        (PanelId::Stats, "Stats", "📊 Stats", true, false, false),
+        (
+            PanelId::MaterialEditor,
+            "Material Editor",
+            "🌐 Material Editor",
+            true,
+            false,
+            true,
+        ),
+        (
+            PanelId::AnimationTimeline,
+            "Timeline",
+            "🎬 Timeline",
+            true,
+            false,
+            true,
+        ),
+        (
+            PanelId::UiDesigner,
+            "UI Designer",
+            "📐 UI Designer",
+            true,
+            false,
+            false,
+        ),
+        (
+            PanelId::Preferences,
+            "Preferences",
+            "⚙️ Preferences",
+            true,
+            false,
+            false,
+        ),
+    ];
+
+    assert_eq!(expected.len(), PanelId::all().len());
+    for &(panel_id, raw_title, display_title, closeable, clear_bg, domain_bound) in expected {
         let meta = registry
             .panel_metadata(&panel_id)
-            .expect("Metadata for panel must be present");
-        assert!(
-            meta.placement.is_some(),
-            "Placement rule for panel {panel_id:?} must be present"
-        );
+            .expect("Panel metadata must be registered");
+        assert!(meta.placement.is_some());
+        assert_eq!(meta.title, raw_title);
+        assert_eq!(meta.closeable, closeable);
+        assert_eq!(meta.clear_background, clear_bg);
+        assert_eq!(meta.is_domain_bound, domain_bound);
+        assert_eq!(registry.is_domain_panel(&panel_id), domain_bound);
+        assert_eq!(viewer.raw_title(&panel_id), raw_title);
+        assert_eq!(viewer.title(&panel_id), display_title);
+        assert_eq!(viewer.closeable(&panel_id), closeable);
+        assert_eq!(viewer.clear_background(&panel_id), clear_bg);
     }
 
-    // 2. Verify Viewport specific metadata invariants (persistent, transparent background)
-    let vp_meta = registry
-        .panel_metadata(&PanelId::Viewport)
-        .expect("Viewport metadata");
-    assert_eq!(vp_meta.title, "Viewport");
-    assert_eq!(vp_meta.icon.as_deref(), Some("🎥"));
-    assert!(!vp_meta.closeable, "Viewport must not be closeable");
-    assert!(
-        vp_meta.clear_background,
-        "Viewport must have transparent background for WGPU scene pass"
-    );
-    assert!(!vp_meta.is_domain_bound);
-
-    // 3. Verify Assets specific metadata (custom GPU texture atlas folder icon)
     let assets_meta = registry
         .panel_metadata(&PanelId::Assets)
         .expect("Assets metadata");
-    assert_eq!(assets_meta.title, "Assets");
-    assert!(
-        assets_meta.atlas_icon.is_some(),
-        "Assets must provide texture atlas UV coordinates"
-    );
-    assert!(assets_meta.closeable);
-
-    // 4. Verify Domain-bound panels (subscribed to undo/redo/ECS transactions)
-    let hierarchy_meta = registry
-        .panel_metadata(&PanelId::Hierarchy)
-        .expect("Hierarchy metadata");
-    assert!(
-        hierarchy_meta.is_domain_bound,
-        "Hierarchy must be subscribed to domain mutations"
-    );
-    assert!(registry.is_domain_panel(&PanelId::Hierarchy));
-
-    let inspector_meta = registry
-        .panel_metadata(&PanelId::Inspector)
-        .expect("Inspector metadata");
-    assert!(
-        inspector_meta.is_domain_bound,
-        "Inspector must be subscribed to domain mutations"
-    );
-    assert!(registry.is_domain_panel(&PanelId::Inspector));
-    assert!(registry.is_domain_panel(&PanelId::MaterialEditor));
-    assert!(registry.is_domain_panel(&PanelId::AnimationTimeline));
-    assert!(!registry.is_domain_panel(&PanelId::Viewport));
-    assert!(!registry.is_domain_panel(&PanelId::Console));
-    assert!(!registry.is_domain_panel(&PanelId::Stats));
-    assert!(!registry.is_domain_panel(&PanelId::Assets));
-    assert!(!registry.is_domain_panel(&PanelId::UiDesigner));
-    assert!(!registry.is_domain_panel(&PanelId::Preferences));
-
-    // 5. Verify RegistryTabViewer integration
-    let viewer = registry.tab_viewer();
-    assert_eq!(viewer.title(&PanelId::Viewport), "🎥 Viewport");
-    assert_eq!(viewer.raw_title(&PanelId::Viewport), "Viewport");
-    assert_eq!(viewer.title(&PanelId::Hierarchy), "🏗️ Hierarchy");
-    assert_eq!(viewer.title(&PanelId::Inspector), "⚙️ Inspector");
-    assert_eq!(viewer.title(&PanelId::Console), "📜 Console");
-    // Assets uses atlas icon so title has no emoji prefix
-    assert_eq!(viewer.title(&PanelId::Assets), "Assets");
-    assert_eq!(viewer.title(&PanelId::Stats), "📊 Stats");
-    assert_eq!(viewer.title(&PanelId::MaterialEditor), "🌐 Material Editor");
-    assert_eq!(viewer.title(&PanelId::AnimationTimeline), "🎬 Timeline");
-    assert_eq!(viewer.title(&PanelId::UiDesigner), "📐 UI Designer");
-    assert_eq!(viewer.title(&PanelId::Preferences), "⚙️ Preferences");
-
-    assert!(!viewer.closeable(&PanelId::Viewport));
-    assert!(viewer.closeable(&PanelId::Hierarchy));
-    assert!(viewer.closeable(&PanelId::Preferences));
-    assert!(viewer.clear_background(&PanelId::Viewport));
-    assert!(!viewer.clear_background(&PanelId::Hierarchy));
-    assert!(!viewer.clear_background(&PanelId::Preferences));
+    assert!(assets_meta.atlas_icon.is_some());
 }

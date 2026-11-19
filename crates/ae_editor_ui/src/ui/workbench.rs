@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Editor Workbench Subsystem
+//! # Editor Workbench & Framework-Gap Quarantine
 //!
-//! Orchestrates the editor lifecycle, window events, persistent UI state, and WGPU rendering.
+//! Pure module root consolidating workbench orchestration, overlay action dispatch,
+//! and transitional framework-gap scaffolding inside [`crate::ui::workbench`]
+//! until eliminated into `irisui`.
 
-pub mod dialogs;
+pub mod bridge_params;
+pub mod bridge_types;
+pub mod icons;
 pub mod panels;
-pub mod preferences;
 pub mod render;
 pub mod state;
 
