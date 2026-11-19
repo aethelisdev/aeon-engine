@@ -142,12 +142,6 @@ pub struct OverlayPanelData<'a> {
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     /// GPU 3D model asset repository for material panel inspection.
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-    /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
-    pub inspector_euler: &'a [f32; 3],
-    /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).
-    pub inspector_color_hex: &'a str,
-    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
-    pub saved_swatches: &'a [[f32; 4]],
 }
 
 /// Parameters required for reconstructing and resolving all Iris UI editor overlays.
