@@ -147,7 +147,10 @@ impl WinitState {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.modifiers = ModifiersState::from_winit(modifiers);
-                None
+                Some(UiEvent::ModifiersChanged {
+                    ctrl_held: self.modifiers.ctrl(),
+                    shift_held: self.modifiers.shift(),
+                })
             }
             WindowEvent::Focused(focused) => {
                 self.focused = *focused;

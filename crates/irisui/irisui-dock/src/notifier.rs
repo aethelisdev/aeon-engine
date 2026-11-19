@@ -9,6 +9,70 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+/// Buffered redraw queue collecting panel and global invalidations while [`UiNotifier`]
+/// is exclusively borrowed during a layout or panel rebuild pass.
+///
+/// Reused across frames and drained via [`UiNotifier::apply_deferred`] so frames without
+/// deferred invalidations perform zero heap allocations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeferredNotifier<P: Eq + Hash + Copy + Send + Sync + 'static> {
+    pending_panels: Vec<P>,
+    pending_tag_all: bool,
+}
+
+impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for DeferredNotifier<P> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<P: Eq + Hash + Copy + Send + Sync + 'static> DeferredNotifier<P> {
+    /// Creates an empty deferred invalidation queue.
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            pending_panels: Vec::new(),
+            pending_tag_all: false,
+        }
+    }
+
+    /// Queues a selective panel redraw for `panel_id`, deduplicating repeated requests in-place.
+    #[inline]
+    pub fn tag_redraw(&mut self, panel_id: P) {
+        if !self.pending_panels.contains(&panel_id) {
+            self.pending_panels.push(panel_id);
+        }
+    }
+
+    /// Queues a full shell invalidation across all workbench panels.
+    #[inline]
+    pub fn tag_all(&mut self) {
+        self.pending_tag_all = true;
+    }
+
+    /// Clears all queued panel and shell invalidations while preserving allocated vector capacity.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.pending_panels.clear();
+        self.pending_tag_all = false;
+    }
+
+    /// Returns queued panel identifiers awaiting replay onto [`UiNotifier`].
+    #[inline]
+    #[must_use]
+    pub fn pending_panels(&self) -> &[P] {
+        &self.pending_panels
+    }
+
+    /// Returns `true` if a full shell invalidation was requested.
+    #[inline]
+    #[must_use]
+    pub const fn has_pending_tag_all(&self) -> bool {
+        self.pending_tag_all
+    }
+}
+
 /// Selective invalidation and redraw notification engine.
 ///
 /// Tracks dirty flags on a per-panel basis as well as global workbench-level layout dirty state.
@@ -168,6 +232,18 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
             self.global_dirty = false;
             self.unconsumed_dirty = false;
         }
+    }
+
+    /// Replays all queued invalidations from `deferred` onto this notifier and clears `deferred`.
+    #[inline]
+    pub fn apply_deferred(&mut self, deferred: &mut DeferredNotifier<P>) {
+        if deferred.pending_tag_all {
+            self.tag_all();
+        }
+        for pid in deferred.pending_panels.drain(..) {
+            self.tag_redraw(pid);
+        }
+        deferred.pending_tag_all = false;
     }
 
     /// Returns an immutable reference to the set of currently dirty panel identifiers.
@@ -479,5 +555,27 @@ mod tests {
         assert!(notifier.sync_domain_revision(100));
         assert!(notifier.is_global_dirty());
         assert!(notifier.is_dirty("hierarchy"));
+    }
+
+    #[test]
+    fn test_deferred_notifier_deduplicates_and_applies_to_ui_notifier() {
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
+        let mut deferred = DeferredNotifier::new();
+
+        deferred.tag_redraw("stats");
+        deferred.tag_redraw("console");
+        deferred.tag_redraw("stats");
+        assert_eq!(deferred.pending_panels(), &["stats", "console"]);
+        assert!(!deferred.has_pending_tag_all());
+
+        deferred.tag_all();
+        assert!(deferred.has_pending_tag_all());
+
+        notifier.apply_deferred(&mut deferred);
+        assert!(notifier.is_shell_dirty());
+        assert!(notifier.is_dirty("stats"));
+        assert!(notifier.is_dirty("console"));
+        assert!(deferred.pending_panels().is_empty());
+        assert!(!deferred.has_pending_tag_all());
     }
 }

@@ -86,6 +86,20 @@ mod tests {
         let res = dispatch_winit_event(&mut tree, &mut state, &event);
         assert!(!res.is_consumed());
         assert!(!state.modifiers().shift());
+        assert!(!tree.modifiers().ctrl());
+        assert!(!tree.modifiers().shift());
+
+        let ctrl_shift = winit::event::Modifiers::from(
+            winit::keyboard::ModifiersState::CONTROL | winit::keyboard::ModifiersState::SHIFT,
+        );
+        let res_mod = dispatch_winit_event(
+            &mut tree,
+            &mut state,
+            &WindowEvent::ModifiersChanged(ctrl_shift),
+        );
+        assert!(!res_mod.is_consumed());
+        assert!(tree.modifiers().ctrl());
+        assert!(tree.modifiers().shift());
     }
 
     #[test]

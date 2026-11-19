@@ -68,7 +68,7 @@ pub use navigator::{
     DockNavigatorGeometry, DockNavigatorStyle, FloatingTabBadgeParams, build_dock_navigator_nodes,
     build_drop_preview_node, build_floating_tab_badge, hit_test_navigator,
 };
-pub use notifier::UiNotifier;
+pub use notifier::{DeferredNotifier, UiNotifier};
 pub use overflow::{
     DockOverflowClickAction, DockOverflowItemTarget, DockOverflowMenuFrame, DockOverflowMenuParams,
     DockOverflowMenuStyle, build_dock_overflow_menu, evaluate_dock_overflow_click,
@@ -88,7 +88,7 @@ pub use viewport::{FloatingDockWindow, FloatingWindowId, MultiViewportManager};
 /// Designed to be imported via wildcard `use irisui_dock::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     pub use crate::{
-        DockArea, DockChromeFrame, DockChromeParams, DockChromeStyle, DockError,
+        DeferredNotifier, DockArea, DockChromeFrame, DockChromeParams, DockChromeStyle, DockError,
         DockInteractionConfig, DockLayoutOptions, DockNode, DockNodeId, DockPanel, DockResponse,
         DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
         FloatingWindowId, FloatingWindowManager, FloatingWindowStyle, MultiViewportManager,
