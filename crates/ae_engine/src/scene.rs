@@ -489,7 +489,7 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 /// Applies `SceneAssetBinding` onto a newly spawned entity on the main thread.
 fn apply_asset_binding(engine: &mut AeEngine, entity: hecs::Entity, binding: &SceneAssetBinding) {
     let vfs = engine.active_vfs.as_deref();
-    crate::streaming::bind_entity_assets_from_binding(
+    ae_runtime::streaming::bind_entity_assets_from_binding(
         &mut engine.ecs.world,
         &engine.render_state,
         &mut engine.asset_manager,
@@ -636,7 +636,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
     engine.streaming = engine.saved_world_dir.as_ref().map(|world_dir| {
         let cells: HashSet<SpatialCellCoord> =
             engine.last_saved_cell_crcs.keys().copied().collect();
-        crate::streaming::RuntimeStreamingManager::from_world_dir(
+        ae_runtime::streaming::RuntimeStreamingManager::from_world_dir(
             world_dir,
             DEFAULT_WORLD_CELL_SIZE,
             2,

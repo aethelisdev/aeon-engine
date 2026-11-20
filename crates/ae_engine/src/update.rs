@@ -339,7 +339,7 @@ impl AeEngine {
                 ],
                 4,
                 |world, asset_manager, entity, binding| {
-                    crate::streaming::bind_entity_assets_from_binding(
+                    ae_runtime::streaming::bind_entity_assets_from_binding(
                         world,
                         render_state,
                         asset_manager,
@@ -358,8 +358,8 @@ impl AeEngine {
 
         // Run gameplay behaviors (rotators, moving platforms, trigger zones, destructible targets, character actions)
         let cam_fwd = self.camera.get_forward();
-        crate::behavior_runner::update_gameplay_behaviors(
-            crate::behavior_runner::BehaviorRunnerParams {
+        ae_runtime::behavior_runner::update_gameplay_behaviors(
+            ae_runtime::behavior_runner::BehaviorRunnerParams {
                 world: &mut self.ecs.world,
                 physics_world: &mut self.physics_world,
                 input: &self.input,

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-pub use ae_runtime::{behavior_runner, hud, streaming};
 pub mod autosave;
 pub mod cli;
 pub mod debug_renderer;
@@ -18,7 +17,6 @@ pub mod mcp_host;
 mod importer;
 pub mod profiler;
 pub mod render_pass;
-pub mod sandbox_builder;
 pub mod scene;
 pub mod update;
 use std::sync::Arc;
@@ -132,11 +130,21 @@ impl ApplicationHandler for AeApp {
                 }
             };
 
-            let window = Arc::new(
-                event_loop
-                    .create_window(window_attributes)
-                    .expect("Failed to create window"),
-            );
+            let window = match event_loop.create_window(window_attributes) {
+                Ok(win) => Arc::new(win),
+                Err(err) => {
+                    log::error!("[AeonEngine] Failed to create OS window: {err}");
+                    eprintln!(
+                        "\n==================================================================\n\
+                         ❌ [Aeon Engine Critical Startup Error]\n\
+                         Failed to create OS application window:\n\n\
+                         {err}\n\n\
+                         Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
+                         ==================================================================\n"
+                    );
+                    std::process::exit(1);
+                }
+            };
 
             // Initialize Core Engine State
             let engine = match pollster::block_on(AeEngine::new(
@@ -327,10 +335,28 @@ impl AeApp {
     }
 }
 
+/// Creates the platform winit [`EventLoop`], falling back from X11 to the default backend on Unix.
+fn build_event_loop() -> Result<EventLoop<()>, winit::error::EventLoopError> {
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+    {
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        EventLoop::builder()
+            .with_x11()
+            .build()
+            .or_else(|_| EventLoop::new())
+    }
+    #[cfg(not(all(unix, not(target_os = "macos"), not(target_os = "android"))))]
+    {
+        EventLoop::new()
+    }
+}
+
 /// Entry point: initializes the dual-output logger, creates the winit event loop
 /// with `ControlFlow::Poll` (continuous rendering), and runs the application.
 fn main() {
-    ae_editor::editor_logger::init().unwrap();
+    if let Err(err) = ae_editor::editor_logger::init() {
+        eprintln!("[AeonEngine] Logger already initialized or failed to bind: {err}");
+    }
     let cli_args = cli::CliArgs::from_env();
     log::info!(
         "Aeon Engine started. Active mode: {:?}, project: {:?}",
@@ -338,19 +364,25 @@ fn main() {
         cli_args.project_path
     );
 
-    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
-    let event_loop = {
-        use winit::platform::x11::EventLoopBuilderExtX11;
-        EventLoop::builder()
-            .with_x11()
-            .build()
-            .or_else(|_| EventLoop::new())
-            .expect("Failed to create Event Loop")
+    let event_loop = match build_event_loop() {
+        Ok(loop_instance) => loop_instance,
+        Err(err) => {
+            log::error!("[AeonEngine] Failed to initialize event loop: {err}");
+            eprintln!(
+                "\n==================================================================\n\
+                 ❌ [Aeon Engine Critical Startup Error]\n\
+                 Failed to initialize platform event loop:\n\n\
+                 {err}\n\n\
+                 Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
+                 ==================================================================\n"
+            );
+            std::process::exit(1);
+        }
     };
-    #[cfg(not(all(unix, not(target_os = "macos"), not(target_os = "android"))))]
-    let event_loop = EventLoop::new().expect("Failed to create Event Loop");
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = AeApp::new(cli_args);
-    let _ = event_loop.run_app(&mut app);
+    if let Err(err) = event_loop.run_app(&mut app) {
+        log::error!("[AeonEngine] Event loop terminated with error: {err}");
+    }
 }
