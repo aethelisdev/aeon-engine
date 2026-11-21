@@ -39,6 +39,7 @@ pub mod selection_card;
 pub mod spacing;
 pub mod tabs;
 pub mod tag_events;
+pub mod time_ruler;
 pub mod title_bar;
 pub mod tooltip;
 pub mod tree_view;
@@ -79,8 +80,8 @@ pub use containers::{
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::{
-    ImmediateCanvasSpec, LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
-    NumberLabelDescriptor, VerticalScrollbarSpec, WrappedLabelDescriptor,
+    BadgePillSpec, ImmediateCanvasSpec, LabeledStatusDescriptor, LiveTextProps, LogRowBadge,
+    LogRowDescriptor, NumberLabelDescriptor, VerticalScrollbarSpec, WrappedLabelDescriptor,
 };
 pub use input::ComboRowLayout;
 pub use input_box::{
@@ -99,3 +100,7 @@ pub use properties::{
 };
 pub use scoped_popup::{AnchoredPopupConfig, DropdownCardConfig, PopupCardStyle};
 pub use select_pill::{AnchoredSelectOption, AnchoredSelectPillSpec, SelectPillTriggerStyle};
+pub use time_ruler::{
+    ScrubberMarker, ScrubberResponse, ScrubberTrackSpec, TimeRulerSpec, TimeRulerStyle,
+    TrackLaneGroupSpec, TrackLaneSpec, tick_step_for_duration,
+};

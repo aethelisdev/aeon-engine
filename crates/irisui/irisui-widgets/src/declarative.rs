@@ -35,13 +35,14 @@ pub use scope::{
     LabeledStatusDescriptor, LiveTextProps, PopupCardStyle, PopupExt, PopupPlacement,
     PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, SelectPillTriggerStyle,
-    TableColumnSpec, TableColumnWidth, TooltipExt, TreeNodeProps, TreeRowProps, TreeRowResponse,
-    TreeSelectionEvent, TreeViewConfig, TreeViewProps, UiScope, VirtualGridBuilder,
-    VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig, WrappedLabelDescriptor,
-    calculate_visible_slice_and_caret, measure_text_advance, property_vec3_axis_tag,
-    property_vec3_reset_tag, resolve_hsv_from_color, resolve_property_vec3_for_seed,
-    resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
+    PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, ScrubberMarker, ScrubberResponse,
+    ScrubberTrackSpec, SelectPillTriggerStyle, TableColumnSpec, TableColumnWidth, TimeRulerSpec,
+    TimeRulerStyle, TooltipExt, TrackLaneGroupSpec, TrackLaneSpec, TreeNodeProps, TreeRowProps,
+    TreeRowResponse, TreeSelectionEvent, TreeViewConfig, TreeViewProps, UiScope,
+    VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
+    WrappedLabelDescriptor, calculate_visible_slice_and_caret, measure_text_advance,
+    property_vec3_axis_tag, property_vec3_reset_tag, resolve_hsv_from_color,
+    resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };
 pub use subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use types::{

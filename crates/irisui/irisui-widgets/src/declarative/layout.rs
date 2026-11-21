@@ -274,10 +274,17 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                     };
                     (clamped_w, x)
                 } else {
-                    (
-                        (inner.width - margin.left - margin.right).max(0.0),
-                        inner.x + margin.left,
-                    )
+                    let avail_w = (inner.width - margin.left - margin.right).max(0.0);
+                    let clamped_w = tree
+                        .get(*child_id)
+                        .and_then(|n| n.style.max_width)
+                        .map_or(avail_w, |mw| avail_w.min(mw));
+                    let x = match align {
+                        AlignItems::Center => inner.x + (inner.width - clamped_w) * 0.5,
+                        AlignItems::FlexEnd => inner.x + inner.width - clamped_w,
+                        _ => inner.x + margin.left,
+                    };
+                    (clamped_w, x)
                 };
             let h = if flex_grow > 0.0 {
                 flex_unit * flex_grow

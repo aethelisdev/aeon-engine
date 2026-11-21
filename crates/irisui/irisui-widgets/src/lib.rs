@@ -36,15 +36,16 @@ pub use declarative::caret_sync::{
 };
 pub use declarative::scope::{
     ActionBarButton, AnchoredPopupConfig, AnchoredSelectOption, AnchoredSelectPillSpec,
-    AssetSlotConfig, AssetSlotResponse, CascadingMenuEntry, ColorPickerPopupConfig,
+    AssetSlotConfig, AssetSlotResponse, BadgePillSpec, CascadingMenuEntry, ColorPickerPopupConfig,
     ColorPickerPopupResponse, ColorPickerPopupTags, ComboRowLayout, DataTableBuilder,
     DataTableConfig, DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle,
     LabeledStatusDescriptor, LiveTextProps, LogRowDescriptor, ModalDescriptor,
     MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle, PropertyActionRow,
-    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, SelectPillTriggerStyle,
-    TabBarResponse, TableColumnSpec, TableColumnWidth, TreeSelectionEvent, UiScope,
-    VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
-    WrappedLabelDescriptor,
+    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, ScrubberMarker,
+    ScrubberResponse, ScrubberTrackSpec, SelectPillTriggerStyle, TabBarResponse, TableColumnSpec,
+    TableColumnWidth, TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec, TrackLaneSpec,
+    TreeSelectionEvent, UiScope, VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder,
+    VirtualTreeConfig, WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -78,20 +79,22 @@ pub mod prelude {
     pub use crate::declarative::scope::{
         ActionBarButton, ActionCardButton, ActionCardConfig, AnchoredPopupConfig,
         AnchoredSelectOption, AnchoredSelectPillSpec, AssetSlotConfig, AssetSlotResponse,
-        CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions, CardResponse,
-        CascadingMenuEntry, CascadingPopupConfig, ColorPaletteCardConfig, ColorPickerPopupConfig,
-        ColorPickerPopupResponse, ColorPickerPopupTags, ComboBoxActionResponse, ComboBoxMapConfig,
-        ComboRowLayout, DataTableBuilder, DataTableConfig, DropdownCardConfig,
-        DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle, LabeledInputButton,
-        LabeledInputConfig, LabeledStatusDescriptor, LiveTextProps, LogRowBadge, LogRowDescriptor,
-        MultilineEditorProps, NavItemConfig, NumberLabelDescriptor, PopupCardStyle, PopupPlacement,
-        PrimaryButtonConfig, PropertyActionRow, PropertyColorResponse,
-        PropertyColorSwatchRowConfig, PropertyColorSwatchRowResponse, PropertyPaletteConfig,
-        PropertyPaletteResponse, PropertyTextOptions, SelectPillTriggerStyle, SelectionCardConfig,
-        TabBarResponse, TableColumnSpec, TableColumnWidth, TreeSelectionEvent, TreeViewConfig,
-        UiScope, VerticalScrollbarSpec, VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder,
-        VirtualTreeConfig, WrappedLabelDescriptor, euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg,
-        resolve_euler_deg_from_quat_xyzw,
+        BadgePillSpec, CardBuilder, CardHeaderDescriptor, CardHeaderResponse, CardOptions,
+        CardResponse, CascadingMenuEntry, CascadingPopupConfig, ColorPaletteCardConfig,
+        ColorPickerPopupConfig, ColorPickerPopupResponse, ColorPickerPopupTags,
+        ComboBoxActionResponse, ComboBoxMapConfig, ComboRowLayout, DataTableBuilder,
+        DataTableConfig, DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec,
+        InputBoxStyle, LabeledInputButton, LabeledInputConfig, LabeledStatusDescriptor,
+        LiveTextProps, LogRowBadge, LogRowDescriptor, MultilineEditorProps, NavItemConfig,
+        NumberLabelDescriptor, PopupCardStyle, PopupPlacement, PrimaryButtonConfig,
+        PropertyActionRow, PropertyColorResponse, PropertyColorSwatchRowConfig,
+        PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
+        PropertyTextOptions, ScrubberMarker, ScrubberResponse, ScrubberTrackSpec,
+        SelectPillTriggerStyle, SelectionCardConfig, TabBarResponse, TableColumnSpec,
+        TableColumnWidth, TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec, TrackLaneSpec,
+        TreeSelectionEvent, TreeViewConfig, UiScope, VerticalScrollbarSpec, VirtualGridBuilder,
+        VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig, WrappedLabelDescriptor,
+        euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};

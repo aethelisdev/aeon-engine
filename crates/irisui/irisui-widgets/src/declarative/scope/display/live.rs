@@ -32,6 +32,8 @@ pub struct LiveTextProps<'a> {
     pub color: Color,
     /// Horizontal text alignment.
     pub align: TextAlign,
+    /// Text wrapping mode (`TextWrap::Word` by default, or `TextWrap::None` for single-line counters).
+    pub wrap: TextWrap,
     /// Full flexbox/positioning style applied when the node is first created.
     pub style: Style,
 }
@@ -55,6 +57,7 @@ impl<'a> LiveTextProps<'a> {
             font_size,
             color,
             align: TextAlign::Left,
+            wrap: TextWrap::Word,
             style,
         }
     }
@@ -64,6 +67,14 @@ impl<'a> LiveTextProps<'a> {
     #[must_use]
     pub const fn with_align(mut self, align: TextAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Sets the text wrapping policy for the live text node.
+    #[inline]
+    #[must_use]
+    pub const fn with_wrap(mut self, wrap: TextWrap) -> Self {
+        self.wrap = wrap;
         self
     }
 }
@@ -139,6 +150,33 @@ impl UiScope<'_> {
         )
     }
 
+    /// Emits a non-interactive (`interactive: false`) layout-anchored live canvas overlay so pointer
+    /// clicks and hover queries pass cleanly through to underlying interactive tracks.
+    pub fn live_canvas_overlay<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        origin: irisui_core::CanvasOrigin,
+        style: Style,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
+        if let Some(existing_id) = self.tree.node_tagged(tag).map(|n| n.id) {
+            self.tree.register_live_tag(tag);
+            let _ = self.update_live_canvas(tag, draw_fn);
+            return self.response(existing_id);
+        }
+        self.tree.register_live_tag(tag);
+        self.immediate_canvas_with(
+            crate::declarative::scope::display::canvas::ImmediateCanvasSpec::new(name, tag, style)
+                .origin(origin)
+                .interactive(false),
+            draw_fn,
+        )
+    }
+
     /// Emits a styled live/volatile text node or updates its text in place when `props.tag`
     /// already exists in the retained tree.
     pub fn live_text(&mut self, props: LiveTextProps<'_>) -> WidgetResponse {
@@ -166,7 +204,7 @@ impl UiScope<'_> {
             node.font_size = props.font_size;
             node.line_height = (props.font_size * 1.3).max(12.0).round();
             node.text_align = props.align;
-            node.set_text_wrap(TextWrap::Word);
+            node.set_text_wrap(props.wrap);
             node.set_style(props.style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
@@ -262,6 +300,26 @@ impl UiScope<'_> {
     #[must_use]
     pub fn has_live_nodes(&self) -> bool {
         self.tree.has_live_nodes()
+    }
+
+    /// Records `(structural_hash, live_hash)` baseline hashes on the retained tree for `tag`.
+    #[inline]
+    pub fn record_retained_revision(&mut self, tag: u64, structural_hash: u64, live_hash: u64) {
+        self.tree
+            .record_retained_revision(tag, structural_hash, live_hash);
+    }
+
+    /// Compares `(structural_hash, live_hash)` against the baseline recorded on the retained tree
+    /// for `tag`, classifying `Unchanged`, `RefreshLive`, or `Rebuild`.
+    #[inline]
+    pub fn sync_retained_revision(
+        &mut self,
+        tag: u64,
+        structural_hash: u64,
+        live_hash: u64,
+    ) -> irisui_core::RetainedRevisionStatus {
+        self.tree
+            .sync_retained_revision(tag, structural_hash, live_hash)
     }
 }
 
@@ -377,5 +435,37 @@ mod tests {
             tree.node_tagged(TAG_TEXT).map(|n| n.text_color),
             Some(Color::RED)
         );
+    }
+
+    #[test]
+    fn test_retained_revision_sync_transitions() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let panel_tag = 0xCC10;
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            assert_eq!(
+                scope.sync_retained_revision(panel_tag, 100, 1),
+                irisui_core::RetainedRevisionStatus::Rebuild
+            );
+            scope.record_retained_revision(panel_tag, 100, 1);
+            assert_eq!(
+                scope.sync_retained_revision(panel_tag, 100, 1),
+                irisui_core::RetainedRevisionStatus::Unchanged
+            );
+            assert_eq!(
+                scope.sync_retained_revision(panel_tag, 100, 2),
+                irisui_core::RetainedRevisionStatus::RefreshLive
+            );
+            assert_eq!(
+                scope.sync_retained_revision(panel_tag, 100, 2),
+                irisui_core::RetainedRevisionStatus::Unchanged
+            );
+            assert_eq!(
+                scope.sync_retained_revision(panel_tag, 200, 2),
+                irisui_core::RetainedRevisionStatus::Rebuild
+            );
+        }
     }
 }

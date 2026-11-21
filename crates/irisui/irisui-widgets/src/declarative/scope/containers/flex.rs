@@ -124,6 +124,28 @@ impl<'a> UiScope<'a> {
         self.container(style, f)
     }
 
+    /// Emits a flex-growing container centered along both horizontal and vertical axes.
+    ///
+    /// Unlike [`Self::centered_stretch`], uses `AlignItems::Center` so fixed or bounded-width
+    /// empty-state cards remain horizontally centered inside wide dock panels instead of pinning
+    /// flush left.
+    ///
+    /// # Arguments
+    /// * `padding` - Uniform outer padding inset applied around all edges in logical pixels.
+    /// * `f` - Child scope closure emitting vertically and horizontally centered content.
+    pub fn centered_fill<R, F>(&mut self, padding: f32, f: F) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .padding_insets(Insets::new(padding, padding, padding, padding));
+        self.container(style, f)
+    }
+
     /// Emits a horizontal toolbar container with a fixed height and centered flex alignment.
     ///
     /// # Arguments
@@ -257,5 +279,27 @@ mod tests {
             irisui_core::JustifyContent::Center
         );
         assert_eq!(fill_node.style.padding.left, 12.0);
+    }
+
+    #[test]
+    fn test_centered_fill_centers_both_axes_and_grows() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let resp = {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.centered_fill(8.0, |inner| {
+                inner.label("Centered");
+                7_u8
+            })
+        };
+        assert_eq!(resp.inner, 7);
+        let node = tree.get(resp.response.id).expect("centered_fill node");
+        assert_eq!(node.style.flex_grow, 1.0);
+        assert_eq!(node.style.align_items, irisui_core::AlignItems::Center);
+        assert_eq!(
+            node.style.justify_content,
+            irisui_core::JustifyContent::Center
+        );
+        assert_eq!(node.style.padding.left, 8.0);
     }
 }

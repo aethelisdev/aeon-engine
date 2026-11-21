@@ -9,6 +9,7 @@
 //! - Texture atlas icons and hover reactivity in [`icons`].
 //! - External textures, scrollbars, and color swatches in [`canvas`].
 
+pub mod badge_pill;
 pub mod canvas;
 pub mod icons;
 pub mod key_value;
@@ -18,6 +19,7 @@ pub mod log_row;
 pub mod section_heading;
 pub mod telemetry;
 
+pub use badge_pill::BadgePillSpec;
 pub use canvas::{ImmediateCanvasSpec, VerticalScrollbarSpec};
 pub use key_value::{
     NumberLabelDescriptor, format_file_size_stack, format_number_stack,
