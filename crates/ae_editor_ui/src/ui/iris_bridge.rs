@@ -42,7 +42,7 @@ pub use material::{MaterialPanelParams, build_material_panel};
 pub use preferences::{PreferencesParams, build_preferences_view};
 pub use stats::{StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;
-pub use timeline::{TimelineAction, TimelinePanelParams, build_timeline_panel};
+pub use timeline::{TimelinePanelParams, build_timeline_panel};
 pub use types::{
     EditorContextParams, IrisEditorOverlay, OverlayPanelData, OverlayPreferencesParams,
     OverlayUpdateParams, SceneParams, TelemetryParams, ViewportParams,

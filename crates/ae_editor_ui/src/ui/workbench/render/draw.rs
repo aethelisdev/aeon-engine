@@ -69,7 +69,6 @@ impl EngineUi {
                 .notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
-        self.process_timeline_actions(params.world, params.ui_actions);
         self.process_ui_designer_actions(params.world, params.ui_actions);
 
         // 3. Iris UI GPU SDF Native Render Pass

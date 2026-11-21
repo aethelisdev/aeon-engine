@@ -10,6 +10,5 @@ pub mod draw;
 pub mod iris_pass;
 pub mod types;
 pub mod ui_designer;
-pub mod viewports;
 
 pub use types::EditorUiRenderParams;

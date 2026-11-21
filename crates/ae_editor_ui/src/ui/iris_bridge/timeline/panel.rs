@@ -4,140 +4,146 @@
 //! # Animation Timeline Studio Root Panel Builder
 //!
 //! Orchestrates panel container instantiation, responsive empty-state placeholder cards,
-//! and child transport and ruler subsystems using 100% pure declarative [`UiScope`] architecture
-//! with zero external node identifier retention or post-layout tree inspections.
+//! and child transport, ruler, scrubber, and dope sheet lanes using 100% pure zero-`let`
+//! declarative [`UiScope`] composition and direct [`ActionBus`] emission.
 
 use super::lanes::build_dope_sheet_lanes;
 use super::ruler::build_ruler_and_scrubber;
 use super::transport::build_transport_toolbar;
-use super::types::{TIMELINE_TAG_PANEL_ROOT, TimelineAction, TimelinePanelParams};
+use super::types::{TIMELINE_TAG_PANEL_ROOT, TimelineClipCache, TimelinePanelParams};
+use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
 /// Builds the complete Animation Timeline Studio docked panel via pure declarative [`UiScope`].
 ///
-/// Dispatches to declarative placeholder cards when no valid entity or
-/// `AnimationPlayer` is active, or instantiates the playback transport toolbar,
-/// time ruler scrubber controls, and dope sheet channel track lanes.
-///
+/// Emits centered empty-state cards when no entity or `AnimationPlayer` is active, or renders
+/// the transport toolbar, adaptive time ruler scrubber, and dope sheet channel lanes.
 /// Returns the resolved clip duration in seconds.
 pub fn build_timeline_panel(
     scope: &mut UiScope<'_>,
     params: &TimelinePanelParams<'_>,
-    actions: &mut Vec<TimelineAction>,
+    cache: &mut TimelineClipCache,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) -> f32 {
-    let mut resolved_duration = 0.0;
-
     scope
         .panel("AnimationTimelinePanelRoot")
         .tagged(TIMELINE_TAG_PANEL_ROOT)
         .background_themed(|t| t.panel_bg)
         .border_themed(1.0, |t| t.panel_border)
-        .show(|panel_scope| {
-            // ── Case A: No Entity Selected ──
-            let Some(entity) = params.entity else {
-                render_empty_placeholder(
+        .show(
+            |panel_scope| match (params.entity, params.animation_player) {
+                (None, _) => {
+                    cache.sync(None);
+                    render_empty_placeholder(panel_scope);
+                    0.0
+                }
+                (Some(entity), None) => {
+                    cache.sync(None);
+                    render_missing_player_card(panel_scope, entity, action_bus);
+                    0.0
+                }
+                (Some(entity), Some(player)) => build_active_timeline(
                     panel_scope,
-                    params.panel_rect.height,
-                    "🎬",
-                    "Animation Timeline Studio",
-                    "No entity selected. Select an animated 3D model in the viewport or hierarchy.",
-                );
-                return;
-            };
-
-            // ── Case B: Selected Entity Missing AnimationPlayer Component ──
-            let Some(player) = params.animation_player else {
-                render_missing_player_card(panel_scope, params.panel_rect.height, actions, entity);
-                return;
-            };
-
-            // ── Case C: Active AnimationPlayer Present ──
-            let duration = player
-                .current_clip
-                .as_ref()
-                .map_or(1.0, |c| c.duration.max(0.1));
-            resolved_duration = duration;
-
-            build_transport_toolbar(panel_scope, params, duration);
-            build_ruler_and_scrubber(panel_scope, params, duration);
-            build_dope_sheet_lanes(panel_scope, params, duration);
-        });
-
-    resolved_duration
+                    entity,
+                    player,
+                    player
+                        .current_clip
+                        .as_ref()
+                        .map_or(1.0, |c| c.duration.max(0.1)),
+                    cache,
+                    action_bus,
+                ),
+            },
+        )
+        .inner
 }
 
-/// Renders a centered empty-state information card when no animated entity is selected.
-///
-/// Uses pure flexbox centering (`JustifyContent::Center`, `AlignItems::Center`) without
-/// manual coordinate math or pixel offsets.
-fn render_empty_placeholder(
+fn build_active_timeline(
     scope: &mut UiScope<'_>,
-    height: f32,
-    icon: &str,
-    title: &str,
-    subtitle: &str,
-) {
-    scope
-        .column_with()
-        .name("TimelineEmptyCenterWrapper")
-        .height(height)
-        .centered()
-        .show(|center_col| {
-            center_col
-                .column_with()
-                .name("TimelineEmptyCard")
-                .width(460.0)
-                .background_themed(|t| t.card_bg)
-                .border_radius(6.0)
-                .border_themed(1.0, |t| t.card_border)
-                .align_items(AlignItems::Center)
-                .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
-                .gap(4.0)
-                .show(|card_scope| {
-                    card_scope.colored_label(
-                        card_scope.theme().text_primary,
-                        format!("{}  {}", icon, title),
-                    );
-                    card_scope.colored_label(card_scope.theme().text_muted, subtitle);
-                });
-        });
+    entity: hecs::Entity,
+    player: &ae_animation::AnimationPlayer,
+    duration: f32,
+    cache: &mut TimelineClipCache,
+    action_bus: &mut ActionBus<EngineUiAction>,
+) -> f32 {
+    build_transport_toolbar(scope, entity, player, duration, action_bus);
+    build_ruler_and_scrubber(scope, entity, player, duration, cache, action_bus);
+    build_dope_sheet_lanes(scope, player, duration);
+    duration
 }
 
-/// Renders an informational card with an action button when an entity is selected without AnimationPlayer.
-///
-/// Emits declarative title and action button via pure [`UiScope`], reacting to button
-/// activation via the declarative `.clicked()` pattern with automatic flexbox centering.
+/// Renders a flex-centered empty-state information card when no animated entity is selected.
+fn render_empty_placeholder(scope: &mut UiScope<'_>) {
+    render_empty_placeholder_themed(scope, scope.theme());
+}
+
+fn render_empty_placeholder_themed(scope: &mut UiScope<'_>, theme: Theme) {
+    scope.centered_fill(12.0, |center_col| {
+        center_col.container_named(
+            "TimelineEmptyCard",
+            Style::new()
+                .flex_col()
+                .min_width(240.0)
+                .max_width(520.0)
+                .background(theme.card_bg)
+                .border_radius(6.0)
+                .border(1.0, theme.card_border)
+                .align_items(AlignItems::Center)
+                .padding_insets(Insets::new(14.0, 20.0, 14.0, 20.0))
+                .gap(6.0),
+            |card_scope| {
+                card_scope.colored_label(theme.text_primary, "🎬  Animation Timeline Studio");
+                card_scope.label_styled_passive_wrapped(
+                    "TimelineEmptyMessage",
+                    "No entity selected. Select an animated 3D model in the viewport or hierarchy.",
+                    WrappedLabelDescriptor::new(11.0, theme.text_muted, Style::new())
+                        .align(TextAlign::Center),
+                );
+            },
+        );
+    });
+}
+
+/// Renders a flex-centered prompt card with an action button to attach an `AnimationPlayer`.
 fn render_missing_player_card(
     scope: &mut UiScope<'_>,
-    height: f32,
-    actions: &mut Vec<TimelineAction>,
     entity: hecs::Entity,
+    action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    scope
-        .column_with()
-        .name("TimelineMissingCenterWrapper")
-        .height(height)
-        .centered()
-        .show(|center_col| {
-            center_col
-                .column_with()
-                .name("TimelineMissingPlayerCard")
-                .width(480.0)
-                .background_themed(|t| t.card_bg)
-                .border_radius(6.0)
-                .border_themed(1.0, |t| t.card_border)
-                .align_items(AlignItems::Center)
-                .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
-                .gap(8.0)
-                .show(|card_scope| {
-                    card_scope.colored_label(
-                        card_scope.theme().text_secondary,
-                        "Selected entity does not have an AnimationPlayer component.",
-                    );
+    render_missing_player_card_themed(scope, entity, action_bus, scope.theme());
+}
 
-                    if card_scope.button("➕ Add AnimationPlayer").clicked() {
-                        actions.push(TimelineAction::AddAnimationPlayer(entity));
-                    }
+fn render_missing_player_card_themed(
+    scope: &mut UiScope<'_>,
+    entity: hecs::Entity,
+    action_bus: &mut ActionBus<EngineUiAction>,
+    theme: Theme,
+) {
+    scope.centered_fill(12.0, |center_col| {
+        center_col.container_named(
+            "TimelineMissingPlayerCard",
+            Style::new()
+                .flex_col()
+                .min_width(240.0)
+                .max_width(520.0)
+                .background(theme.card_bg)
+                .border_radius(6.0)
+                .border(1.0, theme.card_border)
+                .align_items(AlignItems::Center)
+                .padding_insets(Insets::new(14.0, 20.0, 14.0, 20.0))
+                .gap(8.0),
+            |card_scope| {
+                card_scope.label_styled_passive_wrapped(
+                    "TimelineMissingPlayerMessage",
+                    "Selected entity does not have an AnimationPlayer component.",
+                    WrappedLabelDescriptor::new(11.5, theme.text_secondary, Style::new())
+                        .align(TextAlign::Center),
+                );
+                card_scope.button("➕ Add AnimationPlayer").on_click(|| {
+                    action_bus.emit(EngineUiAction::AddComponent(entity, "AnimationPlayer"))
                 });
-        });
+            },
+        );
+    });
 }

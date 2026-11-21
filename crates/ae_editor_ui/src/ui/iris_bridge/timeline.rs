@@ -16,20 +16,21 @@ mod tests;
 pub mod transport;
 pub mod types;
 
-pub use lanes::{CHANNEL_LANE_HEIGHT, MAX_VISIBLE_LANES, build_dope_sheet_lanes};
-pub use panel::build_timeline_panel;
-pub use ruler::{
-    RULER_HEIGHT, RULER_TOTAL_HEIGHT, SCRUBBER_TRACK_HEIGHT, ScrubberTrackParams,
-    build_ruler_and_scrubber, render_ruler_bar, render_scrubber_track,
+pub use lanes::{
+    CHANNEL_LANE_HEIGHT, MAX_VISIBLE_LANES, build_dope_sheet_lanes, refresh_lanes_playhead_live,
 };
+pub use panel::build_timeline_panel;
+pub use ruler::{build_ruler_and_scrubber, refresh_scrubber_live};
 pub use transport::{
     SPEED_PRESETS, TRANSPORT_TOOLBAR_HEIGHT, build_transport_toolbar, render_clip_badge,
-    render_loop_pill, render_speed_pill, render_time_readout, render_transport_button,
+    render_loop_pill, render_time_readout, render_transport_button, update_time_readout_live,
 };
 pub use types::{
-    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, MediaTransportStyle, TIMELINE_SIDEBAR_WIDTH,
-    TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT, TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP,
-    TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE, TIMELINE_TAG_STEP_BACK,
-    TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineAction, TimelineKeyframeMarker,
-    TimelinePanelParams, TimelinePanelState, TimelineRulerStyle, TimelineState,
+    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, TIMELINE_SIDEBAR_WIDTH, TIMELINE_TAG_CLIP_BADGE,
+    TIMELINE_TAG_LANES_PLAYHEAD, TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT,
+    TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_RULER_ROOT,
+    TIMELINE_TAG_SCRUBBER_PLAYHEAD, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_STEP_BACK,
+    TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TIMELINE_TAG_TIME_READOUT,
+    TIMELINE_TAG_TIME_READOUT_TEXT, TimelineClipCache, TimelinePanelParams, TimelinePanelState,
+    TimelineState,
 };

@@ -194,7 +194,14 @@ fn draw_timeline_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelC
     state
         .overlay
         .timeline
-        .build_view(scope, state.params, state.cursor_pos);
+        .build_view(scope, state.params, state.action_bus);
+}
+
+fn refresh_timeline_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
+    state
+        .overlay
+        .timeline
+        .refresh_live(scope, state.params, state.notifier);
 }
 
 fn draw_ui_designer_panel<'frame>(scope: &mut UiScope<'_>, state: &mut EditorPanelContext<'frame>) {
@@ -264,8 +271,8 @@ const EDITOR_PANEL_DESCRIPTORS: &[(
     (
         PanelId::AnimationTimeline,
         draw_timeline_panel,
-        LiveRefreshInterval::OnChange,
-        None,
+        LiveRefreshInterval::EveryFrame,
+        Some(refresh_timeline_panel),
     ),
     (
         PanelId::UiDesigner,
