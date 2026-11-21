@@ -12,6 +12,18 @@ use crate::node::WidgetNode;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 
+/// Evaluation outcome produced when comparing a keyed retained widget's structural
+/// and volatile hashes against the previous built frame in [`UiTree`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetainedRevisionStatus {
+    /// Neither structural topology nor volatile values mutated; skip in-place updates.
+    Unchanged,
+    /// Structural layout matches, only volatile payload mutated; patch in place (`InPlaceRefresh`).
+    RefreshLive,
+    /// Structural topology mutated or no baseline was recorded; schedule a granular rebuild.
+    Rebuild,
+}
+
 /// The central hierarchical arena storing all UI nodes.
 ///
 /// `UiTree` manages generational keys, ensures parent-child invariant consistency,
@@ -52,6 +64,8 @@ pub struct UiTree {
     pub volatile_canvas_commands: HashMap<WidgetId, Vec<crate::canvas::CanvasPrimitive>>,
     /// Semantic tags of live/volatile widgets that support layout-bypassing in-place updates.
     pub live_node_tags: std::collections::HashSet<u64>,
+    /// Keyed `(structural_hash, live_hash)` baselines for retained panels/subtrees avoiding domain snapshot mirrors.
+    pub retained_revisions: HashMap<u64, (u64, u64)>,
     /// Accumulated `(needs_text_prepare, needs_quad_reupload)` flags from live widget updates.
     pub pending_live_refresh: (bool, bool),
     /// Flag raised when an existing static node is newly promoted to `live_node_tags`,
@@ -83,6 +97,7 @@ impl UiTree {
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
             live_node_tags: std::collections::HashSet::new(),
+            retained_revisions: HashMap::new(),
             pending_live_refresh: (false, false),
             pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
@@ -113,6 +128,7 @@ impl UiTree {
             dirty_boundaries: std::collections::HashSet::new(),
             volatile_canvas_commands: HashMap::new(),
             live_node_tags: std::collections::HashSet::new(),
+            retained_revisions: HashMap::new(),
             pending_live_refresh: (false, false),
             pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
@@ -144,6 +160,7 @@ impl UiTree {
         self.dirty_boundaries.clear();
         self.volatile_canvas_commands.clear();
         self.live_node_tags.clear();
+        self.retained_revisions.clear();
         self.pending_live_refresh = (false, false);
         self.pending_static_text_sync = false;
         self.event_state.clear_arena_ids();
@@ -556,6 +573,38 @@ impl UiTree {
     #[inline]
     pub fn register_live_tag(&mut self, tag: u64) {
         self.live_node_tags.insert(tag);
+    }
+
+    /// Records the structural and volatile baseline hashes for a retained subtree or panel tagged `tag`.
+    #[inline]
+    pub fn record_retained_revision(&mut self, tag: u64, structural_hash: u64, live_hash: u64) {
+        if tag != 0 {
+            self.retained_revisions
+                .insert(tag, (structural_hash, live_hash));
+        }
+    }
+
+    /// Evaluates whether a retained subtree tagged `tag` is unchanged, requires in-place live
+    /// patching, or requires a structural rebuild, updating its stored live hash on change.
+    #[inline]
+    pub fn sync_retained_revision(
+        &mut self,
+        tag: u64,
+        structural_hash: u64,
+        live_hash: u64,
+    ) -> RetainedRevisionStatus {
+        let Some(&(prev_struct, prev_live)) = self.retained_revisions.get(&tag) else {
+            return RetainedRevisionStatus::Rebuild;
+        };
+        if prev_struct != structural_hash {
+            return RetainedRevisionStatus::Rebuild;
+        }
+        if prev_live == live_hash {
+            return RetainedRevisionStatus::Unchanged;
+        }
+        self.retained_revisions
+            .insert(tag, (structural_hash, live_hash));
+        RetainedRevisionStatus::RefreshLive
     }
 
     /// Returns `true` when at least one live/volatile node tag is currently registered in the tree.

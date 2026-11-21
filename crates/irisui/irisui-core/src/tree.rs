@@ -12,5 +12,5 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-pub use arena::UiTree;
+pub use arena::{RetainedRevisionStatus, UiTree};
 pub use hit_test::HitTargetInfo;

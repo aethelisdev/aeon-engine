@@ -59,7 +59,7 @@ pub use style::{
 };
 pub use tag::UiTag;
 pub use theme::Theme;
-pub use tree::{HitTargetInfo, UiTree};
+pub use tree::{HitTargetInfo, RetainedRevisionStatus, UiTree};
 
 /// Core prelude re-exporting essential geometry, styling, events, nodes, and tree primitives.
 ///
@@ -71,9 +71,10 @@ pub mod prelude {
         FileDropTarget, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
         ImeEvent, InMemoryClipboard, InputModifiers, Insets, InteractionEvent, IrisCoreError,
         IrisSurfaceFrameFlags, JustifyContent, KeyCode, MemoCache, MouseButton, Point,
-        PopupMenuState, Position, Rect, ResponseFlags, Size, StackString, Style,
-        SurfaceRefreshMode, TextAlign, TextMeasurer, TextWrap, Theme, UiEvent, UiIcon, UiLayer,
-        UiTag, UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetResponse, WidgetRole, WidgetState,
+        PopupMenuState, Position, Rect, ResponseFlags, RetainedRevisionStatus, Size, StackString,
+        Style, SurfaceRefreshMode, TextAlign, TextMeasurer, TextWrap, Theme, UiEvent, UiIcon,
+        UiLayer, UiTag, UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetResponse, WidgetRole,
+        WidgetState,
     };
 }
 
