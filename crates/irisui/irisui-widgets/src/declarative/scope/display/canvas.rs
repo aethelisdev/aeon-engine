@@ -184,6 +184,7 @@ impl<'a> UiScope<'a> {
 
         let track_rel_x = geom.track_rect.x - container_rect.x;
         let track_rel_y = geom.track_rect.y - container_rect.y;
+        let track_rel_right = (container_rect.right() - geom.track_rect.right()).max(0.0);
 
         let parent_layer = self
             .tree
@@ -210,6 +211,7 @@ impl<'a> UiScope<'a> {
                 Style::new()
                     .position_absolute()
                     .left(track_rel_x)
+                    .right(track_rel_right)
                     .top(track_rel_y)
                     .width(geom.track_rect.width)
                     .height(geom.track_rect.height)

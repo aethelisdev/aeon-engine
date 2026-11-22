@@ -137,6 +137,15 @@ impl<'a> UiScope<'a> {
         self.vertical_divider(height, color);
     }
 
+    /// Emits a 1-pixel vertical divider stretching to fill its parent flex-row height
+    /// using the active scope theme's `divider` color.
+    #[inline]
+    pub fn vertical_divider_fill_themed(&mut self) {
+        let color = self.theme().divider;
+        let div_style = Style::new().background(color).width(1.0).flex_shrink(0.0);
+        self.empty_box(div_style);
+    }
+
     /// Emits an empty flex-grow spacer node to expand and push subsequent items.
     pub fn spacer(&mut self) {
         self.empty_box(Style::new().flex_grow(1.0));

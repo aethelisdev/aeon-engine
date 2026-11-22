@@ -38,7 +38,7 @@ pub struct LogRowDescriptor<'a> {
     pub badge: LogRowBadge<'a>,
     /// Timestamp string (e.g. "12:00:00").
     pub timestamp: &'a str,
-    /// Originating subsystem or module target tag (e.g. "ae_renderer").
+    /// Originating subsystem or module target tag (e.g. "renderer").
     pub target: &'a str,
     /// Formatted log message text.
     pub message: &'a str,
@@ -215,7 +215,7 @@ mod tests {
             0x500c,
             badge,
             "12:34:56",
-            "ae_renderer",
+            "renderer",
             "Pipeline compile failed",
             false,
         );

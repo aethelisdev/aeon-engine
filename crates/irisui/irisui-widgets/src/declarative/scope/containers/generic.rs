@@ -472,6 +472,29 @@ impl<'a> UiScope<'a> {
             ),
         );
     }
+
+    /// Evaluates a declarative builder against a stack copy of `initial`, sharing mutable
+    /// `shared` state sequentially with `build` and `on_change` without allocating.
+    ///
+    /// Emits `on_change(shared, draft)` only when `draft != initial`, avoiding parallel
+    /// frame-level snapshot diffing wrappers in consumer applications.
+    pub fn edit_with_state<Shared, T, R>(
+        &mut self,
+        shared: &mut Shared,
+        initial: T,
+        build: impl FnOnce(&mut Self, &mut Shared, &mut T) -> R,
+        on_change: impl FnOnce(&mut Shared, T),
+    ) -> R
+    where
+        T: Copy + PartialEq,
+    {
+        let mut draft = initial;
+        let out = build(self, shared, &mut draft);
+        if draft != initial {
+            on_change(shared, draft);
+        }
+        out
+    }
 }
 
 /// Extension trait adding fluent layout and interaction chaining to container responses.
@@ -509,5 +532,39 @@ impl ContainerResponseExt for WidgetResponse {
     fn content_size_wh(self, scope: &mut UiScope<'_>, width: f32, height: f32) -> Self {
         scope.set_content_size(self.id, Size::new(width, height));
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use irisui_core::UiTree;
+
+    #[test]
+    fn edit_with_state_emits_only_when_value_changes() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut bus: Vec<i32> = Vec::new();
+
+        scope.edit_with_state(
+            &mut bus,
+            10i32,
+            |_s, _out, draft| {
+                let _ = *draft;
+            },
+            |out, next| out.push(next),
+        );
+        assert!(bus.is_empty());
+
+        scope.edit_with_state(
+            &mut bus,
+            10i32,
+            |_s, _out, draft| {
+                *draft = 42;
+            },
+            |out, next| out.push(next),
+        );
+        assert_eq!(bus, vec![42]);
     }
 }

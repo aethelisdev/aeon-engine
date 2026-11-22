@@ -256,8 +256,9 @@ impl<'a> UiScope<'a> {
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
             .gap(5.0)
-            .width(width)
+            .width(width.max(0.0))
             .flex_grow(1.0)
+            .min_width(0.0)
             .height(height)
             .padding_insets(desc.padding)
             .background(bg)
@@ -343,6 +344,18 @@ impl<'a> UiScope<'a> {
         })
         .inner
     }
+
+    /// Emits a horizontal two-button bottom action bar sized automatically from [`Self::available_rect`]
+    /// without requiring an explicit `panel_width` argument from callers.
+    pub fn dual_action_bar_auto(
+        &mut self,
+        container_name: &'static str,
+        primary: ActionBarButton<'_>,
+        secondary: ActionBarButton<'_>,
+    ) -> DualActionBarResponse {
+        let panel_width = self.available_rect().width;
+        self.dual_action_bar(container_name, panel_width, primary, secondary)
+    }
 }
 
 #[cfg(test)]
@@ -425,5 +438,28 @@ mod tests {
         assert!(!primary_clicked);
         assert!(secondary_clicked);
         assert_eq!(emitted, Some("saved"));
+    }
+
+    #[test]
+    fn test_dual_action_bar_auto_flex_divides_without_explicit_width() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.configure_container("TestRoot", Style::new().flex_col().width(320.0), false);
+            scope.dual_action_bar_auto(
+                "AutoFooter",
+                ActionBarButton::new("AutoPrimaryBtn", "Add Item"),
+                ActionBarButton::new("AutoSecondaryBtn", "Save Item"),
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 40.0));
+        }
+
+        let primary_rect = tree.assert_node_rect("AutoPrimaryBtn");
+        let secondary_rect = tree.assert_node_rect("AutoSecondaryBtn");
+        assert!((primary_rect.width - 148.0).abs() < 0.5);
+        assert!((secondary_rect.width - 148.0).abs() < 0.5);
+        assert_eq!(primary_rect.height, 24.0);
+        assert_eq!(secondary_rect.height, 24.0);
     }
 }

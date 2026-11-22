@@ -163,8 +163,9 @@ impl DropdownCardConfig {
 pub struct AnchoredPopupConfig {
     /// Semantic 64-bit tag of the anchor widget (`0` skips tag lookup/activation).
     pub anchor_tag: u64,
-    /// Fallback bounds used when `anchor_tag` is absent or not yet laid out in the tree.
-    pub fallback_rect: Rect,
+    /// Optional fallback bounds used when `anchor_tag` is absent or not yet laid out in the tree.
+    /// When `None`, resolves autonomously via [`UiScope::available_rect`].
+    pub fallback_rect: Option<Rect>,
     /// Preferred popup card width in logical pixels.
     pub width: f32,
     /// Preferred vertical orientation relative to the anchor rect.
@@ -182,7 +183,22 @@ impl AnchoredPopupConfig {
     pub const fn new(anchor_tag: u64, fallback_rect: Rect, width: f32) -> Self {
         Self {
             anchor_tag,
-            fallback_rect,
+            fallback_rect: Some(fallback_rect),
+            width,
+            placement: PopupPlacement::Below,
+            expected_height: None,
+            card_style: PopupCardStyle::new(),
+        }
+    }
+
+    /// Creates an anchored popup descriptor whose fallback rect resolves autonomously
+    /// via [`UiScope::available_rect`] when `anchor_tag` has not yet been laid out.
+    #[inline]
+    #[must_use]
+    pub const fn auto(anchor_tag: u64, width: f32) -> Self {
+        Self {
+            anchor_tag,
+            fallback_rect: None,
             width,
             placement: PopupPlacement::Below,
             expected_height: None,
@@ -374,10 +390,13 @@ impl<'a> UiScope<'a> {
             self.tree.set_popup_tag_active(config.anchor_tag, true);
         }
 
+        let fallback = config
+            .fallback_rect
+            .unwrap_or_else(|| self.available_rect());
         let anchor_rect = self
             .tree
             .resolve_anchor_rect(config.anchor_tag)
-            .unwrap_or(config.fallback_rect);
+            .unwrap_or(fallback);
 
         self.popup_anchored_internal(name, anchor_rect, &config, f)
     }
@@ -398,6 +417,26 @@ impl<'a> UiScope<'a> {
         self.scoped_popup_anchored(
             name,
             AnchoredPopupConfig::new(anchor_tag, fallback_rect, width).with_placement(placement),
+            f,
+        )
+    }
+
+    /// Emits a scoped floating popup anchored to `anchor_tag` only when `anchor_tag` is active,
+    /// resolving fallback geometry automatically from [`UiScope::available_rect`].
+    pub fn scoped_popup_anchored_auto<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_tag: u64,
+        width: f32,
+        placement: PopupPlacement,
+        f: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.scoped_popup_anchored(
+            name,
+            AnchoredPopupConfig::auto(anchor_tag, width).with_placement(placement),
             f,
         )
     }
@@ -437,6 +476,25 @@ impl<'a> UiScope<'a> {
             return None;
         }
         Some(self.cascading_popup_anchored_to_tag(name, anchor_tag, fallback_rect, config, f))
+    }
+
+    /// Emits a scoped cascading popup card anchored to `anchor_tag` only when `anchor_tag` is active,
+    /// resolving fallback geometry automatically via [`UiScope::available_rect`].
+    pub fn scoped_cascading_popup_anchored_auto<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_tag: u64,
+        config: CascadingPopupConfig,
+        f: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if !self.tree.is_popup_tag_active(anchor_tag) {
+            return None;
+        }
+        let fallback = self.available_rect();
+        Some(self.cascading_popup_anchored_to_tag(name, anchor_tag, fallback, config, f))
     }
 
     /// Emits a widget that exclusively toggles `popup_tag` in [`irisui_core::UiTree::active_popup_tags`]

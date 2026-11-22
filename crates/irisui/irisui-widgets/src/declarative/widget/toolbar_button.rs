@@ -56,6 +56,13 @@ impl ToolbarButton {
         }
     }
 
+    /// Creates a new toolbar button builder whose caption is formatted on the stack via `args`.
+    #[inline]
+    pub fn from_args(args: std::fmt::Arguments<'_>) -> Self {
+        let buf = irisui_core::StackString::<64>::from_args(args);
+        Self::new(buf.as_str())
+    }
+
     /// Sets the descriptive debug name of the node in the UI tree.
     #[inline]
     #[must_use]

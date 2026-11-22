@@ -44,10 +44,17 @@ pub enum SelectPillTriggerStyle {
         /// Per-corner rounding radii.
         corner_radii: CornerRadii,
     },
-    /// Compact standalone dropdown trigger button with label and chevron.
+    /// Compact standalone dropdown trigger button with label and chevron (default 32px height).
     Dropdown {
         /// Button width in logical pixels.
         width: f32,
+    },
+    /// Compact standalone dropdown trigger button with explicit width and height.
+    DropdownSized {
+        /// Button width in logical pixels.
+        width: f32,
+        /// Button height in logical pixels.
+        height: f32,
     },
 }
 
@@ -106,6 +113,13 @@ impl<'a> UiScope<'a> {
             SelectPillTriggerStyle::Dropdown { width } => {
                 self.toolbar_dropdown_button(spec.label, spec.tag, is_open, width)
             }
+            SelectPillTriggerStyle::DropdownSized { width, height } => self.add(
+                crate::declarative::widget::ToolbarButton::new(spec.label)
+                    .tag(spec.tag)
+                    .width(width)
+                    .height(height)
+                    .open(is_open),
+            ),
         };
 
         if resp.clicked() {
@@ -116,7 +130,8 @@ impl<'a> UiScope<'a> {
             let parent_bounds = self.parent_rect();
             let trigger_width = match spec.trigger_style {
                 SelectPillTriggerStyle::Mode { width, .. }
-                | SelectPillTriggerStyle::Dropdown { width } => width,
+                | SelectPillTriggerStyle::Dropdown { width }
+                | SelectPillTriggerStyle::DropdownSized { width, .. } => width,
             };
             let trigger_fallback = Rect::new(
                 parent_bounds.x,

@@ -9,9 +9,11 @@ use super::group::ToolbarGroup;
 use super::group_scope::ToolbarGroupScope;
 use crate::declarative::scope::containers::generic::InnerResponse;
 use crate::declarative::scope::core::UiScope;
+use crate::declarative::scope::input_box::TextInputField;
 use crate::declarative::types::WidgetResponse;
 use crate::declarative::widget::Widget;
 use crate::declarative::widget::toolbar_button::ToolbarButton;
+use crate::input::TextInputState;
 use irisui_core::{Color, CornerRadii};
 use std::ops::{Deref, DerefMut};
 
@@ -298,6 +300,23 @@ impl<'a, 's> ToolbarScope<'a, 's> {
     #[inline]
     pub fn add<W: Widget>(&mut self, widget: W) -> W::Response {
         self.scope.add(widget)
+    }
+
+    /// Emits a two-way bound search input field with a magnifier icon and inline clear button.
+    #[inline]
+    pub fn search_input(
+        &mut self,
+        state: &mut TextInputState,
+        placeholder: &str,
+        width: f32,
+    ) -> WidgetResponse {
+        self.scope.add(
+            TextInputField::new(state)
+                .placeholder(placeholder)
+                .width(width)
+                .search_icon()
+                .clearable(true),
+        )
     }
 
     /// Formats text into a stack [`irisui_core::StackString`] and emits a fixed-width toolbar label.

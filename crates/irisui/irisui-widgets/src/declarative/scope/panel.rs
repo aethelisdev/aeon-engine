@@ -22,7 +22,10 @@ pub struct PanelBuilder<'a, 'b> {
     bg: Option<Color>,
     border: Option<(f32, Color)>,
     bounds: Option<Rect>,
+    direction: irisui_core::FlexDirection,
+    hide_border: bool,
     scrollable: bool,
+    retained_revision: Option<(u64, u64)>,
 }
 
 impl<'a, 'b> PanelBuilder<'a, 'b> {
@@ -40,8 +43,21 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
             bg: None,
             border: None,
             bounds: None,
+            direction: irisui_core::FlexDirection::Column,
+            hide_border: false,
             scrollable: false,
+            retained_revision: None,
         }
+    }
+
+    /// Associates structural and volatile live hashes with this panel's semantic tag
+    /// so [`UiScope::sync_retained_revision`] and [`WorkbenchPanelContext::sync_live_revision`]
+    /// can automatically differentiate no-ops, in-place refreshes, and structural rebuilds.
+    #[inline]
+    #[must_use]
+    pub const fn retained_revision(mut self, structural_hash: u64, live_hash: u64) -> Self {
+        self.retained_revision = Some((structural_hash, live_hash));
+        self
     }
 
     /// Enables or disables autonomous vertical scrolling with auto-appearing scrollbar.
@@ -117,6 +133,30 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         self
     }
 
+    /// Configures the flexbox layout direction for direct children of the panel container.
+    #[inline]
+    #[must_use]
+    pub const fn direction(mut self, direction: irisui_core::FlexDirection) -> Self {
+        self.direction = direction;
+        self
+    }
+
+    /// Configures the panel root container to arrange direct children horizontally (`FlexDirection::Row`).
+    #[inline]
+    #[must_use]
+    pub const fn direction_row(mut self) -> Self {
+        self.direction = irisui_core::FlexDirection::Row;
+        self
+    }
+
+    /// Suppresses the default uniform theme border around the panel container.
+    #[inline]
+    #[must_use]
+    pub const fn without_border(mut self) -> Self {
+        self.hide_border = true;
+        self
+    }
+
     /// Finalizes the panel container, executes the child builder closure within the panel scope,
     /// and autonomously recalculates recursive subtree layout across the resolved bounds upon exit.
     ///
@@ -130,16 +170,18 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         let theme = self.scope.tree.theme();
         let bg = self.bg.unwrap_or(theme.panel_bg);
         let mut style = Style::new()
-            .flex_col()
             .width(rect.width)
             .height(rect.height)
             .background(bg)
             .clip_children(true);
+        style.flex_direction = self.direction;
 
-        if let Some((bw, bc)) = self.border {
-            style = style.border(bw, bc);
-        } else {
-            style = style.border(1.0, theme.panel_border);
+        if !self.hide_border {
+            if let Some((bw, bc)) = self.border {
+                style = style.border(bw, bc);
+            } else {
+                style = style.border(1.0, theme.panel_border);
+            }
         }
 
         let node_id = self.scope.tree.create_node();
@@ -234,12 +276,20 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
             }
 
             crate::declarative::layout_subtree(self.scope.tree, vp_id, rect);
+            if let Some((structural_hash, live_hash)) = self.retained_revision {
+                self.scope
+                    .record_retained_revision(self.tag, structural_hash, live_hash);
+            }
             let response = self.scope.response(node_id);
             InnerResponse::new(response, inner)
         } else {
             let mut child_scope = self.scope.child_scope_seeded(node_id, panel_seed);
             let inner = f(&mut child_scope);
             crate::declarative::layout_subtree(self.scope.tree, node_id, rect);
+            if let Some((structural_hash, live_hash)) = self.retained_revision {
+                self.scope
+                    .record_retained_revision(self.tag, structural_hash, live_hash);
+            }
             let response = self.scope.response(node_id);
             InnerResponse::new(response, inner)
         }
@@ -377,5 +427,32 @@ mod tests {
             !has_thumb,
             "Must NOT emit scrollbar thumb when content fits"
         );
+    }
+
+    #[test]
+    fn test_panel_builder_direction_row_and_without_border() {
+        let mut tree = UiTree::new();
+        tree.caret_blink = true;
+        let root = tree.create_root().expect("Root node");
+        let (pid, saw_blink) = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let mut blink_inside = false;
+            let resp = scope
+                .panel("TestRowBorderlessPanel")
+                .direction_row()
+                .without_border()
+                .show(|ui| {
+                    blink_inside = ui.active_text_input_blink;
+                });
+            (resp.response.id, blink_inside)
+        };
+
+        assert!(
+            saw_blink,
+            "UiTree::caret_blink should automatically propagate into nested UiScope"
+        );
+        let node = tree.get(pid).expect("Panel node exists");
+        assert_eq!(node.style.flex_direction, irisui_core::FlexDirection::Row);
+        assert_eq!(node.style.border.width, irisui_core::Insets::all(0.0));
     }
 }

@@ -7,6 +7,8 @@
 //! backdrop scrim blockers, elevated floating dialog cards, modern `✕` close buttons,
 //! primary confirm buttons, and secondary cancel buttons.
 
+pub use super::modal_descriptor::ModalDescriptor;
+
 use super::containers::InnerResponse;
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;
@@ -18,94 +20,6 @@ use irisui_core::{
     AlignItems, Color, Insets, JustifyContent, KeyCode, Rect, Style, TextAlign, UiLayer,
     WidgetCursor, WidgetRole,
 };
-
-/// Configuration descriptor for a declarative modal dialog window.
-#[derive(Debug, Clone)]
-pub struct ModalDescriptor {
-    /// Window title caption displayed in the modal header bar.
-    pub title: String,
-    /// Width constraint in logical pixels.
-    pub width: f32,
-    /// Height constraint in logical pixels.
-    pub height: f32,
-    /// Whether clicking the semi-transparent backdrop scrim dismisses the modal.
-    pub dismiss_on_scrim: bool,
-    /// Whether pressing the Escape key dismisses the modal.
-    pub dismiss_on_escape: bool,
-    /// Whether to render the standard compact '✕' close button in the header.
-    pub show_close_button: bool,
-    /// Optional custom backdrop scrim fill color.
-    pub scrim_color: Option<Color>,
-}
-
-impl ModalDescriptor {
-    /// Constructs a new modal dialog descriptor with standard desktop IDE defaults.
-    ///
-    /// Defaults:
-    /// - `dismiss_on_scrim`: `true`
-    /// - `dismiss_on_escape`: `true`
-    /// - `show_close_button`: `true`
-    /// - `scrim_color`: `None` (uses default theme scrim color)
-    #[inline]
-    #[must_use]
-    pub fn new(title: impl Into<String>, width: f32, height: f32) -> Self {
-        Self {
-            title: title.into(),
-            width,
-            height,
-            dismiss_on_scrim: true,
-            dismiss_on_escape: true,
-            show_close_button: true,
-            scrim_color: None,
-        }
-    }
-
-    /// Sets whether clicking the backdrop scrim dismisses the dialog.
-    #[inline]
-    #[must_use]
-    pub fn with_dismiss_on_scrim(mut self, enabled: bool) -> Self {
-        self.dismiss_on_scrim = enabled;
-        self
-    }
-
-    /// Sets whether pressing the Escape key dismisses the dialog.
-    #[inline]
-    #[must_use]
-    pub fn with_dismiss_on_escape(mut self, enabled: bool) -> Self {
-        self.dismiss_on_escape = enabled;
-        self
-    }
-
-    /// Sets whether the header '✕' close button is displayed.
-    #[inline]
-    #[must_use]
-    pub fn with_close_button(mut self, enabled: bool) -> Self {
-        self.show_close_button = enabled;
-        self
-    }
-
-    /// Overrides the default semi-transparent backdrop scrim color.
-    #[inline]
-    #[must_use]
-    pub fn with_scrim_color(mut self, color: Color) -> Self {
-        self.scrim_color = Some(color);
-        self
-    }
-}
-
-impl From<(&str, f32, f32)> for ModalDescriptor {
-    #[inline]
-    fn from(val: (&str, f32, f32)) -> Self {
-        Self::new(val.0, val.1, val.2)
-    }
-}
-
-impl From<(String, f32, f32)> for ModalDescriptor {
-    #[inline]
-    fn from(val: (String, f32, f32)) -> Self {
-        Self::new(val.0, val.1, val.2)
-    }
-}
 
 impl<'a> UiScope<'a> {
     /// Declaratively renders an autonomous modal dialog window when `is_open` is true.
@@ -298,6 +212,63 @@ impl<'a> UiScope<'a> {
             self.set_modal_open(tag, false);
         }
         res
+    }
+
+    /// Renders a custom-header responsive modal card on [`irisui_core::UiLayer::Modal`] sized
+    /// from [`Self::screen_bounds`], synchronizing `tag` visibility with `is_open`.
+    ///
+    /// Returns `true` when dismissed via Escape, backdrop scrim click, or [`MODAL_TAG_CLOSE`].
+    pub fn modal_tagged_responsive<F>(
+        &mut self,
+        tag: u64,
+        is_open: bool,
+        preferred_size: irisui_core::Size,
+        min_size: irisui_core::Size,
+        margin: f32,
+        card_fn: F,
+    ) -> bool
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        if !is_open {
+            self.close_modal(tag);
+            return false;
+        }
+        self.open_modal(tag);
+
+        let escape_dismiss = self.tree.event_state.frame_key == Some(KeyCode::Escape)
+            && self.tree.event_state.frame_key_pressed;
+        if escape_dismiss {
+            self.close_modal(tag);
+            return true;
+        }
+
+        let bounds = self.screen_bounds();
+        let screen_w = bounds.width.max(min_size.width + margin);
+        let screen_h = bounds.height.max(min_size.height + margin);
+        let card_w = preferred_size
+            .width
+            .min(screen_w - margin)
+            .max(min_size.width);
+        let card_h = preferred_size
+            .height
+            .min(screen_h - margin)
+            .max(min_size.height);
+
+        let scrim_res = self.modal_scrim_sized(
+            Rect::new(0.0, 0.0, screen_w, screen_h),
+            Color::rgba(0.0, 0.0, 0.0, 0.65),
+            |scrim| scrim.modal_card(card_w, card_h, card_fn),
+        );
+        let scrim_clicked =
+            self.is_tag_clicked(MODAL_TAG_SCRIM) && !scrim_res.inner.response.clicked();
+        let close_clicked = self.is_tag_clicked(MODAL_TAG_CLOSE);
+        if scrim_clicked || close_clicked {
+            self.close_modal(tag);
+            true
+        } else {
+            false
+        }
     }
     /// Emits a full-screen backdrop modal scrim container elevating its subtree to [`UiLayer::Modal`].
     ///
