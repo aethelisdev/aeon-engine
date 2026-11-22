@@ -10,7 +10,7 @@ use crate::assets::types::{
     AssetBrowserState, AssetCategory, AssetItem, AssetSource, AssetViewMode,
 };
 use irisui::core::{MemoCache, UiTag};
-use irisui::prelude::{Point, Rect, TreeState};
+use irisui::prelude::Point;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -134,20 +134,26 @@ pub const ASSETS_TAG_ENGINE_CONTENT: u64 = UiTag::from_str("assets.engine_conten
 pub const ASSETS_TAG_SEARCH_INPUT: u64 = UiTag::from_str("assets.search.input").raw();
 /// Semantic tag for clearing the active search filter query.
 pub const ASSETS_TAG_SEARCH_CLEAR: u64 = UiTag::from_str("assets.search.clear").raw();
+/// Semantic [`UiTag`] for the folder tree sidebar scrollable viewport.
+pub const ASSETS_TAG_TREE_VIEWPORT_ID: UiTag = UiTag::from_str("assets.tree.viewport");
 /// Semantic tag for the folder tree sidebar scrollable viewport.
-pub const ASSETS_TAG_TREE_VIEWPORT: u64 = UiTag::from_str("assets.tree.viewport").raw();
+pub const ASSETS_TAG_TREE_VIEWPORT: u64 = ASSETS_TAG_TREE_VIEWPORT_ID.raw();
 /// Semantic tag for the primary assets scrollable content area viewport.
 pub const ASSETS_TAG_CONTENT_VIEWPORT: u64 = UiTag::from_str("assets.content.viewport").raw();
 /// Semantic tag for primary content scrollbar track.
 pub const ASSETS_TAG_SCROLLBAR_TRACK: u64 = UiTag::from_str("assets.scrollbar.track").raw();
 /// Semantic tag for primary content scrollbar draggable thumb.
 pub const ASSETS_TAG_SCROLLBAR_THUMB: u64 = UiTag::from_str("assets.scrollbar.thumb").raw();
+/// Semantic [`UiTag`] for folder tree sidebar scrollbar track.
+pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK_ID: UiTag =
+    UiTag::from_str("assets.tree.scrollbar.track");
 /// Semantic tag for folder tree sidebar scrollbar track.
-pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK: u64 =
-    UiTag::from_str("assets.tree.scrollbar.track").raw();
+pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK: u64 = ASSETS_TAG_TREE_SCROLLBAR_TRACK_ID.raw();
+/// Semantic [`UiTag`] for folder tree sidebar scrollbar draggable thumb.
+pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB_ID: UiTag =
+    UiTag::from_str("assets.tree.scrollbar.thumb");
 /// Semantic tag for folder tree sidebar scrollbar draggable thumb.
-pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB: u64 =
-    UiTag::from_str("assets.tree.scrollbar.thumb").raw();
+pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB: u64 = ASSETS_TAG_TREE_SCROLLBAR_THUMB_ID.raw();
 /// Semantic tag for creating a new subfolder in the folder tree sidebar.
 pub const ASSETS_TAG_NEW_SUBFOLDER: u64 = UiTag::from_str("assets.new_subfolder").raw();
 /// Semantic tag for revealing the active folder in the OS file explorer.
@@ -155,8 +161,10 @@ pub const ASSETS_TAG_REVEAL: u64 = UiTag::from_str("assets.reveal").raw();
 
 const CHIP_BASE_TAG: UiTag = UiTag::from_str("assets.chip");
 const BREADCRUMB_BASE_TAG: UiTag = UiTag::from_str("assets.breadcrumb");
-const TREE_ROW_BASE_TAG: UiTag = UiTag::from_str("assets.tree.row");
-const TREE_CHEVRON_BASE_TAG: UiTag = UiTag::from_str("assets.tree.chevron");
+/// Base [`UiTag`] indexed for folder tree rows.
+pub const TREE_ROW_BASE_TAG: UiTag = UiTag::from_str("assets.tree.row");
+/// Base [`UiTag`] indexed for folder tree foldout chevrons.
+pub const TREE_CHEVRON_BASE_TAG: UiTag = UiTag::from_str("assets.tree.chevron");
 const ITEM_BASE_TAG: UiTag = UiTag::from_str("assets.item.select");
 const ITEM_SPAWN_BASE_TAG: UiTag = UiTag::from_str("assets.item.spawn");
 const ITEM_INSPECT_BASE_TAG: UiTag = UiTag::from_str("assets.item.inspect");
@@ -250,121 +258,12 @@ impl Default for AssetPreviewModalState {
     }
 }
 
-/// Calculated geometry metrics from the Asset Browser panel declarative layout.
-///
-/// Encapsulates the outer panel bounds, collapsible sidebar area, asset content viewport,
-/// and optional floating context menu card bounding box resolved during declarative layout.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AssetsPanelLayoutMetrics {
-    /// Total bounding rectangle of the asset browser panel.
-    pub panel_rect: Rect,
-    /// Bounding rectangle of the left folder tree sidebar, if not collapsed.
-    pub sidebar_rect: Option<Rect>,
-    /// Bounding rectangle of the main scrollable asset content viewport.
-    pub content_viewport_rect: Rect,
-    /// Bounding rectangle of the active floating right-click context menu card, if open.
-    pub context_menu_card_rect: Option<Rect>,
-}
-
 /// Height of the top navigation header toolbar in physical pixels.
 pub const ASSETS_TOP_BAR_HEIGHT: f32 = 34.0;
 /// Height of the category filter chips toolbar in physical pixels.
 pub const ASSETS_CHIPS_BAR_HEIGHT: f32 = 28.0;
 /// Height of the bottom telemetry status footer in physical pixels.
 pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
-
-impl AssetsPanelLayoutMetrics {
-    /// Computes layout metrics for the asset browser panel directly without intermediate bindings.
-    #[inline]
-    pub fn compute(params: &AssetsPanelParams<'_>) -> Self {
-        Self {
-            panel_rect: params.panel_rect,
-            sidebar_rect: (!params.sidebar_collapsed).then(|| {
-                Rect::new(
-                    params.panel_rect.x,
-                    params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
-                    params.sidebar_width,
-                    (params.panel_rect.height
-                        - ASSETS_TOP_BAR_HEIGHT
-                        - ASSETS_CHIPS_BAR_HEIGHT
-                        - ASSETS_FOOTER_HEIGHT)
-                        .max(40.0),
-                )
-            }),
-            content_viewport_rect: Rect::new(
-                if params.sidebar_collapsed {
-                    params.panel_rect.x
-                } else {
-                    params.panel_rect.x + params.sidebar_width
-                },
-                params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
-                if params.sidebar_collapsed {
-                    params.panel_rect.width
-                } else {
-                    (params.panel_rect.width - params.sidebar_width).max(60.0)
-                },
-                (params.panel_rect.height
-                    - ASSETS_TOP_BAR_HEIGHT
-                    - ASSETS_CHIPS_BAR_HEIGHT
-                    - ASSETS_FOOTER_HEIGHT)
-                    .max(40.0),
-            ),
-            context_menu_card_rect: None,
-        }
-    }
-}
-
-/// Rendering parameters supplied to `build_assets_panel`.
-pub struct AssetsPanelParams<'a> {
-    /// Bounding rectangle assigned to the panel by the docking manager.
-    pub panel_rect: Rect,
-    /// Full dimensions of the entire editor window in logical pixels: `(width, height)`.
-    pub screen_size: (f32, f32),
-    /// Currently active folder path in the asset browser.
-    pub current_folder: &'a std::path::Path,
-    /// Live search filter query string.
-    pub search_query: &'a str,
-    /// Currently active asset category filter.
-    pub active_category: AssetCategory,
-    /// Active presentation mode (Grid vs List).
-    pub view_mode: AssetViewMode,
-    /// Currently selected asset path, if any.
-    pub selected_asset: Option<&'a std::path::Path>,
-    /// Slice of all discovered cached items across the workspace.
-    pub cached_items: &'a [AssetItem],
-    /// Filtered asset items matching current folder, category, and search query.
-    pub filtered_items: &'a [AssetItem],
-    /// Whether the editor is currently running in 2D mode.
-    pub is_2d_mode: bool,
-    /// Whether internal engine assets and built-in shaders are displayed.
-    pub show_engine_content: bool,
-    /// Width of the left folder tree sidebar in pixels.
-    pub sidebar_width: f32,
-    /// Whether the left folder tree sidebar is currently collapsed.
-    pub sidebar_collapsed: bool,
-    /// Current mouse cursor coordinates for hover evaluation.
-    pub cursor_pos: Point,
-    /// Whether the blinking caret cursor should be drawn (500ms cycle).
-    pub blink_caret: bool,
-    /// Active right-click context menu target and click position, if open.
-    pub active_context_menu: Option<&'a (AssetsContextMenuTarget, Point)>,
-    /// Active Quick Asset Preview modal state, if open.
-    pub active_preview_modal: Option<&'a AssetPreviewModalState>,
-    /// Discovered subfolders tree cached in engine asset state.
-    pub subfolders: &'a [PathBuf],
-    /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
-    pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
-    /// Byte offset of the text cursor inside [`Self::search_query`].
-    pub cursor_byte_idx: usize,
-}
-
-impl<'a> AssetsPanelParams<'a> {
-    /// Computes the layout metrics for this panel.
-    #[inline]
-    pub fn layout_metrics(&self) -> AssetsPanelLayoutMetrics {
-        AssetsPanelLayoutMetrics::compute(self)
-    }
-}
 
 /// Truncates a UTF-8 string safely at Unicode code point boundaries via `irisui::text`.
 pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) -> String {
@@ -426,7 +325,7 @@ impl AssetsFilterKey {
 }
 
 /// Persistent interactive state for the Asset Browser panel overlay.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AssetsPanelState {
     /// Search input text state managing asset filter buffer, cursor, and selection.
     pub search_input: irisui::prelude::TextInputState,
@@ -434,28 +333,12 @@ pub struct AssetsPanelState {
     pub click_tracker: AssetClickTracker,
     /// Active Quick Asset Preview modal state.
     pub preview_modal: Option<AssetPreviewModalState>,
-    /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (32..255).
+    /// Dynamic thumbnail layer cache mapping asset paths to managed 2D Texture Array layers.
     pub thumbnail_layers: HashMap<PathBuf, u32>,
-    /// Next available layer index in the 2D Texture Array (32..255).
-    pub next_thumbnail_layer: u32,
     /// Library-managed memoized cache storing filtered assets and key snapshot.
     pub(crate) filtered_cache: MemoCache<AssetsFilterKey, Vec<AssetItem>>,
-    /// Active hierarchical folder tree state managing directory expansion and selection.
-    pub tree_state: TreeState<PathBuf>,
-}
-
-impl Default for AssetsPanelState {
-    fn default() -> Self {
-        Self {
-            search_input: irisui::prelude::TextInputState::default(),
-            click_tracker: AssetClickTracker::default(),
-            preview_modal: None,
-            thumbnail_layers: HashMap::new(),
-            next_thumbnail_layer: 32,
-            filtered_cache: MemoCache::default(),
-            tree_state: TreeState::with_expanded([PathBuf::from("assets")]),
-        }
-    }
+    /// Reusable action scratch buffer avoiding per-frame allocations during panel builds.
+    pub(crate) action_scratch: Vec<AssetsPanelAction>,
 }
 
 /// Semantic alias for [`AssetsPanelState`].

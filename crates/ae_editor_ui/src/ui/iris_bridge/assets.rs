@@ -8,7 +8,6 @@
 //! canonical vector icons, folder tree sidebar, floating right-click context menus,
 //! interactive quick asset preview modal, and responsive grid/table views.
 
-pub mod builder;
 pub mod cards;
 pub mod chips;
 pub mod components;
@@ -33,8 +32,8 @@ pub mod types;
 pub use chips::build_category_chips_scope;
 pub use components::{
     ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, ASSET_LIST_ROW_HEIGHT,
-    FOLDER_TREE_ROW_HEIGHT, asset_breadcrumb_bar, asset_empty_notice, asset_folder_tree_item,
-    asset_grid_card, asset_list_row, resolve_category_color, resolve_category_icon,
+    FOLDER_TREE_ROW_HEIGHT, asset_breadcrumb_bar, asset_empty_notice, asset_grid_card,
+    asset_list_row, resolve_category_color, resolve_category_icon,
 };
 pub use context_menu::{render_asset_context_menu_items, render_folder_context_menu_items};
 pub use drag_overlay::build_asset_drag_overlays_scope;
@@ -46,7 +45,7 @@ pub use types::{
     ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT,
     ASSETS_TAG_TOGGLE_SIDEBAR, ASSETS_TAG_TREE_SCROLLBAR_THUMB, ASSETS_TAG_TREE_SCROLLBAR_TRACK,
     ASSETS_TAG_TREE_VIEWPORT, ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST, AssetPreviewModalState,
-    AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
-    AssetsPanelState, AssetsState, encode_breadcrumb_tag, encode_chip_tag, encode_item_inspect_tag,
-    encode_item_spawn_tag, encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag,
+    AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelState, AssetsState,
+    encode_breadcrumb_tag, encode_chip_tag, encode_item_inspect_tag, encode_item_spawn_tag,
+    encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag,
 };

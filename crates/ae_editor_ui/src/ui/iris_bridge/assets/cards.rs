@@ -13,44 +13,46 @@ pub use super::components::{
 
 use super::types::{
     ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
-    AssetsPanelAction, AssetsPanelParams, encode_item_tag,
+    AssetsPanelAction, encode_item_tag,
 };
 use crate::assets::types::AssetItem;
 use irisui::prelude::*;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
-/// Builds the responsive asset grid inside `vp_rect` via [`UiScope::virtual_grid`].
+/// Builds the responsive asset grid automatically sized to its parent via [`UiScope::virtual_grid`].
 pub fn build_asset_grid_cards_scope(
     scope: &mut UiScope<'_>,
-    vp_rect: Rect,
-    params: &AssetsPanelParams<'_>,
+    filtered_items: &[AssetItem],
+    selected_asset: Option<&Path>,
+    current_folder: &Path,
+    search_query: &str,
+    thumbnail_layers: &HashMap<PathBuf, u32>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope
         .virtual_grid(
-            params.filtered_items.len(),
-            VirtualGridConfig::new("AssetGridContainer", ASSETS_TAG_CONTENT_VIEWPORT, vp_rect)
+            filtered_items.len(),
+            VirtualGridConfig::auto("AssetGridContainer", ASSETS_TAG_CONTENT_VIEWPORT)
                 .with_cell_size(CARD_WIDTH, CARD_HEIGHT, CARD_GAP)
                 .with_scrollbar_tags(ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SCROLLBAR_THUMB),
         )
         .empty_state(|vp| {
-            asset_empty_notice(vp, vp_rect, params.search_query);
+            asset_empty_notice(vp, search_query);
         })
         .render_item(|grid_scope, item_idx, card_pos| {
             render_grid_card(
                 grid_scope,
                 item_idx as u32,
-                &params.filtered_items[item_idx],
+                &filtered_items[item_idx],
                 card_pos,
-                params,
+                selected_asset,
+                thumbnail_layers,
                 actions,
             );
         })
         .context_menu(scope, |menu| {
-            super::context_menu::render_folder_context_menu_items(
-                menu,
-                params.current_folder,
-                actions,
-            );
+            super::context_menu::render_folder_context_menu_items(menu, current_folder, actions);
         });
 }
 
@@ -60,17 +62,18 @@ fn render_grid_card(
     item_idx: u32,
     item: &AssetItem,
     rel_pos: Point,
-    params: &AssetsPanelParams<'_>,
+    selected_asset: Option<&Path>,
+    thumbnail_layers: &HashMap<PathBuf, u32>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     asset_grid_card(
         scope,
         item_idx,
         item,
-        params.thumbnail_layers.get(&item.path).copied(),
+        thumbnail_layers.get(&item.path).copied(),
         scope.is_tag_clicked(encode_item_tag(item_idx))
             || scope.is_tag_pressed(encode_item_tag(item_idx))
-            || params.selected_asset == Some(&item.path),
+            || selected_asset == Some(&item.path),
         rel_pos,
         actions,
     )
@@ -82,37 +85,7 @@ fn render_grid_card(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-    use std::collections::HashMap;
-    use std::path::{Path, PathBuf};
-
-    fn test_assets_params<'a>(
-        items: &'a [AssetItem],
-        layers: &'a HashMap<PathBuf, u32>,
-    ) -> AssetsPanelParams<'a> {
-        AssetsPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-            screen_size: (1280.0, 720.0),
-            current_folder: Path::new("assets"),
-            search_query: "",
-            active_category: AssetCategory::All,
-            view_mode: AssetViewMode::Grid,
-            selected_asset: None,
-            cached_items: items,
-            filtered_items: items,
-            is_2d_mode: false,
-            show_engine_content: false,
-            sidebar_width: 180.0,
-            sidebar_collapsed: false,
-            cursor_pos: Point::new(0.0, 0.0),
-            blink_caret: false,
-            active_context_menu: None,
-            active_preview_modal: None,
-            subfolders: &[],
-            thumbnail_layers: layers,
-            cursor_byte_idx: 0,
-        }
-    }
+    use crate::assets::types::{AssetCategory, AssetItem, AssetSource};
 
     fn test_asset_item(name: &str, file_size_bytes: u64, is_loaded: bool) -> AssetItem {
         AssetItem {
@@ -137,13 +110,17 @@ mod tests {
         let root_id = tree.create_root().expect("Root node creation failed");
         let layers = HashMap::new();
         let mut actions = Vec::new();
+        let folder = Path::new("assets");
 
-        build_asset_grid_cards_scope(
-            &mut UiScope::new(&mut tree, root_id),
-            Rect::new(0.0, 0.0, 600.0, 400.0),
-            &test_assets_params(&[], &layers),
-            &mut actions,
-        );
+        {
+            let mut scope = UiScope::new(&mut tree, root_id);
+            scope
+                .panel("Host")
+                .bounds(Rect::new(0.0, 0.0, 600.0, 400.0))
+                .show(|s| {
+                    build_asset_grid_cards_scope(s, &[], None, folder, "", &layers, &mut actions);
+                });
+        }
 
         assert!(
             tree.iter()
@@ -155,12 +132,23 @@ mod tests {
             test_asset_item("hero.gltf", 4096, true),
             test_asset_item("sword.gltf", 2048, false),
         ];
-        build_asset_grid_cards_scope(
-            &mut UiScope::new(&mut tree, root_id),
-            Rect::new(0.0, 0.0, 600.0, 400.0),
-            &test_assets_params(&items, &layers),
-            &mut actions,
-        );
+        {
+            let mut scope = UiScope::new(&mut tree, root_id);
+            scope
+                .panel("Host")
+                .bounds(Rect::new(0.0, 0.0, 600.0, 400.0))
+                .show(|s| {
+                    build_asset_grid_cards_scope(
+                        s,
+                        &items,
+                        None,
+                        folder,
+                        "",
+                        &layers,
+                        &mut actions,
+                    );
+                });
+        }
 
         let grid_cards: Vec<_> = tree
             .iter()
