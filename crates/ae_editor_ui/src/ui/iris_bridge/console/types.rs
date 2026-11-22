@@ -256,24 +256,20 @@ pub fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
         return true;
     }
     if haystack.is_ascii() && needle.is_ascii() {
-        let nb = needle.as_bytes();
         return haystack
             .as_bytes()
-            .windows(nb.len())
-            .any(|w| w.eq_ignore_ascii_case(nb));
+            .windows(needle.len())
+            .any(|w| w.eq_ignore_ascii_case(needle.as_bytes()));
     }
     haystack.char_indices().any(|(start, _)| {
-        let mut h_chars = haystack[start..].chars().flat_map(char::to_lowercase);
-        let mut n_chars = needle.chars().flat_map(char::to_lowercase);
-        loop {
-            match n_chars.next() {
-                None => return true,
-                Some(nc) => match h_chars.next() {
-                    Some(hc) if hc == nc => continue,
-                    _ => return false,
-                },
-            }
-        }
+        needle
+            .chars()
+            .flat_map(char::to_lowercase)
+            .try_fold(
+                haystack[start..].chars().flat_map(char::to_lowercase),
+                |mut h_chars, nc| h_chars.next().filter(|&hc| hc == nc).map(|_| h_chars),
+            )
+            .is_some()
     })
 }
 
@@ -292,8 +288,10 @@ pub struct ConsolePanelState {
     pub scratchpad_state: MultilineTextState,
     /// Pre-allocated index scratch buffer storing rows matching `filter` and `search_input`.
     pub filtered_indices: Vec<usize>,
-    /// Set by immediate declarative toolbar `.on_click` callbacks to request a panel rebuild.
-    pub dirty_rebuild: bool,
+    /// Snapshot of console log entries synchronized lazily from the global logger.
+    pub entries: Vec<ConsoleEntry>,
+    /// Global logger sequence counter recorded at the latest snapshot.
+    pub last_log_count: u64,
 }
 
 impl Default for ConsolePanelState {
@@ -305,78 +303,109 @@ impl Default for ConsolePanelState {
             active_tab: ConsoleTab::Logs,
             scratchpad_state: MultilineTextState::new(DEFAULT_SCRATCHPAD_TEXT),
             filtered_indices: Vec::new(),
-            dirty_rebuild: false,
+            entries: Vec::new(),
+            last_log_count: 0,
         }
     }
 }
 
 impl ConsolePanelState {
-    /// Updates [`Self::filtered_indices`] in place without allocating per-entry lowercase strings.
-    pub fn sync_filtered_indices(&mut self, entries: &[ConsoleEntry]) {
-        let query = self.search_input.text();
-        let filter = self.filter;
-        self.filtered_indices.clear();
-        for (idx, entry) in entries.iter().enumerate() {
-            if filter.matches(entry.level)
-                && (contains_ignore_case(&entry.msg, query)
-                    || contains_ignore_case(&entry.target, query))
-            {
-                self.filtered_indices.push(idx);
+    /// Synchronizes [`Self::entries`] from the global editor logger if new entries arrived.
+    ///
+    /// Returns `true` when the log buffer changed and the panel should redraw.
+    pub fn sync_from_logger(&mut self) -> bool {
+        match ae_editor::editor_logger::LOGGER
+            .log_count
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            total if total != self.last_log_count => ae_editor::editor_logger::LOGGER
+                .logs
+                .try_lock()
+                .is_ok_and(|lock| {
+                    self.entries = lock
+                        .iter()
+                        .map(|e| ConsoleEntry {
+                            level: e.level,
+                            target: e.target.clone(),
+                            msg: e.msg.clone(),
+                            timestamp: e.timestamp.clone(),
+                        })
+                        .collect();
+                    self.last_log_count = total;
+                    true
+                }),
+            0 if !self.entries.is_empty() => {
+                self.entries.clear();
+                self.last_log_count = 0;
+                true
             }
+            _ => false,
         }
     }
 
-    /// Switches the active sub-tab and flags the panel dirty for rebuild.
+    /// Updates [`Self::filtered_indices`] in place without allocating per-entry lowercase strings.
+    pub fn sync_filtered_indices(&mut self, entries: &[ConsoleEntry]) {
+        self.filtered_indices.clear();
+        sync_filtered_with_query(
+            &mut self.filtered_indices,
+            entries,
+            self.filter,
+            self.search_input.text(),
+        );
+    }
+
+    /// Switches the active sub-tab.
     #[inline]
     pub fn select_tab(&mut self, tab: ConsoleTab) {
         self.active_tab = tab;
-        self.dirty_rebuild = true;
     }
 
-    /// Clears stored engine logs, resets viewport scroll, and marks the panel dirty.
+    /// Clears stored engine logs from the global editor logger.
     #[inline]
-    pub fn clear_logs(&mut self, scope: &mut UiScope<'_>) {
+    pub fn clear_logs(&mut self) {
         ae_editor::editor_logger::LOGGER.clear();
-        scope.set_scroll_offset(CONSOLE_TAG_VIEWPORT, 0.0);
-        self.dirty_rebuild = true;
     }
 
-    /// Applies the active severity filter and marks the panel dirty.
+    /// Applies the active severity filter.
     #[inline]
     pub fn set_filter(&mut self, level: ConsoleFilterLevel) {
         self.filter = level;
-        self.dirty_rebuild = true;
     }
 
-    /// Toggles automatic scroll-to-bottom behavior and marks the panel dirty.
+    /// Toggles automatic scroll-to-bottom behavior.
     #[inline]
     pub fn toggle_auto_scroll(&mut self) {
         self.auto_scroll = !self.auto_scroll;
-        self.dirty_rebuild = true;
     }
 
-    /// Clears search query text, releases focus, and marks the panel dirty.
-    #[inline]
-    pub fn clear_search(&mut self, scope: &mut UiScope<'_>) {
-        self.search_input.clear();
-        scope.clear_focus();
-        scope.clear_text_edit();
-        self.dirty_rebuild = true;
-    }
-
-    /// Clears the scratchpad buffer and marks the panel dirty.
+    /// Clears the scratchpad buffer.
     #[inline]
     pub fn clear_scratchpad(&mut self) {
         self.scratchpad_state.clear();
-        self.dirty_rebuild = true;
     }
 
-    /// Resets the scratchpad buffer to [`DEFAULT_SCRATCHPAD_TEXT`] and marks the panel dirty.
+    /// Resets the scratchpad buffer to [`DEFAULT_SCRATCHPAD_TEXT`].
     #[inline]
     pub fn reset_scratchpad(&mut self) {
         self.scratchpad_state.set_text(DEFAULT_SCRATCHPAD_TEXT);
-        self.dirty_rebuild = true;
     }
+}
+
+pub(super) fn sync_filtered_with_query(
+    filtered_indices: &mut Vec<usize>,
+    entries: &[ConsoleEntry],
+    filter: ConsoleFilterLevel,
+    query: &str,
+) {
+    entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| {
+            filter.matches(entry.level)
+                && (contains_ignore_case(&entry.msg, query)
+                    || contains_ignore_case(&entry.target, query))
+        })
+        .for_each(|(idx, _)| filtered_indices.push(idx));
 }
 
 /// Semantic alias for [`ConsolePanelState`].

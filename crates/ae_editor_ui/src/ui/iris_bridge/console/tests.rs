@@ -14,7 +14,12 @@ fn build_in_host(
     f: impl FnOnce(&mut UiScope<'_>),
 ) {
     let mut scope = UiScope::new(tree, root);
-    scope.panel("ConsoleTestHost").bounds(bounds).show(f);
+    scope.panel("ConsoleTestHost").bounds(bounds).show(|p| {
+        crate::ui::panel_layout::PanelId::Console
+            .surface()
+            .expect("Console surface")
+            .show(p, f);
+    });
 }
 
 #[test]
@@ -80,7 +85,7 @@ fn test_console_click_target_routing() {
     state.search_input.set_text("test");
 
     build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
-        build_console_panel(s, &mut state, &entries, false);
+        build_console_panel(s, &mut state, &entries);
     });
 
     let mut clear_node_found = false;
@@ -166,7 +171,7 @@ fn test_console_panel_clipping_and_clear_action() {
         parent_id,
         Rect::new(0.0, 0.0, 500.0, 300.0),
         |s| {
-            build_console_panel(s, &mut state, &entries, false);
+            build_console_panel(s, &mut state, &entries);
         },
     );
 
@@ -207,7 +212,7 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         ..Default::default()
     };
     build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 400.0, 200.0), |s| {
-        build_console_panel(s, &mut state, &entries, false);
+        build_console_panel(s, &mut state, &entries);
     });
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
     assert!(
@@ -244,7 +249,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
 
     let mut state = ConsolePanelState::default();
     build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
-        build_console_panel(s, &mut state, &[], false);
+        build_console_panel(s, &mut state, &[]);
     });
 
     let (_, clear_node) = tree
@@ -285,13 +290,14 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
 fn test_console_search_focused_caret_positioning() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
+    tree.caret_blink = true;
     tree.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
 
     let mut state = ConsolePanelState::default();
     state.search_input.set_text("error_trace");
     state.search_input.cursor_byte_idx = 5;
     build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 800.0, 300.0), |s| {
-        build_console_panel(s, &mut state, &[], true);
+        build_console_panel(s, &mut state, &[]);
     });
 
     let (_, search_box) = tree
@@ -323,26 +329,31 @@ fn test_console_search_focused_caret_positioning() {
 
 #[test]
 fn test_console_declarative_direct_state_mutation() {
+    use crate::ui::panel_layout::PanelId;
+
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let bounds = Rect::new(0.0, 0.0, 600.0, 300.0);
 
     let mut state = ConsolePanelState::default();
+    let mut notifier = DeferredNotifier::<PanelId>::default();
     build_in_host(&mut tree, root, bounds, |s| {
-        build_console_panel(s, &mut state, &[], false);
+        super::panel::build_console_panel_notified(s, &mut state, &[], Some(&mut notifier));
     });
-    assert!(!state.dirty_rebuild);
+    assert!(!notifier.pending_panels().contains(&PanelId::Console));
 
     tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_FILTER_ERROR);
     build_in_host(&mut tree, root, bounds, |s| {
-        build_console_panel(s, &mut state, &[], false);
+        super::panel::build_console_panel_notified(s, &mut state, &[], Some(&mut notifier));
     });
     assert_eq!(state.filter, ConsoleFilterLevel::Error);
-    assert!(state.dirty_rebuild);
+    assert!(notifier.pending_panels().contains(&PanelId::Console));
 }
 
 #[test]
 fn test_console_scratchpad_tab_rendering_and_interaction() {
+    use crate::ui::panel_layout::PanelId;
+
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
@@ -353,7 +364,7 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         ..Default::default()
     };
     build_in_host(&mut tree, root, panel_rect, |s| {
-        build_console_panel(s, &mut state, &[], true);
+        build_console_panel(s, &mut state, &[]);
     });
 
     let editor_id = tree
@@ -401,11 +412,12 @@ fn test_console_scratchpad_tab_rendering_and_interaction() {
         button: MouseButton::Left,
     });
     let rebuild_root = tree.root().unwrap();
+    let mut notifier = DeferredNotifier::<PanelId>::default();
     build_in_host(&mut tree, rebuild_root, panel_rect, |s| {
-        build_console_panel(s, &mut state, &[], true);
+        super::panel::build_console_panel_notified(s, &mut state, &[], Some(&mut notifier));
     });
     assert_eq!(state.scratchpad_state.text, "");
-    assert!(state.dirty_rebuild);
+    assert!(notifier.pending_panels().contains(&PanelId::Console));
 }
 
 #[test]
@@ -433,7 +445,7 @@ fn test_console_auto_scroll_disabled_on_scroll_up_declarative_hook() {
 
     let mut state = ConsolePanelState::default();
     build_in_host(&mut tree, root, Rect::new(0.0, 0.0, 600.0, 300.0), |s| {
-        build_console_panel(s, &mut state, &entries, false);
+        build_console_panel(s, &mut state, &entries);
     });
 
     assert!(
@@ -459,7 +471,7 @@ fn test_floating_console_toolbar_text_sections_not_culled() {
 
         fn ui(&mut self, scope: &mut UiScope<'_>, _tab: &u8) {
             let mut state = ConsolePanelState::default();
-            build_console_panel(scope, &mut state, self.entries, false);
+            build_console_panel(scope, &mut state, self.entries);
         }
     }
 
@@ -531,7 +543,7 @@ fn test_console_toolbar_wraps_without_overlap_in_narrow_pane() {
     }];
     let mut state = ConsolePanelState::default();
     build_in_host(&mut tree, root, narrow_rect, |s| {
-        build_console_panel(s, &mut state, &entries, false);
+        build_console_panel(s, &mut state, &entries);
     });
 
     let mut text_system = TextSystem::new();

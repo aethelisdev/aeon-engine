@@ -6,7 +6,6 @@
 //! Provides a hardware-accelerated, high-performance GPU SDF Developer Console
 //! and logging telemetry viewer for the Aeon Engine Editor.
 
-pub mod builder;
 pub mod panel;
 pub mod rows;
 #[cfg(test)]

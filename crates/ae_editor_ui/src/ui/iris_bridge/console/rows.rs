@@ -8,7 +8,8 @@
 
 use super::types::{
     CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,
-    CONSOLE_TAG_VIEWPORT, ConsoleEntry, ConsoleLogLevel, ConsolePanelState,
+    CONSOLE_TAG_VIEWPORT, ConsoleEntry, ConsoleFilterLevel, ConsoleLogLevel, ConsolePanelState,
+    sync_filtered_with_query,
 };
 use irisui::prelude::*;
 
@@ -31,6 +32,25 @@ pub fn build_console_rows(
         &state.filtered_indices,
         &mut state.auto_scroll,
         state.search_input.text().is_empty(),
+    );
+}
+
+pub(super) fn build_console_rows_fields(
+    panel_scope: &mut UiScope<'_>,
+    entries: &[ConsoleEntry],
+    filtered_indices: &mut Vec<usize>,
+    auto_scroll: &mut bool,
+    filter: ConsoleFilterLevel,
+    query: &str,
+) {
+    filtered_indices.clear();
+    sync_filtered_with_query(filtered_indices, entries, filter, query);
+    render_console_matching_rows(
+        panel_scope,
+        entries,
+        filtered_indices,
+        auto_scroll,
+        query.is_empty(),
     );
 }
 
