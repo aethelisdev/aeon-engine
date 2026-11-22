@@ -15,12 +15,11 @@ use super::panel::ASSETS_TOP_BAR_HEIGHT;
 use super::types::{
     ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_REVEAL,
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST,
-    AssetsPanelAction, AssetsPanelParams,
+    AssetsPanelAction,
 };
-use crate::assets::types::AssetViewMode;
+use crate::assets::types::{AssetBrowserState, AssetViewMode};
 use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS, ICON_SNAP_GRID};
 use irisui::prelude::*;
-use irisui::widgets::declarative::InputBoxProps;
 
 /// Declarative construction of the Asset Browser top toolbar.
 ///
@@ -28,7 +27,8 @@ use irisui::widgets::declarative::InputBoxProps;
 /// Taffy flexbox alignment with zero manual pixel offsets or absolute coordinates.
 pub fn build_asset_toolbar_scope(
     scope: &mut UiScope<'_>,
-    params: &AssetsPanelParams<'_>,
+    asset_browser: &AssetBrowserState,
+    search_input: &mut TextInputState,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope.container_named(
@@ -37,13 +37,13 @@ pub fn build_asset_toolbar_scope(
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::SpaceBetween)
-            .width(params.panel_rect.width)
+            .flex_shrink(0.0)
             .padding_insets(Insets::symmetric(0.0, 8.0))
             .background(scope.theme().toolbar_bg)
             .height(ASSETS_TOP_BAR_HEIGHT),
         |toolbar| {
             // 1. Left Group: Breadcrumb navigation hierarchy
-            asset_breadcrumb_bar(toolbar, params.current_folder, actions);
+            asset_breadcrumb_bar(toolbar, &asset_browser.current_folder, actions);
 
             // 2. Right Group: Engine toggle, action buttons, view mode selectors, search box
             toolbar.container_named(
@@ -55,7 +55,7 @@ pub fn build_asset_toolbar_scope(
                     .gap(6.0),
                 |right| {
                     // "Engine" Content Visibility Toggle Button
-                    build_engine_toggle_btn(right, params.show_engine_content, actions);
+                    build_engine_toggle_btn(right, asset_browser.show_engine_content, actions);
 
                     // "+ Import" Action Button
                     build_import_btn(right, actions);
@@ -67,7 +67,7 @@ pub fn build_asset_toolbar_scope(
                         60.0,
                         ASSETS_TAG_REVEAL,
                         actions,
-                        AssetsPanelAction::RevealFolder(params.current_folder.to_path_buf()),
+                        AssetsPanelAction::RevealFolder(asset_browser.current_folder.clone()),
                     );
 
                     // "Clean" Action Button
@@ -84,10 +84,10 @@ pub fn build_asset_toolbar_scope(
                     build_mode_toggle_btn(
                         right,
                         ModeToggleBtnProps {
-                            icon_uv: None,
+                            icon_uv: Some(ICON_SNAP_GRID),
                             label: "☰ List",
                             width: 46.0,
-                            is_active: params.view_mode == AssetViewMode::List,
+                            is_active: asset_browser.view_mode == AssetViewMode::List,
                             tag: ASSETS_TAG_VIEW_LIST,
                             action: AssetsPanelAction::SetViewMode(AssetViewMode::List),
                         },
@@ -99,7 +99,7 @@ pub fn build_asset_toolbar_scope(
                             icon_uv: Some(ICON_SNAP_GRID),
                             label: "Grid",
                             width: 52.0,
-                            is_active: params.view_mode == AssetViewMode::Grid,
+                            is_active: asset_browser.view_mode == AssetViewMode::Grid,
                             tag: ASSETS_TAG_VIEW_GRID,
                             action: AssetsPanelAction::SetViewMode(AssetViewMode::Grid),
                         },
@@ -107,7 +107,7 @@ pub fn build_asset_toolbar_scope(
                     );
 
                     // Search Input Box
-                    build_search_box(right, params, actions);
+                    build_search_box(right, search_input, &asset_browser.search_query, actions);
                 },
             );
         },
@@ -117,25 +117,26 @@ pub fn build_asset_toolbar_scope(
 /// Helper to render the search input box inside the flex toolbar matching Hierarchy Search UX.
 fn build_search_box(
     scope: &mut UiScope<'_>,
-    params: &AssetsPanelParams<'_>,
+    search_input: &mut TextInputState,
+    external_query: &str,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    _ = scope.input_box_tagged(
-        &InputBoxProps::new(
-            params.search_query,
-            "Search assets...",
-            180.0,
-            false,
-            params.blink_caret,
+    scope
+        .add(
+            TextInputField::new(search_input)
+                .sync_external(external_query)
+                .placeholder("Search assets...")
+                .width(180.0)
+                .search_icon()
+                .clearable(true)
+                .tag(ASSETS_TAG_SEARCH_INPUT)
+                .clear_tag(ASSETS_TAG_SEARCH_CLEAR),
         )
-        .with_icon("🔍")
-        .with_cursor_byte_idx(params.cursor_byte_idx)
-        .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR),
-        ASSETS_TAG_SEARCH_INPUT,
-    );
-    if scope.is_tag_clicked(ASSETS_TAG_SEARCH_CLEAR) {
-        actions.push(AssetsPanelAction::ClearSearch);
-    }
+        .on_change(|| {
+            actions.push(AssetsPanelAction::SearchInput(
+                search_input.text().to_owned(),
+            ));
+        });
 }
 
 #[inline]

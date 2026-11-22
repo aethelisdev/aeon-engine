@@ -9,7 +9,7 @@
 //! - Real-time zero-allocation asset telemetry (items in scope, total count, VRAM loaded count, aggregate disk size)
 
 use super::panel::ASSETS_FOOTER_HEIGHT;
-use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction, AssetsPanelParams};
+use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction};
 use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use irisui::prelude::*;
@@ -17,7 +17,8 @@ use irisui::prelude::*;
 /// Declarative construction of the Asset Browser bottom status bar and telemetry footer.
 pub fn build_asset_footer_scope(
     scope: &mut UiScope<'_>,
-    params: &AssetsPanelParams<'_>,
+    asset_browser: &AssetBrowserState,
+    filtered_len: usize,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope.container_named(
@@ -26,6 +27,7 @@ pub fn build_asset_footer_scope(
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::SpaceBetween)
+            .flex_shrink(0.0)
             .padding_insets(Insets::symmetric(0.0, 8.0))
             .height(ASSETS_FOOTER_HEIGHT)
             .background(scope.theme().toolbar_bg)
@@ -40,7 +42,7 @@ pub fn build_asset_footer_scope(
                     .gap(8.0),
                 |left| {
                     left.add(
-                        Button::new(if params.sidebar_collapsed {
+                        Button::new(if asset_browser.sidebar_collapsed {
                             "▶"
                         } else {
                             "◀"
@@ -63,7 +65,7 @@ pub fn build_asset_footer_scope(
 
                     left.label_styled_passive(
                         "FooterFolderPath",
-                        params.current_folder.display().to_string(),
+                        asset_browser.current_folder.display().to_string(),
                         10.5,
                         Color::rgba(0.55, 0.60, 0.70, 1.0),
                         TextAlign::Left,
@@ -75,7 +77,7 @@ pub fn build_asset_footer_scope(
             // 2. Right Group: Real-time Telemetry
             footer.label_styled_passive(
                 "FooterTelemetry",
-                format_footer_telemetry(params),
+                format_footer_telemetry(asset_browser, filtered_len),
                 10.5,
                 Color::rgba(0.50, 0.54, 0.64, 1.0),
                 TextAlign::Right,
@@ -98,14 +100,14 @@ fn sidebar_toggle_button_style() -> Style {
 
 /// Computes the telemetry summary text for the asset browser footer.
 #[inline]
-fn format_footer_telemetry(params: &AssetsPanelParams<'_>) -> String {
+fn format_footer_telemetry(asset_browser: &AssetBrowserState, filtered_len: usize) -> String {
     format_telemetry_totals(
-        params.filtered_items.len(),
-        params
+        filtered_len,
+        asset_browser
             .cached_items
             .iter()
             .filter(|item| {
-                params.show_engine_content
+                asset_browser.show_engine_content
                     || item.source != crate::assets::types::AssetSource::Engine
             })
             .fold((0usize, 0usize, 0u64), |(count, mem, size), item| {

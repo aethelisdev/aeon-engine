@@ -11,9 +11,11 @@ use super::components::{
 };
 use super::types::{
     ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
-    AssetsPanelAction, AssetsPanelParams, encode_item_tag,
+    AssetsPanelAction, encode_item_tag,
 };
+use crate::assets::types::AssetItem;
 use irisui::prelude::*;
+use std::path::Path;
 
 /// Height of the table column header row in logical pixels.
 pub const LIST_HEADER_HEIGHT: f32 = 26.0;
@@ -26,20 +28,21 @@ const ASSET_TABLE_COLUMNS: &[TableColumnSpec] = &[
     TableColumnSpec::remainder("ColActionsHeader", "Actions", 80.0, TextAlign::Left),
 ];
 
-/// Builds the detailed tabular list view inside `vp_rect` via [`UiScope::data_table`].
+/// Builds the detailed tabular list view automatically sized to its parent via [`UiScope::data_table`].
 pub fn build_asset_list_table_scope(
     scope: &mut UiScope<'_>,
-    vp_rect: Rect,
-    params: &AssetsPanelParams<'_>,
+    filtered_items: &[AssetItem],
+    selected_asset: Option<&Path>,
+    current_folder: &Path,
+    search_query: &str,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope
         .data_table(
-            params.filtered_items.len(),
-            DataTableConfig::new(
+            filtered_items.len(),
+            DataTableConfig::auto(
                 "AssetsContentViewport",
                 ASSETS_TAG_CONTENT_VIEWPORT,
-                vp_rect,
                 ASSET_TABLE_COLUMNS,
             )
             .with_section_names("ListTableHeader", "AssetListRowsContainer")
@@ -47,40 +50,35 @@ pub fn build_asset_list_table_scope(
             .with_scrollbar_tags(ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SCROLLBAR_THUMB),
         )
         .empty_state(|vp| {
-            asset_empty_notice(vp, vp_rect, params.search_query);
+            asset_empty_notice(vp, search_query);
         })
         .render_row(|rows_scope, idx| {
             asset_list_row(
                 rows_scope,
                 idx as u32,
-                &params.filtered_items[idx],
+                &filtered_items[idx],
                 rows_scope.is_tag_clicked(encode_item_tag(idx as u32))
                     || rows_scope.is_tag_pressed(encode_item_tag(idx as u32))
-                    || params.selected_asset == Some(&params.filtered_items[idx].path),
+                    || selected_asset == Some(&filtered_items[idx].path),
                 actions,
             )
             .context_menu(rows_scope, |menu| {
                 super::context_menu::render_asset_context_menu_items(
                     menu,
-                    &params.filtered_items[idx],
+                    &filtered_items[idx],
                     actions,
                 );
             });
         })
         .context_menu(scope, |menu| {
-            super::context_menu::render_folder_context_menu_items(
-                menu,
-                params.current_folder,
-                actions,
-            );
+            super::context_menu::render_folder_context_menu_items(menu, current_folder, actions);
         });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-    use std::collections::HashMap;
+    use crate::assets::types::{AssetCategory, AssetItem, AssetSource};
     use std::path::PathBuf;
 
     #[test]
@@ -88,7 +86,6 @@ mod tests {
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let current_folder = PathBuf::from("assets");
-        let subfolders = Vec::new();
 
         let item = AssetItem {
             name: "ambient.wav".to_string(),
@@ -106,36 +103,23 @@ mod tests {
         };
         let items = vec![item];
 
-        let params = AssetsPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-            screen_size: (1280.0, 720.0),
-            current_folder: &current_folder,
-            search_query: "",
-            active_category: AssetCategory::All,
-            view_mode: AssetViewMode::List,
-            selected_asset: None,
-            cached_items: &items,
-            filtered_items: &items,
-            is_2d_mode: false,
-            show_engine_content: false,
-            sidebar_width: 180.0,
-            sidebar_collapsed: false,
-            cursor_pos: Point::new(0.0, 0.0),
-            blink_caret: false,
-            active_context_menu: None,
-            active_preview_modal: None,
-            subfolders: &subfolders,
-            thumbnail_layers: &HashMap::new(),
-            cursor_byte_idx: 0,
-        };
-
         let mut actions = Vec::new();
-        build_asset_list_table_scope(
-            &mut UiScope::new(&mut tree, root_id),
-            Rect::new(0.0, 0.0, 600.0, 400.0),
-            &params,
-            &mut actions,
-        );
+        {
+            let mut scope = UiScope::new(&mut tree, root_id);
+            scope
+                .panel("Host")
+                .bounds(Rect::new(0.0, 0.0, 600.0, 400.0))
+                .show(|s| {
+                    build_asset_list_table_scope(
+                        s,
+                        &items,
+                        None,
+                        &current_folder,
+                        "",
+                        &mut actions,
+                    );
+                });
+        }
 
         let found_header = tree
             .iter()

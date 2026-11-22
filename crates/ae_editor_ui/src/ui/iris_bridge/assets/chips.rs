@@ -7,7 +7,7 @@
 //! `All`, `3D Models`, `Textures`, `Shaders`, `Scenes`, `Materials`, `Audio`.
 
 use super::panel::ASSETS_CHIPS_BAR_HEIGHT;
-use super::types::{AssetsPanelAction, AssetsPanelParams, encode_chip_tag};
+use super::types::{AssetsPanelAction, encode_chip_tag};
 use crate::assets::types::AssetCategory;
 use irisui::prelude::*;
 
@@ -25,7 +25,7 @@ pub const CATEGORY_CHIPS: &[(AssetCategory, &str, f32)] = &[
 /// Declarative construction of the Category Filter Chips horizontal bar using [`UiScope`].
 pub fn build_category_chips_scope(
     scope: &mut UiScope<'_>,
-    params: &AssetsPanelParams<'_>,
+    active_cat: AssetCategory,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     scope.container_named(
@@ -33,7 +33,7 @@ pub fn build_category_chips_scope(
         Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
-            .width(params.panel_rect.width)
+            .flex_shrink(0.0)
             .height(ASSETS_CHIPS_BAR_HEIGHT)
             .padding_insets(Insets::symmetric(0.0, 8.0))
             .gap(6.0)
@@ -42,7 +42,7 @@ pub fn build_category_chips_scope(
             for (idx, &(cat, label, width)) in CATEGORY_CHIPS.iter().enumerate() {
                 row.add(
                     Chip::new(label)
-                        .selected(active_category(row, params.active_category) == cat)
+                        .selected(active_category(row, active_cat) == cat)
                         .accent_color(Color::rgba(0.0, 0.85, 1.0, 0.90))
                         .width(width)
                         .tag(encode_chip_tag(idx as u8)),
@@ -71,8 +71,8 @@ fn active_category(scope: &UiScope<'_>, current: AssetCategory) -> AssetCategory
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use std::path::Path;
+    use crate::assets::types::AssetBrowserState;
+    use crate::ui::iris_bridge::assets::types::AssetsPanelState;
 
     #[test]
     fn test_category_chips_order_matches_canonical_all() {
@@ -86,33 +86,12 @@ mod tests {
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let mut actions = Vec::new();
-        let current_folder = Path::new("assets");
-        let thumbnail_layers = HashMap::new();
 
-        let params = AssetsPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-            screen_size: (1280.0, 720.0),
-            current_folder,
-            search_query: "",
-            active_category: AssetCategory::All,
-            view_mode: crate::assets::types::AssetViewMode::Grid,
-            selected_asset: None,
-            cached_items: &[],
-            filtered_items: &[],
-            subfolders: &[],
-            is_2d_mode: false,
-            show_engine_content: false,
-            sidebar_width: 180.0,
-            sidebar_collapsed: false,
-            cursor_pos: Point::new(0.0, 0.0),
-            blink_caret: false,
-            active_context_menu: None,
-            active_preview_modal: None,
-            thumbnail_layers: &thumbnail_layers,
-            cursor_byte_idx: 0,
-        };
-
-        build_category_chips_scope(&mut UiScope::new(&mut tree, root_id), &params, &mut actions);
+        build_category_chips_scope(
+            &mut UiScope::new(&mut tree, root_id),
+            AssetCategory::All,
+            &mut actions,
+        );
 
         let row_id = tree
             .find_node_by_name("CategoryChipsRow")
@@ -128,38 +107,18 @@ mod tests {
         let mut tree = UiTree::new();
         let root_id = tree.create_root().expect("Root node creation failed");
         let mut actions = Vec::new();
-        let current_folder = Path::new("assets");
-        let thumbnail_layers = HashMap::new();
+        let asset_browser = AssetBrowserState::default();
+        let mut panel_state = AssetsPanelState::default();
 
-        let params = AssetsPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-            screen_size: (1280.0, 720.0),
-            current_folder,
-            search_query: "",
-            active_category: AssetCategory::All,
-            view_mode: crate::assets::types::AssetViewMode::Grid,
-            selected_asset: None,
-            cached_items: &[],
-            filtered_items: &[],
-            subfolders: &[],
-            is_2d_mode: false,
-            show_engine_content: false,
-            sidebar_width: 180.0,
-            sidebar_collapsed: false,
-            cursor_pos: Point::new(10.0, 10.0),
-            blink_caret: false,
-            active_context_menu: None,
-            active_preview_modal: None,
-            thumbnail_layers: &thumbnail_layers,
-            cursor_byte_idx: 0,
-        };
-
-        build_assets_panel(
-            &mut UiScope::new(&mut tree, root_id),
-            &params,
-            &mut TreeState::default(),
-            &mut actions,
-        );
+        {
+            let mut scope = UiScope::new(&mut tree, root_id);
+            scope
+                .panel("Host")
+                .bounds(Rect::new(0.0, 0.0, 1000.0, 600.0))
+                .show(|s| {
+                    build_assets_panel(s, &asset_browser, false, &mut panel_state, &mut actions);
+                });
+        }
 
         let audio_tag = encode_chip_tag(6);
         let mut audio_node_info = None;
@@ -188,15 +147,22 @@ mod tests {
         assert_eq!(tree.event_state.frame_clicked_tag, Some(audio_tag));
 
         let mut click_actions = Vec::new();
-        let mut params_clicked = params;
-        params_clicked.cursor_pos = click_pos;
-
-        build_assets_panel(
-            &mut UiScope::new(&mut tree, root_id),
-            &params_clicked,
-            &mut TreeState::default(),
-            &mut click_actions,
-        );
+        tree.set_cursor_position(click_pos);
+        {
+            let mut scope = UiScope::new(&mut tree, root_id);
+            scope
+                .panel("Host")
+                .bounds(Rect::new(0.0, 0.0, 1000.0, 600.0))
+                .show(|s| {
+                    build_assets_panel(
+                        s,
+                        &asset_browser,
+                        false,
+                        &mut panel_state,
+                        &mut click_actions,
+                    );
+                });
+        }
 
         assert!(
             click_actions.contains(&AssetsPanelAction::SelectCategory(AssetCategory::Audio)),
