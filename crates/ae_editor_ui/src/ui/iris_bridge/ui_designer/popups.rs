@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # 2D Visual UI Designer Dropdown Popups
+//! # 2D Visual UI Designer Aspect Ratio Presets & Add-Element Palette
 //!
-//! Renders the Aspect Ratio selector dropdown and the `➕ Add Element` palette popup
-//! using 100% declarative [`UiScope`] dropdown menu primitives and 64-bit hardware semantic tags.
+//! Provides static dropdown preset definitions for aspect ratios and declarative
+//! spawn palette items routed directly to [`ActionBus<EngineUiAction>`].
 
 use super::types::{
-    CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelState,
-    UiElementType, make_add_item_tag, make_aspect_item_tag,
+    CanvasAspectRatio, UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UiElementType, make_add_item_tag,
+    make_aspect_item_tag,
 };
+use crate::ui::panel_layout::PanelId;
+use crate::ui::types::EngineUiAction;
+use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
-use irisui::widgets::declarative::scope::PopupPlacement;
+use irisui::workbench::ActionBus;
 
-/// Standard canvas aspect ratio presets available in the UI Designer.
+/// Canonical aspect ratio preset ordering exposed in the toolbar selector.
 pub const ASPECT_RATIO_PRESETS: [CanvasAspectRatio; 4] = [
     CanvasAspectRatio::Ratio16x9,
     CanvasAspectRatio::Ratio16x10,
@@ -21,7 +24,27 @@ pub const ASPECT_RATIO_PRESETS: [CanvasAspectRatio; 4] = [
     CanvasAspectRatio::Ratio21x9,
 ];
 
-/// UI widget element types available in the Add Element palette.
+/// Declarative options consumed by `anchored_select_pill` for canvas aspect ratios.
+pub const ASPECT_RATIO_OPTIONS: &[AnchoredSelectOption<'_>] = &[
+    AnchoredSelectOption::new(make_aspect_item_tag(0), "📐", "16:9 (1080p Full HD)"),
+    AnchoredSelectOption::new(make_aspect_item_tag(1), "📐", "16:10 (WUXGA)"),
+    AnchoredSelectOption::new(make_aspect_item_tag(2), "📐", "4:3 (Classic)"),
+    AnchoredSelectOption::new(make_aspect_item_tag(3), "📐", "21:9 (Ultrawide)"),
+];
+
+/// Returns the zero-based option index matching `ratio` inside [`ASPECT_RATIO_PRESETS`].
+#[inline]
+#[must_use]
+pub const fn aspect_ratio_index(ratio: CanvasAspectRatio) -> usize {
+    match ratio {
+        CanvasAspectRatio::Ratio16x9 => 0,
+        CanvasAspectRatio::Ratio16x10 => 1,
+        CanvasAspectRatio::Ratio4x3 => 2,
+        CanvasAspectRatio::Ratio21x9 => 3,
+    }
+}
+
+/// Ordered catalog of UI element types spawnable from the UI Designer palette.
 pub const UI_ELEMENT_TYPES: [UiElementType; 10] = [
     UiElementType::Panel,
     UiElementType::ProgressBar,
@@ -35,74 +58,34 @@ pub const UI_ELEMENT_TYPES: [UiElementType; 10] = [
     UiElementType::ScoreDisplay,
 ];
 
-/// Builds the Aspect Ratio dropdown menu popup when [`super::types::UI_DESIGNER_TAG_ASPECT_BTN`] is active.
-pub fn build_aspect_ratio_popup(
-    scope: &mut UiScope<'_>,
-    params: &UiDesignerPanelParams<'_>,
-    designer: &mut UiDesignerPanelState,
-) {
-    scope.scoped_popup_anchored_to_tag(
-        "AspectRatioPopup",
-        super::types::UI_DESIGNER_TAG_ASPECT_BTN,
-        Rect::new(
-            params.panel_rect.x + 8.0,
-            params.panel_rect.y + 5.0,
-            142.0,
-            24.0,
-        ),
-        160.0,
-        PopupPlacement::Below,
-        |popup_scope| {
-            ASPECT_RATIO_PRESETS
-                .iter()
-                .enumerate()
-                .for_each(|(idx, &preset)| {
-                    popup_scope
-                        .dropdown_item_autoclose(
-                            make_aspect_item_tag(idx),
-                            "",
-                            preset.label(),
-                            (preset == params.state.aspect_ratio).then_some("✓"),
-                            true,
-                        )
-                        .on_click(|| designer.dispatch(UiDesignerAction::SetAspectRatio(preset)));
-                });
-        },
-    );
-}
-
-/// Builds the `➕ Add Element` palette popup when [`super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN`] is active.
+/// Builds the anchored `Add Element` palette popup when active in [`UiTree`](irisui_core::UiTree).
+///
+/// Clicking an item emits [`EngineUiAction::SpawnUiElement`] directly onto `action_bus` and marks
+/// [`PanelId::UiDesigner`] dirty for redraw.
 pub fn build_add_element_popup(
     scope: &mut UiScope<'_>,
-    params: &UiDesignerPanelParams<'_>,
-    designer: &mut UiDesignerPanelState,
+    action_bus: &mut ActionBus<EngineUiAction>,
+    notifier: &mut DeferredNotifier<PanelId>,
 ) {
-    scope.scoped_popup_anchored_to_tag(
+    scope.scoped_popup_anchored_auto(
         "AddElementPopup",
-        super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN,
-        Rect::new(
-            params.panel_rect.x + 8.0,
-            params.panel_rect.y + 5.0,
-            118.0,
-            24.0,
-        ),
+        UI_DESIGNER_TAG_ADD_ELEMENT_BTN,
         200.0,
         PopupPlacement::Below,
-        |popup_scope| {
-            UI_ELEMENT_TYPES
-                .iter()
-                .enumerate()
-                .for_each(|(idx, &elem_type)| {
-                    popup_scope
-                        .dropdown_item_autoclose(
-                            make_add_item_tag(idx),
-                            elem_type.icon(),
-                            elem_type.label(),
-                            None,
-                            true,
-                        )
-                        .on_click(|| designer.dispatch(UiDesignerAction::SpawnElement(elem_type)));
+        |menu| {
+            for (idx, &elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
+                menu.dropdown_item_autoclose(
+                    make_add_item_tag(idx),
+                    elem_type.icon(),
+                    elem_type.label(),
+                    None,
+                    true,
+                )
+                .on_click(|| {
+                    action_bus.emit(EngineUiAction::SpawnUiElement(elem_type));
+                    notifier.tag_redraw(PanelId::UiDesigner);
                 });
+            }
         },
     );
 }
