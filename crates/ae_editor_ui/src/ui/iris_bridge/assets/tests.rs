@@ -6,13 +6,22 @@
 use super::panel::build_assets_panel;
 use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetClickTracker, AssetPreviewModalState,
-    AssetsPanelParams, encode_breadcrumb_tag, encode_item_tag, truncate_display_name,
+    AssetsPanelState, encode_breadcrumb_tag, encode_item_tag, truncate_display_name,
 };
-use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use crate::assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use irisui::prelude::*;
 use irisui::widgets::modal::ModalDialogAction;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+fn build_in_host(
+    tree: &mut UiTree,
+    root: WidgetId,
+    bounds: Rect,
+    f: impl FnOnce(&mut UiScope<'_>),
+) {
+    let mut scope = UiScope::new(tree, root);
+    scope.panel("AssetsTestHost").bounds(bounds).show(f);
+}
 
 #[test]
 fn test_assets_panel_structure_and_no_emojis() {
@@ -20,7 +29,6 @@ fn test_assets_panel_structure_and_no_emojis() {
     let root_id = tree.create_root().expect("Root node creation failed");
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let current_folder = PathBuf::from("assets");
     let item = AssetItem {
         name: "test_mesh.gltf".to_string(),
         path: PathBuf::from("assets/test_mesh.gltf"),
@@ -35,40 +43,33 @@ fn test_assets_panel_structure_and_no_emojis() {
         shader_handle: None,
         is_3d: true,
     };
-    let items = vec![item];
-
-    let params = AssetsPanelParams {
-        panel_rect,
-        screen_size: (1280.0, 720.0),
-        current_folder: &current_folder,
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &items,
-        filtered_items: &items,
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(100.0, 100.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: None,
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState {
+        cached_items: vec![item],
+        ..Default::default()
     };
-
+    let mut panel_state = AssetsPanelState::default();
     let mut actions = Vec::new();
-    let metrics = build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &mut TreeState::default(),
-        &mut actions,
-    );
+    build_in_host(&mut tree, root_id, panel_rect, |s| {
+        crate::ui::panel_layout::PanelId::Assets
+            .surface()
+            .expect("Assets surface")
+            .show(s, |panel_scope| {
+                build_assets_panel(
+                    panel_scope,
+                    &asset_browser,
+                    false,
+                    &mut panel_state,
+                    &mut actions,
+                );
+            });
+    });
 
-    assert_eq!(metrics.panel_rect, panel_rect);
+    assert_eq!(
+        tree.get(tree.find_node_by_name("AssetsPanelRoot").unwrap())
+            .unwrap()
+            .computed_rect,
+        panel_rect
+    );
     assert!(has_tag_recursive(&tree, root_id, encode_breadcrumb_tag(0)));
     assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 
@@ -130,35 +131,26 @@ fn test_preview_modal_build_and_actions() {
         show_wireframe: true,
     };
 
-    let params = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-        screen_size: (1280.0, 720.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(500.0, 300.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: Some(&preview_state),
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState::default();
+    let mut panel_state = AssetsPanelState {
+        preview_modal: Some(preview_state),
+        ..Default::default()
     };
 
     let mut actions_build = Vec::new();
-    let _metrics = build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &mut TreeState::default(),
-        &mut actions_build,
+    build_in_host(
+        &mut tree,
+        root_id,
+        Rect::new(0.0, 0.0, 1000.0, 600.0),
+        |s| {
+            build_assets_panel(
+                s,
+                &asset_browser,
+                false,
+                &mut panel_state,
+                &mut actions_build,
+            );
+        },
     );
 
     assert!(tree.is_any_modal_open());
@@ -195,7 +187,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     let root_id = tree.create_root().expect("Root node creation failed");
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let current_folder = PathBuf::from("assets");
     let item = AssetItem {
         name: "dokusu_öğütülmüş_yüzey.png".to_string(),
         path: PathBuf::from("assets/textures/dokusu_öğütülmüş_yüzey.png"),
@@ -210,38 +201,27 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         shader_handle: None,
         is_3d: false,
     };
-    let items = vec![item];
-
-    let params = AssetsPanelParams {
-        panel_rect,
-        screen_size: (1280.0, 720.0),
-        current_folder: &current_folder,
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &items,
-        filtered_items: &items,
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(100.0, 100.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: None,
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState {
+        cached_items: vec![item],
+        ..Default::default()
     };
+    let mut panel_state = AssetsPanelState::default();
 
     let mut actions = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &mut TreeState::default(),
-        &mut actions,
-    );
+    build_in_host(&mut tree, root_id, panel_rect, |s| {
+        crate::ui::panel_layout::PanelId::Assets
+            .surface()
+            .expect("Assets surface")
+            .show(s, |panel_scope| {
+                build_assets_panel(
+                    panel_scope,
+                    &asset_browser,
+                    false,
+                    &mut panel_state,
+                    &mut actions,
+                );
+            });
+    });
     assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 }
 
@@ -417,37 +397,27 @@ fn test_engine_and_sidebar_vector_icons() {
     let root_id = tree.create_root().expect("Root node must be created");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
 
-    let current_folder = PathBuf::from("assets");
-    let params = AssetsPanelParams {
-        panel_rect,
-        screen_size: (1280.0, 720.0),
-        current_folder: &current_folder,
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
+    let asset_browser = AssetBrowserState {
         show_engine_content: true,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        selected_asset: None,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(100.0, 100.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: None,
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+        ..Default::default()
     };
+    let mut panel_state = AssetsPanelState::default();
 
     let mut actions = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &mut TreeState::default(),
-        &mut actions,
-    );
+    build_in_host(&mut tree, root_id, panel_rect, |s| {
+        crate::ui::panel_layout::PanelId::Assets
+            .surface()
+            .expect("Assets surface")
+            .show(s, |panel_scope| {
+                build_assets_panel(
+                    panel_scope,
+                    &asset_browser,
+                    false,
+                    &mut panel_state,
+                    &mut actions,
+                );
+            });
+    });
 
     let gear_id = tree
         .find_node_by_name("EngineGearIcon")
@@ -483,37 +453,28 @@ fn test_assets_toolbar_width_and_search_ux() {
     let root_id = tree.create_root().expect("Root node creation failed");
 
     let panel_rect = Rect::new(0.0, 0.0, 960.0, 480.0);
-    let current_folder = PathBuf::from("assets");
-    let params = AssetsPanelParams {
-        panel_rect,
-        screen_size: (1920.0, 1080.0),
-        current_folder: &current_folder,
-        search_query: "test_query",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(100.0, 100.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: None,
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState {
+        search_query: "test_query".to_string(),
+        ..Default::default()
     };
+    let mut panel_state = AssetsPanelState::default();
+    panel_state.search_input.set_text("test_query");
 
     let mut actions = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &mut TreeState::default(),
-        &mut actions,
-    );
+    build_in_host(&mut tree, root_id, panel_rect, |s| {
+        crate::ui::panel_layout::PanelId::Assets
+            .surface()
+            .expect("Assets surface")
+            .show(s, |panel_scope| {
+                build_assets_panel(
+                    panel_scope,
+                    &asset_browser,
+                    false,
+                    &mut panel_state,
+                    &mut actions,
+                );
+            });
+    });
 
     assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_INPUT));
     assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_CLEAR));
@@ -521,5 +482,5 @@ fn test_assets_toolbar_width_and_search_ux() {
     let toolbar_id = tree
         .find_node_by_name("AssetsTopToolbar")
         .expect("AssetsTopToolbar node must exist in UiTree");
-    assert_eq!(tree.get(toolbar_id).unwrap().style.width, Some(960.0));
+    assert_eq!(tree.get(toolbar_id).unwrap().computed_rect.width, 960.0);
 }

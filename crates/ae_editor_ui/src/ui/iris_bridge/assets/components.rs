@@ -9,7 +9,7 @@
 
 use super::types::{
     AssetsPanelAction, encode_breadcrumb_tag, encode_item_inspect_tag, encode_item_spawn_tag,
-    encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag, truncate_display_name,
+    encode_item_tag, truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem};
 use crate::ui::iris_bridge::icons::{
@@ -17,9 +17,7 @@ use crate::ui::iris_bridge::icons::{
     ICON_WORLD,
 };
 use irisui::prelude::*;
-use irisui::widgets::declarative::{
-    TreeRowProps, TreeRowResponse, TreeViewConfig, WrappedLabelDescriptor,
-};
+use irisui::widgets::declarative::WrappedLabelDescriptor;
 use std::path::Path;
 
 /// Standard width of an asset grid card in logical pixels.
@@ -149,82 +147,6 @@ pub fn asset_breadcrumb_bar(
             }
         },
     );
-}
-
-/// Parameters for rendering a folder tree item in the asset browser sidebar.
-#[derive(Debug, Clone, Copy)]
-pub struct FolderTreeItemParams<'a> {
-    /// Zero-based sequential node index used for encoding semantic tags.
-    pub node_idx: u32,
-    /// Directory display name.
-    pub name: &'a str,
-    /// Tree hierarchy nesting depth.
-    pub depth: u16,
-    /// Whether this folder contains subdirectories.
-    pub has_children: bool,
-    /// Whether this folder branch is expanded.
-    pub is_expanded: bool,
-    /// Whether this folder is currently selected.
-    pub is_selected: bool,
-}
-
-/// Emits an individual directory row in the folder tree sidebar using declarative [`UiScope::tree_row`].
-///
-/// Returns [`TreeRowResponse`] containing click and foldout toggle interaction states.
-pub fn asset_folder_tree_item(
-    scope: &mut UiScope<'_>,
-    params: &FolderTreeItemParams<'_>,
-) -> TreeRowResponse {
-    scope.tree_row(
-        "FolderTreeRow",
-        TreeRowProps::new(
-            params.depth,
-            params.has_children,
-            params.is_expanded,
-            params.is_selected,
-            encode_tree_row_tag(params.node_idx),
-            encode_tree_chevron_tag(params.node_idx),
-        ),
-        &TreeViewConfig::new()
-            .with_row_height(FOLDER_TREE_ROW_HEIGHT)
-            .with_row_gap(0.0),
-        |row| {
-            row.icon(
-                ICON_FOLDER,
-                if params.is_selected {
-                    Color::rgba(0.0, 0.90, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.95, 0.76, 0.28, 1.0)
-                },
-                16.0,
-            );
-
-            row.spacing(6.0);
-
-            if params.is_selected {
-                row.label_styled_passive(
-                    "TreeFolderName",
-                    params.name,
-                    11.5,
-                    Color::WHITE,
-                    TextAlign::Left,
-                    Style::new().flex_grow(1.0),
-                );
-            } else {
-                row.label_styled_hover_passive(
-                    "TreeFolderName",
-                    params.name,
-                    11.5,
-                    (
-                        Color::rgba(0.75, 0.78, 0.85, 1.0),
-                        Color::rgba(0.90, 0.92, 0.96, 1.0),
-                    ),
-                    TextAlign::Left,
-                    Style::new().flex_grow(1.0),
-                );
-            }
-        },
-    )
 }
 
 #[inline]
@@ -566,15 +488,14 @@ fn asset_list_row_style(is_selected: bool) -> Style {
 /// Emits an empty state notice when no matching assets are found.
 ///
 /// Features large warm amber vector folder logo, title, and clear format guidance centered in the viewport.
-pub fn asset_empty_notice(scope: &mut UiScope<'_>, vp_rect: Rect, query: &str) {
+pub fn asset_empty_notice(scope: &mut UiScope<'_>, query: &str) {
     scope.container_named(
         "EmptyAssetsCenterWrapper",
         Style::new()
             .flex_col()
+            .flex_grow(1.0)
             .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .width(vp_rect.width)
-            .height(vp_rect.height),
+            .justify_content(JustifyContent::Center),
         |center_scope| {
             center_scope.container_named(
                 "EmptyAssetsNotice",
@@ -658,18 +579,7 @@ mod tests {
             // 1. Breadcrumbs
             asset_breadcrumb_bar(&mut scope, Path::new("assets/models"), &mut actions);
 
-            // 2. Tree Item
-            let tree_params = FolderTreeItemParams {
-                node_idx: 0,
-                name: "models",
-                depth: 1,
-                has_children: true,
-                is_expanded: true,
-                is_selected: false,
-            };
-            asset_folder_tree_item(&mut scope, &tree_params);
-
-            // 3. Grid Card
+            // 2. Grid Card
             asset_grid_card(
                 &mut scope,
                 0,
@@ -680,19 +590,15 @@ mod tests {
                 &mut actions,
             );
 
-            // 4. List Row
+            // 3. List Row
             asset_list_row(&mut scope, 0, &item, true, &mut actions);
 
-            // 5. Empty Notice
-            asset_empty_notice(&mut scope, Rect::new(0.0, 0.0, 600.0, 400.0), "search_term");
+            // 4. Empty Notice
+            asset_empty_notice(&mut scope, "search_term");
         }
 
         // Verify emitted tagged elements
         let has_breadcrumb = tree.iter().any(|(_, n)| n.tag == encode_breadcrumb_tag(0));
-        let has_tree_row = tree.iter().any(|(_, n)| n.tag == encode_tree_row_tag(0));
-        let has_tree_chev = tree
-            .iter()
-            .any(|(_, n)| n.tag == encode_tree_chevron_tag(0));
         let has_card = tree.iter().any(|(_, n)| n.tag == encode_item_tag(0));
         let has_spawn = tree.iter().any(|(_, n)| n.tag == encode_item_spawn_tag(0));
         let has_inspect = tree
@@ -700,8 +606,6 @@ mod tests {
             .any(|(_, n)| n.tag == encode_item_inspect_tag(0));
 
         assert!(has_breadcrumb, "Breadcrumb must have semantic tag");
-        assert!(has_tree_row, "Tree row must have semantic tag");
-        assert!(has_tree_chev, "Tree chevron must have semantic tag");
         assert!(has_card, "Asset card must have semantic tag");
         assert!(has_spawn, "List spawn button must have semantic tag");
         assert!(has_inspect, "List inspect button must have semantic tag");

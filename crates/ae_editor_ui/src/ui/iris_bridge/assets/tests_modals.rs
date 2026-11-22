@@ -4,14 +4,23 @@
 //! Modal, Context Menu, and Single DialogHost Integration Tests for the Asset Browser.
 
 use super::panel::build_assets_panel;
-use super::types::{AssetPreviewModalState, AssetsPanelAction, AssetsPanelParams};
-use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use super::types::{AssetPreviewModalState, AssetsPanelAction, AssetsPanelState};
+use crate::assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 use irisui::widgets::modal::ModalDialogAction;
 use irisui::workbench::{ActionBus, DialogHost, WorkbenchUiScopeExt};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+fn build_in_host(
+    tree: &mut UiTree,
+    root: WidgetId,
+    bounds: Rect,
+    f: impl FnOnce(&mut UiScope<'_>),
+) {
+    let mut scope = UiScope::new(tree, root);
+    scope.panel("AssetsModalTestHost").bounds(bounds).show(f);
+}
 
 #[test]
 fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
@@ -41,35 +50,26 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         show_wireframe: false,
     };
 
-    let params_idle = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-        screen_size: (1280.0, 720.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(0.0, 0.0),
-        blink_caret: false,
-        active_context_menu: None,
-        active_preview_modal: Some(&preview_state),
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState::default();
+    let mut panel_state = AssetsPanelState {
+        preview_modal: Some(preview_state),
+        ..Default::default()
     };
 
     let mut actions_idle = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params_idle,
-        &mut TreeState::default(),
-        &mut actions_idle,
+    build_in_host(
+        &mut tree,
+        root_id,
+        Rect::new(0.0, 0.0, 1280.0, 720.0),
+        |s| {
+            build_assets_panel(
+                s,
+                &asset_browser,
+                false,
+                &mut panel_state,
+                &mut actions_idle,
+            );
+        },
     );
 
     let mut has_test_level_title = false;
@@ -97,16 +97,23 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     let mut tree_hover = UiTree::new();
     let root_hover = tree_hover.create_root().expect("Root node creation failed");
 
-    let mut params_hover = params_idle;
-    params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
-    tree_hover.set_cursor_position(params_hover.cursor_pos);
+    let hover_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
+    tree_hover.set_cursor_position(hover_pos);
 
     let mut actions_hover = Vec::new();
-    build_assets_panel(
-        &mut UiScope::new(&mut tree_hover, root_hover),
-        &params_hover,
-        &mut TreeState::default(),
-        &mut actions_hover,
+    build_in_host(
+        &mut tree_hover,
+        root_hover,
+        Rect::new(0.0, 0.0, 1280.0, 720.0),
+        |s| {
+            build_assets_panel(
+                s,
+                &asset_browser,
+                false,
+                &mut panel_state,
+                &mut actions_hover,
+            );
+        },
     );
 
     let mut close_node_info = None;
@@ -206,27 +213,10 @@ fn test_assets_preview_modal_emits_close_inspect_modal_on_close_or_scrim() {
         show_wireframe: false,
     };
 
-    let params = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
-        screen_size: (1280.0, 720.0),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        active_category: AssetCategory::All,
-        view_mode: AssetViewMode::Grid,
-        selected_asset: None,
-        cached_items: &[],
-        filtered_items: &[],
-        subfolders: &[],
-        is_2d_mode: false,
-        show_engine_content: false,
-        sidebar_width: 180.0,
-        sidebar_collapsed: false,
-        cursor_pos: Point::new(500.0, 300.0),
-        blink_caret: true,
-        active_context_menu: None,
-        active_preview_modal: Some(&preview_state),
-        thumbnail_layers: &HashMap::new(),
-        cursor_byte_idx: 0,
+    let asset_browser = AssetBrowserState::default();
+    let mut panel_state = AssetsPanelState {
+        preview_modal: Some(preview_state),
+        ..Default::default()
     };
 
     for tag in [
@@ -235,11 +225,13 @@ fn test_assets_preview_modal_emits_close_inspect_modal_on_close_or_scrim() {
     ] {
         let mut actions = Vec::new();
         tree.event_state.frame_clicked_tag = Some(tag);
-        let _metrics = build_assets_panel(
-            &mut UiScope::new(&mut tree, root_id),
-            &params,
-            &mut TreeState::default(),
-            &mut actions,
+        build_in_host(
+            &mut tree,
+            root_id,
+            Rect::new(0.0, 0.0, 1280.0, 720.0),
+            |s| {
+                build_assets_panel(s, &asset_browser, false, &mut panel_state, &mut actions);
+            },
         );
         assert!(
             actions
