@@ -7,19 +7,17 @@
 //! controls reminder badge during active Play Mode using zero imperative `let` statements
 //! and emitting [`EngineUiAction`] directly into [`ActionBus`].
 
-use super::types::{
-    TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME, ViewportHudParams,
-};
+use super::types::{TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME};
 use crate::ui::types::EngineUiAction;
 use ae_core::modules::EngineMode;
+use hecs::{Entity, World};
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
 use irisui::workbench::ActionBus;
 
 #[inline]
-fn world_is_paused(params: &ViewportHudParams<'_>) -> bool {
-    params
-        .world
+fn world_is_paused(world: &World) -> bool {
+    world
         .query::<&ae_core::ui::PauseMenuUiTag>()
         .iter()
         .next()
@@ -27,35 +25,30 @@ fn world_is_paused(params: &ViewportHudParams<'_>) -> bool {
 }
 
 #[inline]
-fn world_has_character_action(params: &ViewportHudParams<'_>) -> bool {
-    if let Some(sel) = params.selected_entity
-        && (params.world.get::<&ae_core::ecs::PlayerTag>(sel).is_ok()
-            || params
-                .world
-                .get::<&ae_core::ecs::CharacterController>(sel)
-                .is_ok())
-    {
-        params
-            .world
-            .get::<&ae_core::ecs::CharacterAction>(sel)
-            .is_ok()
-    } else {
-        params
-            .world
-            .query::<(&ae_core::ecs::PlayerTag, &ae_core::ecs::CharacterAction)>()
-            .iter()
-            .next()
-            .is_some()
-            || params
-                .world
-                .query::<(
-                    &ae_core::ecs::CharacterController,
-                    &ae_core::ecs::CharacterAction,
-                )>()
-                .iter()
-                .next()
-                .is_some()
-    }
+fn world_has_character_action(world: &World, selected_entity: Option<Entity>) -> bool {
+    selected_entity
+        .filter(|&sel| {
+            world.get::<&ae_core::ecs::PlayerTag>(sel).is_ok()
+                || world.get::<&ae_core::ecs::CharacterController>(sel).is_ok()
+        })
+        .map_or_else(
+            || {
+                world
+                    .query::<(&ae_core::ecs::PlayerTag, &ae_core::ecs::CharacterAction)>()
+                    .iter()
+                    .next()
+                    .is_some()
+                    || world
+                        .query::<(
+                            &ae_core::ecs::CharacterController,
+                            &ae_core::ecs::CharacterAction,
+                        )>()
+                        .iter()
+                        .next()
+                        .is_some()
+            },
+            |sel| world.get::<&ae_core::ecs::CharacterAction>(sel).is_ok(),
+        )
 }
 
 #[inline]
@@ -102,11 +95,14 @@ fn guide_text_for(has_action: bool) -> &'static str {
 /// Constructed entirely using declarative [`UiScope`] expressions with zero imperative `let` statements.
 pub fn build_play_hud(
     scope: &mut UiScope<'_>,
-    params: &ViewportHudParams<'_>,
+    world: &World,
+    viewport_rect: Rect,
+    cursor_pos: Point,
+    selected_entity: Option<Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    if world_is_paused(params) {
-        ae_runtime::hud::build_in_game_pause_menu(scope, params.viewport_rect, "⏹  Exit to Editor");
+    if world_is_paused(world) {
+        ae_runtime::hud::build_in_game_pause_menu(scope, viewport_rect, "⏹  Exit to Editor");
         if scope.is_tag_clicked(TAG_PLAY_RESUME) {
             action_bus.emit(EngineUiAction::ResumeGame);
         }
@@ -116,22 +112,17 @@ pub fn build_play_hud(
         return;
     }
 
-    ae_runtime::hud::build_ingame_ecs_ui(
-        scope,
-        params.world,
-        params.viewport_rect,
-        params.cursor_pos,
-    );
+    ae_runtime::hud::build_ingame_ecs_ui(scope, world, viewport_rect, cursor_pos);
 
-    scope.when(world_has_character_action(params), |s| {
+    scope.when(world_has_character_action(world, selected_entity), |s| {
         s.immediate_canvas_with(
             ImmediateCanvasSpec::new(
                 "PlayReticleCanvas",
                 TAG_PLAY_CROSSHAIR,
                 Style::new()
                     .position_absolute()
-                    .left((params.viewport_rect.width - 32.0) * 0.5)
-                    .top((params.viewport_rect.height - 32.0) * 0.5)
+                    .left((viewport_rect.width - 32.0) * 0.5)
+                    .top((viewport_rect.height - 32.0) * 0.5)
                     .width(32.0)
                     .height(32.0),
             )
@@ -143,9 +134,9 @@ pub fn build_play_hud(
 
     emit_play_guide_badge(
         scope,
-        guide_text_for(world_has_character_action(params)),
+        guide_text_for(world_has_character_action(world, selected_entity)),
         irisui::text::measure_text_advance(
-            guide_text_for(world_has_character_action(params)),
+            guide_text_for(world_has_character_action(world, selected_entity)),
             11.0,
         )
         .ceil(),
@@ -183,25 +174,7 @@ fn draw_crosshair_primitives(canvas: &mut ImmediateCanvas<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_editor::gizmo::{GizmoMode, GizmoSpace};
-    use ae_editor::snapping::SnapSettings;
-    use ae_renderer::camera::{Camera, ProjectionMode};
     use hecs::World;
-
-    fn make_test_camera() -> Camera {
-        Camera {
-            position: cgmath::Point3::new(0.0, 5.0, 10.0),
-            yaw: cgmath::Rad(0.0),
-            pitch: cgmath::Rad(0.0),
-            aspect: 16.0 / 9.0,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 1000.0,
-            mode: ProjectionMode::Perspective,
-            ortho_scale: 10.0,
-            target: cgmath::Point3::new(0.0, 0.0, 0.0),
-        }
-    }
 
     fn collect_node_names(tree: &UiTree, current: WidgetId, names: &mut Vec<String>) {
         if let Some(node) = tree.get(current) {
@@ -222,27 +195,18 @@ mod tests {
             ae_core::ecs::CharacterAction::default(),
         ));
 
-        let camera = make_test_camera();
-        let snapping = SnapSettings::default();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
 
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(100.0, 50.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(500.0, 350.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: false,
-            is_2d: false,
-        };
-
         let mut bus = ActionBus::new();
-        build_play_hud(&mut UiScope::new(&mut tree, root), &params, &mut bus);
+        build_play_hud(
+            &mut UiScope::new(&mut tree, root),
+            &world,
+            Rect::new(100.0, 50.0, 800.0, 600.0),
+            Point::new(500.0, 350.0),
+            None,
+            &mut bus,
+        );
 
         let mut names = Vec::new();
         collect_node_names(&tree, root, &mut names);
@@ -286,31 +250,23 @@ mod tests {
         ));
         let _pause_tag = world.spawn((ae_core::ui::PauseMenuUiTag,));
 
-        let camera = make_test_camera();
-        let snapping = SnapSettings::default();
+        let viewport_rect = Rect::new(100.0, 50.0, 800.0, 600.0);
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(100.0, 50.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(500.0, 350.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: false,
-            is_2d: false,
-        };
 
         let mut bus = ActionBus::new();
         tree.event_state.frame_clicked_tag = Some(TAG_PLAY_EXIT);
         {
             let mut scope = UiScope::new(&mut tree, root);
-            build_play_hud(&mut scope, &params, &mut bus);
-            scope.finish_layout(params.viewport_rect);
+            build_play_hud(
+                &mut scope,
+                &world,
+                viewport_rect,
+                Point::new(500.0, 350.0),
+                None,
+                &mut bus,
+            );
+            scope.finish_layout(viewport_rect);
         }
 
         assert!(tree.iter().any(|(_, n)| n.tag == TAG_PLAY_RESUME));

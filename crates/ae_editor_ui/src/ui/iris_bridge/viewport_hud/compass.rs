@@ -7,7 +7,7 @@
 //! using [`UiScope::live_canvas_anchored`] (`CanvasOrigin::NodeTopLeft`) and analytical
 //! oriented GPU SDF line segments (`canvas.draw_line`).
 
-use super::types::{TAG_COMPASS_CANVAS, ViewportHudParams};
+use super::types::TAG_COMPASS_CANVAS;
 use ae_editor::scene_gizmo::SceneNavigationGizmo;
 use ae_renderer::camera::Camera;
 use irisui::prelude::*;
@@ -122,7 +122,7 @@ pub fn draw_compass_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera, re
 }
 
 /// Emits the 3D Scene Navigation Compass anchored cleanly via Taffy `.right`/`.top` and `CanvasOrigin::NodeTopLeft`.
-pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
+pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, camera: &Camera) {
     scope.live_canvas_anchored(
         "SceneNavCompass",
         TAG_COMPASS_CANVAS,
@@ -133,7 +133,7 @@ pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &Viewport
             .top(COMPASS_MARGIN)
             .width(COMPASS_SIZE)
             .height(COMPASS_SIZE),
-        |canvas| draw_compass_canvas(canvas, params.camera, compass_local_rect()),
+        |canvas| draw_compass_canvas(canvas, camera, compass_local_rect()),
     );
 }
 
@@ -147,10 +147,7 @@ pub fn update_compass_canvas(scope: &mut UiScope<'_>, camera: &Camera) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_editor::gizmo::{GizmoMode, GizmoSpace};
-    use ae_editor::snapping::SnapSettings;
     use ae_renderer::camera::{Camera, ProjectionMode};
-    use hecs::World;
 
     fn make_test_camera() -> Camera {
         Camera {
@@ -170,26 +167,10 @@ mod tests {
     #[test]
     fn test_compass_zero_fake_dot_nodes() {
         let camera = make_test_camera();
-        let snapping = SnapSettings::default();
-        let world = World::new();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
 
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(100.0, 100.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
-        };
-
-        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
+        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &camera);
 
         let compass_node = tree
             .node_tagged(TAG_COMPASS_CANVAS)
@@ -208,26 +189,10 @@ mod tests {
     #[test]
     fn test_compass_semantic_tags_assigned() {
         let camera = make_test_camera();
-        let snapping = SnapSettings::default();
-        let world = World::new();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
 
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(100.0, 100.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
-        };
-
-        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
+        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &camera);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
         assert!(tags.contains(&TAG_COMPASS_CANVAS));
@@ -236,25 +201,10 @@ mod tests {
     #[test]
     fn test_compass_canvas_draws_analytical_lines_and_updates_in_place() {
         let camera = make_test_camera();
-        let snapping = SnapSettings::default();
-        let world = World::new();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
-            gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(100.0, 100.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
-        };
 
-        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
+        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &camera);
 
         let compass_id = tree
             .find_node_by_tag(TAG_COMPASS_CANVAS)

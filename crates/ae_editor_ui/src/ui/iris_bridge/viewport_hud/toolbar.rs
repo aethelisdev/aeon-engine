@@ -13,24 +13,24 @@ use super::popup::{
     resolve_shading_mode_action, shading_mode_selected_index,
 };
 use super::types::{
-    TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT, TAG_GIZMO_SPACE_TOGGLE,
-    TAG_GIZMO_TRANSLATE, TAG_SNAP_GRID_DROPDOWN, TAG_SNAP_GRID_TOGGLE, TAG_VIEWPORT_SHADING_MODE,
-    ViewportHudParams,
+    CameraViewOrientation, ShadingViewMode, TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT,
+    TAG_GIZMO_SPACE_TOGGLE, TAG_GIZMO_TRANSLATE, TAG_SNAP_GRID_DROPDOWN, TAG_SNAP_GRID_TOGGLE,
+    TAG_VIEWPORT_SHADING_MODE, toolbar_total_width, view_modes_group_width,
 };
 use crate::ui::iris_bridge::icons::{
     ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_SNAP_GRID, ICON_TRANSLATE, ICON_WORLD,
 };
 use crate::ui::types::EngineUiAction;
+use ae_editor::editor_state::EditorState;
 use ae_editor::gizmo::{GizmoMode, GizmoSpace};
 use ae_editor::snapping::{SnapMode, SnapSettings};
+use ae_renderer::camera::Camera;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
 #[inline]
 fn emit_opt_action(action_bus: &mut ActionBus<EngineUiAction>, action: Option<EngineUiAction>) {
-    if let Some(act) = action {
-        action_bus.emit(act);
-    }
+    action.into_iter().for_each(|act| action_bus.emit(act));
 }
 
 #[inline]
@@ -48,25 +48,27 @@ fn toggled_snap_settings(snapping: &SnapSettings) -> SnapSettings {
 #[inline]
 fn build_view_modes_group(
     tb: &mut irisui::widgets::declarative::ToolbarScope<'_, '_>,
-    params: &ViewportHudParams<'_>,
+    camera: &Camera,
+    wireframe_enabled: bool,
+    is_2d: bool,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     tb.group_styled(
         ToolbarGroup::new()
-            .width(params.view_modes_group_width())
+            .width(view_modes_group_width(camera, wireframe_enabled, is_2d))
             .gap(0.0)
             .background(Color::rgba(0.08, 0.09, 0.12, 0.92))
             .border_color(Color::rgba(0.24, 0.26, 0.32, 0.85))
             .corner_radius(4.0),
         |group| {
-            if params.is_2d {
+            if is_2d {
                 group.mode_button_tagged(
-                    params.camera_orientation().icon_uv(),
-                    params.camera_orientation().label(),
-                    params.camera_orientation().tag(),
+                    CameraViewOrientation::from_camera(camera, true).icon_uv(),
+                    CameraViewOrientation::from_camera(camera, true).label(),
+                    CameraViewOrientation::from_camera(camera, true).tag(),
                     false,
-                    params.camera_orientation().width(),
-                    params.camera_orientation().corner_radii(),
+                    CameraViewOrientation::from_camera(camera, true).width(),
+                    CameraViewOrientation::from_camera(camera, true).corner_radii(),
                 );
                 return;
             }
@@ -74,19 +76,20 @@ fn build_view_modes_group(
             group.anchored_select_pill(
                 AnchoredSelectPillSpec {
                     popup_name: "CameraModeDropdown",
-                    tag: params.camera_orientation().tag(),
-                    label: params.camera_orientation().label(),
+                    tag: CameraViewOrientation::from_camera(camera, false).tag(),
+                    label: CameraViewOrientation::from_camera(camera, false).label(),
                     trigger_style: SelectPillTriggerStyle::Mode {
-                        icon_uv: params.camera_orientation().icon_uv(),
-                        width: params.camera_orientation().width(),
-                        corner_radii: params.camera_orientation().corner_radii(),
+                        icon_uv: CameraViewOrientation::from_camera(camera, false).icon_uv(),
+                        width: CameraViewOrientation::from_camera(camera, false).width(),
+                        corner_radii: CameraViewOrientation::from_camera(camera, false)
+                            .corner_radii(),
                     },
                     popup_width: 150.0,
                     placement: PopupPlacement::Below,
                     options: CAMERA_MODE_OPTIONS,
-                    selected_index: camera_mode_selected_index(params),
+                    selected_index: camera_mode_selected_index(camera, false),
                 },
-                |idx| emit_opt_action(action_bus, resolve_camera_mode_action(idx, params.camera)),
+                |idx| emit_opt_action(action_bus, resolve_camera_mode_action(idx, camera)),
             );
 
             group.divider();
@@ -95,16 +98,17 @@ fn build_view_modes_group(
                 AnchoredSelectPillSpec {
                     popup_name: "ShadingModeDropdown",
                     tag: TAG_VIEWPORT_SHADING_MODE,
-                    label: params.shading_mode().label(),
+                    label: ShadingViewMode::from_wireframe(wireframe_enabled).label(),
                     trigger_style: SelectPillTriggerStyle::Mode {
-                        icon_uv: Some(params.shading_mode().icon_uv()),
-                        width: params.shading_mode().width(),
-                        corner_radii: params.shading_mode().corner_radii(),
+                        icon_uv: Some(ShadingViewMode::from_wireframe(wireframe_enabled).icon_uv()),
+                        width: ShadingViewMode::from_wireframe(wireframe_enabled).width(),
+                        corner_radii: ShadingViewMode::from_wireframe(wireframe_enabled)
+                            .corner_radii(),
                     },
                     popup_width: 124.0,
                     placement: PopupPlacement::Below,
                     options: SHADING_MODE_OPTIONS,
-                    selected_index: shading_mode_selected_index(params),
+                    selected_index: shading_mode_selected_index(wireframe_enabled),
                 },
                 |idx| emit_opt_action(action_bus, resolve_shading_mode_action(idx)),
             );
@@ -115,7 +119,7 @@ fn build_view_modes_group(
 #[inline]
 fn build_gizmo_group(
     tb: &mut irisui::widgets::declarative::ToolbarScope<'_, '_>,
-    params: &ViewportHudParams<'_>,
+    gizmo_mode: GizmoMode,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     tb.group_styled(
@@ -129,7 +133,7 @@ fn build_gizmo_group(
             ]
             .into_iter()
             .for_each(|(mode, uv, tag)| {
-                gg.selectable_tool_tagged(params.gizmo_mode == mode, uv, tag)
+                gg.selectable_tool_tagged(gizmo_mode == mode, uv, tag)
                     .on_click(|| action_bus.emit(EngineUiAction::SetGizmoMode(mode)));
             });
         },
@@ -139,20 +143,20 @@ fn build_gizmo_group(
 #[inline]
 fn build_snapping_group(
     tb: &mut irisui::widgets::declarative::ToolbarScope<'_, '_>,
-    params: &ViewportHudParams<'_>,
+    snapping: &SnapSettings,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     tb.group_styled(
         ToolbarGroup::new().width(84.0).gap(2.0).transparent(),
         |gg| {
             gg.toggle_tool_tagged(
-                params.snapping.mode != SnapMode::Off,
+                snapping.mode != SnapMode::Off,
                 ICON_SNAP_GRID,
                 TAG_SNAP_GRID_TOGGLE,
             )
             .on_click(|| {
                 action_bus.emit(EngineUiAction::UpdateSnapSettings(toggled_snap_settings(
-                    params.snapping,
+                    snapping,
                 )));
             });
 
@@ -160,14 +164,14 @@ fn build_snapping_group(
                 AnchoredSelectPillSpec {
                     popup_name: "GridSnapDropdown",
                     tag: TAG_SNAP_GRID_DROPDOWN,
-                    label: snap_size_label(params.snapping.grid_size),
+                    label: snap_size_label(snapping.grid_size),
                     trigger_style: SelectPillTriggerStyle::Dropdown { width: 50.0 },
                     popup_width: 110.0,
                     placement: PopupPlacement::Below,
                     options: GRID_SNAP_OPTIONS,
-                    selected_index: grid_snap_selected_index(params),
+                    selected_index: grid_snap_selected_index(snapping),
                 },
-                |idx| emit_opt_action(action_bus, resolve_grid_snap_action(idx, params.snapping)),
+                |idx| emit_opt_action(action_bus, resolve_grid_snap_action(idx, snapping)),
             );
         },
     );
@@ -178,19 +182,32 @@ fn build_snapping_group(
 /// Zero imperative `let` statements; emits [`EngineUiAction`] directly into [`ActionBus`].
 pub fn build_viewport_toolbar(
     scope: &mut UiScope<'_>,
-    params: &ViewportHudParams<'_>,
+    camera: &Camera,
+    editor_state: &EditorState,
+    snapping: &SnapSettings,
+    is_2d: bool,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     Toolbar::floating("ViewportToolbar", 8.0, 6.0)
-        .width(params.toolbar_total_width())
+        .width(toolbar_total_width(
+            camera,
+            editor_state.wireframe_enabled,
+            is_2d,
+        ))
         .transparent()
         .gap(8.0)
         .show(scope, |tb| {
-            build_view_modes_group(tb, params, action_bus);
-            build_gizmo_group(tb, params, action_bus);
+            build_view_modes_group(
+                tb,
+                camera,
+                editor_state.wireframe_enabled,
+                is_2d,
+                action_bus,
+            );
+            build_gizmo_group(tb, editor_state.gizmo_mode, action_bus);
             tb.toggle_tool_tagged(
-                params.gizmo_space == GizmoSpace::Local,
-                if params.gizmo_space == GizmoSpace::Local {
+                editor_state.gizmo_space == GizmoSpace::Local,
+                if editor_state.gizmo_space == GizmoSpace::Local {
                     ICON_LOCAL
                 } else {
                     ICON_WORLD
@@ -198,7 +215,7 @@ pub fn build_viewport_toolbar(
                 TAG_GIZMO_SPACE_TOGGLE,
             )
             .on_click(|| action_bus.emit(EngineUiAction::ToggleGizmoSpace));
-            build_snapping_group(tb, params, action_bus);
+            build_snapping_group(tb, snapping, action_bus);
         });
 }
 
@@ -231,10 +248,9 @@ pub fn snap_size_label(size: f32) -> &'static str {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::viewport_hud::TAG_VIEWPORT_CAMERA_MODE;
-    use ae_editor::gizmo::{GizmoMode, GizmoSpace};
+    use ae_editor::gizmo::GizmoMode;
     use ae_editor::snapping::SnapSettings;
     use ae_renderer::camera::{Camera, ProjectionMode};
-    use hecs::World;
 
     fn make_camera(mode: ProjectionMode) -> Camera {
         Camera {
@@ -257,25 +273,22 @@ mod tests {
         let parent_id = tree.create_root().expect("Root node creation failed");
         let camera = make_camera(ProjectionMode::Orthographic);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(20.0, 15.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
+        let viewport_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params, &mut bus);
-        UiScope::new(&mut tree, parent_id).finish_layout(params.viewport_rect);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, parent_id),
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
+            &mut bus,
+        );
+        UiScope::new(&mut tree, parent_id).finish_layout(viewport_rect);
 
         let cam_node = tree
             .iter()
@@ -290,25 +303,22 @@ mod tests {
         let parent_id = tree.create_root().expect("Root node creation failed");
         let camera = make_camera(ProjectionMode::Perspective);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(20.0, 15.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
+        let viewport_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params, &mut bus);
-        UiScope::new(&mut tree, parent_id).finish_layout(params.viewport_rect);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, parent_id),
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
+            &mut bus,
+        );
+        UiScope::new(&mut tree, parent_id).finish_layout(viewport_rect);
 
         let cam_node = tree
             .iter()
@@ -323,24 +333,20 @@ mod tests {
         let parent_id = tree.create_root().expect("Root node creation failed");
         let camera = make_camera(ProjectionMode::Orthographic);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(20.0, 15.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: true,
+            ..Default::default()
         };
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params, &mut bus);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, parent_id),
+            &camera,
+            &editor_state,
+            &snapping,
+            true,
+            &mut bus,
+        );
 
         assert!(
             !tree.iter().any(|(_, n)| n.tag == TAG_VIEWPORT_CAMERA_MODE),
@@ -358,25 +364,22 @@ mod tests {
         let root = tree.create_root().expect("Root node creation failed");
         let camera = make_camera(ProjectionMode::Perspective);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(20.0, 15.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
+        let viewport_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, root), &params, &mut bus);
-        UiScope::new(&mut tree, root).finish_layout(params.viewport_rect);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, root),
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
+            &mut bus,
+        );
+        UiScope::new(&mut tree, root).finish_layout(viewport_rect);
 
         let (translate_id, translate_rect) = tree
             .iter()
@@ -402,7 +405,10 @@ mod tests {
 
         build_viewport_toolbar(
             &mut UiScope::new(&mut rebuild_tree, rebuild_root),
-            &params,
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
             &mut bus,
         );
 
@@ -419,25 +425,22 @@ mod tests {
         let root = tree.create_root().expect("Root node creation failed");
         let camera = make_camera(ProjectionMode::Perspective);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(20.0, 15.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
+        let viewport_rect = Rect::new(0.0, 0.0, 1280.0, 720.0);
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, root), &params, &mut bus);
-        UiScope::new(&mut tree, root).finish_layout(params.viewport_rect);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, root),
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
+            &mut bus,
+        );
+        UiScope::new(&mut tree, root).finish_layout(viewport_rect);
 
         assert!(tree.iter().any(|(_, n)| n.tag == TAG_SNAP_GRID_TOGGLE));
         assert!(tree.iter().any(|(_, n)| n.tag == TAG_SNAP_GRID_DROPDOWN));
@@ -456,25 +459,22 @@ mod tests {
 
         let camera = make_camera(ProjectionMode::Perspective);
         let snapping = SnapSettings::default();
-        let world = World::new();
-
-        let params = ViewportHudParams {
-            viewport_rect: Rect::new(260.0, 56.0, 800.0, 600.0),
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Translate,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(0.0, 0.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
+        let viewport_rect = Rect::new(260.0, 56.0, 800.0, 600.0);
 
         let mut bus = ActionBus::new();
-        build_viewport_toolbar(&mut UiScope::new(&mut tree, root), &params, &mut bus);
-        UiScope::new(&mut tree, root).finish_layout(params.viewport_rect);
+        build_viewport_toolbar(
+            &mut UiScope::new(&mut tree, root),
+            &camera,
+            &editor_state,
+            &snapping,
+            false,
+            &mut bus,
+        );
+        UiScope::new(&mut tree, root).finish_layout(viewport_rect);
 
         let translate_btn = tree
             .node_tagged(TAG_GIZMO_TRANSLATE)

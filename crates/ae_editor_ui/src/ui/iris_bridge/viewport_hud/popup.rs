@@ -8,7 +8,7 @@
 
 use super::types::{
     CameraViewOrientation, TAG_POPUP_CAMERA_GROUP, TAG_POPUP_SHADING_GROUP,
-    TAG_POPUP_SNAP_GRID_GROUP, ViewportHudParams,
+    TAG_POPUP_SNAP_GRID_GROUP,
 };
 use crate::ui::types::EngineUiAction;
 use ae_editor::snapping::SnapSettings;
@@ -50,8 +50,8 @@ const GRID_SNAP_SIZES: [f32; 7] = [0.05, 0.1, 0.25, 0.5, 1.0, 5.0, 10.0];
 /// Returns the active checkmark index for the Camera Mode dropdown.
 #[inline]
 #[must_use]
-pub fn camera_mode_selected_index(params: &ViewportHudParams<'_>) -> Option<usize> {
-    match params.camera_orientation() {
+pub fn camera_mode_selected_index(camera: &Camera, is_2d: bool) -> Option<usize> {
+    match CameraViewOrientation::from_camera(camera, is_2d) {
         CameraViewOrientation::Perspective => Some(0),
         CameraViewOrientation::Orthographic => Some(1),
         CameraViewOrientation::Top => Some(2),
@@ -64,17 +64,17 @@ pub fn camera_mode_selected_index(params: &ViewportHudParams<'_>) -> Option<usiz
 /// Returns the active checkmark index for the Shading Mode dropdown.
 #[inline]
 #[must_use]
-pub fn shading_mode_selected_index(params: &ViewportHudParams<'_>) -> Option<usize> {
-    Some(usize::from(params.wireframe_enabled))
+pub fn shading_mode_selected_index(wireframe_enabled: bool) -> Option<usize> {
+    Some(usize::from(wireframe_enabled))
 }
 
 /// Returns the active checkmark index for the Grid Snap dropdown.
 #[inline]
 #[must_use]
-pub fn grid_snap_selected_index(params: &ViewportHudParams<'_>) -> Option<usize> {
+pub fn grid_snap_selected_index(snapping: &SnapSettings) -> Option<usize> {
     GRID_SNAP_SIZES
         .iter()
-        .position(|&s| (params.snapping.grid_size - s).abs() < 0.001)
+        .position(|&s| (snapping.grid_size - s).abs() < 0.001)
 }
 
 /// Translates a Camera Mode dropdown selection into a typed [`EngineUiAction`].
@@ -140,11 +140,12 @@ pub fn resolve_grid_snap_action(index: usize, snapping: &SnapSettings) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::viewport_hud::builder::build_viewport_hud_scope;
+    use crate::ui::iris_bridge::viewport_hud::panel::build_viewport_hud_scope;
     use crate::ui::iris_bridge::viewport_hud::types::{
-        TAG_SNAP_GRID_DROPDOWN, TAG_VIEWPORT_CAMERA_MODE,
+        TAG_SNAP_GRID_DROPDOWN, TAG_VIEWPORT_CAMERA_MODE, with_test_frame_data,
     };
-    use ae_editor::gizmo::{GizmoMode, GizmoSpace};
+    use ae_editor::editor_state::EditorState;
+    use ae_editor::gizmo::GizmoMode;
     use ae_editor::snapping::SnapSettings;
     use ae_renderer::camera::{Camera, ProjectionMode};
     use hecs::World;
@@ -237,27 +238,29 @@ mod tests {
         let world = World::new();
         let vp_rect = Rect::new(260.0, 56.0, 800.0, 600.0);
 
-        let params = ViewportHudParams {
-            viewport_rect: vp_rect,
-            camera: &camera,
-            wireframe_enabled: false,
+        let editor_state = EditorState {
             gizmo_mode: GizmoMode::Select,
-            gizmo_space: GizmoSpace::World,
-            snapping: &snapping,
-            cursor_pos: Point::new(0.0, 0.0),
-            selected_entity: None,
-            world: &world,
-            is_editing: true,
-            is_2d: false,
+            ..Default::default()
         };
 
         let mut bus = ActionBus::new();
 
         // Frame 1: build HUD inside docked panel bounds so trigger rects are cached by layout
-        UiScope::new(&mut tree, root)
-            .panel("Viewport")
-            .bounds(vp_rect)
-            .show(|panel_scope| build_viewport_hud_scope(panel_scope, &params, &mut bus));
+        with_test_frame_data(
+            (vp_rect, true, false),
+            &camera,
+            &editor_state,
+            &snapping,
+            &world,
+            |frame| {
+                UiScope::new(&mut tree, root)
+                    .panel("Viewport")
+                    .bounds(vp_rect)
+                    .show(|panel_scope| {
+                        build_viewport_hud_scope(panel_scope, frame, Point::ZERO, &mut bus);
+                    });
+            },
+        );
 
         let cam_btn_rect = tree
             .resolve_anchor_rect(TAG_VIEWPORT_CAMERA_MODE)
@@ -267,10 +270,21 @@ mod tests {
         // Frame 2: open GridSnap dropdown cleanly via UiTree popup state
         tree.open_popup(TAG_SNAP_GRID_DROPDOWN);
         let _ = tree.clear_children(root);
-        UiScope::new(&mut tree, root)
-            .panel("Viewport")
-            .bounds(vp_rect)
-            .show(|panel_scope| build_viewport_hud_scope(panel_scope, &params, &mut bus));
+        with_test_frame_data(
+            (vp_rect, true, false),
+            &camera,
+            &editor_state,
+            &snapping,
+            &world,
+            |frame| {
+                UiScope::new(&mut tree, root)
+                    .panel("Viewport")
+                    .bounds(vp_rect)
+                    .show(|panel_scope| {
+                        build_viewport_hud_scope(panel_scope, frame, Point::ZERO, &mut bus);
+                    });
+            },
+        );
 
         let snap_btn_rect = tree
             .resolve_anchor_rect(TAG_SNAP_GRID_DROPDOWN)

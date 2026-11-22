@@ -6,7 +6,7 @@
 //! Renders the bottom-right camera position and orientation telemetry badge using
 //! [`UiScope::live_canvas_anchored`] (`CanvasOrigin::NodeTopLeft`) and stack-formatted text.
 
-use super::types::{TAG_CAMERA_HUD, ViewportHudParams};
+use super::types::TAG_CAMERA_HUD;
 use ae_renderer::camera::Camera;
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
@@ -39,7 +39,7 @@ impl StackTelemetryText {
     }
 
     fn format_camera(&mut self, camera: &Camera) -> &str {
-        let _ = write!(
+        if write!(
             self,
             "Pos: {:.1}, {:.1}, {:.1} | Rot: {:.0}°, {:.0}°",
             camera.position.x,
@@ -47,7 +47,11 @@ impl StackTelemetryText {
             camera.position.z,
             camera.pitch.0.to_degrees(),
             camera.yaw.0.to_degrees(),
-        );
+        )
+        .is_err()
+        {
+            self.len = 0;
+        }
         self.as_str()
     }
 }
@@ -116,7 +120,7 @@ fn draw_camera_hud_from_text(canvas: &mut ImmediateCanvas<'_>, rect: Rect, text:
 }
 
 /// Emits the camera telemetry HUD badge anchored cleanly via Taffy `.right`/`.bottom` and `CanvasOrigin::NodeTopLeft`.
-pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
+pub fn build_camera_hud(scope: &mut UiScope<'_>, camera: &Camera) {
     scope.live_canvas_anchored(
         "CameraHudCanvas",
         TAG_CAMERA_HUD,
@@ -127,7 +131,7 @@ pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>)
             .bottom(CAMERA_HUD_MARGIN)
             .width(CAMERA_HUD_WIDTH)
             .height(CAMERA_HUD_HEIGHT),
-        |canvas| draw_camera_hud_canvas(canvas, params.camera, camera_hud_local_rect()),
+        |canvas| draw_camera_hud_canvas(canvas, camera, camera_hud_local_rect()),
     );
 }
 
