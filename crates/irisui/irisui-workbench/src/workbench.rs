@@ -9,6 +9,9 @@
 
 pub mod escape;
 pub mod frame;
+pub mod frame_services;
+pub mod host;
+pub mod inspect;
 pub(crate) mod live_scheduler;
 pub mod outcome;
 pub mod outside_click;
@@ -27,6 +30,8 @@ mod tests_floating;
 #[cfg(test)]
 mod tests_frame;
 #[cfg(test)]
+mod tests_frame_registry;
+#[cfg(test)]
 mod tests_hover;
 #[cfg(test)]
 mod tests_outside_click;
@@ -39,7 +44,13 @@ pub use frame::{
     WorkbenchExternalContext, WorkbenchFrameOutcome, WorkbenchFrameUpdateParams,
     WorkbenchOwnedFrameParams,
 };
+pub use frame_services::{WorkbenchFramePassResult, WorkbenchFrameRunner, WorkbenchFrameServices};
+pub use host::{
+    WorkbenchChromeBuilderFn, WorkbenchHost, WorkbenchHostEventResult, WorkbenchHostFrameParams,
+    WorkbenchHostPass,
+};
+pub use inspect::{UiInspectionSummary, UiNodeDump, UiTreeDump};
 pub use outcome::WorkbenchOutcome;
 pub use pointer::{HoverTargetResolution, PointerState, resolve_hover_targets};
-pub use runner::{Workbench, WorkbenchSurfaceRender};
+pub use runner::{Workbench, WorkbenchSurfaceFrameParams, WorkbenchSurfaceRender};
 pub use shell::{WorkbenchFrameSync, WorkbenchFrameSyncParams};
