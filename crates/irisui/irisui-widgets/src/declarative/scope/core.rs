@@ -11,4 +11,7 @@ pub mod interaction;
 pub mod layout;
 pub mod tagged_state;
 
+#[cfg(test)]
+mod tagged_state_tests;
+
 pub use context::UiScope;

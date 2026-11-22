@@ -187,40 +187,171 @@ impl<'a> UiScope<'a> {
 
     /// Returns the available bounding layout rectangle of the active parent container.
     ///
-    /// Evaluates `computed_rect`, `style` width/height constraints, or cached `viewport_sizes`.
+    /// Evaluates `computed_rect`, explicit `style` dimensions across the ancestor chain,
+    /// cached `viewport_sizes`/`tag_rects`, and finally [`Self::screen_bounds`].
     pub fn available_rect(&self) -> Rect {
-        if let Some(node) = self.tree.get(self.parent) {
-            let w = if node.computed_rect.width > 0.0 {
-                node.computed_rect.width
-            } else if let Some(sw) = node.style.width {
-                sw
-            } else if node.tag != 0 {
-                self.tree
-                    .viewport_size(node.tag)
-                    .map(|s| s.width)
-                    .unwrap_or(0.0)
-            } else {
-                0.0
-            };
+        let origin = self.parent_screen_origin();
+        let w = self
+            .resolve_axis_from_ancestors(true)
+            .or_else(|| self.resolve_cached_parent_axis(true))
+            .unwrap_or_else(|| {
+                let sw = self.screen_bounds().width;
+                if sw > 0.0 { sw } else { 800.0 }
+            });
+        let h = self
+            .resolve_axis_from_ancestors(false)
+            .or_else(|| self.resolve_cached_parent_axis(false))
+            .unwrap_or_else(|| {
+                let sh = self.screen_bounds().height;
+                if sh > 0.0 { sh } else { 600.0 }
+            });
+        Rect::new(origin.x, origin.y, w.max(0.0), h.max(0.0))
+    }
 
-            let h = if node.computed_rect.height > 0.0 {
-                node.computed_rect.height
-            } else if let Some(sh) = node.style.height {
-                sh
-            } else if node.tag != 0 {
-                self.tree
-                    .viewport_size(node.tag)
-                    .map(|s| s.height)
-                    .unwrap_or(0.0)
-            } else {
-                0.0
-            };
+    pub(crate) fn resolve_axis_from_ancestors(&self, is_width: bool) -> Option<f32> {
+        let mut subtracted_pad = 0.0_f32;
+        let mut curr = Some(self.parent);
 
-            if w > 0.0 && h > 0.0 {
-                return Rect::new(0.0, 0.0, w, h);
+        while let Some(curr_id) = curr {
+            let node = self.tree.get(curr_id)?;
+            let pad = if is_width {
+                node.style.padding.left + node.style.padding.right
+            } else {
+                node.style.padding.top + node.style.padding.bottom
+            };
+            let direct = if is_width {
+                if node.computed_rect.width > 0.0 {
+                    Some(node.computed_rect.width)
+                } else {
+                    node.style.width.filter(|&v| v > 0.0)
+                }
+            } else if node.computed_rect.height > 0.0 {
+                Some(node.computed_rect.height)
+            } else {
+                node.style.height.filter(|&v| v > 0.0)
+            };
+            if let Some(extent) = direct {
+                return Some((extent - subtracted_pad - pad).max(0.0));
             }
+            subtracted_pad += pad;
+            curr = node.parent;
         }
-        Rect::new(0.0, 0.0, 800.0, 600.0)
+        None
+    }
+
+    pub(crate) fn resolve_remaining_axis_from_ancestors(&self, is_width: bool) -> Option<f32> {
+        use irisui_core::{FlexDirection, Position};
+
+        let mut subtracted = 0.0_f32;
+        let mut child_cursor: Option<WidgetId> = None;
+        let mut curr = Some(self.parent);
+
+        while let Some(curr_id) = curr {
+            let node = self.tree.get(curr_id)?;
+            let pad = if is_width {
+                node.style.padding.left + node.style.padding.right
+            } else {
+                node.style.padding.top + node.style.padding.bottom
+            };
+            let stack_root_vertical_fallback = !is_width
+                && child_cursor.is_none()
+                && node.parent.is_none()
+                && node.children.iter().all(|&cid| {
+                    self.tree
+                        .get(cid)
+                        .is_some_and(|c| c.computed_rect.height == 0.0 && c.style.width.is_none())
+                });
+            let is_main_axis = if is_width {
+                matches!(
+                    node.style.flex_direction,
+                    FlexDirection::Row | FlexDirection::RowReverse
+                )
+            } else {
+                stack_root_vertical_fallback
+                    || matches!(
+                        node.style.flex_direction,
+                        FlexDirection::Column | FlexDirection::ColumnReverse
+                    )
+            };
+
+            let direct = if is_width {
+                if node.computed_rect.width > 0.0 {
+                    Some(node.computed_rect.width)
+                } else {
+                    node.style.width.filter(|&v| v > 0.0)
+                }
+            } else if node.computed_rect.height > 0.0 {
+                Some(node.computed_rect.height)
+            } else {
+                node.style.height.filter(|&v| v > 0.0)
+            };
+
+            let mut sibling_consumed = 0.0_f32;
+            if is_main_axis {
+                let mut active_siblings = 0usize;
+                for &cid in &node.children {
+                    if Some(cid) == child_cursor {
+                        active_siblings += 1;
+                        continue;
+                    }
+                    if let Some(child) = self.tree.get(cid) {
+                        if child.style.position == Position::Absolute {
+                            continue;
+                        }
+                        active_siblings += 1;
+                        let child_extent = if is_width {
+                            child.style.width.filter(|&v| v > 0.0).or_else(|| {
+                                (child.computed_rect.width > 0.0)
+                                    .then_some(child.computed_rect.width)
+                            })
+                        } else {
+                            child.style.height.filter(|&v| v > 0.0).or_else(|| {
+                                (child.computed_rect.height > 0.0)
+                                    .then_some(child.computed_rect.height)
+                            })
+                        };
+                        let margin = if is_width {
+                            child.style.margin.left + child.style.margin.right
+                        } else {
+                            child.style.margin.top + child.style.margin.bottom
+                        };
+                        if let Some(ext) = child_extent {
+                            sibling_consumed += ext + margin;
+                        }
+                    }
+                }
+                if child_cursor.is_none() {
+                    active_siblings += 1;
+                }
+                sibling_consumed += node.style.gap * active_siblings.saturating_sub(1) as f32;
+            }
+
+            subtracted += pad + sibling_consumed;
+            if let Some(extent) = direct {
+                return Some((extent - subtracted).max(0.0));
+            }
+            child_cursor = Some(curr_id);
+            curr = node.parent;
+        }
+
+        None
+    }
+
+    fn resolve_cached_parent_axis(&self, is_width: bool) -> Option<f32> {
+        let node = self.tree.get(self.parent)?;
+        if node.tag == 0 {
+            return None;
+        }
+        self.tree
+            .viewport_size(node.tag)
+            .map(|s| if is_width { s.width } else { s.height })
+            .filter(|&v| v > 0.0)
+            .or_else(|| {
+                self.tree
+                    .tag_rect(node.tag)
+                    .map(|r| if is_width { r.width } else { r.height })
+                    .filter(|&v| v > 0.0)
+            })
     }
 
     /// Emits a non-interactive floating drag-and-drop feedback card onto the elevated [`irisui_core::UiLayer::Tooltip`] layer.

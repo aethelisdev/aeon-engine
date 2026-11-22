@@ -35,6 +35,7 @@ impl<'a> UiScope<'a> {
     /// * `tree` - Mutable reference to the UI node arena.
     /// * `parent` - Target parent widget node receiving emitted children.
     pub fn new(tree: &'a mut UiTree, parent: WidgetId) -> Self {
+        let active_text_input_blink = tree.caret_blink;
         Self {
             tree,
             parent,
@@ -44,7 +45,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: None,
             seed: 0,
             active_text_input: None,
-            active_text_input_blink: false,
+            active_text_input_blink,
         }
     }
 
@@ -61,6 +62,7 @@ impl<'a> UiScope<'a> {
         events: &'a [(WidgetId, InteractionEvent)],
         hovered_id: Option<WidgetId>,
     ) -> Self {
+        let active_text_input_blink = tree.caret_blink;
         Self {
             tree,
             parent,
@@ -70,7 +72,7 @@ impl<'a> UiScope<'a> {
             hovered_tag: None,
             seed: 0,
             active_text_input: None,
-            active_text_input_blink: false,
+            active_text_input_blink,
         }
     }
 
@@ -87,6 +89,7 @@ impl<'a> UiScope<'a> {
         events: &'a [(u64, InteractionEvent)],
         hovered_tag: Option<u64>,
     ) -> Self {
+        let active_text_input_blink = tree.caret_blink;
         Self {
             tree,
             parent,
@@ -96,7 +99,7 @@ impl<'a> UiScope<'a> {
             hovered_tag,
             seed: 0,
             active_text_input: None,
-            active_text_input_blink: false,
+            active_text_input_blink,
         }
     }
 
