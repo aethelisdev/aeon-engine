@@ -7,7 +7,6 @@
 //! search bar filtering, cascading `➕` entity spawning menus, and right-click context actions.
 
 pub mod add_menu;
-pub mod builder;
 pub mod footer;
 pub mod header;
 pub mod panel;
@@ -27,6 +26,6 @@ pub use types::{
     AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_BASE,
     HIERARCHY_TAG_FOLDOUT_BASE, HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_BASE,
     HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT,
-    HierarchyPanelParams, HierarchyPanelState, HierarchyRow, HierarchyState, make_eye_tag,
-    make_foldout_tag, make_row_tag,
+    HierarchyPanelState, HierarchyRow, HierarchyState, make_eye_tag, make_foldout_tag,
+    make_row_tag,
 };

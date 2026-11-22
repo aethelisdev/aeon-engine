@@ -6,16 +6,11 @@
 //! Renders the bottom object count and selection state telemetry line using
 //! stack-formatted zero-allocation [`UiScope::text_colored_fmt`].
 
-use super::types::HierarchyPanelParams;
 use irisui::prelude::*;
 use std::fmt::Write as _;
 
 /// Builds the declarative Scene Hierarchy footer status line directly in the active [`UiScope`].
-pub fn build_hierarchy_footer(
-    scope: &mut UiScope<'_>,
-    total_objects: usize,
-    params: &HierarchyPanelParams<'_>,
-) {
+pub fn build_hierarchy_footer(total_objects: usize, has_selection: bool, scope: &mut UiScope<'_>) {
     scope.separator();
     scope.container_named(
         "HierarchyFooterBar",
@@ -31,11 +26,7 @@ pub fn build_hierarchy_footer(
                     "{} Object{}{}",
                     total_objects,
                     if total_objects == 1 { "" } else { "s" },
-                    if params.selected_entity.is_some() {
-                        " • 1 Selected"
-                    } else {
-                        ""
-                    }
+                    if has_selection { " • 1 Selected" } else { "" }
                 );
             });
         },

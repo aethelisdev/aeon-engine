@@ -9,7 +9,7 @@
 
 use super::types::{
     HIERARCHY_TAG_FOLDOUT_BASE, HIERARCHY_TAG_ROW_BASE, HIERARCHY_TAG_SCROLLBAR_THUMB,
-    HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, make_eye_tag,
+    HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_VIEWPORT, make_eye_tag,
 };
 use crate::ui::iris_bridge::icons::*;
 use crate::ui::types::EngineUiAction;
@@ -33,6 +33,14 @@ pub struct SceneHierarchySource<'a>(pub &'a hecs::World);
 impl TreeDataSource for SceneHierarchySource<'_> {
     type Id = hecs::Entity;
 
+    fn node_key(&self, id: Self::Id) -> u64 {
+        id.to_bits().get()
+    }
+
+    fn id_from_key(&self, key: u64) -> Option<Self::Id> {
+        hecs::Entity::from_bits(key)
+    }
+
     fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
         collector.reserve(self.0.len() as usize);
         for ent_ref in self.0.iter() {
@@ -49,10 +57,9 @@ impl TreeDataSource for SceneHierarchySource<'_> {
     }
 
     fn search_text(&self, id: Self::Id, out: &mut String) {
-        if let Ok(name) = self.0.get::<&ae_core::ecs::Name>(id) {
-            out.push_str(&name.0);
-        } else {
-            _ = write!(out, "entity {id:?}");
+        match self.0.get::<&ae_core::ecs::Name>(id) {
+            Ok(name) => out.push_str(&name.0),
+            Err(_) => _ = write!(out, "entity {id:?}"),
         }
     }
 }
@@ -129,27 +136,36 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
 }
 
 fn resolve_component_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
-    if let Some(light) = ent_ref.get::<&ae_core::ecs::Light>() {
-        EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected))
-    } else if ent_ref.get::<&ae_audio::AudioListener>().is_some()
-        || ent_ref.get::<&ae_core::camera::Camera>().is_some()
-    {
-        EntityIcon::Texture(ICON_CAMERA, accent_or_slate(is_selected))
-    } else if let Some(shape) = ent_ref.get::<&ae_core::ecs::Shape>() {
-        EntityIcon::Texture(
-            match *shape {
-                ae_core::ecs::Shape::Sphere => ICON_SPHERE,
-                _ => ICON_CUBE,
-            },
-            selection_accent(is_selected),
-        )
-    } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
-        EntityIcon::Texture(ICON_CUBE, selection_accent(is_selected))
-    } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
-        EntityIcon::Texture(ICON_AUDIO, accent_or_slate(is_selected))
-    } else {
-        resolve_glyph_or_folder_icon(ent_ref, is_selected)
-    }
+    ent_ref
+        .get::<&ae_core::ecs::Light>()
+        .map(|light| EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected)))
+        .or_else(|| {
+            (ent_ref.get::<&ae_audio::AudioListener>().is_some()
+                || ent_ref.get::<&ae_core::camera::Camera>().is_some())
+            .then(|| EntityIcon::Texture(ICON_CAMERA, accent_or_slate(is_selected)))
+        })
+        .or_else(|| {
+            ent_ref.get::<&ae_core::ecs::Shape>().map(|shape| {
+                EntityIcon::Texture(
+                    match *shape {
+                        ae_core::ecs::Shape::Sphere => ICON_SPHERE,
+                        _ => ICON_CUBE,
+                    },
+                    selection_accent(is_selected),
+                )
+            })
+        })
+        .or_else(|| {
+            ent_ref
+                .get::<&ae_core::ecs::ModelId>()
+                .map(|_| EntityIcon::Texture(ICON_CUBE, selection_accent(is_selected)))
+        })
+        .or_else(|| {
+            ent_ref
+                .get::<&ae_audio::AudioSource>()
+                .map(|_| EntityIcon::Texture(ICON_AUDIO, accent_or_slate(is_selected)))
+        })
+        .unwrap_or_else(|| resolve_glyph_or_folder_icon(ent_ref, is_selected))
 }
 
 fn resolve_glyph_or_folder_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
@@ -207,6 +223,7 @@ fn hierarchy_virtual_tree_config(
     )
     .with_empty_notice("Scene is empty")
     .with_filtered_empty_notice("No matching entities found")
+    .with_default_expanded(true)
     .with_external_selected(selected_entity)
     .with_tree_config(
         TreeViewConfig::default()
@@ -236,19 +253,24 @@ fn hierarchy_virtual_tree_config(
     )
 }
 
-/// Renders the virtualized, frustum-culled Scene Hierarchy tree list declaratively via [`UiScope::virtual_tree`].
+/// Renders the virtualized, frustum-culled Scene Hierarchy tree list declaratively via [`UiScope::virtual_tree_retained`].
+///
+/// Returns the total unfiltered entity row count rendered by the retained tree cache.
 pub fn build_hierarchy_rows(
     scope: &mut UiScope<'_>,
-    model: &TreeModel<hecs::Entity>,
-    tree_state: &mut TreeState<hecs::Entity>,
-    params: &HierarchyPanelParams<'_>,
+    world: &hecs::World,
+    revision: u64,
+    search_query: &str,
+    selected_entity: Option<hecs::Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
-) {
+) -> usize {
     scope
-        .virtual_tree(
-            model,
-            tree_state,
-            &hierarchy_virtual_tree_config(params.selected_entity),
+        .virtual_tree_retained(
+            &SceneHierarchySource(world),
+            revision,
+            world.len() as usize,
+            search_query,
+            &hierarchy_virtual_tree_config(selected_entity),
             action_bus,
         )
         .on_selection(|bus, event| match event {
@@ -257,15 +279,9 @@ pub fn build_hierarchy_rows(
         })
         .context_menu(|menu, bus, entity| render_row_context_menu(menu, entity, bus))
         .render_row(|row_s, bus, entry, master_idx, is_selected| {
-            render_hierarchy_row_contents(
-                row_s,
-                params.world,
-                entry.id,
-                master_idx,
-                is_selected,
-                bus,
-            );
-        });
+            render_hierarchy_row_contents(row_s, world, entry.id, master_idx, is_selected, bus);
+        })
+        .total_count
 }
 
 fn render_row_context_menu(
@@ -351,14 +367,11 @@ fn render_entity_label(
             .flex_row()
             .flex_grow(1.0)
             .align_items(AlignItems::Center),
-        |nc| {
-            if let Ok(name_comp) = world.get::<&ae_core::ecs::Name>(entity) {
-                nc.colored_label(text_color, name_comp.0.as_str());
-            } else {
-                nc.text_colored_fmt::<32, _>(text_color, |buf| {
-                    _ = write!(buf, "Entity {entity:?}");
-                });
-            }
+        |nc| match world.get::<&ae_core::ecs::Name>(entity) {
+            Ok(name_comp) => nc.colored_label(text_color, name_comp.0.as_str()),
+            Err(_) => nc.text_colored_fmt::<32, _>(text_color, |buf| {
+                _ = write!(buf, "Entity {entity:?}");
+            }),
         },
     );
 }
@@ -408,19 +421,6 @@ fn render_eye_button(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn default_test_params(world: &hecs::World) -> HierarchyPanelParams<'_> {
-        HierarchyPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-            world,
-            selected_entity: None,
-            search_query: "",
-            is_editing: true,
-            is_2d: true,
-            blink_caret: false,
-            cursor_byte_idx: 0,
-        }
-    }
 
     #[test]
     fn test_hierarchy_tree_depth_and_expansion_invariants() {
@@ -483,26 +483,15 @@ mod tests {
             ae_core::ecs::UiPanel::default(),
         ));
 
-        let mut tree_state = TreeState::expanded_by_default();
-        let mut model = TreeModel::new();
-        model.sync(
-            &SceneHierarchySource(&world),
-            &tree_state,
-            1,
-            world.len() as usize,
-            "",
-        );
-        assert_eq!(model.visible_count(), 4);
-
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let params = default_test_params(&world);
         let mut bus = ActionBus::new();
 
-        {
+        let total = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_hierarchy_rows(&mut scope, &model, &mut tree_state, &params, &mut bus);
-        }
+            build_hierarchy_rows(&mut scope, &world, 1, "", None, &mut bus)
+        };
+        assert_eq!(total, 4);
 
         let mut row_icon_widths = Vec::new();
         tree.traverse_depth_first(root, &mut |_id, node| {
@@ -534,26 +523,15 @@ mod tests {
         let e1 = world.spawn((ae_core::ecs::Name("Entity 1".into()),));
         let e2 = world.spawn((ae_core::ecs::Name("Entity 2".into()),));
 
-        let mut tree_state = TreeState::expanded_by_default();
-        let mut model = TreeModel::new();
-        model.sync(
-            &SceneHierarchySource(&world),
-            &tree_state,
-            1,
-            world.len() as usize,
-            "",
-        );
-        assert_eq!(model.visible_count(), 3);
-
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");
-        let params = default_test_params(&world);
         let mut bus = ActionBus::new();
 
-        {
+        let total = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_hierarchy_rows(&mut scope, &model, &mut tree_state, &params, &mut bus);
-        }
+            build_hierarchy_rows(&mut scope, &world, 1, "", None, &mut bus)
+        };
+        assert_eq!(total, 3);
 
         let mut row_bgs = Vec::new();
         tree.traverse_depth_first(root, &mut |_id, node| {

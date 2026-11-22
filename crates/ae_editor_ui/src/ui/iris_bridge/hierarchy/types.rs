@@ -100,49 +100,14 @@ pub const fn make_foldout_tag(row_idx: usize) -> u64 {
     HIERARCHY_TAG_FOLDOUT_BASE.indexed(row_idx as u64).raw()
 }
 
-/// Read-only view parameters passed to the Hierarchy panel declarative builder.
-pub struct HierarchyPanelParams<'a> {
-    /// Docked panel bounding rectangle.
-    pub panel_rect: Rect,
-    /// Active ECS world.
-    pub world: &'a hecs::World,
-    /// Currently selected entity.
-    pub selected_entity: Option<hecs::Entity>,
-    /// Active search filter query string.
-    pub search_query: &'a str,
-    /// Whether the editor is currently in edit mode (vs play mode).
-    pub is_editing: bool,
-    /// Whether the active dimension mode is 2D Sprite Engine mode.
-    pub is_2d: bool,
-    /// Caret blink phase indicator for text inputs.
-    pub blink_caret: bool,
-    /// Byte offset of the text cursor inside [`Self::search_query`].
-    pub cursor_byte_idx: usize,
-}
-
 /// Persistent UI state owned by the Scene Hierarchy panel.
 ///
-/// All popup open/close flags and context menu visibility are owned directly by
-/// [`UiTree`](irisui::core::UiTree); flattened row caches live inside [`TreeModel`].
-#[derive(Debug, Clone)]
+/// Popup visibility, expansion state, selection, and flattened DFS row caches are all
+/// managed autonomously inside `irisui` keyed by semantic tags.
+#[derive(Debug, Clone, Default)]
 pub struct HierarchyPanelState {
     /// Search input text state managing filter buffer, cursor, and selection.
     pub search_input: TextInputState,
-    /// Cached flattened DFS entity rows and filtered view managed by `irisui-widgets`.
-    pub model: TreeModel<hecs::Entity>,
-    /// Unified TreeState managing expanded and selected entity nodes.
-    pub tree_state: TreeState<hecs::Entity>,
-}
-
-impl Default for HierarchyPanelState {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            search_input: TextInputState::default(),
-            model: TreeModel::new(),
-            tree_state: TreeState::expanded_by_default(),
-        }
-    }
 }
 
 /// Semantic alias for [`HierarchyPanelState`].
@@ -155,8 +120,7 @@ mod tests {
     #[test]
     fn test_hierarchy_default_state() {
         let state = HierarchyPanelState::default();
-        assert_eq!(state.model.total_count(), 0);
-        assert!(state.tree_state.default_expanded);
+        assert!(state.search_input.text().is_empty());
     }
 
     #[test]

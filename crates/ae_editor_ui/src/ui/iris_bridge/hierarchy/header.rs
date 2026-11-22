@@ -8,12 +8,11 @@
 
 use super::types::{
     HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_SEARCH_CLEAR,
-    HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams,
+    HIERARCHY_TAG_SEARCH_INPUT,
 };
 use crate::ui::iris_bridge::icons::ICON_PLUS;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
-use irisui::widgets::declarative::InputBoxProps;
 use irisui::workbench::ActionBus;
 
 #[must_use]
@@ -72,7 +71,8 @@ fn hierarchy_delete_button_style(has_selection: bool) -> Style {
 /// Add entity menu trigger, and Delete selected entity button.
 pub fn build_hierarchy_header(
     scope: &mut UiScope<'_>,
-    params: &HierarchyPanelParams<'_>,
+    search_input: &mut TextInputState,
+    selected_entity: Option<hecs::Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.container_named(
@@ -84,18 +84,14 @@ pub fn build_hierarchy_header(
             .height(31.0)
             .padding_insets(Insets::new(4.0, 6.0, 3.0, 6.0)),
         |bar| {
-            bar.input_box_tagged(
-                &InputBoxProps::new(
-                    params.search_query,
-                    "Search...",
-                    (params.panel_rect.width - 68.0).max(60.0),
-                    false,
-                    params.blink_caret,
-                )
-                .with_icon("🔍")
-                .with_cursor_byte_idx(params.cursor_byte_idx)
-                .with_clear_tag(HIERARCHY_TAG_SEARCH_CLEAR.raw()),
-                HIERARCHY_TAG_SEARCH_INPUT.raw(),
+            bar.add(
+                TextInputField::new(search_input)
+                    .placeholder("Search...")
+                    .width(0.0)
+                    .search_icon()
+                    .clearable(true)
+                    .tag(HIERARCHY_TAG_SEARCH_INPUT.raw())
+                    .clear_tag(HIERARCHY_TAG_SEARCH_CLEAR.raw()),
             );
 
             bar.container_tagged_popup_toggle(
@@ -120,13 +116,13 @@ pub fn build_hierarchy_header(
 
             bar.container_tagged_resp(
                 "DeleteSelectedButton",
-                hierarchy_delete_button_style(params.selected_entity.is_some()),
+                hierarchy_delete_button_style(selected_entity.is_some()),
                 WidgetRole::Button,
                 HIERARCHY_TAG_DELETE_BUTTON.raw(),
-                |del_btn| render_delete_icon(del_btn, params.selected_entity.is_some()),
+                |del_btn| render_delete_icon(del_btn, selected_entity.is_some()),
             )
             .on_click(|| {
-                if params.selected_entity.is_some() {
+                if selected_entity.is_some() {
                     action_bus.emit(EngineUiAction::DeleteSelected);
                 }
             });

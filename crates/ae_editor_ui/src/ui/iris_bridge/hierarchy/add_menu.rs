@@ -7,7 +7,7 @@
 //! spawning 3D shapes, 2D sprites, UI Canvas widgets, asset imports, and benchmarks
 //! with zero heap allocations and direct `UiTree` + `ActionBus` wiring.
 
-use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyPanelParams};
+use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON};
 use crate::ui::UiElementType;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use crate::ui::types::EngineUiAction;
@@ -236,19 +236,19 @@ pub const fn hierarchy_add_menu_entries(
 /// is active, emitting clicked spawn actions directly to [`ActionBus`].
 pub fn draw_hierarchy_add_menu(
     scope: &mut UiScope<'_>,
-    params: &HierarchyPanelParams<'_>,
+    is_2d: bool,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) -> Option<Rect> {
-    scope.scoped_cascading_menu_anchored(
-        "HierarchyAddMenu",
-        HIERARCHY_TAG_ADD_BUTTON,
-        CascadingPopupConfig::new(185.0, PopupPlacement::Below).with_fallback_rect(Rect::new(
-            (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),
-            params.panel_rect.y + 4.0,
-            24.0,
-            24.0,
-        )),
-        hierarchy_add_menu_entries(params.is_2d),
-        |action| action_bus.emit(action.clone()),
-    )
+    scope
+        .scoped_cascading_popup_anchored_auto(
+            "HierarchyAddMenu",
+            HIERARCHY_TAG_ADD_BUTTON.raw(),
+            CascadingPopupConfig::new(185.0, PopupPlacement::Below),
+            |card| {
+                card.render_cascading_entries(hierarchy_add_menu_entries(is_2d), &mut |action| {
+                    action_bus.emit(action.clone())
+                });
+            },
+        )
+        .map(|res| res.response.rect)
 }
