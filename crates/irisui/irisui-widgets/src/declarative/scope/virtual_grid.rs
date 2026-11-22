@@ -22,8 +22,9 @@ pub struct VirtualGridConfig {
     pub name: &'static str,
     /// 64-bit semantic tag identifying the scrollable grid viewport container.
     pub tag: u64,
-    /// Bounding rectangle of the visible grid viewport in logical pixels.
-    pub viewport_rect: Rect,
+    /// Optional explicit bounding rectangle of the visible grid viewport in logical pixels.
+    /// When `None`, resolves autonomously from retained tag/parent layout geometry.
+    pub viewport_rect: Option<Rect>,
     /// Width of each individual grid cell in logical pixels.
     pub item_width: f32,
     /// Height of each individual grid cell in logical pixels.
@@ -39,14 +40,34 @@ pub struct VirtualGridConfig {
 }
 
 impl VirtualGridConfig {
-    /// Creates a new virtualized grid configuration with default 115x125 cell dimensions and 10px gap.
+    /// Creates a new virtualized grid configuration with an explicit viewport rectangle,
+    /// default 115x125 cell dimensions, and 10px gap.
     #[inline]
     #[must_use]
     pub const fn new(name: &'static str, tag: u64, viewport_rect: Rect) -> Self {
         Self {
             name,
             tag,
-            viewport_rect,
+            viewport_rect: Some(viewport_rect),
+            item_width: 115.0,
+            item_height: 125.0,
+            spacing: (10.0, 10.0),
+            padding: (10.0, 10.0),
+            background: None,
+            scrollbar_tags: None,
+        }
+    }
+
+    /// Creates a virtualized grid configuration whose viewport bounds resolve automatically
+    /// from retained layout geometry (`UiTree::tag_rect` / `UiScope::available_rect`) and
+    /// expand via flexbox inside its parent container.
+    #[inline]
+    #[must_use]
+    pub const fn auto(name: &'static str, tag: u64) -> Self {
+        Self {
+            name,
+            tag,
+            viewport_rect: None,
             item_width: 115.0,
             item_height: 125.0,
             spacing: (10.0, 10.0),
@@ -165,38 +186,120 @@ where
         let cfg = self.config;
         let total = self.total_items;
         if total == 0 {
-            if let Some(empty) = self.empty_fn {
-                empty(self.scope);
+            let empty_style = if let Some(explicit) = cfg.viewport_rect {
+                Style::new()
+                    .flex_col()
+                    .width(explicit.width)
+                    .height(explicit.height)
+            } else {
+                Style::new()
+                    .flex_col()
+                    .flex_grow(1.0)
+                    .min_width(0.0)
+                    .min_height(0.0)
+            };
+            let empty_fn = self.empty_fn;
+            let resp = self.scope.container_tagged_resp(
+                cfg.name,
+                empty_style,
+                WidgetRole::ScrollAreaViewport,
+                cfg.tag,
+                |vp| {
+                    if let Some(empty) = empty_fn {
+                        empty(vp);
+                    }
+                },
+            );
+            if let Some(ctx_fn) = self.context_menu_fn {
+                resp.context_menu(self.scope, ctx_fn);
             }
             return None;
         }
 
+        let vp_rect = cfg.viewport_rect.unwrap_or_else(|| {
+            let avail = self.scope.available_rect();
+            let rem_w = self.scope.resolve_remaining_axis_from_ancestors(true);
+            let rem_h = self.scope.resolve_remaining_axis_from_ancestors(false);
+            let cached = self
+                .scope
+                .tree
+                .tag_rect(cfg.tag)
+                .filter(|r| r.width > 1.0 && r.height > 1.0)
+                .or_else(|| {
+                    self.scope
+                        .tree
+                        .viewport_size(cfg.tag)
+                        .filter(|s| s.width > 1.0 && s.height > 1.0)
+                        .map(|s| Rect::new(avail.x, avail.y, s.width, s.height))
+                });
+            match cached {
+                Some(c) => Rect::new(
+                    c.x,
+                    c.y,
+                    rem_w.unwrap_or(c.width),
+                    rem_h.unwrap_or(c.height),
+                ),
+                None => Rect::new(
+                    avail.x,
+                    avail.y,
+                    rem_w.unwrap_or(avail.width),
+                    rem_h.unwrap_or(avail.height),
+                ),
+            }
+        });
+
         let grid = ResponsiveGrid::new(cfg.item_width, cfg.item_height)
             .spacing(cfg.spacing.0, cfg.spacing.1)
             .padding(cfg.padding.0, cfg.padding.1);
-        let content_h = grid.compute_content_height(total, cfg.viewport_rect.width);
-        let scroll_y = self.scope.scroll_offset(cfg.tag);
-
-        let mut style = Style::new()
-            .flex_col()
-            .clip_children(true)
-            .scroll_offset_y(scroll_y)
-            .width(cfg.viewport_rect.width)
-            .height(cfg.viewport_rect.height);
-        if let Some(bg) = cfg.background {
-            style = style.background(bg);
+        let content_h = grid.compute_content_height(total, vp_rect.width);
+        let max_scroll = (content_h - vp_rect.height).max(0.0);
+        let scroll_y = self.scope.scroll_offset(cfg.tag).clamp(0.0, max_scroll);
+        if cfg.tag != 0 {
+            self.scope.tree.set_scroll_offset(cfg.tag, scroll_y);
+            self.scope.tree.set_max_scroll(cfg.tag, max_scroll);
         }
 
-        let resp = self
-            .scope
+        let host_style = if let Some(explicit) = cfg.viewport_rect {
+            Style::new()
+                .flex_col()
+                .width(explicit.width)
+                .height(explicit.height)
+        } else {
+            Style::new()
+                .flex_col()
+                .flex_grow(1.0)
+                .min_width(0.0)
+                .min_height(0.0)
+        };
+        let mut vp_style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .min_width(0.0)
+            .min_height(0.0)
+            .clip_children(true)
+            .scroll_offset_y(scroll_y);
+        if let Some(bg) = cfg.background {
+            vp_style = vp_style.background(bg);
+        }
+
+        let context_menu_fn = self.context_menu_fn;
+        let host_id = self.scope.tree.create_node();
+        if let Some(host) = self.scope.tree.get_mut(host_id) {
+            host.set_name("VirtualGridHost");
+            host.set_style(host_style);
+        }
+        let _ = self.scope.tree.add_child(self.scope.parent, host_id);
+
+        let mut host_scope = self.scope.child_scope(host_id);
+        let resp = host_scope
             .container_tagged_resp(
                 cfg.name,
-                style,
+                vp_style,
                 WidgetRole::ScrollAreaViewport,
                 cfg.tag,
                 |viewport| {
                     grid.for_each_visible_cell(
-                        cfg.viewport_rect,
+                        vp_rect,
                         total,
                         scroll_y,
                         |item_idx, local_pos, _world_rect| {
@@ -205,27 +308,24 @@ where
                     );
                 },
             )
-            .content_size(self.scope, Size::new(cfg.viewport_rect.width, content_h));
+            .content_size(&mut host_scope, Size::new(vp_rect.width, content_h));
 
-        if let Some(ctx_fn) = self.context_menu_fn {
-            resp.context_menu(self.scope, ctx_fn);
+        if let Some(ctx_fn) = context_menu_fn {
+            resp.context_menu(&mut host_scope, ctx_fn);
         }
 
         if let Some((track_tag, thumb_tag)) = cfg.scrollbar_tags
-            && content_h > cfg.viewport_rect.height
+            && content_h > vp_rect.height
         {
             let scroll_style = ScrollAreaStyle::dark_default();
-            if let Some(geom) = ScrollBarGeometry::compute_vertical(
-                cfg.viewport_rect,
-                content_h,
-                scroll_y,
-                &scroll_style,
-            ) {
-                let is_dragging = self.scope.is_tag_captured(thumb_tag);
-                let cursor_pos = self.scope.cursor_pos();
-                self.scope.scrollbar_vertical(
+            if let Some(geom) =
+                ScrollBarGeometry::compute_vertical(vp_rect, content_h, scroll_y, &scroll_style)
+            {
+                let is_dragging = host_scope.is_tag_captured(thumb_tag);
+                let cursor_pos = host_scope.cursor_pos();
+                host_scope.scrollbar_vertical(
                     geom,
-                    cfg.viewport_rect,
+                    vp_rect,
                     is_dragging,
                     cursor_pos,
                     track_tag,
@@ -316,5 +416,109 @@ mod tests {
             rendered_indices.len()
         );
         assert!(rendered_indices[1].1.x > rendered_indices[0].1.x);
+    }
+
+    #[test]
+    fn test_virtual_grid_empty_context_menu_and_auto_dock_resize() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let grid_tag = 7701;
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            scope.container_named(
+                "DockLeaf",
+                Style::new().flex_col().width(500.0).height(300.0),
+                |leaf| {
+                    leaf.virtual_grid(0, VirtualGridConfig::auto("EmptyGrid", grid_tag))
+                        .empty_state(|vp| {
+                            vp.label("EmptyGridHere");
+                        })
+                        .context_menu(|menu| {
+                            menu.label("CreateHere");
+                        })
+                        .render_item(|_, _, _| {});
+                },
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 500.0, 300.0));
+        }
+
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.text.as_deref() == Some("EmptyGridHere"))
+        );
+        let click_pt = Point::new(50.0, 50.0);
+        assert!(
+            tree.dispatch_event(&irisui_core::UiEvent::MouseDown {
+                button: irisui_core::MouseButton::Right,
+                point: click_pt,
+            })
+            .is_consumed()
+        );
+        let _ = tree.dispatch_event(&irisui_core::UiEvent::MouseUp {
+            button: irisui_core::MouseButton::Right,
+            point: click_pt,
+        });
+        tree.clear();
+        let root_ctx = tree.create_root().expect("root_ctx");
+        {
+            let mut scope = UiScope::new(&mut tree, root_ctx);
+            scope.container_named(
+                "DockLeaf",
+                Style::new().flex_col().width(500.0).height(300.0),
+                |leaf| {
+                    leaf.virtual_grid(0, VirtualGridConfig::auto("EmptyGrid", grid_tag))
+                        .empty_state(|vp| {
+                            vp.label("EmptyGridHere");
+                        })
+                        .context_menu(|menu| {
+                            menu.label("CreateHere");
+                        })
+                        .render_item(|_, _, _| {});
+                },
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 500.0, 300.0));
+        }
+        assert!(
+            tree.iter()
+                .any(|(_, n)| n.text.as_deref() == Some("CreateHere"))
+        );
+
+        // Resize dock width from stale 900px down to 260px -> should fit 1-2 cols max
+        tree.clear();
+        tree.set_tag_rect(grid_tag, Rect::new(0.0, 0.0, 900.0, 300.0));
+        let root2 = tree.create_root().expect("root2");
+        let mut max_x = 0.0_f32;
+        {
+            let mut scope = UiScope::new(&mut tree, root2);
+            scope.container_named(
+                "DockLeaf",
+                Style::new().flex_col().width(260.0).height(300.0),
+                |leaf| {
+                    leaf.virtual_grid(
+                        12,
+                        VirtualGridConfig::auto("AutoGrid", grid_tag)
+                            .with_cell_size(110.0, 100.0, 8.0),
+                    )
+                    .render_item(|vp, idx, pos| {
+                        max_x = max_x.max(pos.x + 110.0);
+                        vp.empty_box(
+                            Style::new()
+                                .position_absolute()
+                                .left(pos.x)
+                                .top(pos.y)
+                                .width(110.0)
+                                .height(100.0),
+                        );
+                        let _ = idx;
+                    });
+                },
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 260.0, 300.0));
+        }
+        assert!(
+            max_x <= 260.0,
+            "Grid must lay out within new 260px width rather than stale 900px, got max_x={max_x}"
+        );
     }
 }
