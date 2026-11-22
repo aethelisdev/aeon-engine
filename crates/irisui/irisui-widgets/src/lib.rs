@@ -41,11 +41,12 @@ pub use declarative::scope::{
     DataTableConfig, DropdownCardConfig, DualActionBarResponse, ImmediateCanvasSpec, InputBoxStyle,
     LabeledStatusDescriptor, LiveTextProps, LogRowDescriptor, ModalDescriptor,
     MultilineEditorProps, NumberLabelDescriptor, PopupCardStyle, PropertyActionRow,
-    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse, ScrubberMarker,
-    ScrubberResponse, ScrubberTrackSpec, SelectPillTriggerStyle, TabBarResponse, TableColumnSpec,
-    TableColumnWidth, TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec, TrackLaneSpec,
-    TreeSelectionEvent, UiScope, VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder,
-    VirtualTreeConfig, WrappedLabelDescriptor,
+    PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
+    RetainedVirtualTreeBuilder, ScrubberMarker, ScrubberResponse, ScrubberTrackSpec,
+    SelectPillTriggerStyle, TabBarResponse, TableColumnSpec, TableColumnWidth, TextInputField,
+    TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec, TrackLaneSpec, TreeSelectionEvent, UiScope,
+    VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
+    VirtualTreeResponse, WrappedLabelDescriptor,
 };
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
@@ -53,11 +54,13 @@ pub use declarative::widget::{
     Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, ContextMenuHost,
     DEFAULT_DRAG_PREVIEW_OFFSET, DEFAULT_OVERSCAN, DROP_TARGET_SEED, DragCurve, DragVec3,
     DropTargetId, DropTargetResponse, DropdownHost, DropdownItem, EmptyBox, FloatingDragPreview,
-    FloatingDragPreviewStyle, NumericDrag, POPUP_HOST_ITEM_SEED, TITLE_BAR_CONTROL_SEED, TitleBar,
-    TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
-    ViewportDropOverlay, VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice,
-    VirtualSliceParams, Widget, compute_slice, compute_virtual_slice, title_bar_close_tag,
-    title_bar_maximize_tag, title_bar_minimize_tag,
+    FloatingDragPreviewStyle, NumericDrag, POPUP_HOST_ITEM_SEED, PanZoomBoxResponse,
+    PanZoomBoxSpec, PanZoomScope, PanZoomSpec, PanZoomTransform, PanZoomViewportResponse,
+    PinGuideSpec, ScrollAreaView, TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction,
+    TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup, ViewportDropOverlay,
+    VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice, VirtualSliceParams, Widget,
+    compute_slice, compute_virtual_slice, snap_scalar, title_bar_close_tag, title_bar_maximize_tag,
+    title_bar_minimize_tag,
 };
 pub use floating_panel::{
     DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
@@ -91,10 +94,11 @@ pub mod prelude {
         PropertyColorSwatchRowResponse, PropertyPaletteConfig, PropertyPaletteResponse,
         PropertyTextOptions, ScrubberMarker, ScrubberResponse, ScrubberTrackSpec,
         SelectPillTriggerStyle, SelectionCardConfig, TabBarResponse, TableColumnSpec,
-        TableColumnWidth, TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec, TrackLaneSpec,
-        TreeSelectionEvent, TreeViewConfig, UiScope, VerticalScrollbarSpec, VirtualGridBuilder,
-        VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig, WrappedLabelDescriptor,
-        euler_deg_to_quat_xyzw, quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
+        TableColumnWidth, TextInputField, TimeRulerSpec, TimeRulerStyle, TrackLaneGroupSpec,
+        TrackLaneSpec, TreeSelectionEvent, TreeViewConfig, UiScope, VerticalScrollbarSpec,
+        VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
+        VirtualTreeResponse, WrappedLabelDescriptor, euler_deg_to_quat_xyzw,
+        quat_xyzw_to_euler_deg, resolve_euler_deg_from_quat_xyzw,
     };
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
@@ -106,11 +110,13 @@ pub mod prelude {
         DEFAULT_DRAG_PREVIEW_OFFSET, DEFAULT_OVERSCAN, DEFAULT_PROPERTY_LABEL_WIDTH,
         DROP_TARGET_SEED, DragCurve, DragVec2, DragVec3, DropTargetId, DropTargetResponse,
         DropdownHost, DropdownItem, EmptyBox, FloatingDragPreview, FloatingDragPreviewStyle,
-        NumericDrag, POPUP_HOST_ITEM_SEED, TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction,
-        TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup, Vec2Response,
-        Vec3Response, ViewportDropOverlay, VirtualList, VirtualListBuilder, VirtualListResponse,
-        VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
-        title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+        NumericDrag, POPUP_HOST_ITEM_SEED, PanZoomBoxResponse, PanZoomBoxSpec, PanZoomScope,
+        PanZoomSpec, PanZoomTransform, PanZoomViewportResponse, PinGuideSpec, ScrollAreaView,
+        TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse,
+        Toolbar, ToolbarButton, ToolbarGroup, Vec2Response, Vec3Response, ViewportDropOverlay,
+        VirtualList, VirtualListBuilder, VirtualListResponse, VirtualSlice, VirtualSliceParams,
+        compute_slice, compute_virtual_slice, snap_scalar, title_bar_close_tag,
+        title_bar_maximize_tag, title_bar_minimize_tag,
     };
     pub use crate::floating_panel::{
         FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,

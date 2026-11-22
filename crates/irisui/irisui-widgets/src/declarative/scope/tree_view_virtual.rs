@@ -39,6 +39,10 @@ pub struct VirtualTreeConfig<Id> {
     pub filtered_empty_notice: &'static str,
     /// Optional external primary selected identifier highlighted in addition to `TreeState`.
     pub external_selected: Option<Id>,
+    /// Default expansion behavior applied by [`UiScope::virtual_tree_retained`].
+    pub default_expanded: bool,
+    /// Optional initial 64-bit node keys seeded expanded on first initialization.
+    pub initial_expanded_keys: &'static [u64],
     /// Row styling, indentation, height, and branch line visual configuration.
     pub tree_config: TreeViewConfig,
 }
@@ -65,6 +69,8 @@ impl<Id> VirtualTreeConfig<Id> {
             empty_notice: "Tree is empty",
             filtered_empty_notice: "No matching items found",
             external_selected: None,
+            default_expanded: false,
+            initial_expanded_keys: &[],
             tree_config: TreeViewConfig::new(),
         }
     }
@@ -90,6 +96,22 @@ impl<Id> VirtualTreeConfig<Id> {
     #[must_use]
     pub fn with_external_selected(mut self, external_selected: Option<Id>) -> Self {
         self.external_selected = external_selected;
+        self
+    }
+
+    /// Configures whether nodes default to expanded or collapsed in [`UiScope::virtual_tree_retained`].
+    #[inline]
+    #[must_use]
+    pub const fn with_default_expanded(mut self, default_expanded: bool) -> Self {
+        self.default_expanded = default_expanded;
+        self
+    }
+
+    /// Seeds initial expanded 64-bit node keys on first [`UiScope::virtual_tree_retained`] render.
+    #[inline]
+    #[must_use]
+    pub const fn with_initial_expanded_keys(mut self, keys: &'static [u64]) -> Self {
+        self.initial_expanded_keys = keys;
         self
     }
 
@@ -313,6 +335,14 @@ mod tests {
 
     impl<'a> TreeDataSource for SliceSource<'a> {
         type Id = u32;
+
+        fn node_key(&self, id: Self::Id) -> u64 {
+            u64::from(id)
+        }
+
+        fn id_from_key(&self, key: u64) -> Option<Self::Id> {
+            u32::try_from(key).ok()
+        }
 
         fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
             for &(id, parent, _) in self.0 {

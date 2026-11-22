@@ -24,6 +24,7 @@ pub mod labeled_input;
 pub mod menu;
 pub mod menu_bar;
 pub mod modal;
+pub mod modal_descriptor;
 pub mod multiline;
 pub mod nav_item;
 pub mod panel;
@@ -34,6 +35,7 @@ pub mod properties;
 pub mod root;
 pub mod scoped_popup;
 pub mod scroll_area;
+pub mod scroll_area_options;
 pub mod select_pill;
 pub mod selection_card;
 pub mod spacing;
@@ -43,6 +45,7 @@ pub mod time_ruler;
 pub mod title_bar;
 pub mod tooltip;
 pub mod tree_view;
+pub mod tree_view_retained;
 pub mod tree_view_virtual;
 pub mod virtual_grid;
 
@@ -59,12 +62,13 @@ pub use multiline::MultilineEditorProps;
 pub use nav_item::NavItemConfig;
 pub use panel::PanelBuilder;
 pub use primary_button::PrimaryButtonConfig;
-pub use scroll_area::ScrollAreaConfig;
+pub use scroll_area::{ScrollAreaConfig, ScrollAreaOptions};
 pub use selection_card::SelectionCardConfig;
 pub use tabs::TabBarResponse;
 pub use title_bar::TitleBarBuilder;
 pub use tooltip::TooltipExt;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
+pub use tree_view_retained::{RetainedVirtualTreeBuilder, VirtualTreeResponse};
 pub use tree_view_virtual::{TreeSelectionEvent, VirtualTreeBuilder, VirtualTreeConfig};
 pub use virtual_grid::{VirtualGridBuilder, VirtualGridConfig};
 
@@ -85,7 +89,8 @@ pub use display::{
 };
 pub use input::ComboRowLayout;
 pub use input_box::{
-    InputBoxProps, InputBoxStyle, calculate_visible_slice_and_caret, measure_text_advance,
+    InputBoxProps, InputBoxStyle, TextInputField, calculate_visible_slice_and_caret,
+    measure_text_advance,
 };
 pub use menu::{CascadingMenuEntry, CascadingPopupConfig, PopupExt, PopupPlacement};
 pub use properties::{

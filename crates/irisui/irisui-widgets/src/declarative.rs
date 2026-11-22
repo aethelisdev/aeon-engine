@@ -35,13 +35,13 @@ pub use scope::{
     LabeledStatusDescriptor, LiveTextProps, PopupCardStyle, PopupExt, PopupPlacement,
     PropertyActionRow, PropertyColorResponse, PropertyPaletteConfig, PropertyPaletteResponse,
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, ScrubberMarker, ScrubberResponse,
-    ScrubberTrackSpec, SelectPillTriggerStyle, TableColumnSpec, TableColumnWidth, TimeRulerSpec,
-    TimeRulerStyle, TooltipExt, TrackLaneGroupSpec, TrackLaneSpec, TreeNodeProps, TreeRowProps,
-    TreeRowResponse, TreeSelectionEvent, TreeViewConfig, TreeViewProps, UiScope,
-    VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder, VirtualTreeConfig,
-    WrappedLabelDescriptor, calculate_visible_slice_and_caret, measure_text_advance,
-    property_vec3_axis_tag, property_vec3_reset_tag, resolve_hsv_from_color,
+    PropertyVec3Response, PropertyVec3Target, ScrollAreaConfig, ScrollAreaOptions, ScrubberMarker,
+    ScrubberResponse, ScrubberTrackSpec, SelectPillTriggerStyle, TableColumnSpec, TableColumnWidth,
+    TextInputField, TimeRulerSpec, TimeRulerStyle, TooltipExt, TrackLaneGroupSpec, TrackLaneSpec,
+    TreeNodeProps, TreeRowProps, TreeRowResponse, TreeSelectionEvent, TreeViewConfig,
+    TreeViewProps, UiScope, VirtualGridBuilder, VirtualGridConfig, VirtualTreeBuilder,
+    VirtualTreeConfig, WrappedLabelDescriptor, calculate_visible_slice_and_caret,
+    measure_text_advance, property_vec3_axis_tag, property_vec3_reset_tag, resolve_hsv_from_color,
     resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };
 pub use subtree::{SubtreeSession, rebuild_leaf_subtree};
@@ -51,8 +51,10 @@ pub use types::{
 };
 pub use widget::{
     Button, Checkbox, Chip, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,
-    ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, ScalarResponse, ScrollAreaView, TitleBar,
-    TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
-    ToolbarGroupScope, ToolbarScope, Vec3Response, ViewportDropOverlay, Widget,
-    title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+    ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, PanZoomBoxResponse, PanZoomBoxSpec,
+    PanZoomScope, PanZoomSpec, PanZoomTransform, PanZoomViewportResponse, PinGuideSpec,
+    ScalarResponse, ScrollAreaView, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse,
+    Toolbar, ToolbarButton, ToolbarGroup, ToolbarGroupScope, ToolbarScope, Vec3Response,
+    ViewportDropOverlay, Widget, snap_scalar, title_bar_close_tag, title_bar_maximize_tag,
+    title_bar_minimize_tag,
 };

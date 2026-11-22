@@ -24,10 +24,10 @@ pub struct TreeNodeCollector<Id>
 where
     Id: Eq + Hash,
 {
-    all_nodes: Vec<Id>,
-    parent_map: HashMap<Id, Id>,
-    children_map: HashMap<Id, Vec<Id>>,
-    root_ids: Vec<Id>,
+    pub(crate) all_nodes: Vec<Id>,
+    pub(crate) parent_map: HashMap<Id, Id>,
+    pub(crate) children_map: HashMap<Id, Vec<Id>>,
+    pub(crate) root_ids: Vec<Id>,
 }
 
 impl<Id> Default for TreeNodeCollector<Id>
@@ -68,7 +68,7 @@ where
         }
     }
 
-    fn clear_buffers(&mut self) {
+    pub(crate) fn clear_buffers(&mut self) {
         self.all_nodes.clear();
         self.parent_map.clear();
         for children in self.children_map.values_mut() {
@@ -85,6 +85,12 @@ where
 pub trait TreeDataSource {
     /// Stable node identifier (`Copy`, hashable, and deterministically orderable).
     type Id: Copy + Eq + Hash + Ord;
+
+    /// Returns a stable opaque 64-bit key uniquely identifying `id` for retained tree storage.
+    fn node_key(&self, id: Self::Id) -> u64;
+
+    /// Resolves the typed domain identifier corresponding to an opaque 64-bit `key`, if valid.
+    fn id_from_key(&self, key: u64) -> Option<Self::Id>;
 
     /// Emits every visible node and its optional parent relationship into `collector`.
     fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>);
@@ -418,6 +424,14 @@ mod tests {
     impl<'a> TreeDataSource for MockTreeSource<'a> {
         type Id = u32;
 
+        fn node_key(&self, id: Self::Id) -> u64 {
+            u64::from(id)
+        }
+
+        fn id_from_key(&self, key: u64) -> Option<Self::Id> {
+            u32::try_from(key).ok()
+        }
+
         fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
             collector.reserve(self.items.len());
             for &(id, parent, _) in self.items {
@@ -436,6 +450,14 @@ mod tests {
 
     impl TreeDataSource for AlternateSource {
         type Id = u32;
+
+        fn node_key(&self, id: Self::Id) -> u64 {
+            u64::from(id)
+        }
+
+        fn id_from_key(&self, key: u64) -> Option<Self::Id> {
+            u32::try_from(key).ok()
+        }
 
         fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
             collector.push_node(99, None);
