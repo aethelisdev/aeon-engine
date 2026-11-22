@@ -8,7 +8,7 @@
 
 use super::types::{
     STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_JITTER, STATS_TAG_LOW_01, STATS_TAG_LOW_1,
-    STATS_TAG_SUMMARY, StatsPanelParams,
+    STATS_TAG_SUMMARY,
 };
 use ae_core::telemetry::{FramePacingStats, FrameRingBuffer};
 use irisui::prelude::*;
@@ -16,18 +16,21 @@ use irisui::widgets::canvas::ChartDrawer;
 use std::fmt::Write;
 
 /// Builds the Frame Pacing & Stutter Analyzer section inside the declarative stats card.
-pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
+pub fn build_frame_pacing_content(
+    scope: &mut UiScope<'_>,
+    frame_pacing: &FrameRingBuffer<240>,
+    frame_pacing_stats: &FramePacingStats,
+) {
     scope.metric_grid(6.0, |s| {
         s.metric_row(6.0, |r| {
             r.metric_pill_fmt::<32, _>(
                 "Avg FPS",
                 STATS_TAG_AVG_FPS,
-                get_fps_color(params.frame_pacing_stats.average_fps),
+                get_fps_color(frame_pacing_stats.average_fps),
                 |buf| {
                     buf.write_fmt(format_args!(
                         "{:.0} ({:.2}ms)",
-                        params.frame_pacing_stats.average_fps,
-                        params.frame_pacing_stats.average_frametime_ms
+                        frame_pacing_stats.average_fps, frame_pacing_stats.average_frametime_ms
                     ))
                     .ok();
                 },
@@ -35,11 +38,11 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
             r.metric_pill_fmt::<24, _>(
                 "1% Low",
                 STATS_TAG_LOW_1,
-                get_fps_color(params.frame_pacing_stats.low_1_percent_fps),
+                get_fps_color(frame_pacing_stats.low_1_percent_fps),
                 |buf| {
                     buf.write_fmt(format_args!(
                         "{:.0} FPS",
-                        params.frame_pacing_stats.low_1_percent_fps
+                        frame_pacing_stats.low_1_percent_fps
                     ))
                     .ok();
                 },
@@ -50,11 +53,11 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
             r.metric_pill_fmt::<24, _>(
                 "0.1% Low",
                 STATS_TAG_LOW_01,
-                get_fps_color(params.frame_pacing_stats.low_0_1_percent_fps),
+                get_fps_color(frame_pacing_stats.low_0_1_percent_fps),
                 |buf| {
                     buf.write_fmt(format_args!(
                         "{:.0} FPS",
-                        params.frame_pacing_stats.low_0_1_percent_fps
+                        frame_pacing_stats.low_0_1_percent_fps
                     ))
                     .ok();
                 },
@@ -62,13 +65,10 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
             r.metric_pill_fmt::<24, _>(
                 "Jitter",
                 STATS_TAG_JITTER,
-                get_jitter_color(params.frame_pacing_stats.variance_ms),
+                get_jitter_color(frame_pacing_stats.variance_ms),
                 |buf| {
-                    buf.write_fmt(format_args!(
-                        "±{:.2} ms",
-                        params.frame_pacing_stats.variance_ms
-                    ))
-                    .ok();
+                    buf.write_fmt(format_args!("±{:.2} ms", frame_pacing_stats.variance_ms))
+                        .ok();
                 },
             );
         });
@@ -78,14 +78,14 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
             STATS_TAG_CANVAS,
             Style::new().height(92.0),
             |canvas| {
-                draw_oscilloscope_canvas(canvas, Some(params.frame_pacing));
+                draw_oscilloscope_canvas(canvas, Some(frame_pacing));
             },
         );
 
         s.text_colored_tagged_fmt::<64, _>(
-            get_summary_color(params.frame_pacing_stats),
+            get_summary_color(frame_pacing_stats),
             STATS_TAG_SUMMARY,
-            |buf| write_pacing_summary(buf, params.frame_pacing_stats),
+            |buf| write_pacing_summary(buf, frame_pacing_stats),
         );
     });
 }
@@ -160,7 +160,7 @@ fn draw_oscilloscope_with_bounds(
         );
     }
 
-    if let Some(pacing) = pacing {
+    pacing.into_iter().for_each(|pacing| {
         canvas.draw_chart_polyline(
             |idx| pacing.get_chronological(idx),
             pacing.count(),
@@ -168,7 +168,7 @@ fn draw_oscilloscope_with_bounds(
             60,
             get_frametime_color,
         );
-    }
+    });
 }
 
 #[inline]
@@ -188,9 +188,6 @@ fn draw_threshold_line(
 
 /// Updates oscilloscope telemetry text labels in place using zero-heap [`StackString`] formatting.
 pub fn update_oscilloscope_texts(scope: &mut UiScope<'_>, stats: &FramePacingStats) -> bool {
-    if scope.node_id_tagged(STATS_TAG_AVG_FPS).is_none() {
-        return false;
-    }
     scope.update_live_text_colored_fmt::<32, _>(
         STATS_TAG_AVG_FPS,
         get_fps_color(stats.average_fps),
@@ -235,9 +232,6 @@ pub fn refresh_live_oscilloscope(
     pacing: &FrameRingBuffer,
     stats: &FramePacingStats,
 ) -> bool {
-    if scope.node_id_tagged(STATS_TAG_CANVAS).is_none() {
-        return false;
-    }
     scope.update_live_canvas(STATS_TAG_CANVAS, |canvas| {
         draw_oscilloscope_canvas(canvas, Some(pacing));
     }) | update_oscilloscope_texts(scope, stats)

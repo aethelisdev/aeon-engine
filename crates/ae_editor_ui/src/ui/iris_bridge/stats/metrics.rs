@@ -6,7 +6,7 @@
 //! Renders the geometry metrics card and VRAM allocation distribution card
 //! purely using zero-`let`, zero-heap [`UiScope`] and [`StackString`] primitives.
 
-use super::types::StatsPanelParams;
+use ae_core::telemetry::{DrawCallBreakdown, VramStats};
 use irisui::prelude::*;
 use std::fmt::Write;
 
@@ -20,7 +20,13 @@ fn instanced_percent(total_dc: u32, instanced: u32) -> u32 {
 }
 
 /// Builds the Scene & Geometry Metrics section inside the declarative stats card.
-pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
+pub fn build_scene_geometry_content(
+    scope: &mut UiScope<'_>,
+    draw_call_stats: &DrawCallBreakdown,
+    render_triangles: u64,
+    render_vertices: u64,
+    active_entities_count: usize,
+) {
     scope.container(Style::new().flex_col().gap(4.0), |s| {
         s.container(
             Style::new()
@@ -30,7 +36,7 @@ pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanel
             |hr| {
                 hr.text_colored("Draw Calls:", Color::rgba(0.86, 0.88, 0.92, 1.0));
                 hr.text_colored_fmt::<16, _>(Color::rgba(0.0, 0.82, 0.63, 1.0), |buf| {
-                    buf.write_fmt(format_args!("{}", params.draw_call_stats.total_draw_calls))
+                    buf.write_fmt(format_args!("{}", draw_call_stats.total_draw_calls))
                         .ok();
                 });
                 hr.spacer();
@@ -38,8 +44,8 @@ pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanel
                     buf.write_fmt(format_args!(
                         "{}% Instanced",
                         instanced_percent(
-                            params.draw_call_stats.total_draw_calls,
-                            params.draw_call_stats.instanced_draw_calls
+                            draw_call_stats.total_draw_calls,
+                            draw_call_stats.instanced_draw_calls
                         )
                     ))
                     .ok();
@@ -50,22 +56,22 @@ pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanel
         [
             (
                 "Batched Primitives",
-                params.draw_call_stats.batched_draw_calls,
+                draw_call_stats.batched_draw_calls,
                 Color::rgba(0.0, 0.75, 0.90, 1.0),
             ),
             (
                 "Hardware Instanced",
-                params.draw_call_stats.instanced_draw_calls,
+                draw_call_stats.instanced_draw_calls,
                 Color::rgba(0.39, 0.86, 0.39, 1.0),
             ),
             (
                 "Dispatched Compute",
-                params.draw_call_stats.dispatched_compute,
+                draw_call_stats.dispatched_compute,
                 Color::rgba(0.94, 0.71, 0.20, 1.0),
             ),
             (
                 "Culled / Occluded",
-                params.draw_call_stats.culled_meshes,
+                draw_call_stats.culled_meshes,
                 Color::rgba(0.71, 0.55, 0.86, 1.0),
             ),
         ]
@@ -81,14 +87,14 @@ pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanel
             0,
             Color::rgba(0.78, 0.90, 1.0, 1.0),
             None,
-            |buf| write_compact_count(buf, params.render_triangles),
+            |buf| write_compact_count(buf, render_triangles),
         );
         s.metric_dot_row_fmt::<24, _>(
             "Vertices Rendered",
             0,
             Color::rgba(0.78, 0.90, 1.0, 1.0),
             None,
-            |buf| write_compact_count(buf, params.render_vertices),
+            |buf| write_compact_count(buf, render_vertices),
         );
         s.metric_dot_row_fmt::<24, _>(
             "Scene Entities",
@@ -96,20 +102,15 @@ pub fn build_scene_geometry_content(scope: &mut UiScope<'_>, params: &StatsPanel
             Color::rgba(0.47, 0.55, 0.71, 1.0),
             None,
             |buf| {
-                buf.write_fmt(format_args!("{}", params.active_entities_count))
-                    .ok();
+                buf.write_fmt(format_args!("{active_entities_count}")).ok();
             },
         );
     });
 }
 
 /// Builds the Video RAM & Memory Allocations section inside the declarative stats card.
-pub fn build_vram_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
-    build_vram_with_total(
-        scope,
-        params.vram_stats,
-        params.vram_stats.total_vram_mb.max(0.001),
-    );
+pub fn build_vram_breakdown_content(scope: &mut UiScope<'_>, vram_stats: &VramStats) {
+    build_vram_with_total(scope, vram_stats, vram_stats.total_vram_mb.max(0.001));
 }
 
 fn build_vram_with_total(

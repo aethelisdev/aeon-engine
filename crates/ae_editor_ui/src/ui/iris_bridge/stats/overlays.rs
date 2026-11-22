@@ -6,7 +6,7 @@
 //! Renders the wireframe mode and grid visibility interactive checkboxes
 //! purely using [`UiScope`] and [`ActionBus<EngineUiAction>`].
 
-use super::types::{STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, StatsPanelParams};
+use super::types::{STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME};
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
@@ -17,19 +17,20 @@ use irisui::workbench::ActionBus;
 /// and [`STATS_TAG_TOGGLE_GRID`] and dispatches directly into [`ActionBus`].
 pub fn build_viewport_overlays_content(
     scope: &mut UiScope<'_>,
-    params: &StatsPanelParams<'_>,
+    wireframe_enabled: bool,
+    grid_enabled: bool,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.container(Style::new().flex_col().gap(6.0), |s| {
         s.add(
-            Checkbox::new("🕸 Wireframe Mode (Edges)", params.wireframe_enabled)
+            Checkbox::new("🕸 Wireframe Mode (Edges)", wireframe_enabled)
                 .tag(STATS_TAG_TOGGLE_WIREFRAME),
         )
-        .on_click(|| action_bus.emit(EngineUiAction::SetWireframe(!params.wireframe_enabled)));
+        .on_click(|| action_bus.emit(EngineUiAction::SetWireframe(!wireframe_enabled)));
 
-        s.add(Checkbox::new("🔲 Show Grid", params.grid_enabled).tag(STATS_TAG_TOGGLE_GRID))
+        s.add(Checkbox::new("🔲 Show Grid", grid_enabled).tag(STATS_TAG_TOGGLE_GRID))
             .on_click(|| {
-                action_bus.emit(EngineUiAction::SetGridEnabled(!params.grid_enabled));
+                action_bus.emit(EngineUiAction::SetGridEnabled(!grid_enabled));
             });
     });
 }

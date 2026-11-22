@@ -9,7 +9,7 @@
 
 use super::types::{
     STATS_TAG_CPU_BALANCE, STATS_TAG_CPU_ECS, STATS_TAG_CPU_PHYSICS, STATS_TAG_CPU_RENDER,
-    STATS_TAG_CPU_TOTAL, STATS_TAG_CPU_UI, STATS_TAG_CPU_WAIT, StatsPanelParams,
+    STATS_TAG_CPU_TOTAL, STATS_TAG_CPU_UI, STATS_TAG_CPU_WAIT,
 };
 use ae_core::telemetry::CpuSyncTimings;
 use irisui::prelude::*;
@@ -26,8 +26,8 @@ fn total_cpu_ms(cpu: &CpuSyncTimings) -> f32 {
 }
 
 /// Builds the CPU Thread & Synchronization breakdown section inside the stats card.
-pub fn build_cpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
-    build_cpu_breakdown_with_total(scope, params.cpu_timings, total_cpu_ms(params.cpu_timings));
+pub fn build_cpu_breakdown_content(scope: &mut UiScope<'_>, cpu_timings: &CpuSyncTimings) {
+    build_cpu_breakdown_with_total(scope, cpu_timings, total_cpu_ms(cpu_timings));
 }
 
 fn build_cpu_breakdown_with_total(scope: &mut UiScope<'_>, cpu: &CpuSyncTimings, total_ms: f32) {
@@ -151,9 +151,6 @@ fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32, tag: u64
 
 /// Updates CPU timing breakdown labels in-place without tree reconstruction or layout passes.
 pub fn update_cpu_breakdown_texts(scope: &mut UiScope<'_>, cpu: &CpuSyncTimings) -> bool {
-    if scope.node_id_tagged(STATS_TAG_CPU_TOTAL).is_none() {
-        return false;
-    }
     update_cpu_breakdown_with_total(scope, cpu, total_cpu_ms(cpu))
 }
 

@@ -12,13 +12,10 @@ use crate::ui::iris_bridge::stats::panel::build_stats_panel;
 use crate::ui::iris_bridge::stats::types::{
     STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_CPU_BALANCE, STATS_TAG_CPU_TOTAL,
     STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_VIEWPORT,
-    StatsPanelParams, StatsPanelState, is_stats_tag,
+    StatsPanelState, is_stats_tag,
 };
-use crate::ui::types::EngineUiAction;
-use ae_core::telemetry::{
-    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer,
-    RenderPassRecordingTimings, VramStats,
-};
+use crate::ui::types::{EditorTelemetrySnapshot, EngineUiAction};
+use ae_core::telemetry::{CpuSyncTimings, FramePacingStats, FrameRingBuffer};
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
@@ -40,33 +37,26 @@ fn test_build_stats_panel_declarative_structure() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root must exist");
 
-    let ring = FrameRingBuffer::<240>::new();
-    let pacing_stats = FramePacingStats::default();
-    let cpu_timings = CpuSyncTimings::default();
-    let pass_recording_timings = RenderPassRecordingTimings::default();
-    let draw_calls = DrawCallBreakdown::default();
-    let vram_stats = VramStats::default();
-
-    let params = StatsPanelParams {
-        wireframe_enabled: true,
-        grid_enabled: false,
-        fps: 120.0,
-        frame_pacing: &ring,
-        frame_pacing_stats: &pacing_stats,
-        cpu_timings: &cpu_timings,
-        pass_recording_timings: &pass_recording_timings,
-        draw_call_stats: &draw_calls,
-        vram_stats: &vram_stats,
+    let telemetry = EditorTelemetrySnapshot {
         render_triangles: 125_000,
         render_vertices: 80_000,
-        gpu_adapter_name: "Test Adapter",
-        gpu_backend: "Vulkan",
-        active_entities_count: 42,
-        selected_entity: None,
+        ..Default::default()
     };
 
     let mut bus = ActionBus::new();
-    build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut bus);
+    crate::ui::panel_layout::PanelId::Stats
+        .surface()
+        .expect("Stats surface")
+        .show(&mut UiScope::new(&mut tree, root), |s| {
+            build_stats_panel(
+                s,
+                &telemetry,
+                ("Test Adapter", "Vulkan"),
+                42,
+                (true, false),
+                &mut bus,
+            );
+        });
     let max_scroll = tree.max_scroll(STATS_TAG_VIEWPORT);
     assert!(max_scroll >= 0.0);
 
@@ -106,29 +96,21 @@ fn test_stats_panel_state_ring_buffer_snapshot_and_live_text_refresh() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root");
     let mut bus = ActionBus::new();
-    let pacing_stats = FramePacingStats::default();
     let mut cpu_timings = CpuSyncTimings::default();
-    let pass_recording_timings = RenderPassRecordingTimings::default();
-    let draw_calls = DrawCallBreakdown::default();
-    let vram_stats = VramStats::default();
-    let params = StatsPanelParams {
-        wireframe_enabled: false,
-        grid_enabled: true,
-        fps: 60.0,
-        frame_pacing: &ring,
-        frame_pacing_stats: &pacing_stats,
-        cpu_timings: &cpu_timings,
-        pass_recording_timings: &pass_recording_timings,
-        draw_call_stats: &draw_calls,
-        vram_stats: &vram_stats,
+    let telemetry = EditorTelemetrySnapshot {
+        frame_pacing: ring,
         render_triangles: 100,
         render_vertices: 50,
-        gpu_adapter_name: "TestGpu",
-        gpu_backend: "Vulkan",
-        active_entities_count: 1,
-        selected_entity: None,
+        ..Default::default()
     };
-    build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut bus);
+    build_stats_panel(
+        &mut UiScope::new(&mut tree, root),
+        &telemetry,
+        ("TestGpu", "Vulkan"),
+        1,
+        (false, true),
+        &mut bus,
+    );
 
     cpu_timings.main_logic_ms = 5.5;
     let next_pacing = FramePacingStats {
@@ -156,35 +138,19 @@ fn test_stats_panel_declarative_action_bus_emission() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root must exist");
 
-    let ring = FrameRingBuffer::<240>::new();
-    let pacing_stats = FramePacingStats::default();
-    let cpu_timings = CpuSyncTimings::default();
-    let pass_recording_timings = RenderPassRecordingTimings::default();
-    let draw_calls = DrawCallBreakdown::default();
-    let vram_stats = VramStats::default();
-
-    let params = StatsPanelParams {
-        wireframe_enabled: true,
-        grid_enabled: false,
-        fps: 60.0,
-        frame_pacing: &ring,
-        frame_pacing_stats: &pacing_stats,
-        cpu_timings: &cpu_timings,
-        pass_recording_timings: &pass_recording_timings,
-        draw_call_stats: &draw_calls,
-        vram_stats: &vram_stats,
+    let telemetry = EditorTelemetrySnapshot {
         render_triangles: 5000,
         render_vertices: 3000,
-        gpu_adapter_name: "MockGPU",
-        gpu_backend: "Vulkan",
-        active_entities_count: 10,
-        selected_entity: None,
+        ..Default::default()
     };
 
     let mut initial_bus = ActionBus::new();
     build_stats_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &telemetry,
+        ("MockGPU", "Vulkan"),
+        10,
+        (true, false),
         &mut initial_bus,
     );
     assert!(initial_bus.is_empty());
@@ -193,7 +159,10 @@ fn test_stats_panel_declarative_action_bus_emission() {
     let mut clicked_bus = ActionBus::new();
     build_stats_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &telemetry,
+        ("MockGPU", "Vulkan"),
+        10,
+        (true, false),
         &mut clicked_bus,
     );
 

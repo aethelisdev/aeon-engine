@@ -7,7 +7,6 @@
 //! and pass durations purely using [`UiScope`] without intermediate `let`s or heap `format!`.
 
 use super::cpu_breakdown::{build_timing_row, write_ms_fixed2};
-use super::types::StatsPanelParams;
 use ae_core::telemetry::RenderPassRecordingTimings;
 use irisui::prelude::*;
 
@@ -21,13 +20,18 @@ fn total_record_ms(rec: &RenderPassRecordingTimings) -> f32 {
 }
 
 /// Builds the Render Pass Command Recording breakdown section inside the stats card.
-pub fn build_gpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
+pub fn build_gpu_breakdown_content(
+    scope: &mut UiScope<'_>,
+    pass_recording_timings: &RenderPassRecordingTimings,
+    gpu_adapter_name: &str,
+    gpu_backend: &str,
+) {
     build_gpu_breakdown_with_total(
         scope,
-        params.pass_recording_timings,
-        total_record_ms(params.pass_recording_timings),
-        params.gpu_adapter_name,
-        params.gpu_backend,
+        pass_recording_timings,
+        total_record_ms(pass_recording_timings),
+        gpu_adapter_name,
+        gpu_backend,
     );
 }
 

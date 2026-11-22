@@ -6,10 +6,7 @@
 //! Exposes parameter structures, semantic [`UiTag`] identifiers, and panel state
 //! for the pure declarative [`UiScope`] Stats & Profiler panel.
 
-use ae_core::telemetry::{
-    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer,
-    RenderPassRecordingTimings, VramStats,
-};
+use ae_core::telemetry::FrameRingBuffer;
 use irisui::prelude::*;
 
 // ── Semantic 64-bit Tags ──────────────────────────────────────────────────
@@ -93,40 +90,6 @@ const ALL_STATS_TAGS: &[u64] = &[
 #[inline]
 pub fn is_stats_tag(tag: u64) -> bool {
     ALL_STATS_TAGS.contains(&tag)
-}
-
-/// Parameter context bundle passed into the declarative Stats & Profiler builder.
-pub struct StatsPanelParams<'a> {
-    /// Whether wireframe edge mode is enabled.
-    pub wireframe_enabled: bool,
-    /// Whether the viewport coordinate grid is enabled.
-    pub grid_enabled: bool,
-    /// Smoothed frames per second.
-    pub fps: f32,
-    /// Historical frame pacing ring buffer (240 samples).
-    pub frame_pacing: &'a FrameRingBuffer<240>,
-    /// Calculated frametime variance, 1% low, and 0.1% low stats.
-    pub frame_pacing_stats: &'a FramePacingStats,
-    /// CPU thread synchronization timings breakdown.
-    pub cpu_timings: &'a CpuSyncTimings,
-    /// CPU command buffer recording and pass orchestration durations.
-    pub pass_recording_timings: &'a RenderPassRecordingTimings,
-    /// Granular draw call metrics and batch counts.
-    pub draw_call_stats: &'a DrawCallBreakdown,
-    /// Categorized VRAM memory consumption.
-    pub vram_stats: &'a VramStats,
-    /// Total rendered triangles in current frame.
-    pub render_triangles: u64,
-    /// Total rendered vertices in current frame.
-    pub render_vertices: u64,
-    /// Hardware GPU adapter device name.
-    pub gpu_adapter_name: &'a str,
-    /// Active graphics API backend (e.g. Vulkan, Metal, DX12).
-    pub gpu_backend: &'a str,
-    /// Count of active entities in the ECS world.
-    pub active_entities_count: usize,
-    /// Currently selected entity, if any.
-    pub selected_entity: Option<hecs::Entity>,
 }
 
 /// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
