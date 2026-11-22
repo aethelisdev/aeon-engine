@@ -4,8 +4,8 @@
 //! Persistent interaction, layout, and event state management for the UI tree.
 
 use crate::dispatch::{DispatchResult, dispatch_ui_event};
-use crate::event::{FocusManager, UiEvent};
-use crate::geometry::{Point, Rect, Size};
+use crate::event::UiEvent;
+use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetRole};
 
@@ -475,59 +475,6 @@ impl UiTree {
         self.custom_palettes.entry(palette_key).or_default()
     }
 
-    /// Returns the persistent vertical scroll position for the given semantic `tag`.
-    ///
-    /// Defaults to `0.0` if this tag has never been scrolled.
-    #[inline]
-    #[must_use]
-    pub fn scroll_offset(&self, tag: u64) -> f32 {
-        self.scroll_offsets.get(&tag).copied().unwrap_or(0.0)
-    }
-
-    /// Sets the persistent vertical scroll position for the given semantic `tag`.
-    #[inline]
-    pub fn set_scroll_offset(&mut self, tag: u64, offset: f32) {
-        self.scroll_offsets.insert(tag, offset.max(0.0));
-    }
-
-    /// Returns the resolved viewport size for the given semantic `tag` computed by layout.
-    #[inline]
-    #[must_use]
-    pub fn viewport_size(&self, tag: u64) -> Option<Size> {
-        self.viewport_sizes.get(&tag).copied()
-    }
-
-    /// Sets the resolved viewport size for the given semantic `tag`.
-    #[inline]
-    pub fn set_viewport_size(&mut self, tag: u64, size: Size) {
-        self.viewport_sizes.insert(tag, size);
-    }
-
-    /// Returns the maximum vertical scroll extent for the given semantic `tag`.
-    ///
-    /// Defaults to `0.0` if this tag has no measured scrollable overflow content.
-    #[inline]
-    #[must_use]
-    pub fn max_scroll(&self, tag: u64) -> f32 {
-        self.max_scrolls.get(&tag).copied().unwrap_or(0.0)
-    }
-
-    /// Sets the content size for the node identified by the semantic `tag`.
-    ///
-    /// Updates the measured content bounds used for scroll normalization and bounds checking.
-    #[inline]
-    pub fn set_content_size(&mut self, tag: u64, size: Size) {
-        if let Some(node) = self.find_node_by_tag(tag).and_then(|id| self.get_mut(id)) {
-            node.content_size = size;
-        }
-    }
-
-    /// Sets the maximum vertical scroll extent for the given semantic `tag`.
-    #[inline]
-    pub fn set_max_scroll(&mut self, tag: u64, max_scroll: f32) {
-        self.max_scrolls.insert(tag, max_scroll.max(0.0));
-    }
-
     /// Dispatches an incoming windowing event hierarchically through the tree.
     ///
     /// Evaluates pointer capture, layered z-order hit-testing, and event bubbling.
@@ -691,90 +638,5 @@ impl UiTree {
             .focused
             .and_then(|id| self.get(id))
             .is_some_and(|n| n.tag == tag)
-    }
-
-    /// Automatically synchronizes keyboard focus with the active text editing state,
-    /// dropping focus from the provided [`FocusManager`] when text editing concludes.
-    ///
-    /// Returns `true` if active focus was cleared during synchronization.
-    #[inline]
-    pub fn auto_sync_focus_state(&self, focus: &mut FocusManager) -> bool {
-        focus.auto_sync_focus_state(self)
-    }
-
-    /// Dispatches an incoming [`UiEvent`] windowing input through the UI graph and
-    /// automatically synchronizes the provided [`FocusManager`] with the resulting text edit state.
-    #[inline]
-    pub fn dispatch_event_with_focus(
-        &mut self,
-        event: &UiEvent,
-        focus: &mut FocusManager,
-    ) -> DispatchResult {
-        let result = self.dispatch_event(event);
-        focus.auto_sync_focus_state(self);
-        result
-    }
-
-    /// Returns the persistent keyboard modifier flags (`ctrl` / `shift`) held on the tree.
-    #[inline]
-    #[must_use]
-    pub const fn modifiers(&self) -> crate::event::InputModifiers {
-        self.event_state.modifiers
-    }
-
-    /// Assigns keyboard focus directly to the widget matching semantic `tag` (or clears focus when `tag == 0`).
-    ///
-    /// Keeps [`UiTree::event_state`] as the single source of truth by updating both
-    /// `focused_tag` and resolved `focused` node ID.
-    #[inline]
-    pub fn set_focus_tag(&mut self, tag: u64) {
-        if tag == 0 {
-            self.event_state.clear_focus();
-            return;
-        }
-        self.event_state.focused_tag = Some(tag);
-        self.event_state.focused = self.find_node_by_tag(tag);
-    }
-
-    /// Evaluates whether the scroll container associated with the specified semantic tag was scrolled in the current frame.
-    ///
-    /// Checks [`crate::dispatch::EventState::frame_scrolled_tag`] matching `tag`.
-    #[inline]
-    #[must_use]
-    pub fn is_tag_scrolled(&self, tag: u64) -> bool {
-        tag != 0 && self.event_state.frame_scrolled_tag == Some(tag)
-    }
-
-    /// Returns the mouse wheel or scrollbar displacement delta `(delta_x, delta_y)` for the specified container tag, if scrolled.
-    ///
-    /// Returns `None` if the container was not scrolled during the current dispatch cycle.
-    #[inline]
-    #[must_use]
-    pub fn tag_scroll_delta(&self, tag: u64) -> Option<(f32, f32)> {
-        if self.is_tag_scrolled(tag) {
-            self.event_state.frame_scroll_delta
-        } else {
-            None
-        }
-    }
-
-    /// Evaluates whether an upward scroll gesture (`delta_y > 0.0`) occurred on the specified tag during the current frame.
-    ///
-    /// In typical mouse wheel scrolling, an upward wheel roll produces positive `delta_y`,
-    /// moving viewport content towards the top (earlier entries) and decreasing scroll offset.
-    #[inline]
-    #[must_use]
-    pub fn is_tag_scrolled_up(&self, tag: u64) -> bool {
-        self.tag_scroll_delta(tag).is_some_and(|(_, dy)| dy > 0.0)
-    }
-
-    /// Evaluates whether a downward scroll gesture (`delta_y < 0.0`) occurred on the specified tag during the current frame.
-    ///
-    /// In typical mouse wheel scrolling, a downward wheel roll produces negative `delta_y`,
-    /// moving viewport content towards the bottom (later entries) and increasing scroll offset.
-    #[inline]
-    #[must_use]
-    pub fn is_tag_scrolled_down(&self, tag: u64) -> bool {
-        self.tag_scroll_delta(tag).is_some_and(|(_, dy)| dy < 0.0)
     }
 }

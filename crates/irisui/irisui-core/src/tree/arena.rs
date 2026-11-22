@@ -40,6 +40,8 @@ pub struct UiTree {
     pub collapsing_state: HashMap<u64, bool>,
     /// Persistent state map tracking vertical scroll positions, keyed by 64-bit semantic tag.
     pub scroll_offsets: HashMap<u64, f32>,
+    /// Persistent state map tracking active domain keys associated with scrollable viewports so key switches auto-reset scroll offset.
+    pub scroll_keys: HashMap<u64, u64>,
     /// Persistent state map tracking resolved viewport sizes from layout passes, keyed by 64-bit semantic tag.
     pub viewport_sizes: HashMap<u64, Size>,
     /// Persistent state map tracking maximum vertical scroll extents, keyed by 64-bit semantic tag.
@@ -73,6 +75,10 @@ pub struct UiTree {
     pub pending_static_text_sync: bool,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
+    /// Current text input caret blink visibility synced into declarative [`UiScope`] instances.
+    pub caret_blink: bool,
+    /// Retained tree expansion, selection, and flattened DFS row caches keyed by tree tag.
+    pub retained_trees: HashMap<u64, super::retained_tree::RetainedTreeState>,
 }
 
 impl UiTree {
@@ -85,6 +91,7 @@ impl UiTree {
             event_state: EventState::new(),
             collapsing_state: HashMap::new(),
             scroll_offsets: HashMap::new(),
+            scroll_keys: HashMap::new(),
             viewport_sizes: HashMap::new(),
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
@@ -101,6 +108,8 @@ impl UiTree {
             pending_live_refresh: (false, false),
             pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
+            caret_blink: false,
+            retained_trees: HashMap::new(),
         }
     }
 
@@ -116,6 +125,7 @@ impl UiTree {
             event_state: EventState::new(),
             collapsing_state: HashMap::new(),
             scroll_offsets: HashMap::new(),
+            scroll_keys: HashMap::new(),
             viewport_sizes: HashMap::new(),
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
@@ -132,6 +142,8 @@ impl UiTree {
             pending_live_refresh: (false, false),
             pending_static_text_sync: false,
             theme: crate::theme::Theme::default(),
+            caret_blink: false,
+            retained_trees: HashMap::new(),
         }
     }
 
@@ -324,6 +336,18 @@ impl UiTree {
         }
         self.root = Some(id);
         Ok(())
+    }
+
+    /// Sets the root node's explicit style dimensions and pre-layout `computed_rect`.
+    ///
+    /// Useful when initializing viewport hosts or layout tests before the first layout pass.
+    /// No-ops gracefully if the tree currently has no root node.
+    pub fn set_root_bounds(&mut self, rect: Rect) {
+        if let Some(root_node) = self.root.and_then(|id| self.nodes.get_mut(id)) {
+            root_node.style.width = Some(rect.width);
+            root_node.style.height = Some(rect.height);
+            root_node.computed_rect = rect;
+        }
     }
 
     /// Retrieves an immutable reference to a widget node.
@@ -646,65 +670,5 @@ impl UiTree {
     #[must_use]
     pub fn take_static_text_sync_needed(&mut self) -> bool {
         std::mem::replace(&mut self.pending_static_text_sync, false)
-    }
-
-    /// Updates the retained text of the node tagged `tag` in place without mutating layout.
-    ///
-    /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` and records live text + quad refresh flags
-    /// only when the text actually changed. Returns `true` when the text was updated.
-    pub fn update_live_text_by_tag(&mut self, tag: u64, text: &str) -> bool {
-        self.update_live_text_inner(tag, text, None)
-    }
-
-    /// Updates both the retained text and foreground color of the node tagged `tag` in place
-    /// without mutating layout.
-    ///
-    /// Marks `DirtyFlags::PAINT | DirtyFlags::TEXT` only when either text or color changed.
-    pub fn update_live_text_colored_by_tag(
-        &mut self,
-        tag: u64,
-        text: &str,
-        color: crate::color::Color,
-    ) -> bool {
-        self.update_live_text_inner(tag, text, Some(color))
-    }
-
-    fn update_live_text_inner(
-        &mut self,
-        tag: u64,
-        text: &str,
-        color: Option<crate::color::Color>,
-    ) -> bool {
-        let Some(id) = self.node_tagged(tag).map(|n| n.id) else {
-            return false;
-        };
-        if tag != 0 && self.live_node_tags.insert(tag) {
-            self.pending_static_text_sync = true;
-        }
-        let Some(node) = self.nodes.get_mut(id) else {
-            return false;
-        };
-        let text_same = node.text.as_deref() == Some(text);
-        let color_same = color.is_none_or(|c| node.text_color == c);
-        if text_same && color_same {
-            return false;
-        }
-        if !text_same {
-            if let Some(existing) = &mut node.text {
-                existing.clear();
-                existing.push_str(text);
-            } else {
-                node.text = Some(text.to_owned());
-            }
-        }
-        if let Some(next_color) = color {
-            node.text_color = next_color;
-        }
-        self.mark_dirty(id, DirtyFlags::PAINT | DirtyFlags::TEXT);
-        if !text_same {
-            self.record_live_text_update();
-        }
-        self.record_live_quad_update();
-        true
     }
 }

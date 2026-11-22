@@ -48,7 +48,11 @@ pub(crate) fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResu
 
     if captured_id.is_none()
         && let Some(pressed_id) = pressed_id
-        && tree.event_state.pressed_button == Some(MouseButton::Left)
+        && (tree.event_state.pressed_button == Some(MouseButton::Left)
+            || (tree.event_state.pressed_button == Some(MouseButton::Middle)
+                && tree
+                    .get(pressed_id)
+                    .is_some_and(|n| n.role == WidgetRole::PanZoomViewport)))
         && let Some(origin) = tree.event_state.press_origin
     {
         let dx = point.x - origin.x;

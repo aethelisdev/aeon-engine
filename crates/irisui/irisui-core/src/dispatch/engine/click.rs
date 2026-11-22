@@ -139,9 +139,20 @@ pub(crate) fn handle_mouse_down(
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
+        // If pressing middle mouse inside a PanZoomViewport, route target to the viewport for pan capture.
         // If clicking on non-button child of a ModalTitlebar, FloatingTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor.
         // ScrollBarThumb and ScrollBarTrack are autonomous interactive controls and must never bubble to ancestors.
-        let (effective_target_id, effective_role) = if role != WidgetRole::Button
+        let (effective_target_id, effective_role) = if button == MouseButton::Middle {
+            if role == WidgetRole::PanZoomViewport {
+                (target_id, WidgetRole::PanZoomViewport)
+            } else if let Some(pz_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::PanZoomViewport)
+            {
+                (pz_id, WidgetRole::PanZoomViewport)
+            } else {
+                (target_id, role)
+            }
+        } else if role != WidgetRole::Button
             && role != WidgetRole::ScrollBarThumb
             && role != WidgetRole::ScrollBarTrack
         {

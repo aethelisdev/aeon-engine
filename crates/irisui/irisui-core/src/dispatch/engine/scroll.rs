@@ -32,11 +32,41 @@ pub(crate) fn handle_mouse_scroll(
     let mut current = Some(hit_id);
     while let Some(curr_id) = current {
         if let Some(node) = tree.get(curr_id) {
+            if node.role == WidgetRole::PanZoomViewport {
+                let tag = node.tag;
+                let rect = node.computed_rect;
+                if tag != 0 {
+                    tree.event_state.frame_scrolled_tag = Some(tag);
+                }
+                tree.event_state.frame_scroll_delta = Some((delta_x, delta_y));
+                return DispatchResult {
+                    consumed: true,
+                    needs_redraw: true,
+                    target: Some(curr_id),
+                    target_tag: tag,
+                    cursor: None,
+                    response: Some(WidgetResponse::from_flags(
+                        curr_id,
+                        rect,
+                        ResponseFlags::CHANGED,
+                    )),
+                    scroll_delta: (delta_x, delta_y),
+                    key: None,
+                    is_key_pressed: false,
+                    text_input: None,
+                    next_timeout: None,
+                    popups_dismissed: false,
+                };
+            }
+
             let is_explicit_viewport = node.role == WidgetRole::ScrollAreaViewport;
             let is_generic_scrollable = node.role != WidgetRole::Button
                 && (node.role != WidgetRole::TextInput
                     || node.content_size.height > node.computed_rect.height + 0.5)
-                && (node.style.clip_children && node.tag != 0);
+                && (node.style.clip_children && node.tag != 0)
+                && tree
+                    .find_ancestor_with_role(curr_id, WidgetRole::PanZoomViewport)
+                    .is_none();
 
             let is_scroll_container = is_explicit_viewport || is_generic_scrollable;
 
