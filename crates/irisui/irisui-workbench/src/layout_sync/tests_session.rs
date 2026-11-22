@@ -637,3 +637,153 @@ fn test_rebuild_dirty_panels_multi_panel_taffy_leak_free() {
         );
     }
 }
+
+#[test]
+fn test_atomic_rebuild_panel_preserves_panel_surface_style_and_skip_collapsed() {
+    use crate::descriptors::{PanelBorder, PanelMetadata, PanelSurfaceStyle, WorkbenchPanel};
+
+    struct RowSurfacePanel {
+        id: SessionTestTab,
+        skip_collapsed: bool,
+    }
+
+    impl WorkbenchPanel<SessionTestTab, SessionMockContext> for RowSurfacePanel {
+        fn id(&self) -> SessionTestTab {
+            self.id
+        }
+
+        fn title(&self) -> &str {
+            "RowSurfacePanel"
+        }
+
+        fn skip_when_collapsed(&self) -> bool {
+            self.skip_collapsed
+        }
+
+        fn surface_style(&self) -> Option<PanelSurfaceStyle> {
+            Some(
+                PanelSurfaceStyle::new("RowSurfaceRoot")
+                    .with_tag(0x5150_BEEF)
+                    .row()
+                    .with_border(PanelBorder::None),
+            )
+        }
+
+        fn render(&mut self, scope: &mut UiScope<'_>, ctx: &mut SessionMockContext) {
+            ctx.render_count += 1;
+            scope.container_named(
+                "LeftSidebarSlot",
+                Style::new().flex_col().width(160.0).flex_shrink(0.0),
+                |sb| {
+                    sb.button("Tab 0");
+                },
+            );
+            scope.container_named(
+                "RightContentSlot",
+                Style::new().flex_col().flex_grow(1.0),
+                |ct| {
+                    ct.button("Main Body");
+                },
+            );
+        }
+    }
+
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut registry = WorkbenchPanelRegistry::<SessionTestTab, SessionMockContext>::new();
+    let mut context = SessionMockContext::default();
+
+    registry.register_metadata(
+        PanelMetadata::new(SessionTestTab::Inspector, "RowSurfacePanel")
+            .with_skip_collapsed(true)
+            .with_surface(
+                PanelSurfaceStyle::new("RowSurfaceRoot")
+                    .with_tag(0x5150_BEEF)
+                    .row()
+                    .with_border(PanelBorder::None),
+            ),
+    );
+    registry.register(RowSurfacePanel {
+        id: SessionTestTab::Inspector,
+        skip_collapsed: true,
+    });
+
+    let leaf_id = create_session_test_leaf(&mut tree, Rect::new(20.0, 30.0, 760.0, 514.0));
+    let mut engines = SubtreeEngines::new(&mut tree, &mut layout_engine, &mut text_system);
+
+    let rebuilt = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Inspector,
+        leaf_id,
+    )
+    .expect("RowSurfacePanel rebuild must succeed");
+    assert!(rebuilt);
+    assert_eq!(context.render_count, 1);
+
+    let surface_id = engines
+        .tree
+        .find_node_by_tag(0x5150_BEEF)
+        .expect("RowSurfaceRoot tag must survive granular rebuild");
+    let surface_node = engines.tree.get(surface_id).expect("surface node");
+    assert_eq!(
+        surface_node.style.flex_direction,
+        irisui_core::FlexDirection::Row
+    );
+    assert_eq!(
+        surface_node.style.border.width,
+        irisui_core::Insets::all(0.0)
+    );
+
+    let left_rect = engines
+        .tree
+        .get(
+            engines
+                .tree
+                .find_node_by_name("LeftSidebarSlot")
+                .expect("left slot"),
+        )
+        .unwrap()
+        .computed_rect;
+    let right_rect = engines
+        .tree
+        .get(
+            engines
+                .tree
+                .find_node_by_name("RightContentSlot")
+                .expect("right slot"),
+        )
+        .unwrap()
+        .computed_rect;
+
+    assert!(
+        (left_rect.width - 160.0).abs() < 1.0,
+        "Expected 160px sidebar, got {left_rect:?}"
+    );
+    assert!(
+        right_rect.x >= left_rect.right() - 1.0 && right_rect.width > 500.0,
+        "Content must sit to the right of sidebar in Row layout: left={left_rect:?} right={right_rect:?}"
+    );
+    assert!(
+        (right_rect.y - left_rect.y).abs() < 1.0,
+        "Sidebar and content must share top baseline: left={left_rect:?} right={right_rect:?}"
+    );
+
+    // Collapsed non-zero leaf (below 20px threshold) must skip drawing body when skip_collapsed is enabled.
+    let small_leaf = create_session_test_leaf(engines.tree, Rect::new(0.0, 0.0, 10.0, 10.0));
+    let skipped_rebuilt = DualLayoutEliminator::rebuild_panel(
+        &mut engines,
+        &mut registry,
+        &mut context,
+        SessionTestTab::Inspector,
+        small_leaf,
+    )
+    .expect("collapsed leaf rebuild");
+    assert!(skipped_rebuilt);
+    assert_eq!(
+        context.render_count, 1,
+        "Collapsed leaf with skip_when_collapsed=true must skip invoking panel draw"
+    );
+}

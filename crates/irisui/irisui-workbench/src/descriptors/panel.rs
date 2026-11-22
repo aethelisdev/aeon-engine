@@ -234,6 +234,7 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             .with_clear_background(panel.clear_background())
             .with_domain_bound(panel.is_domain_bound())
             .with_live_refresh(panel.live_refresh_interval())
+            .with_skip_collapsed(panel.skip_when_collapsed())
             .with_optional_surface(panel.surface_style())
     }
 

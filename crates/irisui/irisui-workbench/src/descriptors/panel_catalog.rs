@@ -217,6 +217,37 @@ pub trait PanelRegistryTarget<TabId, Ctx> {
     fn refresh_live(&mut self, tab: &TabId, scope: &mut UiScope<'_>, context: &mut Ctx);
 }
 
+/// Draws `tab`'s content inside `scope`, applying [`PanelCatalog::tab_skip_when_collapsed`]
+/// and wrapping with [`PanelCatalog::tab_surface`] when registered.
+///
+/// Shared across initial shell rendering, [`RegistryActiveTabViewer::ui`], and granular
+/// [`DualLayoutEliminator::rebuild_panel`](crate::layout_sync::DualLayoutEliminator::rebuild_panel)
+/// passes so surface direction, styling, and collapse policies remain identical.
+///
+/// # Errors
+/// Propagates [`crate::error::WorkbenchError::PanelNotFound`] if `tab` is missing.
+pub fn draw_panel_content_on_target<TabId, Ctx, R>(
+    target: &mut R,
+    tab: &TabId,
+    scope: &mut UiScope<'_>,
+    context: &mut Ctx,
+) -> WorkbenchResult<()>
+where
+    TabId: Eq + Hash + Clone + Debug,
+    R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
+{
+    if target.catalog().tab_skip_when_collapsed(tab) && scope.is_collapsed() {
+        return Ok(());
+    }
+    if let Some(surface) = target.catalog().tab_surface(tab) {
+        surface
+            .show(scope, |panel_scope| target.draw(tab, panel_scope, context))
+            .inner
+    } else {
+        target.draw(tab, scope, context)
+    }
+}
+
 /// Draws `tab` into `leaf_id`, seals `leaf_id` as an Invalidation Boundary, and marks it dirty.
 ///
 /// # Errors
@@ -232,20 +263,8 @@ where
     TabId: Eq + Hash + Clone + Debug,
     R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
 {
-    let skip_collapsed = target.catalog().tab_skip_when_collapsed(tab);
-    let surface = target.catalog().tab_surface(tab);
     let mut scope = UiScope::new(tree, leaf_id);
-    if !(skip_collapsed && scope.is_collapsed()) {
-        if let Some(surface) = surface {
-            surface
-                .show(&mut scope, |panel_scope| {
-                    target.draw(tab, panel_scope, context)
-                })
-                .inner?;
-        } else {
-            target.draw(tab, &mut scope, context)?;
-        }
-    }
+    draw_panel_content_on_target(target, tab, &mut scope, context)?;
     tree.set_boundary(leaf_id, true);
     tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
     Ok(())
@@ -366,15 +385,7 @@ where
 
     fn ui(&mut self, scope: &mut UiScope<'_>, tab: &TabId) {
         let leaf_id = scope.parent();
-        if !(self.registry.catalog().tab_skip_when_collapsed(tab) && scope.is_collapsed()) {
-            if let Some(surface) = self.registry.catalog().tab_surface(tab) {
-                surface.show(scope, |panel_scope| {
-                    let _ = self.registry.draw(tab, panel_scope, self.context);
-                });
-            } else {
-                let _ = self.registry.draw(tab, scope, self.context);
-            }
-        }
+        let _ = draw_panel_content_on_target(self.registry, tab, scope, self.context);
         scope.tree_mut().set_boundary(leaf_id, true);
         scope
             .tree_mut()

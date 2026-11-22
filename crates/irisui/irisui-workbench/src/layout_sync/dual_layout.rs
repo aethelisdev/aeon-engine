@@ -6,7 +6,7 @@
 //! Autonomous synchronization pipeline eliminating visual jitter between coarse initial
 //! tree passes and granular Taffy CSS flexbox boundary solvers.
 
-use crate::descriptors::panel_catalog::PanelRegistryTarget;
+use crate::descriptors::panel_catalog::{PanelRegistryTarget, draw_panel_content_on_target};
 use irisui_core::{DirtyFlags, UiTree, WidgetId};
 use irisui_dock::{TabViewer, UiNotifier};
 use irisui_layout::{LayoutEngine, LayoutError};
@@ -345,7 +345,7 @@ impl DualLayoutEliminator {
             engines.layout_engine,
             engines.text_system,
             leaf_id,
-            |scope| registry.draw(&panel_id, scope, context),
+            |scope| draw_panel_content_on_target(registry, &panel_id, scope, context),
         )
     }
 

@@ -575,3 +575,174 @@ fn test_workbench_set_theme_and_dock_style_and_loading_progress_are_idempotent()
     });
     assert!(!wb.dialog_host.has_progress());
 }
+
+#[test]
+fn test_floating_row_surface_panel_preserves_horizontal_layout_and_scroll_padding_on_granular_rebuild()
+ {
+    use super::frame::WorkbenchOwnedFrameParams;
+    use crate::descriptors::{
+        PanelBorder, PanelMetadata, PanelSurfaceStyle, ScopedPanelContext, ScopedPanelRegistry,
+    };
+    use irisui_core::{FlexDirection, Insets, Size};
+    use irisui_dock::TabPlacement;
+    use irisui_widgets::declarative::ScrollAreaView;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    enum PrefTab {
+        Viewport,
+        Preferences,
+    }
+
+    struct Ctx;
+    struct ScopeSpec;
+    impl ScopedPanelContext for ScopeSpec {
+        type Context<'frame> = &'frame mut Ctx;
+    }
+
+    const PREF_TABS: [(&str, u8); 10] = [
+        ("General", 0),
+        ("Graphics", 1),
+        ("Editor", 2),
+        ("Navigation", 3),
+        ("Input", 4),
+        ("Keymap", 5),
+        ("System", 6),
+        ("Add-ons", 7),
+        ("Modules", 8),
+        ("Experimental", 9),
+    ];
+
+    let mut dock_tree = DockTree::new();
+    let root = dock_tree.create_leaf(vec![PrefTab::Viewport]);
+    dock_tree.set_root(root);
+
+    let mut wb: Workbench<PrefTab, (), ()> = Workbench::new(WorkbenchDescriptor::new(
+        "FloatingRowPreservation",
+        DockState::new(dock_tree),
+    ));
+    wb.set_screen_size(Size::new(1280.0, 800.0));
+
+    let mut registry = ScopedPanelRegistry::<PrefTab, ScopeSpec>::new();
+    registry.register_stateful_panel(
+        PanelMetadata::new(PrefTab::Viewport, "Viewport"),
+        |_: &mut (), _, _| {},
+    );
+    registry.register_stateful_panel(
+        PanelMetadata::new(PrefTab::Preferences, "Preferences")
+            .with_placement(TabPlacement::FloatingCentered {
+                size: Size::new(760.0, 540.0),
+            })
+            .with_surface(
+                PanelSurfaceStyle::new("Preferences")
+                    .row()
+                    .with_border(PanelBorder::None),
+            ),
+        |active_tab: &mut u8, body, _| {
+            body.container_named(
+                "PrefSidebarContainer",
+                irisui_core::Style::new()
+                    .flex_col()
+                    .width(160.0)
+                    .flex_shrink(0.0),
+                |sb| {
+                    sb.sidebar_tabs(&PREF_TABS, active_tab, Some(0x9001));
+                },
+            );
+            body.vertical_divider_fill_themed();
+            ScrollAreaView::new("PreferencesContentArea")
+                .tag(0x9001)
+                .padding(Insets::new(14.0, 18.0, 14.0, 18.0))
+                .gap(14.0)
+                .scroll_key(u64::from(*active_tab))
+                .show_scrolled(body, |col| {
+                    col.section_heading(
+                        "General & Interface",
+                        "Global engine settings, display scaling, theme, and viewport synchronization.",
+                    );
+                    col.collapsing_section("sec_scale", "Display & UI Scale", true, |sec| {
+                        sec.text("Adjust interface scale");
+                    });
+                });
+        },
+    );
+    wb.sync_domain_panels_from_registry(&registry);
+    wb.open_or_focus_panel(PrefTab::Preferences);
+
+    let mut ctx = Ctx;
+    let params = WorkbenchOwnedFrameParams {
+        scale_factor: 1.0,
+        selection_id: None,
+        domain_revision: 0,
+        is_cursor_occluded: false,
+    };
+
+    // Frame 1: FullShellRebuild builds the floating centered window
+    let out1 = wb
+        .update_frame_with_services(
+            params,
+            false,
+            |i| i,
+            |runner, _svc| runner.execute(&mut registry, &mut &mut ctx, |_, _, _| {}),
+        )
+        .expect("frame 1");
+    assert!(out1.is_full_shell_rebuild());
+    wb.tree.clear_dirty_boundaries();
+
+    // Trigger Frame 2: GranularPanels rebuild directly on Preferences
+    wb.notifier.tag_redraw(PrefTab::Preferences);
+    let out2 = wb
+        .update_frame_with_services(
+            params,
+            false,
+            |i| i,
+            |runner, _svc| runner.execute(&mut registry, &mut &mut ctx, |_, _, _| {}),
+        )
+        .expect("frame 2");
+    assert!(
+        matches!(out2.lifecycle_branch, LifecycleBranch::GranularPanels(_)),
+        "Frame 2 must exercise GranularPanels path, got {:?}",
+        out2.lifecycle_branch
+    );
+
+    let pref_surface_id = wb
+        .tree
+        .find_node_by_name("Preferences")
+        .expect("Preferences surface root must exist after GranularPanels");
+    assert_eq!(
+        wb.tree.get(pref_surface_id).unwrap().style.flex_direction,
+        FlexDirection::Row
+    );
+
+    let sb_rect = wb
+        .tree
+        .get(wb.tree.find_node_by_name("PrefSidebarContainer").unwrap())
+        .unwrap()
+        .computed_rect;
+    let vp_rect = wb
+        .tree
+        .get(wb.tree.find_node_by_name("PreferencesContentArea").unwrap())
+        .unwrap()
+        .computed_rect;
+    let title_rect = wb
+        .tree
+        .get(wb.tree.find_node_by_name("SectionHeadingTitle").unwrap())
+        .unwrap()
+        .computed_rect;
+
+    assert!(
+        (sb_rect.width - 160.0).abs() < 1.0,
+        "Sidebar width mismatch: {sb_rect:?}"
+    );
+    assert!(
+        vp_rect.x >= sb_rect.right() && vp_rect.width > 550.0,
+        "Scroll content must sit beside sidebar horizontally, not stacked underneath: sb={sb_rect:?}, vp={vp_rect:?}"
+    );
+    assert!(
+        (vp_rect.y - sb_rect.y).abs() < 1.0 && vp_rect.height > 450.0,
+        "Scroll content must span full floating body height alongside sidebar: sb={sb_rect:?}, vp={vp_rect:?}"
+    );
+    assert!(
+        title_rect.y >= vp_rect.y + 13.0,
+        "Top padding inside ScrollAreaViewport must keep heading unclipped: title={title_rect:?}, vp={vp_rect:?}"
+    );
+}
