@@ -6,11 +6,8 @@
 //! Provides semantic [`UiTag`] constants, parameter descriptors, and live-cache
 //! state for the Iris UI Viewport HUD subsystem without intermediate action queues.
 
-use ae_editor::gizmo::{GizmoMode, GizmoSpace};
 pub use ae_editor::scene_gizmo::SceneViewSnap;
-use ae_editor::snapping::SnapSettings;
 use ae_renderer::camera::{Camera, ProjectionMode};
-use hecs::{Entity, World};
 use irisui::prelude::*;
 
 /// Semantic tag for the Viewport Camera Mode dropdown trigger button.
@@ -50,32 +47,6 @@ pub const TAG_POPUP_CAMERA_GROUP: UiTag = UiTag::from_str("viewport.hud.popup.ca
 pub const TAG_POPUP_SHADING_GROUP: UiTag = UiTag::from_str("viewport.hud.popup.shading");
 /// Root tag namespace for Grid Snap dropdown option rows.
 pub const TAG_POPUP_SNAP_GRID_GROUP: UiTag = UiTag::from_str("viewport.hud.popup.snap_grid");
-
-/// Parameter block passed into the Viewport HUD builder.
-pub struct ViewportHudParams<'a> {
-    /// Screen rectangle bounding the 3D viewport canvas.
-    pub viewport_rect: Rect,
-    /// Reference to the active 3D camera.
-    pub camera: &'a Camera,
-    /// Whether wireframe rendering is currently enabled.
-    pub wireframe_enabled: bool,
-    /// Currently active gizmo manipulation mode (Translate, Rotate, Scale).
-    pub gizmo_mode: GizmoMode,
-    /// Currently active gizmo coordinate space (World, Local).
-    pub gizmo_space: GizmoSpace,
-    /// Snapping settings configuration.
-    pub snapping: &'a SnapSettings,
-    /// Current mouse cursor coordinates.
-    pub cursor_pos: Point,
-    /// Currently selected entity in the editor, if any.
-    pub selected_entity: Option<Entity>,
-    /// Active ECS world reference for gameplay HUD and runtime entity queries.
-    pub world: &'a World,
-    /// Whether the editor is currently in Edit mode (vs Play mode).
-    pub is_editing: bool,
-    /// Whether the active project / dimension mode is 2D.
-    pub is_2d: bool,
-}
 
 /// Cardinal and projection-mode classifications for camera display presentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,39 +200,78 @@ impl ShadingViewMode {
     }
 }
 
-impl<'a> ViewportHudParams<'a> {
-    /// Returns camera view orientation classification.
-    #[inline]
-    #[must_use]
-    pub fn camera_orientation(&self) -> CameraViewOrientation {
-        CameraViewOrientation::from_camera(self.camera, self.is_2d)
-    }
+/// Returns the exact required pixel width of the View Modes group container (including 2px border and 1px divider).
+#[inline]
+#[must_use]
+pub fn view_modes_group_width(camera: &Camera, wireframe_enabled: bool, is_2d: bool) -> f32 {
+    CameraViewOrientation::from_camera(camera, is_2d).width()
+        + if is_2d {
+            2.0
+        } else {
+            1.0 + ShadingViewMode::from_wireframe(wireframe_enabled).width() + 2.0
+        }
+}
 
-    /// Returns shading view mode classification.
-    #[inline]
-    #[must_use]
-    pub const fn shading_mode(&self) -> ShadingViewMode {
-        ShadingViewMode::from_wireframe(self.wireframe_enabled)
-    }
+/// Returns the total required width for the floating toolbar strip.
+#[inline]
+#[must_use]
+pub fn toolbar_total_width(camera: &Camera, wireframe_enabled: bool, is_2d: bool) -> f32 {
+    view_modes_group_width(camera, wireframe_enabled, is_2d) + 8.0 + 140.0 + 8.0 + 32.0 + 8.0 + 84.0
+}
 
-    /// Returns the exact required pixel width of the View Modes group container (including 2px border and 1px divider).
-    #[inline]
-    #[must_use]
-    pub fn view_modes_group_width(&self) -> f32 {
-        self.camera_orientation().width()
-            + if self.is_2d {
-                2.0
-            } else {
-                1.0 + self.shading_mode().width() + 2.0
-            }
-    }
+#[cfg(test)]
+pub(super) fn with_test_frame_data<R>(
+    (viewport_rect, is_editing, is_2d_mode): (Rect, bool, bool),
+    camera: &Camera,
+    editor_state: &ae_editor::editor_state::EditorState,
+    snapping_settings: &ae_editor::snapping::SnapSettings,
+    world: &hecs::World,
+    f: impl FnOnce(&crate::ui::types::EditorFrameData<'_>) -> R,
+) -> R {
+    use crate::assets::types::AssetBrowserState;
+    use crate::ui::types::{EditorFrameData, EditorTelemetrySnapshot, ExportDialogState};
+    use ae_editor::editor_state::EditorConfig;
+    use ae_renderer::asset::AssetStorage;
+    use ae_renderer::graphics_settings::GraphicsSettings;
+    use ae_uidesign::UiDesignerState;
+    use std::collections::HashSet;
 
-    /// Returns the total required width for the floating toolbar strip.
-    #[inline]
-    #[must_use]
-    pub fn toolbar_total_width(&self) -> f32 {
-        self.view_modes_group_width() + 8.0 + 140.0 + 8.0 + 32.0 + 8.0 + 84.0
-    }
+    let gs = GraphicsSettings::default();
+    let cfg = EditorConfig::default();
+    let enabled = HashSet::new();
+    let telemetry = EditorTelemetrySnapshot::default();
+    let mut asset_browser = AssetBrowserState::default();
+    let mut ui_designer_state = UiDesignerState::default();
+    let mut export_modal = ExportDialogState::default();
+    let textures = AssetStorage::new();
+    let models = AssetStorage::new();
+
+    let frame = EditorFrameData {
+        is_editing,
+        is_2d_mode,
+        view_panel_mask: 0,
+        can_undo: false,
+        can_redo: false,
+        has_viewport_texture: false,
+        viewport_rect,
+        camera,
+        world,
+        editor_state,
+        graphics_settings: &gs,
+        snapping_settings,
+        editor_config: &cfg,
+        enable_live_updates: false,
+        enabled_modules: &enabled,
+        telemetry: &telemetry,
+        gpu_adapter_name: "TestGPU",
+        gpu_backend: "Vulkan",
+        asset_browser: &mut asset_browser,
+        ui_designer_state: &mut ui_designer_state,
+        export_modal: &mut export_modal,
+        textures: &textures,
+        models: &models,
+    };
+    f(&frame)
 }
 
 /// Persistent live-tracking cache for the 3D Viewport HUD overlay.

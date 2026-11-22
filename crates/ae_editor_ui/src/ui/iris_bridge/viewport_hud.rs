@@ -6,18 +6,18 @@
 //! Provides the root orchestration entry points for building 3D Viewport Toolbar,
 //! Orientation Compass, Camera HUD, and Play Mode overlays in Iris UI.
 
-pub mod builder;
 pub mod camera_hud;
 pub mod compass;
+pub mod panel;
 pub mod play_hud;
 pub mod popup;
 pub mod toolbar;
 pub mod types;
 
-pub use builder::build_viewport_hud_scope;
+pub use panel::build_viewport_hud_scope;
 pub use types::{
     TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT,
     TAG_GIZMO_SPACE_TOGGLE, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE,
     TAG_PLAY_RESUME, TAG_SNAP_GRID_DROPDOWN, TAG_SNAP_GRID_TOGGLE, TAG_VIEWPORT_CAMERA_MODE,
-    TAG_VIEWPORT_SHADING_MODE, ViewportHudParams, ViewportHudState,
+    TAG_VIEWPORT_SHADING_MODE, ViewportHudState,
 };
