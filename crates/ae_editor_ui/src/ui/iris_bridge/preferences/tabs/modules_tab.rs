@@ -6,12 +6,12 @@
 //! Renders hardware-accelerated configuration cards for toggling core engine systems
 //! (Physics, Audio, 3D Render, 2D Render) declaratively via [`UiScope`] and [`ActionBus`].
 
-use super::super::types::PreferencesParams;
 use crate::ui::types::EngineUiAction;
 use ae_core::modules::EngineModule;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
 use irisui::workbench::ActionBus;
+use std::collections::HashSet;
 
 struct ModuleCardData {
     module: EngineModule,
@@ -55,7 +55,7 @@ const MODULES: [ModuleCardData; 4] = [
 /// Builds the System Modules preferences tab content declaratively using [`UiScope`].
 pub fn build_modules_tab(
     scope: &mut UiScope<'_>,
-    params: &PreferencesParams<'_>,
+    enabled_modules: &HashSet<EngineModule>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.section_heading(
@@ -88,13 +88,11 @@ pub fn build_modules_tab(
                                 Style::new()
                                     .width(10.0)
                                     .height(10.0)
-                                    .background(
-                                        if params.enabled_modules.contains(&card_data.module) {
-                                            card_data.color
-                                        } else {
-                                            Color::rgba(0.24, 0.26, 0.32, 1.0)
-                                        },
-                                    )
+                                    .background(if enabled_modules.contains(&card_data.module) {
+                                        card_data.color
+                                    } else {
+                                        Color::rgba(0.24, 0.26, 0.32, 1.0)
+                                    })
                                     .border_radius(5.0)
                                     .margin_insets(Insets::new(0.0, 12.0, 0.0, 0.0)),
                             );
@@ -119,13 +117,13 @@ pub fn build_modules_tab(
 
                             row.label_styled_passive(
                                 "ModuleStatus",
-                                if params.enabled_modules.contains(&card_data.module) {
+                                if enabled_modules.contains(&card_data.module) {
                                     "ENABLED"
                                 } else {
                                     "DISABLED"
                                 },
                                 10.5,
-                                if params.enabled_modules.contains(&card_data.module) {
+                                if enabled_modules.contains(&card_data.module) {
                                     Color::rgba(0.39, 0.86, 0.39, 1.0)
                                 } else {
                                     Color::rgba(0.86, 0.39, 0.39, 1.0)
@@ -134,13 +132,10 @@ pub fn build_modules_tab(
                                 Style::new().margin_insets(Insets::new(0.0, 12.0, 0.0, 0.0)),
                             );
 
-                            row.checkbox_val(
-                                "",
-                                params.enabled_modules.contains(&card_data.module),
-                            )
-                            .on_click(|| {
-                                action_bus.emit(EngineUiAction::ToggleModule(card_data.module));
-                            });
+                            row.checkbox_val("", enabled_modules.contains(&card_data.module))
+                                .on_click(|| {
+                                    action_bus.emit(EngineUiAction::ToggleModule(card_data.module));
+                                });
                         },
                     );
 

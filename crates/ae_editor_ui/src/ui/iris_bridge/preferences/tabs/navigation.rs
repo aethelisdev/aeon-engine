@@ -6,12 +6,12 @@
 //! Renders hardware-accelerated configuration cards for viewport camera flight speeds,
 //! Shift boost multipliers, zoom curves, and orbit navigation declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_editor::editor_state::EditorConfig;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Builds the Navigation preferences tab content declaratively using [`UiScope`].
-pub fn build_navigation_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_navigation_tab(scope: &mut UiScope<'_>, editor_config: &mut EditorConfig) {
     scope.section_heading(
         "🧭  Navigation",
         "Configure camera movement speeds, zoom curves, and 3D viewport flight controls.",
@@ -20,7 +20,7 @@ pub fn build_navigation_tab(scope: &mut UiScope<'_>, params: &mut PreferencesPar
     scope.collapsing_section("nav_speeds", "🚀  Camera Flight Speeds", true, |body| {
         body.property_slider_with_options(
             "Base Fly Speed",
-            &mut params.editor_config.camera_base_speed,
+            &mut editor_config.camera_base_speed,
             PropertySliderOptions::new(0.5, 30.0, 0.2)
                 .with_format("{:.1} m/s")
                 .with_subtitle(
@@ -30,7 +30,7 @@ pub fn build_navigation_tab(scope: &mut UiScope<'_>, params: &mut PreferencesPar
 
         body.property_slider_with_options(
             "Shift Boost Multiplier",
-            &mut params.editor_config.camera_shift_multiplier,
+            &mut editor_config.camera_shift_multiplier,
             PropertySliderOptions::new(1.0, 10.0, 0.1)
                 .with_format("{:.1}x")
                 .with_subtitle(
@@ -40,7 +40,7 @@ pub fn build_navigation_tab(scope: &mut UiScope<'_>, params: &mut PreferencesPar
 
         body.property_slider_with_options(
             "Scroll Zoom Speed",
-            &mut params.editor_config.camera_scroll_speed,
+            &mut editor_config.camera_scroll_speed,
             PropertySliderOptions::new(0.2, 5.0, 0.05)
                 .with_format("{:.2}x")
                 .with_subtitle(

@@ -6,7 +6,6 @@
 //! Renders global display / UI scale settings, theme selection, and viewport
 //! synchronization details declaratively using [`UiScope`].
 
-use super::super::types::PreferencesParams;
 use super::PREF_COMBO_LAYOUT;
 use crate::ui::iris_bridge::theme::ThemePreset;
 use crate::ui::types::EngineUiAction;
@@ -42,7 +41,8 @@ const THEME_LABELS: [&str; 2] = [
 /// Builds the General & Interface preferences tab content declaratively using [`UiScope`].
 pub fn build_general_tab(
     scope: &mut UiScope<'_>,
-    params: &mut PreferencesParams<'_>,
+    zoom_factor: f32,
+    current_theme: &mut ThemePreset,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.section_heading(
@@ -64,19 +64,26 @@ pub fn build_general_tab(
                 Style::new().margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
             );
 
-            body.prop_combobox_mapped_styled_on_change(
-                ComboBoxMapConfig::new(
-                    "Interface Scale",
-                    UI_SCALES
-                        .iter()
-                        .position(|(val, _)| (params.zoom_factor - *val).abs() < 0.01)
-                        .unwrap_or(3),
-                    &UI_SCALE_LABELS,
-                )
-                .with_layout(PREF_COMBO_LAYOUT),
-                &mut params.zoom_factor,
-                |idx| UI_SCALES.get(idx).map_or(1.0, |(val, _)| *val),
-                |&scale| action_bus.emit(EngineUiAction::SetUiScale(scale)),
+            body.edit_with_state(
+                action_bus,
+                zoom_factor,
+                |s, bus, zoom_draft| {
+                    s.prop_combobox_mapped_styled_on_change(
+                        ComboBoxMapConfig::new(
+                            "Interface Scale",
+                            UI_SCALES
+                                .iter()
+                                .position(|(val, _)| (*zoom_draft - *val).abs() < 0.01)
+                                .unwrap_or(3),
+                            &UI_SCALE_LABELS,
+                        )
+                        .with_layout(PREF_COMBO_LAYOUT),
+                        zoom_draft,
+                        |idx| UI_SCALES.get(idx).map_or(1.0, |(val, _)| *val),
+                        |&scale| bus.emit(EngineUiAction::SetUiScale(scale)),
+                    );
+                },
+                |_, _| {},
             );
         },
     );
@@ -94,14 +101,14 @@ pub fn build_general_tab(
         body.prop_combobox_mapped_styled_on_change(
             ComboBoxMapConfig::new(
                 "Theme Preset",
-                match *params.current_theme {
+                match *current_theme {
                     ThemePreset::ObsidianDeep => 0,
                     ThemePreset::ColdSlate => 1,
                 },
                 &THEME_LABELS,
             )
             .with_layout(PREF_COMBO_LAYOUT),
-            params.current_theme,
+            current_theme,
             |idx| {
                 if idx == 0 {
                     ThemePreset::ObsidianDeep

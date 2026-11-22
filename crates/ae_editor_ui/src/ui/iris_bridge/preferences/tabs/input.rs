@@ -6,7 +6,7 @@
 //! Renders hardware-accelerated configuration cards for mouse look sensitivity,
 //! cursor behavior, and navigation control mappings declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_editor::editor_state::EditorConfig;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 
@@ -34,7 +34,7 @@ const VIEWPORT_GESTURES: [(&str, &str, &str); 4] = [
 ];
 
 /// Builds the Input preferences tab content declaratively using [`UiScope`].
-pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_input_tab(scope: &mut UiScope<'_>, editor_config: &mut EditorConfig) {
     scope.section_heading(
         "🖱  Input & Controls",
         "Configure mouse sensitivity, viewport interaction hotkeys, and pointer behaviors.",
@@ -47,7 +47,7 @@ pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'
         |body| {
             body.property_slider_with_options(
                 "Look Sensitivity",
-                &mut params.editor_config.mouse_sensitivity,
+                &mut editor_config.mouse_sensitivity,
                 PropertySliderOptions::new(0.0005, 0.0300, 0.0002)
                     .with_format("{:.4}")
                     .with_subtitle(

@@ -5,16 +5,16 @@
 //!
 //! Renders physics simulation frequency settings declaratively using [`UiScope`] and two-way property primitives.
 
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_editor::editor_state::EditorConfig;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Builds the Physics settings card declaratively using [`UiScope`].
-pub fn build_physics_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_physics_card(scope: &mut UiScope<'_>, editor_config: &mut EditorConfig) {
     scope.collapsing_section("editor_physics", "🎮  Physics Settings", true, |body| {
         body.property_slider_with_options(
             "Fixed Update Frequency",
-            &mut params.editor_config.physics_hz,
+            &mut editor_config.physics_hz,
             PropertySliderOptions::new(30.0, 240.0, 1.0)
                 .with_format("{:.0} Hz")
                 .with_subtitle(

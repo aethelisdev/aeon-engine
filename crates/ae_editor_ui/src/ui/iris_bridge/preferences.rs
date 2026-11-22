@@ -7,7 +7,7 @@
 //! configuration tabs (`General`, `Graphics`, `Editor`, `Navigation`, `Keymap`,
 //! `System`, `Add-ons`, `Input`, `Modules`, and `Experimental`).
 
-pub mod builder;
+pub mod panel;
 pub mod tabs;
 pub mod types;
 
@@ -18,8 +18,8 @@ mod tests;
 #[cfg(test)]
 mod tests_scroll;
 
-pub use builder::{SIDEBAR_TABS, SIDEBAR_WIDTH, build_preferences_view};
+pub use panel::{SIDEBAR_TABS, SIDEBAR_WIDTH, build_preferences_view};
 pub use types::{
-    PHYSICS_HZ_PRESETS, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PreferencesDialogState, PreferencesParams, preferences_scroll_style,
+    PHYSICS_HZ_PRESETS, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK,
+    PreferencesDialogState, preferences_scroll_style,
 };

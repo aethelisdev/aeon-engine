@@ -6,16 +6,16 @@
 //! Renders undo history limit and periodic background auto-save configuration
 //! declaratively using [`UiScope`] and two-way property primitives.
 
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_editor::editor_state::EditorConfig;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Builds the History & Auto-Save settings card declaratively using [`UiScope`].
-pub fn build_history_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_history_card(scope: &mut UiScope<'_>, editor_config: &mut EditorConfig) {
     scope.collapsing_section("editor_history", "📝  History & Auto-Save", true, |body| {
         body.property_slider_usize_with_options(
             "Undo History Limit",
-            &mut params.editor_config.max_undo_history,
+            &mut editor_config.max_undo_history,
             PropertySliderOptions::new(10.0, 5000.0, 10.0)
                 .with_format("{:.0}")
                 .with_subtitle(
@@ -25,12 +25,12 @@ pub fn build_history_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
         body.divider(body.theme().card_border);
         body.property_checkbox(
             "Enable Periodic Auto-Save",
-            &mut params.editor_config.autosave_enabled,
+            &mut editor_config.autosave_enabled,
         );
-        body.when(params.editor_config.autosave_enabled, |s| {
+        body.when(editor_config.autosave_enabled, |s| {
             s.property_slider_with_options(
                 "Auto-Save Interval",
-                &mut params.editor_config.autosave_interval_secs,
+                &mut editor_config.autosave_interval_secs,
                 PropertySliderOptions::new(30.0, 1800.0, 5.0)
                     .with_format("{:.0} s")
                     .with_subtitle(

@@ -9,19 +9,19 @@
 use super::environment::build_environment_card;
 use super::performance::{build_aa_card, build_perf_card, build_post_processing_card};
 use super::shadows::build_shadows_card;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
 
 /// Builds the complete Graphics preferences tab content declaratively using [`UiScope`].
-pub fn build_graphics_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_graphics_tab(scope: &mut UiScope<'_>, graphics: &mut GraphicsSettings) {
     scope.section_heading(
         "Graphics Settings",
         "Configure render pipeline, shadows, post-processing, atmosphere, and cloud simulation.",
     );
 
-    build_shadows_card(scope, params);
-    build_perf_card(scope, params);
-    build_aa_card(scope, params);
-    build_post_processing_card(scope, params);
-    build_environment_card(scope, params);
+    build_shadows_card(scope, graphics);
+    build_perf_card(scope, graphics);
+    build_aa_card(scope, graphics);
+    build_post_processing_card(scope, graphics);
+    build_environment_card(scope, graphics);
 }

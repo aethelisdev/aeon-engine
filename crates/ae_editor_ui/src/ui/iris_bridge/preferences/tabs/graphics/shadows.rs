@@ -8,7 +8,7 @@
 
 use super::types::{PCF_OPTIONS, SHADOW_RES_OPTIONS};
 use crate::ui::iris_bridge::preferences::tabs::PREF_COMBO_LAYOUT;
-use crate::ui::iris_bridge::preferences::types::PreferencesParams;
+use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
 
 const SHADOW_RES_LABELS: [&str; 4] = ["Low (512)", "Medium (1024)", "High (2048)", "Ultra (4096)"];
@@ -16,23 +16,20 @@ const CASCADE_LABELS: [&str; 2] = ["3 Cascades (Default)", "4 Cascades (High Fid
 const PCF_LABELS: [&str; 3] = ["Off (Sharp)", "3x3 Soft", "5x5 Ultra Soft"];
 
 /// Renders the collapsible Shadows settings section card declaratively using [`UiScope`].
-pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_shadows_card(scope: &mut UiScope<'_>, graphics: &mut GraphicsSettings) {
     scope.collapsing_section("graphics_shadows", "🌓  Shadows", true, |body| {
-        body.property_checkbox(
-            "Enable Directional Shadows",
-            &mut params.graphics_settings.shadow_enabled,
-        );
+        body.property_checkbox("Enable Directional Shadows", &mut graphics.shadow_enabled);
 
-        body.when(params.graphics_settings.shadow_enabled, |s| {
+        body.when(graphics.shadow_enabled, |s| {
             s.prop_combobox_mapped_styled(
                 "Resolution",
                 SHADOW_RES_OPTIONS
                     .iter()
-                    .position(|&r| r == params.graphics_settings.shadow_resolution)
+                    .position(|&r| r == graphics.shadow_resolution)
                     .unwrap_or(2),
                 &SHADOW_RES_LABELS,
                 PREF_COMBO_LAYOUT,
-                &mut params.graphics_settings.shadow_resolution,
+                &mut graphics.shadow_resolution,
                 |idx| {
                     SHADOW_RES_OPTIONS
                         .get(idx)
@@ -43,10 +40,10 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
 
             s.prop_combobox_mapped_styled(
                 "Cascade Count",
-                usize::from(params.graphics_settings.shadow_cascades != 3),
+                usize::from(graphics.shadow_cascades != 3),
                 &CASCADE_LABELS,
                 PREF_COMBO_LAYOUT,
-                &mut params.graphics_settings.shadow_cascades,
+                &mut graphics.shadow_cascades,
                 |idx| if idx == 0 { 3 } else { 4 },
             );
 
@@ -54,17 +51,17 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
                 "Filtering (PCF)",
                 PCF_OPTIONS
                     .iter()
-                    .position(|&p| p == params.graphics_settings.shadow_pcf)
+                    .position(|&p| p == graphics.shadow_pcf)
                     .unwrap_or(1),
                 &PCF_LABELS,
                 PREF_COMBO_LAYOUT,
-                &mut params.graphics_settings.shadow_pcf,
+                &mut graphics.shadow_pcf,
                 |idx| PCF_OPTIONS.get(idx).copied().unwrap_or(PCF_OPTIONS[1]),
             );
 
             s.property_slider(
                 "Depth Bias",
-                &mut params.graphics_settings.shadow_bias,
+                &mut graphics.shadow_bias,
                 0.0001,
                 0.05,
                 0.0005,
