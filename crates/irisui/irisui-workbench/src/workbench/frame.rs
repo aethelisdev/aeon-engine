@@ -11,16 +11,16 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use irisui_core::{IrisSurfaceFrameFlags, Rect, Size, SurfaceRefreshMode, UiTree, WidgetCursor};
-use irisui_dock::{DockArea, DockState};
+use irisui_dock::DockState;
 use irisui_layout::LayoutError;
 use irisui_text::CaretBlinkUpdate;
 use irisui_widgets::UiScope;
 
-use crate::descriptors::panel_catalog::{PanelRegistryTarget, RegistryActiveTabViewer};
+use crate::descriptors::panel_catalog::PanelRegistryTarget;
 use crate::hooks::VolatileRefreshResult;
-use crate::layout_sync::{SubtreeEngines, synchronize_dock_frame};
 use crate::lifecycle::{LifecycleBranch, LifecycleInputs};
 use crate::workbench::Workbench;
+use crate::workbench::frame_services::{BranchExecTarget, WorkbenchDomSlice};
 
 /// Parameters passed to [`Workbench::update_frame_with`] for a single UI frame.
 pub struct WorkbenchFrameUpdateParams<'a, TabId: Eq + Hash + Copy + Send + Sync + 'static> {
@@ -84,13 +84,13 @@ pub struct WorkbenchFrameOutcome<TabId> {
     pub active_cursor: WidgetCursor,
 }
 
-struct FrameOutcomeSummary<TabId> {
-    lifecycle_branch: LifecycleBranch<TabId>,
-    selection_changed: bool,
-    domain_revision_changed: bool,
-    volatile_refresh: VolatileRefreshResult,
-    needs_text_prepare: bool,
-    needs_quad_reupload: bool,
+pub(super) struct FrameOutcomeSummary<TabId> {
+    pub lifecycle_branch: LifecycleBranch<TabId>,
+    pub selection_changed: bool,
+    pub domain_revision_changed: bool,
+    pub volatile_refresh: VolatileRefreshResult,
+    pub needs_text_prepare: bool,
+    pub needs_quad_reupload: bool,
 }
 
 impl<TabId> WorkbenchFrameOutcome<TabId> {
@@ -226,6 +226,7 @@ where
             self.evaluate_dock_lifecycle(params.dock, params.scale_factor, |inputs| {
                 host_inputs(inputs.with_domain_revision(params.domain_revision))
             });
+        self.tree.caret_blink = self.text_system.is_caret_visible();
 
         let mut volatile_refresh = VolatileRefreshResult::none();
         let (mut needs_text_prepare, needs_quad_reupload) = match &lifecycle_branch {
@@ -347,67 +348,47 @@ where
                 host_inputs(inputs.with_volatile_updates(has_live))
             });
 
-        let mut volatile_refresh = VolatileRefreshResult::none();
-        let (needs_text_prepare, needs_quad_reupload) = match &lifecycle_branch {
-            LifecycleBranch::FullShellRebuild => {
-                self.live_scheduler.clear_all();
-                self.rebuild_shell_with_external_registry(
-                    params.dock,
-                    params.is_cursor_occluded,
-                    external.registry,
-                    external.context,
+        let screen_size = self.screen_size().unwrap_or_default();
+        let workspace_rect = self.compute_workspace_rect(screen_size.width, screen_size.height);
+        self.tree.caret_blink = self.text_system.is_caret_visible();
+        let (needs_text_prepare, needs_quad_reupload, volatile_refresh) = {
+            let mut slice = WorkbenchDomSlice {
+                tree: &mut self.tree,
+                layout_engine: &mut self.layout_engine,
+                text_system: &mut self.text_system,
+                notifier: &mut self.notifier,
+                dual_layout: &mut self.dual_layout,
+                live_scheduler: &mut self.live_scheduler,
+                dock_frame: &mut self.dock_frame,
+                descriptor: &self.descriptor,
+                dock_style: self.dock_style,
+                theme: self.theme,
+                last_cursor_pos: self.last_cursor_pos,
+                screen_size,
+                workspace_rect,
+            };
+            slice.execute_branch(
+                &lifecycle_branch,
+                BranchExecTarget {
+                    dock: params.dock,
+                    is_cursor_occluded: params.is_cursor_occluded,
+                    registry: external.registry,
+                    context: external.context,
                     on_shell_chrome,
-                )?;
-                (true, true)
-            }
-            LifecycleBranch::GranularPanels(tabs) => {
-                self.live_scheduler.clear_tabs(tabs);
-                for &tab in tabs {
-                    self.notifier.tag_redraw(tab);
-                }
-                self.tree.set_theme(self.theme);
-                let dock_frame_ref = self.dock_frame.as_ref();
-                let mut engines = SubtreeEngines::new(
-                    &mut self.tree,
-                    &mut self.layout_engine,
-                    &mut self.text_system,
-                );
-                let rebuilt = self.dual_layout.rebuild_dirty_panels_with_boundaries(
-                    &mut engines,
-                    &mut self.notifier,
-                    external.registry,
-                    external.context,
-                    |tab_id| dock_frame_ref.and_then(|df| df.leaf_container(tab_id)),
-                    |boundary_id| {
-                        dock_frame_ref.and_then(|df| df.tab_for_leaf_container(boundary_id))
-                    },
-                )?;
-                (rebuilt > 0, rebuilt > 0 || self.tree.has_dirty_boundaries())
-            }
-            LifecycleBranch::InPlaceRefresh => {
-                let _ = self.tree.take_live_refresh_flags();
-                if let Some(root) = self.tree.root() {
-                    let mut scope = UiScope::new(&mut self.tree, root);
-                    self.live_scheduler.dispatch(
-                        &mut scope,
-                        self.dock_frame.as_ref(),
-                        external.registry,
-                        external.context,
-                    );
-                    on_live_refresh(&mut scope, external.context);
-                }
-                let (needs_text, needs_quad) = self.tree.take_live_refresh_flags();
-                volatile_refresh = VolatileRefreshResult {
-                    needs_text_prepare: needs_text,
-                    needs_quad_reupload: needs_quad,
-                };
-                if needs_text {
-                    self.dual_layout.mark_needs_text_prepare();
-                }
-                (needs_text, needs_quad || self.tree.has_dirty_boundaries())
-            }
-            LifecycleBranch::Dormant => (false, self.tree.has_dirty_boundaries()),
+                    on_live_refresh,
+                },
+            )?
         };
+
+        if matches!(lifecycle_branch, LifecycleBranch::FullShellRebuild)
+            && self.dialog_host.is_active()
+            && let Some(root) = self.tree.root()
+        {
+            let mut modal_scope = UiScope::new(&mut self.tree, root);
+            let screen_rect = Rect::new(0.0, 0.0, screen_size.width, screen_size.height);
+            self.dialog_host
+                .render(&mut modal_scope, screen_rect, false, &mut self.action_bus);
+        }
 
         Ok(self.finish_frame_outcome(FrameOutcomeSummary {
             lifecycle_branch,
@@ -419,7 +400,7 @@ where
         }))
     }
 
-    fn begin_frame_lifecycle(
+    pub(super) fn begin_frame_lifecycle(
         &mut self,
         params: &WorkbenchFrameUpdateParams<'_, TabId>,
         host_inputs: impl FnOnce(LifecycleInputs) -> LifecycleInputs,
@@ -436,77 +417,6 @@ where
                 host_inputs(inputs.with_domain_revision(domain_revision))
             });
         (selection_changed, domain_revision_changed, lifecycle_branch)
-    }
-
-    fn rebuild_shell_with_external_registry<Ctx, R, FChrome>(
-        &mut self,
-        dock: &DockState<TabId>,
-        is_cursor_occluded: bool,
-        registry: &mut R,
-        context: &mut Ctx,
-        on_shell_chrome: FChrome,
-    ) -> Result<(), LayoutError>
-    where
-        R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
-        FChrome: FnOnce(&mut UiScope<'_>, &mut Ctx, Size),
-    {
-        self.tree.clear();
-        self.layout_engine.clear();
-        let screen_size = self.screen_size().unwrap_or_default();
-        self.tree.set_theme(self.theme);
-        let root = Self::create_viewport_root(&mut self.tree, screen_size)?;
-        let workspace_rect = self.compute_workspace_rect(screen_size.width, screen_size.height);
-        let dock_frame = {
-            let mut scope = UiScope::new(&mut self.tree, root);
-            if self
-                .descriptor
-                .menubar
-                .as_ref()
-                .is_some_and(|m| !m.is_empty())
-            {
-                self.descriptor
-                    .render_menubar(&mut scope, screen_size.width);
-            }
-            let dock_frame = {
-                let mut tv = RegistryActiveTabViewer::new(registry, context);
-                DockArea::from_ref(dock)
-                    .bounds(workspace_rect)
-                    .style(self.dock_style)
-                    .cursor_pos(self.last_cursor_pos.unwrap_or_default())
-                    .cursor_occluded(is_cursor_occluded)
-                    .show(&mut scope, &mut tv)
-            };
-            if self
-                .descriptor
-                .statusbar
-                .as_ref()
-                .is_some_and(|s| !s.is_default_empty())
-            {
-                self.descriptor
-                    .render_statusbar(&mut scope, screen_size.width, screen_size.height);
-            }
-            on_shell_chrome(&mut scope, context, screen_size);
-            scope.finish_layout(Rect::new(0.0, 0.0, screen_size.width, screen_size.height));
-            dock_frame
-        };
-        self.text_system.measure_subtree_text(&mut self.tree, root);
-        self.layout_engine
-            .compute_layout(&mut self.tree, screen_size)?;
-        synchronize_dock_frame(
-            &mut self.tree,
-            &mut self.layout_engine,
-            &mut self.text_system,
-            &dock_frame,
-        )?;
-        if self.dialog_host.is_active() {
-            let mut modal_scope = UiScope::new(&mut self.tree, root);
-            let screen_rect = Rect::new(0.0, 0.0, screen_size.width, screen_size.height);
-            self.dialog_host
-                .render(&mut modal_scope, screen_rect, false, &mut self.action_bus);
-        }
-        self.dual_layout.mark_needs_text_prepare();
-        self.dock_frame = Some(dock_frame);
-        Ok(())
     }
 
     /// Merges dialogs staged by panel drawers during a frame pass into [`Self::dialog_host`] and
@@ -526,7 +436,7 @@ where
         }
     }
 
-    fn finish_frame_outcome(
+    pub(super) fn finish_frame_outcome(
         &mut self,
         mut summary: FrameOutcomeSummary<TabId>,
     ) -> WorkbenchFrameOutcome<TabId> {

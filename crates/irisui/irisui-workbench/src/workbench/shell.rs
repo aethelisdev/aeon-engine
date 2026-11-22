@@ -282,6 +282,7 @@ where
         }
         self.lifecycle.ingest_notifier(&self.notifier);
         let branch = self.lifecycle.evaluate(*inputs);
+        self.tree.caret_blink = self.text_system.is_caret_visible();
 
         match &branch {
             LifecycleBranch::FullShellRebuild => {
@@ -480,6 +481,7 @@ where
         update: irisui_text::CaretBlinkUpdate,
     ) -> irisui_text::CaretBlinkUpdate {
         self.last_caret_blink = update;
+        self.tree.caret_blink = update.is_visible;
         if update.needs_redraw() {
             self.dual_layout.mark_needs_text_prepare();
             if let Some(focused_id) = self.tree.event_state.focused {

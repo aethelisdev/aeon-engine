@@ -21,10 +21,10 @@ use irisui_core::geometry::{Point, Rect, Size};
 use irisui_core::node::{UiLayer, WidgetCursor};
 use irisui_core::theme::Theme;
 use irisui_core::tree::UiTree;
-use irisui_dock::UiNotifier;
 use irisui_dock::chrome::DockChromeFrame;
 use irisui_dock::state::DockState;
 use irisui_dock::style::DockChromeStyle;
+use irisui_dock::{DeferredNotifier, UiNotifier};
 use irisui_layout::LayoutEngine;
 use irisui_text::TextSystem;
 use irisui_winit::frameless::{FramelessWindowHost, WindowDragHost, WindowInterface};
@@ -163,6 +163,10 @@ pub struct Workbench<
 
     /// Periodic timer & iteration scheduler for registered [`ScopedWorkbenchPanel::refresh_live`] hooks.
     pub(in crate::workbench) live_scheduler: LivePanelScheduler<TabId>,
+    /// Frame-scoped deferred dock mutation buffer automatically applied after service frames.
+    pub(in crate::workbench) deferred_notifier: DeferredNotifier<TabId>,
+    /// Framework-managed timed status bar spans cleared automatically on deadline.
+    pub(in crate::workbench) status_message: Option<super::TimedStatusMessage>,
 }
 
 impl<TabId, Action, AppState> Workbench<TabId, Action, AppState>
@@ -218,6 +222,8 @@ where
             cached_viewport_layout_key: None,
             cached_non_ui_viewport_rect: Rect::ZERO,
             live_scheduler: LivePanelScheduler::new(),
+            deferred_notifier: DeferredNotifier::new(),
+            status_message: None,
         }
     }
 
@@ -378,6 +384,29 @@ where
     #[must_use]
     pub const fn theme(&self) -> &Theme {
         &self.theme
+    }
+
+    /// Updates both [`Theme`] and [`DockChromeStyle`] atomically, propagates the theme into
+    /// [`Self::tree`], and marks the shell dirty if either visual token set changed.
+    pub fn set_theme_and_dock_style(&mut self, theme: Theme, dock_style: DockChromeStyle) {
+        self.set_theme(theme);
+        self.set_dock_style(dock_style);
+        self.tree.set_theme(theme);
+    }
+
+    /// Synchronizes an active loading/progress modal inside [`Self::dialog_host`] with `active`,
+    /// constructing the descriptor lazily via `make_descriptor` only when opening.
+    pub fn set_loading_progress<F>(&mut self, active: bool, make_descriptor: F)
+    where
+        F: FnOnce() -> crate::dialogs::ProgressModalDescriptor<Action>,
+    {
+        if active {
+            if !self.dialog_host.has_progress() {
+                self.dialog_host.open_progress(make_descriptor());
+            }
+        } else if self.dialog_host.has_progress() {
+            let _ = self.dialog_host.close_progress();
+        }
     }
 
     /// Returns the monotonic styling revision counter incremented on theme or dock style changes.

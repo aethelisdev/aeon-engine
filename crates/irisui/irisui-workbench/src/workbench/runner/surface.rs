@@ -11,11 +11,30 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use irisui_core::UiEvent;
+use irisui_layout::LayoutError;
 use irisui_wgpu::{IrisSurfaceHost, IrisSurfaceRenderParams};
 use irisui_winit::frameless::WindowInterface;
 
 use super::Workbench;
+use crate::lifecycle::LifecycleInputs;
 use crate::workbench::WorkbenchOutcome;
+use crate::workbench::frame::{WorkbenchFrameOutcome, WorkbenchOwnedFrameParams};
+use crate::workbench::frame_services::{
+    WorkbenchFramePassResult, WorkbenchFrameRunner, WorkbenchFrameServices,
+};
+
+/// Bundled frame lifecycle, GPU target surface, and window cursor synchronization inputs for
+/// [`Workbench::render_frame_to_surface`].
+pub struct WorkbenchSurfaceFrameParams<'a, W: WindowInterface> {
+    /// Owned frame lifecycle parameters (scale factor, selection, domain revision, occlusion).
+    pub frame: WorkbenchOwnedFrameParams,
+    /// WGPU surface render destination and zoom configuration.
+    pub surface: WorkbenchSurfaceRender<'a>,
+    /// Native window reference used to synchronize resolved cursor icons.
+    pub window: &'a mut W,
+    /// Whether any external or registry-owned panel currently requests live refresh.
+    pub has_live_panels: bool,
+}
 
 /// Descriptor specifying WGPU target surface and scaling parameters for
 /// [`Workbench::render_to_surface`].
@@ -60,6 +79,53 @@ where
         }
         self.sync_outcome_invalidation(&outcome);
         outcome
+    }
+
+    /// Synchronizes cursor coordinates, runs the unified service-borrowing frame lifecycle,
+    /// applies surface invalidation flags, and composites into the target WGPU texture view.
+    ///
+    /// Returns `Ok(None)` without invoking layout or surface passes when `params.surface.physical_screen_size`
+    /// has a zero dimension (minimized window).
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if shell or dirty panel layout solving fails.
+    pub fn render_frame_to_surface<W, FInputs, FRun>(
+        &mut self,
+        surface: &mut IrisSurfaceHost,
+        params: WorkbenchSurfaceFrameParams<'_, W>,
+        host_inputs: FInputs,
+        on_run: FRun,
+    ) -> Result<Option<WorkbenchFrameOutcome<TabId>>, LayoutError>
+    where
+        W: WindowInterface,
+        FInputs: FnOnce(LifecycleInputs) -> LifecycleInputs,
+        FRun: FnOnce(
+            &mut WorkbenchFrameRunner<'_, TabId>,
+            WorkbenchFrameServices<'_, Action, TabId>,
+        ) -> Result<WorkbenchFramePassResult, LayoutError>,
+    {
+        self.sync_cursor(params.window);
+        let (surface_w, surface_h) = params.surface.physical_screen_size;
+        if surface_w == 0 || surface_h == 0 {
+            return Ok(None);
+        }
+        let outcome = self.update_frame_with_services(
+            params.frame,
+            params.has_live_panels,
+            host_inputs,
+            on_run,
+        )?;
+        let hovered_tag = self.hovered_tag();
+        let blink_caret = self.text_system.is_caret_visible();
+        surface.apply_frame_flags(
+            &mut self.tree,
+            blink_caret,
+            hovered_tag,
+            outcome.to_surface_frame_flags(),
+            None,
+        );
+        self.render_to_surface(surface, params.surface);
+        Ok(Some(outcome))
     }
 
     /// Renders the retained UI tree directly into `params.target_view` using `surface` without
