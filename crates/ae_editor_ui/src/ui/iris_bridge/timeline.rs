@@ -7,7 +7,6 @@
 //! for Aeon Engine, utilizing decoupled Retained UI trees, responsive transport controls,
 //! adaptive time rulers, and interactive scrubbing.
 
-pub mod builder;
 pub mod lanes;
 pub mod panel;
 pub mod ruler;
@@ -31,6 +30,5 @@ pub use types::{
     TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_RULER_ROOT,
     TIMELINE_TAG_SCRUBBER_PLAYHEAD, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_STEP_BACK,
     TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TIMELINE_TAG_TIME_READOUT,
-    TIMELINE_TAG_TIME_READOUT_TEXT, TimelineClipCache, TimelinePanelParams, TimelinePanelState,
-    TimelineState,
+    TIMELINE_TAG_TIME_READOUT_TEXT, TimelineClipCache, TimelinePanelState, TimelineState,
 };

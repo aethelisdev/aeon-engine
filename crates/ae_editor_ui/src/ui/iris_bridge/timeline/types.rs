@@ -63,14 +63,20 @@ pub struct TimelineClipCache {
 impl TimelineClipCache {
     /// Synchronizes cached keyframe markers from `player`, skipping work when clip metadata matches.
     pub fn sync(&mut self, player: Option<&ae_animation::AnimationPlayer>) {
-        let Some(clip) = player.and_then(|p| p.current_clip.as_ref()) else {
-            self.cached_clip_name.clear();
-            self.cached_duration = 0.0;
-            self.cached_channel_count = 0;
-            self.keyframe_markers.clear();
-            return;
-        };
+        match player.and_then(|p| p.current_clip.as_ref()) {
+            None => self.clear_cache(),
+            Some(clip) => self.sync_from_clip(clip),
+        }
+    }
 
+    fn clear_cache(&mut self) {
+        self.cached_clip_name.clear();
+        self.cached_duration = 0.0;
+        self.cached_channel_count = 0;
+        self.keyframe_markers.clear();
+    }
+
+    fn sync_from_clip(&mut self, clip: &ae_animation::AnimationClip) {
         if self.cached_clip_name == clip.name
             && (self.cached_duration - clip.duration).abs() < 1e-5
             && self.cached_channel_count == clip.channels.len()
@@ -85,28 +91,22 @@ impl TimelineClipCache {
         self.keyframe_markers.clear();
 
         for channel in &clip.channels {
-            if let Some(ref track) = channel.vector_track {
-                for kf in &track.keyframes {
-                    if !self
-                        .keyframe_markers
-                        .iter()
-                        .any(|m| (m.time - kf.time).abs() < 0.02)
-                    {
-                        self.keyframe_markers.push(ScrubberMarker::new(kf.time));
-                    }
-                }
-            }
-            if let Some(ref track) = channel.rotation_track {
-                for kf in &track.keyframes {
-                    if !self
-                        .keyframe_markers
-                        .iter()
-                        .any(|m| (m.time - kf.time).abs() < 0.02)
-                    {
-                        self.keyframe_markers.push(ScrubberMarker::new(kf.time));
-                    }
-                }
-            }
+            push_deduped_markers(
+                &mut self.keyframe_markers,
+                channel
+                    .vector_track
+                    .iter()
+                    .flat_map(|track| track.keyframes.iter())
+                    .map(|kf| kf.time),
+            );
+            push_deduped_markers(
+                &mut self.keyframe_markers,
+                channel
+                    .rotation_track
+                    .iter()
+                    .flat_map(|track| track.keyframes.iter())
+                    .map(|kf| kf.time),
+            );
         }
 
         self.keyframe_markers
@@ -121,6 +121,14 @@ impl TimelineClipCache {
     }
 }
 
+fn push_deduped_markers(markers: &mut Vec<ScrubberMarker>, times: impl IntoIterator<Item = f32>) {
+    times.into_iter().for_each(|time| {
+        if !markers.iter().any(|m| (m.time - time).abs() < 0.02) {
+            markers.push(ScrubberMarker::new(time));
+        }
+    });
+}
+
 /// Emits a serialized `AnimationPlayer` component update onto [`ActionBus`] after applying `mutate`.
 pub(crate) fn emit_player_mutation(
     entity: hecs::Entity,
@@ -128,7 +136,15 @@ pub(crate) fn emit_player_mutation(
     action_bus: &mut ActionBus<EngineUiAction>,
     mutate: impl FnOnce(&mut ae_animation::AnimationPlayer),
 ) {
-    let mut updated = player.clone();
+    emit_cloned_player_mutation(entity, player.clone(), action_bus, mutate);
+}
+
+fn emit_cloned_player_mutation(
+    entity: hecs::Entity,
+    mut updated: ae_animation::AnimationPlayer,
+    action_bus: &mut ActionBus<EngineUiAction>,
+    mutate: impl FnOnce(&mut ae_animation::AnimationPlayer),
+) {
     mutate(&mut updated);
     action_bus.emit(EngineUiAction::modify_component(
         entity,
@@ -137,54 +153,90 @@ pub(crate) fn emit_player_mutation(
     ));
 }
 
-/// Runtime parameters passed to the Animation Timeline Studio builder each frame.
-pub struct TimelinePanelParams<'a> {
-    /// Currently selected entity in the scene, if any.
-    pub entity: Option<hecs::Entity>,
-    /// Active animation player component borrowed from the ECS world, if present.
-    pub animation_player: Option<&'a ae_animation::AnimationPlayer>,
+#[inline]
+const fn mix_fnv1a(acc: u64, val: u64) -> u64 {
+    (acc ^ val).wrapping_mul(0x100000001b3)
 }
 
 /// Computes a zero-allocation 64-bit structural fingerprint of the selected entity and animation
-/// transport/clip metadata for `UiScope::record_retained_revision` and `sync_retained_revision`.
+/// transport/clip metadata for [`irisui::widgets::panel::PanelBuilder::retained_revision`] and
+/// [`irisui::workbench::WorkbenchPanelContext::sync_live_revision`].
 pub(crate) fn timeline_structural_hash(
     entity: Option<hecs::Entity>,
     player: Option<&ae_animation::AnimationPlayer>,
 ) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    let mix = |acc: &mut u64, val: u64| {
-        *acc ^= val;
-        *acc = acc.wrapping_mul(0x100000001b3);
-    };
-    mix(&mut h, entity.map_or(0, |e| e.to_bits().get()));
-    mix(&mut h, u64::from(player.is_some()));
-    if let Some(p) = player {
-        let state_code = match p.state {
-            ae_animation::AnimationState::Stopped => 0,
-            ae_animation::AnimationState::Playing => 1,
-            ae_animation::AnimationState::Paused => 2,
-        };
-        mix(&mut h, state_code);
-        mix(&mut h, u64::from(p.looping));
-        mix(&mut h, u64::from(p.speed.to_bits()));
-        if let Some(clip) = p.current_clip.as_ref() {
-            mix(&mut h, clip.channels.len() as u64);
-            for &b in clip.name.as_bytes() {
-                mix(&mut h, u64::from(b));
-            }
-        }
-    }
-    h
+    player.map_or(
+        mix_fnv1a(
+            mix_fnv1a(0xcbf29ce484222325, entity.map_or(0, |e| e.to_bits().get())),
+            0,
+        ),
+        |p| {
+            mix_player_hash(
+                mix_fnv1a(
+                    mix_fnv1a(0xcbf29ce484222325, entity.map_or(0, |e| e.to_bits().get())),
+                    1,
+                ),
+                p,
+            )
+        },
+    )
+}
+
+fn mix_player_hash(acc: u64, p: &ae_animation::AnimationPlayer) -> u64 {
+    p.current_clip.as_ref().map_or_else(
+        || {
+            mix_fnv1a(
+                mix_fnv1a(
+                    mix_fnv1a(
+                        acc,
+                        match p.state {
+                            ae_animation::AnimationState::Stopped => 0,
+                            ae_animation::AnimationState::Playing => 1,
+                            ae_animation::AnimationState::Paused => 2,
+                        },
+                    ),
+                    u64::from(p.looping),
+                ),
+                u64::from(p.speed.to_bits()),
+            )
+        },
+        |clip| {
+            clip.name.as_bytes().iter().fold(
+                mix_fnv1a(
+                    mix_fnv1a(
+                        mix_fnv1a(
+                            mix_fnv1a(
+                                acc,
+                                match p.state {
+                                    ae_animation::AnimationState::Stopped => 0,
+                                    ae_animation::AnimationState::Playing => 1,
+                                    ae_animation::AnimationState::Paused => 2,
+                                },
+                            ),
+                            u64::from(p.looping),
+                        ),
+                        u64::from(p.speed.to_bits()),
+                    ),
+                    clip.channels.len() as u64,
+                ),
+                |h, &b| mix_fnv1a(h, u64::from(b)),
+            )
+        },
+    )
 }
 
 /// Computes a 64-bit fingerprint of the fast-changing playback time and duration for `InPlaceRefresh`.
 #[inline]
 pub(crate) fn timeline_live_hash(player: Option<&ae_animation::AnimationPlayer>) -> u64 {
-    let Some(p) = player else {
-        return 0;
-    };
-    let duration = p.current_clip.as_ref().map_or(1.0, |c| c.duration.max(0.1));
-    (u64::from(p.current_time.to_bits()) << 32) | u64::from(duration.to_bits())
+    player.map_or(0, |p| {
+        (u64::from(p.current_time.to_bits()) << 32)
+            | u64::from(
+                p.current_clip
+                    .as_ref()
+                    .map_or(1.0_f32, |c| c.duration.max(0.1))
+                    .to_bits(),
+            )
+    })
 }
 
 /// Runtime persistent state for the Animation Timeline Studio panel.

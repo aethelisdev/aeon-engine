@@ -16,14 +16,10 @@ fn test_timeline_panel_build_empty_state() {
     let mut cache = TimelineClipCache::default();
     let mut bus = ActionBus::<EngineUiAction>::new();
 
-    let params = TimelinePanelParams {
-        entity: None,
-        animation_player: None,
-    };
-
     let duration = build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        None,
+        None,
         &mut cache,
         &mut bus,
     );
@@ -41,14 +37,10 @@ fn test_timeline_panel_build_missing_player() {
 
     let dummy_entity = hecs::World::new().spawn(());
 
-    let params = TimelinePanelParams {
-        entity: Some(dummy_entity),
-        animation_player: None,
-    };
-
     let duration = build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        Some(dummy_entity),
+        None,
         &mut cache,
         &mut bus,
     );
@@ -66,14 +58,11 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
     let mut bus = ActionBus::<EngineUiAction>::new();
 
     let dummy_entity = hecs::World::new().spawn(());
-    let params = TimelinePanelParams {
-        entity: Some(dummy_entity),
-        animation_player: None,
-    };
 
     build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        Some(dummy_entity),
+        None,
         &mut cache,
         &mut bus,
     );
@@ -92,7 +81,8 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
 
     build_timeline_panel(
         &mut UiScope::new(&mut tree_click, root_click),
-        &params,
+        Some(dummy_entity),
+        None,
         &mut cache,
         &mut bus,
     );
@@ -122,14 +112,11 @@ fn test_timeline_panel_build_with_player_and_transport_click() {
     player.current_time = 1.2;
 
     let dummy_entity = hecs::World::new().spawn(());
-    let params = TimelinePanelParams {
-        entity: Some(dummy_entity),
-        animation_player: Some(&player),
-    };
 
     let duration = build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        Some(dummy_entity),
+        Some(&player),
         &mut cache,
         &mut bus,
     );
@@ -144,7 +131,8 @@ fn test_timeline_panel_build_with_player_and_transport_click() {
 
     build_timeline_panel(
         &mut UiScope::new(&mut tree_click, root_click),
-        &params,
+        Some(dummy_entity),
+        Some(&player),
         &mut cache,
         &mut bus,
     );
@@ -171,15 +159,7 @@ fn test_timeline_empty_and_missing_cards_are_horizontally_centered_within_panel(
             .panel("TestViewport")
             .bounds(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 220.0))
             .show(|panel_scope| {
-                build_timeline_panel(
-                    panel_scope,
-                    &TimelinePanelParams {
-                        entity: None,
-                        animation_player: None,
-                    },
-                    &mut cache,
-                    &mut bus,
-                );
+                build_timeline_panel(panel_scope, None, None, &mut cache, &mut bus);
             });
         scope.finish_layout(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 220.0));
     }
@@ -215,15 +195,7 @@ fn test_timeline_empty_and_missing_cards_are_horizontally_centered_within_panel(
             .panel("TestViewportMissing")
             .bounds(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 220.0))
             .show(|panel_scope| {
-                build_timeline_panel(
-                    panel_scope,
-                    &TimelinePanelParams {
-                        entity: Some(dummy_entity),
-                        animation_player: None,
-                    },
-                    &mut cache,
-                    &mut bus,
-                );
+                build_timeline_panel(panel_scope, Some(dummy_entity), None, &mut cache, &mut bus);
             });
         scope.finish_layout(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 220.0));
     }
@@ -268,25 +240,18 @@ fn test_timeline_live_playback_updates_in_place_without_tree_rebuild() {
         ..Default::default()
     },));
 
-    // Initial full build
+    // Initial full build (retained revision recorded declaratively via PanelBuilder)
     {
         let mut scope = UiScope::new(&mut tree, root);
         let player_ref = world.get::<&ae_animation::AnimationPlayer>(entity).unwrap();
         let dur = build_timeline_panel(
             &mut scope,
-            &TimelinePanelParams {
-                entity: Some(entity),
-                animation_player: Some(&player_ref),
-            },
+            Some(entity),
+            Some(&player_ref),
             &mut state.cache,
             &mut bus,
         );
         state.clip_duration = dur;
-        scope.record_retained_revision(
-            TIMELINE_TAG_PANEL_ROOT,
-            types::timeline_structural_hash(Some(entity), Some(&player_ref)),
-            types::timeline_live_hash(Some(&player_ref)),
-        );
         scope.finish_layout(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 300.0));
     }
 

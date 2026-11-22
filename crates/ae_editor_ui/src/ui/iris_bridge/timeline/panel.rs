@@ -7,13 +7,93 @@
 //! and child transport, ruler, scrubber, and dope sheet lanes using 100% pure zero-`let`
 //! declarative [`UiScope`] composition and direct [`ActionBus`] emission.
 
-use super::lanes::build_dope_sheet_lanes;
-use super::ruler::build_ruler_and_scrubber;
-use super::transport::build_transport_toolbar;
-use super::types::{TIMELINE_TAG_PANEL_ROOT, TimelineClipCache, TimelinePanelParams};
+use super::lanes::{build_dope_sheet_lanes, refresh_lanes_playhead_live};
+use super::ruler::{build_ruler_and_scrubber, refresh_scrubber_live};
+use super::transport::{build_transport_toolbar, update_time_readout_live};
+use super::types::{
+    TIMELINE_TAG_PANEL_ROOT, TimelineClipCache, TimelinePanelState, timeline_live_hash,
+    timeline_structural_hash,
+};
+use crate::ui::panel_layout::PanelId;
+use crate::ui::panel_registry::EditorPanelContext;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
+
+impl TimelinePanelState {
+    /// Draws the Animation Timeline Studio panel directly using typed timeline state and workbench context.
+    pub(crate) fn draw_panel(&mut self, scope: &mut UiScope<'_>, ctx: &mut EditorPanelContext<'_>) {
+        self.selected_entity = ctx.data.editor_state.primary_selected();
+        self.clip_duration = build_timeline_panel(
+            scope,
+            self.selected_entity,
+            self.selected_entity
+                .and_then(|ent| {
+                    ctx.data
+                        .world
+                        .get::<&ae_animation::AnimationPlayer>(ent)
+                        .ok()
+                })
+                .as_deref(),
+            &mut self.cache,
+            ctx.action_bus,
+        );
+    }
+
+    /// Streams 60 FPS playhead, scrubber, and time readout updates in place during `InPlaceRefresh`
+    /// via [`EditorPanelContext::sync_live_revision`], triggering granular rebuilds on structural edits.
+    pub(crate) fn refresh_panel(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        ctx: &mut EditorPanelContext<'_>,
+    ) {
+        refresh_timeline_with_player(
+            scope,
+            ctx,
+            ctx.data.editor_state.primary_selected(),
+            ctx.data
+                .editor_state
+                .primary_selected()
+                .and_then(|ent| {
+                    ctx.data
+                        .world
+                        .get::<&ae_animation::AnimationPlayer>(ent)
+                        .ok()
+                })
+                .as_deref(),
+        );
+    }
+}
+
+fn refresh_timeline_with_player(
+    scope: &mut UiScope<'_>,
+    ctx: &mut EditorPanelContext<'_>,
+    entity: Option<hecs::Entity>,
+    player: Option<&ae_animation::AnimationPlayer>,
+) {
+    ctx.sync_live_revision(
+        scope,
+        TIMELINE_TAG_PANEL_ROOT,
+        PanelId::AnimationTimeline,
+        timeline_structural_hash(entity, player),
+        timeline_live_hash(player),
+        |live_scope| {
+            player.into_iter().for_each(|p| {
+                refresh_player_widgets(
+                    live_scope,
+                    p.current_time,
+                    p.current_clip.as_ref().map_or(1.0, |c| c.duration.max(0.1)),
+                );
+            });
+        },
+    );
+}
+
+fn refresh_player_widgets(scope: &mut UiScope<'_>, current_time: f32, duration: f32) {
+    update_time_readout_live(scope, current_time, duration, 30.0);
+    refresh_scrubber_live(scope, duration, current_time);
+    refresh_lanes_playhead_live(scope, duration, current_time);
+}
 
 /// Builds the complete Animation Timeline Studio docked panel via pure declarative [`UiScope`].
 ///
@@ -22,41 +102,39 @@ use irisui::workbench::ActionBus;
 /// Returns the resolved clip duration in seconds.
 pub fn build_timeline_panel(
     scope: &mut UiScope<'_>,
-    params: &TimelinePanelParams<'_>,
+    entity: Option<hecs::Entity>,
+    animation_player: Option<&ae_animation::AnimationPlayer>,
     cache: &mut TimelineClipCache,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) -> f32 {
-    scope
-        .panel("AnimationTimelinePanelRoot")
-        .tagged(TIMELINE_TAG_PANEL_ROOT)
-        .background_themed(|t| t.panel_bg)
-        .border_themed(1.0, |t| t.panel_border)
-        .show(
-            |panel_scope| match (params.entity, params.animation_player) {
-                (None, _) => {
-                    cache.sync(None);
-                    render_empty_placeholder(panel_scope);
-                    0.0
-                }
-                (Some(entity), None) => {
-                    cache.sync(None);
-                    render_missing_player_card(panel_scope, entity, action_bus);
-                    0.0
-                }
-                (Some(entity), Some(player)) => build_active_timeline(
-                    panel_scope,
-                    entity,
-                    player,
-                    player
-                        .current_clip
-                        .as_ref()
-                        .map_or(1.0, |c| c.duration.max(0.1)),
-                    cache,
-                    action_bus,
-                ),
-            },
-        )
-        .inner
+    scope.record_retained_revision(
+        TIMELINE_TAG_PANEL_ROOT,
+        timeline_structural_hash(entity, animation_player),
+        timeline_live_hash(animation_player),
+    );
+    match (entity, animation_player) {
+        (None, _) => {
+            cache.sync(None);
+            render_empty_placeholder(scope);
+            0.0
+        }
+        (Some(entity), None) => {
+            cache.sync(None);
+            render_missing_player_card(scope, entity, action_bus);
+            0.0
+        }
+        (Some(entity), Some(player)) => build_active_timeline(
+            scope,
+            entity,
+            player,
+            player
+                .current_clip
+                .as_ref()
+                .map_or(1.0, |c| c.duration.max(0.1)),
+            cache,
+            action_bus,
+        ),
+    }
 }
 
 fn build_active_timeline(
