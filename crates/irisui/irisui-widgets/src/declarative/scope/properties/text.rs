@@ -8,7 +8,7 @@
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};
 use irisui_core::{
-    AlignItems, Color, Insets, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
+    AlignItems, Color, Insets, Style, TextAlign, UiTag, WidgetCursor, WidgetId, WidgetRole,
 };
 
 /// Configuration options for text and string property rows.
@@ -217,6 +217,56 @@ impl<'a> UiScope<'a> {
         );
 
         input_resp
+    }
+
+    /// Emits a two-way bound text input property row that automatically synchronizes `scratch`
+    /// from `external_value` whenever this input is not actively being edited.
+    ///
+    /// Eliminates consumer-side post-render buffer synchronization boilerplate (such as resetting
+    /// edit scratch buffers after selection changes or external Undo/Redo operations).
+    pub fn prop_text_synced(
+        &mut self,
+        label: &str,
+        key: UiTag,
+        scratch: &mut String,
+        external_value: &str,
+    ) -> WidgetResponse {
+        self.prop_text_synced_with_options(
+            label,
+            key,
+            scratch,
+            external_value,
+            PropertyTextOptions::default(),
+        )
+    }
+
+    /// Emits a synchronized two-way bound text input property row with explicit [`PropertyTextOptions`].
+    ///
+    /// When the retained tree has no active text edit session matching the resolved widget tag,
+    /// `scratch` is updated in-place to match `external_value` prior to building the text node.
+    /// While an editing session is active for this tag, in-progress user edits in `scratch` are preserved.
+    pub fn prop_text_synced_with_options(
+        &mut self,
+        label: &str,
+        key: UiTag,
+        scratch: &mut String,
+        external_value: &str,
+        options: PropertyTextOptions<'_>,
+    ) -> WidgetResponse {
+        let tag = options.custom_tag.unwrap_or_else(|| key.raw());
+        let is_editing_this = self
+            .tree
+            .event_state
+            .active_text_edit
+            .as_ref()
+            .is_some_and(|session| session.tag == tag);
+
+        if !is_editing_this && scratch.as_str() != external_value {
+            scratch.clear();
+            scratch.push_str(external_value);
+        }
+
+        self.prop_text_with_options(label, scratch, options.with_custom_tag(tag))
     }
 
     /// Emits a standardized text input property row with custom configuration options.
@@ -489,5 +539,38 @@ mod tests {
         let box_node = scope.tree().get(box_id).expect("Node must be retrieved");
         assert_eq!(box_node.role, WidgetRole::TextInput);
         assert_eq!(box_node.cursor, Some(WidgetCursor::Text));
+    }
+
+    #[test]
+    fn test_prop_text_synced_lifecycle() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let key = UiTag::from_str("test.entity_name");
+        let mut scratch = String::new();
+
+        // 1. Initial sync before first render updates scratch from external value
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = scope.prop_text_synced("Name:", key, &mut scratch, "Hero");
+        }
+        assert_eq!(scratch, "Hero");
+
+        // 2. While active text edit is running for `key`, external_value does not clobber scratch
+        tree.event_state
+            .start_text_edit(None, key.raw(), "HeroTyped", 9, None);
+        scratch = "HeroTyped".to_string();
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = scope.prop_text_synced("Name:", key, &mut scratch, "Hero");
+        }
+        assert_eq!(scratch, "HeroTyped");
+
+        // 3. Once editing ends, scratch re-syncs to updated external value (e.g. Undo or selection swap)
+        tree.event_state.clear_text_edit();
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = scope.prop_text_synced("Name:", key, &mut scratch, "Villain");
+        }
+        assert_eq!(scratch, "Villain");
     }
 }

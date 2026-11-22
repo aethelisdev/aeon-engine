@@ -99,8 +99,9 @@ impl ColorPickerPopupTags {
 pub struct ColorPickerPopupConfig<'a> {
     /// Header title text displayed at the top of the popup card.
     pub title: &'a str,
-    /// Bounding rectangle of the parent panel used to clamp popup screen coordinates.
-    pub bounds: Rect,
+    /// Optional bounding rectangle used to clamp popup screen coordinates.
+    /// When `None`, automatically clamps against [`UiScope::screen_bounds`].
+    pub bounds: Option<Rect>,
     /// Optional fallback HSV `[hue, saturation, value]` used before an active session is cached.
     pub initial_hsv: Option<[f32; 3]>,
     /// Optional hex string override displayed when idle.
@@ -118,7 +119,21 @@ impl<'a> ColorPickerPopupConfig<'a> {
     pub const fn new(title: &'a str, bounds: Rect, tags: ColorPickerPopupTags) -> Self {
         Self {
             title,
-            bounds,
+            bounds: Some(bounds),
+            initial_hsv: None,
+            hex_override: None,
+            tags,
+            card_style: PopupCardStyle::new(),
+        }
+    }
+
+    /// Constructs a new [`ColorPickerPopupConfig`] that clamps automatically against [`UiScope::screen_bounds`].
+    #[inline]
+    #[must_use]
+    pub const fn new_auto(title: &'a str, tags: ColorPickerPopupTags) -> Self {
+        Self {
+            title,
+            bounds: None,
             initial_hsv: None,
             hex_override: None,
             tags,
@@ -328,12 +343,13 @@ impl<'a> UiScope<'a> {
             self.tree.set_popup_tag_active(config.tags.card_tag, true);
         }
 
+        let clamp_bounds = config.bounds.unwrap_or_else(|| self.screen_bounds());
         let anchor_rect = self
             .tree
             .resolve_anchor_rect(config.tags.anchor_tag)
             .unwrap_or(Rect::new(
-                config.bounds.x + 20.0,
-                config.bounds.y + 120.0,
+                clamp_bounds.x + 20.0,
+                clamp_bounds.y + 120.0,
                 40.0,
                 20.0,
             ));
@@ -342,10 +358,10 @@ impl<'a> UiScope<'a> {
         let popup_h = 224.0;
         let popup_x = anchor_rect
             .x
-            .min(config.bounds.right() - popup_w - 6.0)
-            .max(config.bounds.x + 6.0);
-        let min_top = config.bounds.y.max(6.0);
-        let popup_y = if anchor_rect.bottom() + popup_h > config.bounds.bottom() - 30.0 {
+            .min(clamp_bounds.right() - popup_w - 6.0)
+            .max(clamp_bounds.x + 6.0);
+        let min_top = clamp_bounds.y.max(6.0);
+        let popup_y = if anchor_rect.bottom() + popup_h > clamp_bounds.bottom() - 30.0 {
             (anchor_rect.y - popup_h - 4.0).max(min_top)
         } else {
             anchor_rect.bottom() + 4.0

@@ -446,11 +446,16 @@ impl<'a> UiScope<'a> {
         } else {
             8.0
         };
-        let max_visible_w = if props.width > 0.0 {
-            (props.width - text_start_x - pad_end).max(0.0)
+        let resolved_box_w = if props.width > 0.0 {
+            props.width
         } else {
-            0.0
+            self.tree
+                .tag_rect(tag)
+                .map(|r| r.width)
+                .filter(|&w| w > 0.0)
+                .unwrap_or_else(|| (self.available_rect().width - 60.0).max(80.0))
         };
+        let max_visible_w = (resolved_box_w - text_start_x - pad_end).max(0.0);
 
         let effective_cursor_idx = if is_still_focused {
             cursor_idx

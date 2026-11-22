@@ -6,11 +6,13 @@
 //! Provides text input rendering, caret positioning, visible text slicing, and selection highlight
 //! primitives on [`crate::declarative::UiScope`] for search inputs, text fields, and inspector inline string editing.
 
+pub mod bound_field;
 pub mod box_widget;
 pub mod interaction;
 pub mod rendering;
 pub mod types;
 
+pub use bound_field::TextInputField;
 pub use interaction::*;
 pub use irisui_text::measure_text_advance;
 pub use types::*;
