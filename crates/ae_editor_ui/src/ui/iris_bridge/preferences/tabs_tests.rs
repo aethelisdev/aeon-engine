@@ -5,18 +5,20 @@
 //!
 //! Validates that all ten preference tabs (`0..=9`) render robustly without errors,
 //! and that Navigation (Tab 3), Editor (Tab 2), and Input (Tab 7) property sliders
-//! mutate [`EditorConfig`] directly via two-way declarative bindings.
+//! emit updated [`EditorConfig`] actions via [`UiScope::edit_with_state`].
 
-use super::builder::{SIDEBAR_WIDTH, build_preferences_view};
-use super::types::{
-    PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PreferencesParams, preferences_scroll_style,
+use super::panel::build_preferences_view;
+use super::types::{PREF_TAG_CONTENT_VIEW, PreferencesDialogState};
+use crate::assets::AssetBrowserState;
+use crate::ui::types::{
+    EditorFrameData, EditorTelemetrySnapshot, EngineUiAction, ExportDialogState,
 };
-use crate::ui::iris_bridge::theme::ThemePreset;
-use crate::ui::types::EngineUiAction;
-use ae_editor::editor_state::EditorConfig;
+use ae_editor::editor_state::{EditorConfig, EditorState};
 use ae_editor::snapping::SnapSettings;
+use ae_renderer::asset::AssetStorage;
+use ae_renderer::camera::{Camera, ProjectionMode};
 use ae_renderer::graphics_settings::GraphicsSettings;
+use ae_uidesign::UiDesignerState;
 use irisui::prelude::*;
 use irisui::widgets::declarative::hash_label;
 use irisui::workbench::ActionBus;
@@ -34,54 +36,84 @@ fn build_tab_harness(
 ) -> f32 {
     let root = tree.create_root().expect("Root creation must succeed");
     let enabled_modules = HashSet::new();
-    let mut cur_tab = tab_idx;
-    let mut live_updates = false;
-    let mut theme = ThemePreset::default();
+    let world = hecs::World::new();
+    let editor_state = EditorState::default();
+    let telemetry = EditorTelemetrySnapshot::default();
+    let mut asset_browser = AssetBrowserState::default();
+    let mut ui_designer = UiDesignerState::default();
+    let mut export_modal = ExportDialogState::default();
+    let textures = AssetStorage::new();
+    let models = AssetStorage::new();
+    let camera = Camera {
+        position: cgmath::Point3::new(0.0, 2.0, 5.0),
+        yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
+        pitch: cgmath::Rad(0.0),
+        aspect: 16.0 / 9.0,
+        fovy: 45.0,
+        znear: 0.1,
+        zfar: 100.0,
+        mode: ProjectionMode::Perspective,
+        ortho_scale: 1.0,
+        target: cgmath::Point3::new(0.0, 0.0, 0.0),
+    };
     let mut bus = ActionBus::<EngineUiAction>::new();
-    let content_w = TEST_PANEL_RECT.width - SIDEBAR_WIDTH - 1.0;
-
-    let mut scope = UiScope::with_tagged_interactions(tree, root, events, None);
-    let mut params = PreferencesParams {
-        active_tab: &mut cur_tab,
-        zoom_factor: 1.0,
+    let frame = EditorFrameData {
+        is_editing: true,
+        is_2d_mode: false,
+        view_panel_mask: 0,
+        can_undo: false,
+        can_redo: false,
+        has_viewport_texture: false,
+        viewport_rect: Rect::ZERO,
+        camera: &camera,
+        world: &world,
+        editor_state: &editor_state,
         graphics_settings: gs,
         snapping_settings: snap,
         editor_config: cfg,
-        enable_live_updates: &mut live_updates,
+        enable_live_updates: false,
         enabled_modules: &enabled_modules,
-        current_theme: &mut theme,
+        telemetry: &telemetry,
+        gpu_adapter_name: "MockGPU",
+        gpu_backend: "Vulkan",
+        asset_browser: &mut asset_browser,
+        ui_designer_state: &mut ui_designer,
+        export_modal: &mut export_modal,
+        textures: &textures,
+        models: &models,
     };
-    scope.container_named(
-        "PrefTabHarness",
-        Style::new()
-            .position_absolute()
-            .left(TEST_PANEL_RECT.x)
-            .top(TEST_PANEL_RECT.y)
-            .width(TEST_PANEL_RECT.width)
-            .height(TEST_PANEL_RECT.height)
-            .flex_row(),
-        |panel| {
-            build_preferences_view(
-                panel,
-                &mut params,
-                &mut bus,
-                content_w,
-                TEST_PANEL_RECT.height,
-            );
-        },
-    );
-    scope.finish_layout(TEST_PANEL_RECT);
-    scope.sync_and_render_vertical_scrollbar(
-        VerticalScrollbarSpec::new(
-            PREF_TAG_CONTENT_VIEW,
-            PREF_TAG_SCROLL_CONTAINER,
-            PREF_TAG_SCROLLBAR_TRACK,
-            PREF_TAG_SCROLLBAR_THUMB,
-            Rect::new(SIDEBAR_WIDTH + 1.0, 0.0, content_w, TEST_PANEL_RECT.height),
-        )
-        .min_virtual_height(super::builder::tab_virtual_height(cur_tab))
-        .style(preferences_scroll_style()),
-    )
+    let mut state = PreferencesDialogState {
+        tab: tab_idx,
+        ..Default::default()
+    };
+
+    {
+        let mut scope = UiScope::with_tagged_interactions(tree, root, events, None);
+        scope.container_named(
+            "PrefTabHarness",
+            Style::new()
+                .position_absolute()
+                .left(TEST_PANEL_RECT.x)
+                .top(TEST_PANEL_RECT.y)
+                .width(TEST_PANEL_RECT.width)
+                .height(TEST_PANEL_RECT.height)
+                .flex_row(),
+            |panel| {
+                build_preferences_view(panel, &mut state, &frame, 1.0, &mut bus);
+            },
+        );
+        scope.finish_layout(TEST_PANEL_RECT);
+    }
+
+    for action in bus.drain() {
+        match action {
+            EngineUiAction::UpdateGraphicsSettings(updated) => *gs = updated,
+            EngineUiAction::UpdateSnapSettings(updated) => *snap = updated,
+            EngineUiAction::UpdateEditorConfig(updated) => *cfg = updated,
+            _ => {}
+        }
+    }
+    tree.max_scroll(PREF_TAG_CONTENT_VIEW)
 }
 
 #[test]

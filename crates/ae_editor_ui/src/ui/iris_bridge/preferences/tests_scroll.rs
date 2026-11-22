@@ -7,16 +7,18 @@
 //! scrollbar thumb drag, slider track drag, and sidebar tab switch scroll resets using
 //! the production `build_preferences_view` and `UiTree::dispatch_event`.
 
-use super::builder::{SIDEBAR_WIDTH, build_preferences_view, tab_virtual_height};
-use super::types::{
-    PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PreferencesParams, preferences_scroll_style,
+use super::panel::{SIDEBAR_WIDTH, build_preferences_view};
+use super::types::{PREF_TAG_CONTENT_VIEW, PreferencesDialogState, preferences_scroll_style};
+use crate::assets::AssetBrowserState;
+use crate::ui::types::{
+    EditorFrameData, EditorTelemetrySnapshot, EngineUiAction, ExportDialogState,
 };
-use crate::ui::iris_bridge::theme::ThemePreset;
-use crate::ui::types::EngineUiAction;
-use ae_editor::editor_state::EditorConfig;
+use ae_editor::editor_state::{EditorConfig, EditorState};
 use ae_editor::snapping::SnapSettings;
+use ae_renderer::asset::AssetStorage;
+use ae_renderer::camera::{Camera, ProjectionMode};
 use ae_renderer::graphics_settings::GraphicsSettings;
+use ae_uidesign::UiDesignerState;
 use irisui::prelude::*;
 use irisui::widgets::scroll_area::ScrollAreaFrame;
 use irisui::workbench::ActionBus;
@@ -27,17 +29,35 @@ fn render_pref_panel(
     panel_rect: Rect,
     tab_idx: &mut u8,
     cfg: &mut EditorConfig,
-    cursor_pos: Point,
+    _cursor_pos: Point,
 ) -> (Rect, f32) {
     let root = tree
         .root()
         .or_else(|| tree.create_root().ok())
         .expect("root");
-    let mut gs = GraphicsSettings::default();
-    let mut snap = SnapSettings::default();
-    let mut live_updates = false;
-    let mut theme = ThemePreset::default();
+    let gs = GraphicsSettings::default();
+    let snap = SnapSettings::default();
     let enabled = HashSet::new();
+    let world = hecs::World::new();
+    let editor_state = EditorState::default();
+    let telemetry = EditorTelemetrySnapshot::default();
+    let mut asset_browser = AssetBrowserState::default();
+    let mut ui_designer = UiDesignerState::default();
+    let mut export_modal = ExportDialogState::default();
+    let textures = AssetStorage::new();
+    let models = AssetStorage::new();
+    let camera = Camera {
+        position: cgmath::Point3::new(0.0, 2.0, 5.0),
+        yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
+        pitch: cgmath::Rad(0.0),
+        aspect: 16.0 / 9.0,
+        fovy: 45.0,
+        znear: 0.1,
+        zfar: 100.0,
+        mode: ProjectionMode::Perspective,
+        ortho_scale: 1.0,
+        target: cgmath::Point3::new(0.0, 0.0, 0.0),
+    };
     let mut bus = ActionBus::<EngineUiAction>::new();
     let content_w = (panel_rect.width - SIDEBAR_WIDTH - 1.0).max(100.0);
     let content_rect = Rect::new(
@@ -46,45 +66,61 @@ fn render_pref_panel(
         content_w,
         panel_rect.height,
     );
-
-    let mut scope = UiScope::new(tree, root);
-    let mut params = PreferencesParams {
-        active_tab: tab_idx,
-        zoom_factor: 1.0,
-        graphics_settings: &mut gs,
-        snapping_settings: &mut snap,
+    let frame = EditorFrameData {
+        is_editing: true,
+        is_2d_mode: false,
+        view_panel_mask: 0,
+        can_undo: false,
+        can_redo: false,
+        has_viewport_texture: false,
+        viewport_rect: Rect::ZERO,
+        camera: &camera,
+        world: &world,
+        editor_state: &editor_state,
+        graphics_settings: &gs,
+        snapping_settings: &snap,
         editor_config: cfg,
-        enable_live_updates: &mut live_updates,
+        enable_live_updates: false,
         enabled_modules: &enabled,
-        current_theme: &mut theme,
+        telemetry: &telemetry,
+        gpu_adapter_name: "MockGPU",
+        gpu_backend: "Vulkan",
+        asset_browser: &mut asset_browser,
+        ui_designer_state: &mut ui_designer,
+        export_modal: &mut export_modal,
+        textures: &textures,
+        models: &models,
     };
-    scope.container_named(
-        "PrefScrollHost",
-        Style::new()
-            .position_absolute()
-            .left(panel_rect.x)
-            .top(panel_rect.y)
-            .width(panel_rect.width)
-            .height(panel_rect.height)
-            .flex_row(),
-        |panel| {
-            build_preferences_view(panel, &mut params, &mut bus, content_w, panel_rect.height);
-        },
-    );
-    scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
-    let max_scroll = scope.sync_and_render_vertical_scrollbar(
-        VerticalScrollbarSpec::new(
-            PREF_TAG_CONTENT_VIEW,
-            PREF_TAG_SCROLL_CONTAINER,
-            PREF_TAG_SCROLLBAR_TRACK,
-            PREF_TAG_SCROLLBAR_THUMB,
-            content_rect,
-        )
-        .min_virtual_height(tab_virtual_height(*params.active_tab))
-        .cursor(Some(cursor_pos))
-        .style(preferences_scroll_style()),
-    );
-    (content_rect, max_scroll)
+    let mut state = PreferencesDialogState {
+        tab: *tab_idx,
+        ..Default::default()
+    };
+
+    {
+        let mut scope = UiScope::new(tree, root);
+        scope.container_named(
+            "PrefScrollHost",
+            Style::new()
+                .position_absolute()
+                .left(panel_rect.x)
+                .top(panel_rect.y)
+                .width(panel_rect.width)
+                .height(panel_rect.height)
+                .flex_row(),
+            |panel| {
+                build_preferences_view(panel, &mut state, &frame, 1.0, &mut bus);
+            },
+        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+    }
+
+    *tab_idx = state.tab;
+    for action in bus.drain() {
+        if let EngineUiAction::UpdateEditorConfig(updated) = action {
+            *cfg = updated;
+        }
+    }
+    (content_rect, tree.max_scroll(PREF_TAG_CONTENT_VIEW))
 }
 
 #[test]
@@ -110,7 +146,7 @@ fn test_preferences_scroll_style_and_frame_geometry() {
 fn test_preferences_scroll_wheel_and_outside_isolation() {
     let mut tree = UiTree::new();
     let mut cfg = EditorConfig::default();
-    let mut tab = 0;
+    let mut tab = 1;
     let panel_rect = Rect::new(100.0, 50.0, 760.0, 540.0);
     let (content_rect, max_scroll_y) = render_pref_panel(
         &mut tree,
@@ -160,6 +196,10 @@ fn test_preferences_thumb_drag_and_slider_drag() {
         .expect("Scrollbar thumb emitted")
         .1
         .computed_rect;
+    assert!(
+        thumb_rect.x > 740.0 && thumb_rect.right() <= 760.0,
+        "Frame-1 scrollbar thumb must align to right edge of 760px panel, got {thumb_rect:?}"
+    );
     let thumb_center = Point::new(
         thumb_rect.x + thumb_rect.width * 0.5,
         thumb_rect.y + thumb_rect.height * 0.5,
@@ -182,8 +222,11 @@ fn test_preferences_thumb_drag_and_slider_drag() {
         button: MouseButton::Left,
         point: Point::new(thumb_center.x, thumb_center.y + 40.0),
     });
+    assert!(
+        tree.scroll_offset(PREF_TAG_CONTENT_VIEW) > 0.0,
+        "Dragging scrollbar thumb must advance scroll offset"
+    );
 
-    // Slider track drag on Navigation tab (tab = 3)
     let mut tree_nav = UiTree::new();
     let mut nav_tab = 3;
     render_pref_panel(
