@@ -11,8 +11,6 @@ pub struct GizmoDragParams<'a> {
     pub camera: &'a ae_core::camera::Camera,
     pub gizmo_system: &'a mut crate::gizmo::GizmoSystem,
     pub ecs: &'a mut ae_core::ecs::EcsManager,
-    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
-    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
     pub window_size: (u32, u32),
     pub cursor_pos: (f64, f64),
 }
@@ -23,8 +21,8 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
     let camera = params.camera;
     let gizmo_system = params.gizmo_system;
     let ecs = params.ecs;
-    let ui_gizmo_mode = params.ui_gizmo_mode;
-    let ui_gizmo_space = params.ui_gizmo_space;
+    let gizmo_mode = editor.gizmo_mode;
+    let gizmo_space = editor.gizmo_space;
     let window_size = params.window_size;
     let (x, y) = params.cursor_pos;
     let selected_ent = match editor.selected_entities.first() {
@@ -49,7 +47,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         let cam_forward = camera.get_forward();
         let gizmo_screen = gizmo_screen_params(camera, window_size);
 
-        gizmo_system.space = ui_gizmo_space;
+        gizmo_system.space = gizmo_space;
         if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
             gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
         }
@@ -71,7 +69,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
             && has_snapshots
         {
             let mut dirtied_entities = Vec::new();
-            match ui_gizmo_mode {
+            match gizmo_mode {
                 crate::gizmo::GizmoMode::Select => {}
                 crate::gizmo::GizmoMode::Translate => {
                     for &ent in &editor.selected_entities {
@@ -144,7 +142,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                             let q_new =
                                 if gizmo_system.active_axis == crate::gizmo::ActiveAxis::Screen {
                                     q_delta * start_rot
-                                } else if ui_gizmo_space == crate::gizmo::space::GizmoSpace::Local {
+                                } else if gizmo_space == crate::gizmo::space::GizmoSpace::Local {
                                     start_rot * q_delta
                                 } else {
                                     q_delta * start_rot

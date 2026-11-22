@@ -268,15 +268,20 @@ impl AeApp {
 
         log::trace!("Render frame start");
 
-        engine.ui.poll_dialog_receivers();
+        engine.editor.poll_scene_dialogs();
 
-        if engine.ui.should_save_scene {
-            engine.ui.should_save_scene = false;
+        if engine.editor.should_save_scene {
+            engine.editor.should_save_scene = false;
             let path = engine
-                .ui
+                .editor
                 .pending_save_path
                 .take()
-                .unwrap_or_else(|| std::path::PathBuf::from(&engine.ui.active_scene_path));
+                .or_else(|| engine.editor.active_scene_path.clone())
+                .unwrap_or_else(|| {
+                    std::path::PathBuf::from(
+                        ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL,
+                    )
+                });
             let path_str = path.to_string_lossy();
             if let Err(e) = crate::scene::save_scene(engine, &path_str) {
                 engine
@@ -289,24 +294,29 @@ impl AeApp {
                 );
             }
         }
-        if engine.ui.should_load_scene {
-            engine.ui.should_load_scene = false;
+        if engine.editor.should_load_scene {
+            engine.editor.should_load_scene = false;
             let path = engine
-                .ui
+                .editor
                 .pending_load_path
                 .take()
-                .unwrap_or_else(|| std::path::PathBuf::from(&engine.ui.active_scene_path));
+                .or_else(|| engine.editor.active_scene_path.clone())
+                .unwrap_or_else(|| {
+                    std::path::PathBuf::from(
+                        ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL,
+                    )
+                });
             let path_str = path.to_string_lossy();
             if let Err(e) = crate::scene::load_scene(engine, &path_str) {
                 engine
                     .ui
                     .set_status_message(format!("Load Error: {}", e), irisui::prelude::Color::RED);
-                engine.ui.is_loading_assets = false;
+                engine.editor.is_loading_assets = false;
             }
         }
 
         // Exit trigger
-        if engine.ui.should_exit {
+        if engine.editor.should_exit {
             self.engine = None;
             event_loop.exit();
             return;

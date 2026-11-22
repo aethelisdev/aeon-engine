@@ -285,7 +285,6 @@ pub(crate) fn save_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     engine.saved_world_dir = Some(world_dir);
     engine.last_saved_cell_crcs = stats.cell_crcs;
     engine.editor.active_scene_path = Some(manifest_path.clone());
-    engine.ui.active_scene_path = manifest_path.to_string_lossy().into_owned();
     engine.autosave.reset_timer();
     Ok(())
 }
@@ -439,7 +438,7 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 
     let (models_list, textures_list) = collect_scene_asset_paths(&all_entities)?;
 
-    engine.ui.is_loading_assets = true;
+    engine.editor.is_loading_assets = true;
     engine.ui.set_status_message(
         "Loading world: parsing assets in background...",
         irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
@@ -513,7 +512,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
     let scene_data = match result {
         Ok(data) => data,
         Err(e) => {
-            engine.ui.is_loading_assets = false;
+            engine.editor.is_loading_assets = false;
             engine.ui.set_status_message(
                 format!("Async world load failed: {e}"),
                 irisui::prelude::Color::RED,
@@ -647,7 +646,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
         )
     });
 
-    engine.ui.is_loading_assets = false;
+    engine.editor.is_loading_assets = false;
     engine.ui.set_status_message(
         "World loaded successfully!",
         irisui::prelude::Color::rgb(0.0, 0.898, 1.0),

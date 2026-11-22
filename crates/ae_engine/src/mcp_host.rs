@@ -8,7 +8,8 @@ use crate::events::InputArbiter;
 use ae_mcp::{
     McpEntityInfo, McpFloatingWindow, McpGpuHandles, McpHealthSnapshot, McpHost, McpLogEntry,
 };
-use irisui::core::{UiEvent, UiTree};
+use irisui::core::{Rect, UiEvent};
+use irisui::workbench::{UiInspectionSummary, UiTreeDump};
 use serde_json::{Map, Value, json};
 use std::sync::atomic::Ordering;
 use winit::event::ElementState;
@@ -21,13 +22,31 @@ impl McpHost for AeEngine {
             physical_size: (win_size.width, win_size.height),
             scale_factor: self.ui.scale_factor(),
             mode: format!("{:?}", self.mode),
-            selected_entity_bits: self.ui.selected_entity.map(|e| e.to_bits().get()),
+            selected_entity_bits: self.editor.primary_selected().map(|e| e.to_bits().get()),
             wants_keyboard_input: self.ui.wants_keyboard_input(),
         }
     }
 
-    fn ui_tree(&self) -> &UiTree {
-        self.ui.ui_tree()
+    fn ui_inspection_summary(&self) -> UiInspectionSummary {
+        self.ui.ui_inspection_summary()
+    }
+
+    fn inspect_ui_nodes(
+        &self,
+        tag_filter: Option<u64>,
+        name_filter: Option<&str>,
+        only_popups: bool,
+    ) -> UiTreeDump {
+        self.ui
+            .inspect_ui_nodes(tag_filter, name_filter, only_popups)
+    }
+
+    fn resolve_tag_rect(&self, tag: u64) -> Option<Rect> {
+        self.ui.resolve_tag_rect(tag)
+    }
+
+    fn resolve_widget_rect(&self, name: &str, index: usize) -> Option<Rect> {
+        self.ui.resolve_widget_rect(name, index)
     }
 
     fn floating_windows(&self) -> Vec<McpFloatingWindow> {
@@ -108,16 +127,16 @@ impl McpHost for AeEngine {
                 name: entity.get::<&ae_core::ecs::Name>().map(|n| n.0.clone()),
             })
             .collect();
-        (self.ui.selected_entity.map(|e| e.to_bits().get()), entities)
+        (
+            self.editor.primary_selected().map(|e| e.to_bits().get()),
+            entities,
+        )
     }
 
     fn select_entity(&mut self, id_bits: Option<u64>, name: Option<&str>) -> Result<u64, String> {
         let entity = resolve_ecs_entity(self, id_bits, name)?;
-        self.editor.selected_entities.clear();
-        self.editor.selected_entities.push(entity);
-        self.editor.selected_entities_set.clear();
-        self.editor.selected_entities_set.insert(entity);
-        self.ui.select_entity_and_refresh(Some(entity));
+        self.editor.select_single(Some(entity));
+        self.ui.refresh_selection_panels();
         self.render_state.window.request_redraw();
         Ok(entity.to_bits().get())
     }
@@ -175,7 +194,7 @@ fn resolve_ecs_entity(
     target_name: Option<&str>,
 ) -> Result<hecs::Entity, String> {
     if target_bits.is_none() && target_name.is_none() {
-        return engine.ui.selected_entity.ok_or_else(|| {
+        return engine.editor.primary_selected().ok_or_else(|| {
             "No entity selected and neither 'id_bits' nor 'name' given".to_string()
         });
     }

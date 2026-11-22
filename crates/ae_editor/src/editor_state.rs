@@ -6,6 +6,14 @@ use crate::undo_redo::{Command, EntitySnapshot};
 use hecs::Entity;
 use std::collections::{HashMap, HashSet};
 
+/// Action payload sent from async native file dialog threads to the main editor loop.
+pub enum SceneDialogAction {
+    /// Save the active scene to the selected file path.
+    SaveTo(std::path::PathBuf),
+    /// Load a scene from the selected file path.
+    LoadFrom(std::path::PathBuf),
+}
+
 /// Configurable editor parameters exposed in the Preferences panel.
 ///
 /// Controls camera movement speeds, mouse sensitivity, undo history depth,
@@ -93,6 +101,28 @@ pub struct EditorState {
     pub is_2d: bool,
     /// Monotonic transaction revision counter incremented on every undo/redo or command execution.
     pub history_revision: u64,
+    /// Whether viewport wireframe overlay mode is enabled.
+    pub wireframe_enabled: bool,
+    /// Whether the infinite world grid overlay is enabled in 3D Edit mode.
+    pub grid_enabled: bool,
+    /// Active viewport transform gizmo manipulation tool.
+    pub gizmo_mode: crate::gizmo::GizmoMode,
+    /// Active transform gizmo coordinate space (`Local` vs `World`).
+    pub gizmo_space: crate::gizmo::GizmoSpace,
+    /// Whether background asset/scene loading progress feedback is active.
+    pub is_loading_assets: bool,
+    /// Pending save-scene trigger flag consumed by the main application loop.
+    pub should_save_scene: bool,
+    /// Pending load-scene trigger flag consumed by the main application loop.
+    pub should_load_scene: bool,
+    /// Explicit destination path queued by Save As file dialog.
+    pub pending_save_path: Option<std::path::PathBuf>,
+    /// Explicit source path queued by Open Scene file dialog.
+    pub pending_load_path: Option<std::path::PathBuf>,
+    /// Application exit trigger raised by File -> Exit or titlebar close actions.
+    pub should_exit: bool,
+    /// Non-blocking receivers polling async native scene open/save file dialog completions.
+    pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
 }
 
 impl Default for EditorState {
@@ -121,11 +151,62 @@ impl Default for EditorState {
             active_scene_path: None,
             is_2d: false,
             history_revision: 0,
+            wireframe_enabled: false,
+            grid_enabled: true,
+            gizmo_mode: crate::gizmo::GizmoMode::Select,
+            gizmo_space: crate::gizmo::GizmoSpace::Local,
+            is_loading_assets: false,
+            should_save_scene: false,
+            should_load_scene: false,
+            pending_save_path: None,
+            pending_load_path: None,
+            should_exit: false,
+            scene_dialog_receivers: Vec::new(),
         }
     }
 }
 
 impl EditorState {
+    /// Polls asynchronous native scene open/save dialog receivers and applies pending triggers.
+    pub fn poll_scene_dialogs(&mut self) {
+        if self.scene_dialog_receivers.is_empty() {
+            return;
+        }
+        std::mem::take(&mut self.scene_dialog_receivers)
+            .into_iter()
+            .for_each(|rx| match rx.try_recv() {
+                Ok(SceneDialogAction::SaveTo(path)) => {
+                    self.active_scene_path = Some(path.clone());
+                    self.pending_save_path = Some(path);
+                    self.should_save_scene = true;
+                }
+                Ok(SceneDialogAction::LoadFrom(path)) => {
+                    self.active_scene_path = Some(path.clone());
+                    self.pending_load_path = Some(path);
+                    self.should_load_scene = true;
+                    self.is_loading_assets = true;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => self.scene_dialog_receivers.push(rx),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+            });
+    }
+
+    /// Returns the primary selected entity, if any.
+    #[inline]
+    #[must_use]
+    pub fn primary_selected(&self) -> Option<Entity> {
+        self.selected_entities.first().copied()
+    }
+
+    /// Replaces the active editor selection with a single optional entity.
+    pub fn select_single(&mut self, entity: Option<Entity>) {
+        self.selected_entities.clear();
+        self.selected_entities_set.clear();
+        if let Some(ent) = entity {
+            self.selected_entities.push(ent);
+            self.selected_entities_set.insert(ent);
+        }
+    }
     /// Backs up all entity snapshots in the ECS World before entering Play Mode.
     pub fn backup_scene(&mut self, world: &hecs::World) {
         self.scene_backup.clear();

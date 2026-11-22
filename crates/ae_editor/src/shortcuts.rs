@@ -34,7 +34,6 @@ pub fn process_shortcuts(
     input: &InputManager,
     world: &mut hecs::World,
     editor: &mut EditorState,
-    ui_selected_entity: &mut Option<hecs::Entity>,
     engine_mode: EngineMode,
 ) -> ShortcutResult {
     let mut result = ShortcutResult::default();
@@ -75,12 +74,12 @@ pub fn process_shortcuts(
 
         // Ctrl+V (Paste Clipboard)
         if input.is_key_just_pressed(KeyCode::KeyV) {
-            crate::clipboard::paste_clipboard(world, editor, ui_selected_entity);
+            crate::clipboard::paste_clipboard(world, editor);
         }
 
         // Ctrl+D (Duplicate Selected)
         if input.is_key_just_pressed(KeyCode::KeyD) {
-            crate::actions::duplicate_selected(world, editor, ui_selected_entity);
+            crate::actions::duplicate_selected(world, editor);
         }
 
         // Ctrl+O (Open Scene Dialog)
@@ -96,7 +95,7 @@ pub fn process_shortcuts(
 
     // --- DELETE SHORTCUT ---
     if input.is_key_just_pressed(KeyCode::Delete) {
-        crate::actions::delete_selected(world, editor, ui_selected_entity);
+        crate::actions::delete_selected(world, editor);
     }
 
     // --- EDIT MODE TRANSFORM SHORTCUTS (Q, W, E, R, F) ---

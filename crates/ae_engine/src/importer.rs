@@ -30,12 +30,12 @@ impl AssetLoader for TextureAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
-        engine.ui.is_loading_assets = true;
+        engine.editor.is_loading_assets = true;
         if let Some(path_str) = path.to_str() {
             let texture_id = engine
                 .render_state
                 .load_texture(&mut engine.asset_manager, path_str);
-            engine.ui.is_loading_assets = false;
+            engine.editor.is_loading_assets = false;
             log::info!("Image loaded and spawned entity: {:?}", final_name);
             spawn_sprite(engine, final_name, texture_id);
         }
@@ -51,7 +51,7 @@ impl AssetLoader for GltfAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
-        engine.ui.is_loading_assets = true;
+        engine.editor.is_loading_assets = true;
         let path_str_clone = path.to_string_lossy().to_string();
         engine.ui.set_status_message(
             format!("Loading {} in background...", final_name),
@@ -77,7 +77,7 @@ impl AssetLoader for FbxAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
-        engine.ui.is_loading_assets = true;
+        engine.editor.is_loading_assets = true;
         let path_clone = path.to_path_buf();
         let path_str_clone = path.to_string_lossy().to_string();
 
@@ -182,7 +182,7 @@ impl AssetLoader for ShaderAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
-        engine.ui.is_loading_assets = true;
+        engine.editor.is_loading_assets = true;
         if let Some(path_str) = path.to_str() {
             match engine
                 .render_state
@@ -206,7 +206,7 @@ impl AssetLoader for ShaderAssetLoader {
                     );
                 }
             }
-            engine.ui.is_loading_assets = false;
+            engine.editor.is_loading_assets = false;
         }
     }
 }
@@ -223,7 +223,7 @@ impl AssetLoader for PrefabAssetLoader {
         match ae_editor::prefab::Prefab::load_from_file(path) {
             Ok(prefab) => {
                 let ent = prefab.instantiate(&mut engine.ecs.world, None);
-                engine.ui.selected_entity = Some(ent);
+                engine.editor.select_single(Some(ent));
                 engine.ui.set_status_message(
                     format!("Prefab '{}' loaded successfully!", final_name),
                     Color::rgb(0.0, 0.898, 1.0),
@@ -265,11 +265,10 @@ impl AssetLoader for SceneAssetLoader {
             );
             return;
         }
-        let path_str = path.to_string_lossy().to_string();
-        engine.ui.active_scene_path = path_str;
-        engine.ui.pending_load_path = Some(path.to_path_buf());
-        engine.ui.should_load_scene = true;
-        engine.ui.is_loading_assets = true;
+        engine.editor.active_scene_path = Some(path.to_path_buf());
+        engine.editor.pending_load_path = Some(path.to_path_buf());
+        engine.editor.should_load_scene = true;
+        engine.editor.is_loading_assets = true;
     }
 }
 
@@ -386,12 +385,12 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         "Asset loaded successfully!",
                         Color::rgb(0.0, 0.898, 1.0),
                     );
-                    engine.ui.is_loading_assets = false;
+                    engine.editor.is_loading_assets = false;
                 }
             }
             Err(e) => {
                 log::error!("Async import failed: {}", e);
-                engine.ui.is_loading_assets = false;
+                engine.editor.is_loading_assets = false;
                 engine
                     .ui
                     .set_status_message(format!("ERROR: {}", e), Color::RED);
@@ -424,13 +423,13 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                     format!("{} loaded successfully!", final_name),
                     Color::rgb(0.0, 0.898, 1.0),
                 );
-                engine.ui.is_loading_assets = false;
+                engine.editor.is_loading_assets = false;
                 log::info!("Async GLTF loaded and spawned entity: {:?}", final_name);
                 spawn_model(engine, final_name, model_id, min, max, &path_str);
             }
             Err(e) => {
                 log::error!("Async model import failed: {}", e);
-                engine.ui.is_loading_assets = false;
+                engine.editor.is_loading_assets = false;
                 engine
                     .ui
                     .set_status_message(format!("ERROR: {}", e), Color::RED);

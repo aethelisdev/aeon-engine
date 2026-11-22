@@ -39,13 +39,13 @@ pub fn handle_ui_click<H: McpHost + ?Sized>(
     overlay.record_click(point, button, double_click);
     host.invalidate_ui(true);
 
-    let tree = host.ui_tree();
+    let ui_summary = host.ui_inspection_summary();
     InspectResponse::ok(json!({
         "clicked_point": [point.x, point.y],
         "double_click": double_click,
         "consumed": { "move": moved, "down": down, "up": up },
-        "active_combobox_tag": tree.active_combobox_tag.map(|t| format!("0x{t:016x}")),
-        "active_popup_tags": tree.active_popup_tags.iter().map(|t| format!("0x{t:016x}")).collect::<Vec<_>>(),
+        "active_combobox_tag": ui_summary.active_combobox_tag.map(|t| format!("0x{t:016x}")),
+        "active_popup_tags": ui_summary.active_popup_tags.iter().map(|t| format!("0x{t:016x}")).collect::<Vec<_>>(),
     }))
 }
 
@@ -153,8 +153,7 @@ pub fn resolve_click_target<H: McpHost + ?Sized>(
 
 fn resolve_tag_center<H: McpHost + ?Sized>(host: &H, tag: u64) -> Result<Point, String> {
     let rect = host
-        .ui_tree()
-        .resolve_anchor_rect(tag)
+        .resolve_tag_rect(tag)
         .ok_or_else(|| format!("Tag 0x{tag:016x} has no resolved bounding rect"))?;
     Ok(Point::new(
         rect.x + rect.width * 0.5,
@@ -168,14 +167,7 @@ fn resolve_name_center<H: McpHost + ?Sized>(
     idx: usize,
 ) -> Result<Point, String> {
     let rect = host
-        .ui_tree()
-        .iter()
-        .filter(|(_, n)| {
-            n.name.as_deref() == Some(name) || n.text.as_deref().is_some_and(|t| t == name)
-        })
-        .nth(idx)
-        .map(|(_, n)| n.computed_rect)
-        .filter(|r| r.width > 0.0 && r.height > 0.0)
+        .resolve_widget_rect(name, idx)
         .ok_or_else(|| format!("Widget '{name}' (index {idx}) not found with non-zero rect"))?;
     Ok(Point::new(
         rect.x + rect.width * 0.5,

@@ -11,11 +11,7 @@ use ae_core::ecs::{
 /// Deletes all currently selected entities from the ECS world.
 ///
 /// Captures an `EntitySnapshot` for each entity before despawning to enable undo.
-pub fn delete_selected(
-    world: &mut hecs::World,
-    editor: &mut EditorState,
-    ui_selected_entity: &mut Option<hecs::Entity>,
-) {
+pub fn delete_selected(world: &mut hecs::World, editor: &mut EditorState) {
     if editor.selected_entities.is_empty() {
         return;
     }
@@ -90,18 +86,11 @@ pub fn delete_selected(
     editor.multi_start_scales.clear();
     editor.gizmo_dragging = false;
 
-    // Sync UI selection state
-    *ui_selected_entity = None;
-
     log::info!("Deleted selected entities and cleared selection state.");
 }
 
 /// Duplicates all currently selected entities with a position offset.
-pub fn duplicate_selected(
-    world: &mut hecs::World,
-    editor: &mut EditorState,
-    ui_selected_entity: &mut Option<hecs::Entity>,
-) {
+pub fn duplicate_selected(world: &mut hecs::World, editor: &mut EditorState) {
     if editor.selected_entities.is_empty() {
         return;
     }
@@ -168,8 +157,6 @@ pub fn duplicate_selected(
             editor.selected_entities_set.insert(new_ent);
         }
     }
-
-    *ui_selected_entity = editor.selected_entities.first().copied();
 
     if !batch.is_empty() {
         if batch.len() == 1 {

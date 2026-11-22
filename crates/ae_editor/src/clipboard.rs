@@ -29,11 +29,7 @@ pub fn copy_selected(world: &hecs::World, editor: &mut EditorState) {
 /// New entities receive a slight position offset (+0.5, +0.5) and a " (Copy)" suffix.
 /// Pushes an undoable `Command::Spawn` or `Command::Batch` onto `editor.undo_stack`
 /// and updates the selection to the newly pasted entities.
-pub fn paste_clipboard(
-    world: &mut hecs::World,
-    editor: &mut EditorState,
-    ui_selected_entity: &mut Option<hecs::Entity>,
-) {
+pub fn paste_clipboard(world: &mut hecs::World, editor: &mut EditorState) {
     if editor.clipboard.is_empty() {
         return;
     }
@@ -66,8 +62,6 @@ pub fn paste_clipboard(
         editor.selected_entities.push(new_ent);
         editor.selected_entities_set.insert(new_ent);
     }
-
-    *ui_selected_entity = editor.selected_entities.first().copied();
 
     if !batch.is_empty() {
         if batch.len() == 1 {

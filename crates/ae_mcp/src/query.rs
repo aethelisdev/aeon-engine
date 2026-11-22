@@ -7,7 +7,7 @@ use crate::host::McpHost;
 use crate::overlay::InspectVisualOverlay;
 use crate::protocol::{InspectResponse, parse_u64_json_value};
 use crate::screenshot::capture_ui_screenshot;
-use irisui::core::{Rect, UiLayer};
+use irisui::core::Rect;
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -30,7 +30,7 @@ pub fn handle_health<H: McpHost + ?Sized>(host: &H, drag_in_progress: bool) -> I
     } else {
         1.0
     };
-    let tree = host.ui_tree();
+    let ui_summary = host.ui_inspection_summary();
     InspectResponse::ok(json!({
         "status": "running",
         "physical_size": [snap.physical_size.0, snap.physical_size.1],
@@ -41,15 +41,15 @@ pub fn handle_health<H: McpHost + ?Sized>(host: &H, drag_in_progress: bool) -> I
         "scale_factor": snap.scale_factor,
         "mode": snap.mode,
         "selected_entity_bits": snap.selected_entity_bits,
-        "node_count": tree.len(),
-        "popup_active": tree.has_active_popup_nodes(),
-        "active_combobox_tag": tree.active_combobox_tag.map(|t| format!("0x{t:016x}")),
+        "node_count": ui_summary.node_count,
+        "popup_active": ui_summary.popup_active,
+        "active_combobox_tag": ui_summary.active_combobox_tag.map(|t| format!("0x{t:016x}")),
         "wants_keyboard_input": snap.wants_keyboard_input,
         "drag_in_progress": drag_in_progress,
     }))
 }
 
-/// Serializes active `UiTree` nodes, tag bounding caches, popups, and floating dock windows.
+/// Serializes active retained UI nodes, tag bounding caches, popups, and floating dock windows.
 pub fn handle_ui_tree_dump<H: McpHost + ?Sized>(host: &H, params: &Value) -> InspectResponse {
     let name_filter = params.get("name_filter").and_then(Value::as_str);
     let only_popups = params
@@ -58,61 +58,44 @@ pub fn handle_ui_tree_dump<H: McpHost + ?Sized>(host: &H, params: &Value) -> Ins
         .unwrap_or(false);
     let tag_filter = params.get("tag").and_then(parse_u64_json_value);
 
-    let tree = host.ui_tree();
-    let mut nodes = Vec::new();
-    for (id, node) in tree.iter() {
-        if only_popups && node.layer < UiLayer::Floating {
-            continue;
-        }
-        if let Some(target_tag) = tag_filter
-            && node.tag != target_tag
-        {
-            continue;
-        }
-        if let Some(substr) = name_filter {
-            let name_match = node.name.as_deref().is_some_and(|n| n.contains(substr));
-            let text_match = node.text.as_deref().is_some_and(|t| t.contains(substr));
-            if !name_match && !text_match {
-                continue;
-            }
-        }
-        let parent_name = node
-            .parent
-            .and_then(|pid| tree.get(pid))
-            .and_then(|p| p.name.as_deref());
-        nodes.push(json!({
-            "id": format!("{id:?}"),
-            "name": node.name,
-            "parent_name": parent_name,
-            "tag": node.tag,
-            "tag_hex": format!("0x{:016x}", node.tag),
-            "role": format!("{:?}", node.role),
-            "layer": format!("{:?}", node.layer),
-            "computed_rect": rect_json(node.computed_rect),
-            "position": format!("{:?}", node.style.position),
-            "inset_left": node.style.inset_left,
-            "inset_top": node.style.inset_top,
-            "interactive": node.interactive,
-            "text": node.text,
-        }));
-    }
-
-    let tag_rects: Vec<Value> = tree
-        .tag_rects
-        .iter()
-        .filter(|(tag, _)| tag_filter.is_none_or(|t| t == **tag))
-        .map(|(tag, rect)| {
+    let dump = host.inspect_ui_nodes(tag_filter, name_filter, only_popups);
+    let nodes: Vec<Value> = dump
+        .nodes
+        .into_iter()
+        .map(|node| {
             json!({
-                "tag": tag,
-                "tag_hex": format!("0x{tag:016x}"),
-                "rect": rect_json(*rect),
+                "id": node.id,
+                "name": node.name,
+                "parent_name": node.parent_name,
+                "tag": node.tag,
+                "tag_hex": format!("0x{:016x}", node.tag),
+                "role": node.role,
+                "layer": node.layer,
+                "computed_rect": rect_json(node.computed_rect),
+                "position": node.position,
+                "inset_left": node.inset_left,
+                "inset_top": node.inset_top,
+                "interactive": node.interactive,
+                "text": node.text,
             })
         })
         .collect();
 
-    let active_popup_tags: Vec<String> = tree
+    let tag_rects: Vec<Value> = dump
+        .tag_rects
+        .into_iter()
+        .map(|(tag, rect)| {
+            json!({
+                "tag": tag,
+                "tag_hex": format!("0x{tag:016x}"),
+                "rect": rect_json(rect),
+            })
+        })
+        .collect();
+
+    let active_popup_tags: Vec<String> = dump
         .active_popup_tags
-        .iter()
+        .into_iter()
         .map(|t| format!("0x{t:016x}"))
         .collect();
 
@@ -132,7 +115,7 @@ pub fn handle_ui_tree_dump<H: McpHost + ?Sized>(host: &H, params: &Value) -> Ins
     InspectResponse::ok(json!({
         "screen_size": host.logical_screen_size(),
         "active_popup_tags": active_popup_tags,
-        "active_combobox_tag": tree.active_combobox_tag.map(|t| format!("0x{t:016x}")),
+        "active_combobox_tag": dump.active_combobox_tag.map(|t| format!("0x{t:016x}")),
         "floating_windows": floating_windows,
         "node_count": nodes.len(),
         "nodes": nodes,

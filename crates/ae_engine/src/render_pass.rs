@@ -38,7 +38,10 @@ impl AeEngine {
 
         let empty_set = std::collections::HashSet::new();
         let (selected_set, active_ent) = if self.mode == EngineMode::Edit {
-            (&self.editor.selected_entities_set, self.ui.selected_entity)
+            (
+                &self.editor.selected_entities_set,
+                self.editor.primary_selected(),
+            )
         } else {
             (&empty_set, None)
         };
@@ -91,11 +94,11 @@ impl AeEngine {
             }
         }
 
-        self.gizmo_system.mode = self.ui.gizmo_mode;
-        self.gizmo_system.space = self.ui.gizmo_space;
+        self.gizmo_system.mode = self.editor.gizmo_mode;
+        self.gizmo_system.space = self.editor.gizmo_space;
 
         // Update entity rotation for Local space gizmo orientation
-        if let Some(ent) = self.ui.selected_entity {
+        if let Some(ent) = self.editor.primary_selected() {
             if let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent) {
                 self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
             } else {
@@ -113,8 +116,8 @@ impl AeEngine {
                 self.render_state.config.format,
                 new_msaa,
             );
-            self.gizmo_system.mode = self.ui.gizmo_mode;
-            self.gizmo_system.space = self.ui.gizmo_space;
+            self.gizmo_system.mode = self.editor.gizmo_mode;
+            self.gizmo_system.space = self.editor.gizmo_space;
             self.debug_renderer.rebuild_pipeline(
                 &self.render_state.device,
                 self.render_state.config.format,
@@ -146,7 +149,7 @@ impl AeEngine {
         // Gizmo is an editor tool — only active in 3D Edit mode.
         let overlay: Option<&dyn ae_renderer::render::OverlayRenderer> =
             if render_enabled && self.mode == EngineMode::Edit && !is_2d {
-                if let Some(ent) = self.ui.selected_entity {
+                if let Some(ent) = self.editor.primary_selected() {
                     let gizmo_pos =
                         if let Ok(gt) = self.ecs.world.get::<&ae_core::ecs::GlobalTransform>(ent) {
                             let mat = gt.0;
@@ -367,11 +370,11 @@ impl AeEngine {
         }
 
         let render_options = ae_renderer::render::RenderOptions {
-            grid_enabled: self.ui.grid_enabled
+            grid_enabled: self.editor.grid_enabled
                 && self.mode == EngineMode::Edit
                 && self.dimension_mode.is_3d(),
             grid_scale: self.editor.snapping.grid_size,
-            wireframe_enabled: self.ui.wireframe_enabled,
+            wireframe_enabled: self.editor.wireframe_enabled,
             scale_factor: self.ui.scale_factor(),
             is_2d_mode: is_2d,
         };
@@ -399,7 +402,6 @@ impl AeEngine {
              surface_view: &wgpu::TextureView,
              viewport_texture_view: Option<&wgpu::TextureView>,
              surface_size: (u32, u32)| {
-                ui.sync_console();
                 let prev_scale = ui.scale_factor();
                 ui.on_window_resized(surface_size.0, surface_size.1);
                 let viewport_rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {

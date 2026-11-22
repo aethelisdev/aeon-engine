@@ -26,8 +26,6 @@ pub fn create_ray(
 /// Parameters for processing left-click press events in the viewport.
 pub struct LeftClickPressParams<'a> {
     pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
-    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
-    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
@@ -46,8 +44,6 @@ pub fn on_left_click_pressed(
 ) {
     let LeftClickPressParams {
         spatial_grid,
-        ui_gizmo_mode: _ui_gizmo_mode,
-        ui_gizmo_space,
         window_size,
         last_viewport_rect,
         scale_factor,
@@ -90,7 +86,7 @@ pub fn on_left_click_pressed(
             let cam_forward = camera.get_forward();
             let gizmo_screen = gizmo_screen_params(camera, local_size);
 
-            gizmo_system.space = ui_gizmo_space;
+            gizmo_system.space = editor.gizmo_space;
             if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
                 gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
             }
@@ -349,7 +345,6 @@ pub fn try_select_entity(
 
 /// Parameters for processing left-click release events in the viewport.
 pub struct LeftClickReleaseParams {
-    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
@@ -365,7 +360,6 @@ pub fn on_left_click_released(
     params: LeftClickReleaseParams,
 ) {
     let LeftClickReleaseParams {
-        ui_gizmo_space,
         window_size,
         last_viewport_rect,
         scale_factor,
@@ -385,7 +379,7 @@ pub fn on_left_click_released(
                 let cam_forward = camera.get_forward();
                 let gizmo_screen = gizmo_screen_params(camera, local_size);
 
-                gizmo_system.space = ui_gizmo_space;
+                gizmo_system.space = editor.gizmo_space;
                 if let Ok(r) = ecs.world.get::<&Rotation>(sel) {
                     gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                 }

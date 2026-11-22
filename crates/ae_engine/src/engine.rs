@@ -375,8 +375,6 @@ impl AeEngine {
 
         let is_2d = dimension_mode.is_2d();
         engine.editor.is_2d = is_2d;
-        engine.ui.active_scene_path =
-            ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL.to_string();
         if is_2d {
             engine.camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
             engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);

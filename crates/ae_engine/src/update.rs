@@ -44,17 +44,12 @@ impl AeEngine {
             .selected_entities
             .retain(|e| self.ecs.world.contains(*e));
 
-        // SINGLE SOURCE OF TRUTH: selected_entities → ui.selected_entity
-        // ui.selected_entity is derived, never set directly elsewhere.
-        self.ui.selected_entity = self.editor.selected_entities.first().copied();
-
         // Keyboard Shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, W/E/R/F)
         if !self.ui.wants_keyboard_input() {
             let shortcut_res = ae_editor::shortcuts::process_shortcuts(
                 &self.input,
                 &mut self.ecs.world,
                 &mut self.editor,
-                &mut self.ui.selected_entity,
                 self.mode,
             );
 
@@ -67,13 +62,13 @@ impl AeEngine {
             #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
             if shortcut_res.trigger_open_scene_dialog {
                 let (tx, rx) = std::sync::mpsc::channel();
-                self.ui.scene_dialog_receivers.push(rx);
+                self.editor.scene_dialog_receivers.push(rx);
                 rayon::spawn(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
                         .pick_file()
                     {
-                        let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::LoadFrom(path));
+                        let _ = tx.send(ae_editor::editor_state::SceneDialogAction::LoadFrom(path));
                     }
                 });
             }
@@ -83,14 +78,15 @@ impl AeEngine {
                 #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
-                    self.ui.scene_dialog_receivers.push(rx);
+                    self.editor.scene_dialog_receivers.push(rx);
                     rayon::spawn(move || {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
                             .set_file_name("world.aeworld")
                             .save_file()
                         {
-                            let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
+                            let _ =
+                                tx.send(ae_editor::editor_state::SceneDialogAction::SaveTo(path));
                         }
                     });
                 }
@@ -105,7 +101,7 @@ impl AeEngine {
                 self.focus_selected();
             }
             if let Some(gm) = shortcut_res.new_gizmo_mode {
-                self.ui.gizmo_mode = gm;
+                self.editor.gizmo_mode = gm;
             }
         }
 
@@ -120,9 +116,9 @@ impl AeEngine {
         }
 
         // Sync gizmo space + entity rotation early so input handlers use correct orientation
-        self.gizmo_system.mode = self.ui.gizmo_mode;
-        self.gizmo_system.space = self.ui.gizmo_space;
-        if let Some(ent) = self.ui.selected_entity
+        self.gizmo_system.mode = self.editor.gizmo_mode;
+        self.gizmo_system.space = self.editor.gizmo_space;
+        if let Some(ent) = self.editor.primary_selected()
             && let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent)
         {
             self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
@@ -393,11 +389,10 @@ impl AeEngine {
                         if manifest.is_file() {
                             resolved_req.selected_worlds.push(manifest);
                         }
-                    } else if !self.ui.active_scene_path.is_empty() {
-                        let scene_path = std::path::PathBuf::from(&self.ui.active_scene_path);
-                        if scene_path.is_file() {
-                            resolved_req.selected_worlds.push(scene_path);
-                        }
+                    } else if let Some(ref scene_path) = self.editor.active_scene_path
+                        && scene_path.is_file()
+                    {
+                        resolved_req.selected_worlds.push(scene_path.clone());
                     }
                 }
                 self.ui.export_modal_mut().begin(&resolved_req.output_dir);

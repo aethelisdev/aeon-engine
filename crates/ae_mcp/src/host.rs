@@ -3,7 +3,8 @@
 
 //! Host abstraction decoupling `ae_mcp` from any specific engine or editor crate.
 
-use irisui::core::{Rect, UiEvent, UiTree};
+use irisui::core::{Rect, UiEvent};
+use irisui::workbench::{UiInspectionSummary, UiTreeDump};
 use serde_json::{Map, Value};
 use winit::keyboard::KeyCode as WinitKeyCode;
 
@@ -78,8 +79,22 @@ pub trait McpHost {
     /// Returns live window, scale, mode, and focus telemetry.
     fn health_snapshot(&self) -> McpHealthSnapshot;
 
-    /// Returns read-only access to the host's retained Iris UI tree.
-    fn ui_tree(&self) -> &UiTree;
+    /// Returns a read-only telemetry summary of the retained UI without exposing internal tree storage.
+    fn ui_inspection_summary(&self) -> UiInspectionSummary;
+
+    /// Captures a filtered node & tag-bounds snapshot of the active UI for diagnostics.
+    fn inspect_ui_nodes(
+        &self,
+        tag_filter: Option<u64>,
+        name_filter: Option<&str>,
+        only_popups: bool,
+    ) -> UiTreeDump;
+
+    /// Resolves the bounding rectangle for a semantic widget `tag`, if laid out with non-zero size.
+    fn resolve_tag_rect(&self, tag: u64) -> Option<Rect>;
+
+    /// Resolves the non-zero bounding rectangle for the `index`-th widget matching `name` or text.
+    fn resolve_widget_rect(&self, name: &str, index: usize) -> Option<Rect>;
 
     /// Returns active floating dock window bounds for layout introspection.
     fn floating_windows(&self) -> Vec<McpFloatingWindow>;

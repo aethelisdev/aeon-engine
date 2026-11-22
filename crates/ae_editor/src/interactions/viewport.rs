@@ -9,8 +9,6 @@ use cgmath::{EuclideanSpace, Quaternion, Vector3};
 
 /// Parameters for handling cursor movement in the viewport.
 pub struct CursorMoveParams {
-    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
-    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
@@ -28,8 +26,6 @@ pub fn handle_cursor_moved(
     params: CursorMoveParams,
 ) {
     let CursorMoveParams {
-        ui_gizmo_mode,
-        ui_gizmo_space,
         window_size,
         last_viewport_rect,
         scale_factor,
@@ -64,8 +60,6 @@ pub fn handle_cursor_moved(
             camera,
             gizmo_system,
             ecs,
-            ui_gizmo_mode,
-            ui_gizmo_space,
             window_size: local_size,
             cursor_pos: (local_x as f64, local_y as f64),
         });
@@ -99,8 +93,8 @@ pub fn handle_cursor_moved(
                     let cam_forward = camera.get_forward();
                     let gizmo_screen = super::gizmo_drag::gizmo_screen_params(camera, local_size);
 
-                    gizmo_system.space = ui_gizmo_space;
-                    gizmo_system.mode = ui_gizmo_mode;
+                    gizmo_system.space = editor.gizmo_space;
+                    gizmo_system.mode = editor.gizmo_mode;
                     if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
                         gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                     }
@@ -128,8 +122,6 @@ pub fn handle_cursor_moved(
 /// Parameters for handling mouse click events in the viewport.
 pub struct MouseClickParams<'a> {
     pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
-    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
-    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
@@ -150,8 +142,6 @@ pub fn handle_mouse_click(
 ) {
     let MouseClickParams {
         spatial_grid,
-        ui_gizmo_mode,
-        ui_gizmo_space,
         window_size,
         last_viewport_rect,
         scale_factor,
@@ -186,8 +176,6 @@ pub fn handle_mouse_click(
                 ecs,
                 super::selection::LeftClickPressParams {
                     spatial_grid,
-                    ui_gizmo_mode,
-                    ui_gizmo_space,
                     window_size,
                     last_viewport_rect,
                     scale_factor,
@@ -203,7 +191,6 @@ pub fn handle_mouse_click(
                 gizmo_system,
                 ecs,
                 super::selection::LeftClickReleaseParams {
-                    ui_gizmo_space,
                     window_size,
                     last_viewport_rect,
                     scale_factor,

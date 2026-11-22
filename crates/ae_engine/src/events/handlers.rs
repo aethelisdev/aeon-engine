@@ -43,8 +43,6 @@ impl AeEngine {
             &mut self.gizmo_system,
             &mut self.ecs,
             ae_editor::interactions::CursorMoveParams {
-                ui_gizmo_mode: self.ui.gizmo_mode,
-                ui_gizmo_space: self.ui.gizmo_space,
                 window_size,
                 last_viewport_rect,
                 scale_factor,
@@ -86,8 +84,6 @@ impl AeEngine {
                 &mut self.ecs,
                 ae_editor::interactions::MouseClickParams {
                     spatial_grid: &self.spatial_grid,
-                    ui_gizmo_mode: self.ui.gizmo_mode,
-                    ui_gizmo_space: self.ui.gizmo_space,
                     window_size,
                     last_viewport_rect: self.render_state.last_viewport_rect,
                     scale_factor,
