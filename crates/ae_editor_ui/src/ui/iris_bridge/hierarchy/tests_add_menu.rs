@@ -8,47 +8,31 @@
 //! direct [`ActionBus`] entity spawn dispatching, and outside-click dismissal.
 
 use super::header::build_hierarchy_header;
-use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyPanelParams};
+use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON};
 use crate::ui::types::EngineUiAction;
-use hecs::World;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
-
-fn test_params(world: &World) -> HierarchyPanelParams<'_> {
-    HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
-        world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    }
-}
 
 #[test]
 fn test_hierarchy_add_button_toggle_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
-    let world = World::new();
+    let mut search_input = TextInputState::default();
     let mut bus = ActionBus::new();
 
     // 1. Clicking '+' activates HIERARCHY_TAG_ADD_BUTTON in UiTree SSOT
     tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
-        let params = test_params(&world);
         let mut scope = UiScope::new(&mut tree, root_id);
-        build_hierarchy_header(&mut scope, &params, &mut bus);
+        build_hierarchy_header(&mut scope, &mut search_input, None, &mut bus);
     }
     assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 
     // 2. Clicking '+' again toggles HIERARCHY_TAG_ADD_BUTTON off
     tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
-        let params = test_params(&world);
         let mut scope = UiScope::new(&mut tree, root_id);
-        build_hierarchy_header(&mut scope, &params, &mut bus);
+        build_hierarchy_header(&mut scope, &mut search_input, None, &mut bus);
     }
     assert!(!tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));
 }
@@ -57,7 +41,6 @@ fn test_hierarchy_add_button_toggle_actions() {
 fn test_hierarchy_add_menu_cascading_click_emits_directly_to_action_bus() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let world = World::new();
     let mut bus = ActionBus::new();
 
     // Activate Add Menu and open 3D Objects submenu in UiTree SSOT
@@ -69,9 +52,8 @@ fn test_hierarchy_add_menu_cascading_click_emits_directly_to_action_bus() {
     tree.event_state.frame_clicked_tag = Some(UiTag::from_str("Cube").raw());
 
     {
-        let params = test_params(&world);
         let mut scope = UiScope::new(&mut tree, root);
-        let rect = super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut bus);
+        let rect = super::add_menu::draw_hierarchy_add_menu(&mut scope, false, &mut bus);
         assert!(rect.is_some());
     }
 
@@ -91,7 +73,6 @@ fn test_hierarchy_add_menu_cascading_click_emits_directly_to_action_bus() {
 fn test_hierarchy_add_menu_outside_click_resets_tree_ssot() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let world = World::new();
     let mut bus = ActionBus::new();
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 600.0);
     let add_btn_rect = Rect::new(240.0, 4.0, 24.0, 24.0);
@@ -113,11 +94,10 @@ fn test_hierarchy_add_menu_outside_click_resets_tree_ssot() {
         scope.finish_layout(panel_rect);
     }
 
-    let params = test_params(&world);
     tree.open_popup(HIERARCHY_TAG_ADD_BUTTON.raw());
     {
         let mut scope = UiScope::new(&mut tree, root);
-        super::add_menu::draw_hierarchy_add_menu(&mut scope, &params, &mut bus);
+        super::add_menu::draw_hierarchy_add_menu(&mut scope, false, &mut bus);
     }
 
     assert!(tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()));

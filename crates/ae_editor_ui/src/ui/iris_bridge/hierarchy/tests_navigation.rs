@@ -7,17 +7,11 @@
 //! handling foldout expansion/collapse, multi-selection modifiers, keyboard arrow navigation,
 //! cached revision updates, and 10k entity frustum-culled scrolling.
 
-use super::rows::SceneHierarchySource;
-use super::types::{
-    HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, HierarchyPanelState, make_foldout_tag,
-    make_row_tag,
-};
+use super::types::{HIERARCHY_TAG_VIEWPORT, HierarchyPanelState, make_foldout_tag, make_row_tag};
 use crate::ui::types::EngineUiAction;
 use hecs::World;
 use irisui::prelude::*;
-use irisui::widgets::tree_view::{
-    TreeItemInfo, TreeSelectionModifiers, handle_tree_arrow_navigation, handle_tree_row_click,
-};
+use irisui::widgets::tree_view::{TreeItemInfo, handle_tree_arrow_navigation};
 use irisui::workbench::ActionBus;
 
 #[test]
@@ -36,38 +30,28 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         ae_core::ecs::Parent(parent_ent),
     ));
 
-    let mut tree_state = TreeState::expanded_by_default();
-    let mut model = TreeModel::new();
-    let src = SceneHierarchySource(&world);
-
-    // 1. Expanded by default
-    model.sync(&src, &tree_state, 1, world.len() as usize, "");
-    assert_eq!(model.visible_count(), 3);
-    assert_eq!(model.rows()[0].depth, 0);
-    assert!(model.rows()[0].has_children);
-    assert!(model.rows()[0].is_expanded);
-    assert_eq!(model.rows()[1].depth, 1);
-    assert_eq!(model.rows()[2].depth, 1);
-
-    let params = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    };
-
+    let mut state = HierarchyPanelState::default();
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 400.0));
     let mut bus = ActionBus::new();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
         &mut bus,
     );
+
+    let retained = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained tree must exist");
+    assert_eq!(retained.visible_count(), 3);
+    assert_eq!(retained.rows()[0].depth, 0);
+    assert!(retained.rows()[0].has_children);
+    assert!(retained.rows()[0].is_expanded);
+    assert_eq!(retained.rows()[1].depth, 1);
+    assert_eq!(retained.rows()[2].depth, 1);
 
     let mut found_foldout = false;
     let mut eye_x_coords = Vec::new();
@@ -87,116 +71,188 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
     assert_eq!(eye_x_coords[0], eye_x_coords[1]);
     assert_eq!(eye_x_coords[1], eye_x_coords[2]);
 
-    // 2. Collapse parent via tree_state.toggle_expanded & re-sync
-    tree_state.toggle_expanded(&parent_ent);
-    assert!(model.sync(&src, &tree_state, 1, world.len() as usize, ""));
-    assert_eq!(model.visible_count(), 1);
-    assert!(!model.rows()[0].is_expanded);
+    // 2. Collapse parent via foldout chevron click in UiTree
+    tree.clear();
+    let root2 = tree.create_root().expect("root2");
+    tree.event_state.frame_clicked_tag = Some(make_foldout_tag(0));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root2),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
+    );
+    tree.clear();
+    let root3 = tree.create_root().expect("root3");
+    tree.event_state.frame_clicked_tag = None;
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root3),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
+    );
+    let collapsed = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained collapsed");
+    assert_eq!(collapsed.visible_count(), 1);
+    assert!(!collapsed.rows()[0].is_expanded);
 
-    // 3. Re-expand parent
-    tree_state.toggle_expanded(&parent_ent);
-    assert!(model.sync(&src, &tree_state, 1, world.len() as usize, ""));
-    assert_eq!(model.visible_count(), 3);
-    assert!(model.rows()[0].is_expanded);
+    // 3. Re-expand parent via foldout chevron click
+    tree.clear();
+    let root4 = tree.create_root().expect("root4");
+    tree.event_state.frame_clicked_tag = Some(make_foldout_tag(0));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root4),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
+    );
+    tree.clear();
+    let root5 = tree.create_root().expect("root5");
+    tree.event_state.frame_clicked_tag = None;
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root5),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
+    );
+    let re_expanded = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained expanded");
+    assert_eq!(re_expanded.visible_count(), 3);
+    assert!(re_expanded.rows()[0].is_expanded);
 }
 
 #[test]
 fn test_hierarchy_tree_multi_selection_ctrl_and_shift() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 400.0));
     let mut state = HierarchyPanelState::default();
     let mut world = World::new();
+    let mut bus = ActionBus::new();
 
     let ent1 = world.spawn((ae_core::ecs::Name("Entity_1".into()),));
-    let _ent2 = world.spawn((ae_core::ecs::Name("Entity_2".into()),));
+    let ent2 = world.spawn((ae_core::ecs::Name("Entity_2".into()),));
     let ent3 = world.spawn((ae_core::ecs::Name("Entity_3".into()),));
 
-    state.model.sync(
-        &SceneHierarchySource(&world),
-        &state.tree_state,
+    tree.event_state.frame_clicked_tag = Some(make_row_tag(0));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root),
+        &world,
         1,
-        world.len() as usize,
-        "",
+        None,
+        false,
+        &mut state,
+        &mut bus,
     );
-    assert_eq!(state.model.visible_count(), 3);
+    let rt1 = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained");
+    assert!(rt1.is_selected(ent1.to_bits().get()));
+    assert_eq!(rt1.selected_count(), 1);
 
-    let visible_order = state.model.visible_order();
-    let resp1 = handle_tree_row_click(
-        &mut state.tree_state,
-        ent1,
-        TreeSelectionModifiers::new(),
-        Some(visible_order),
+    // Ctrl-click row 2 (ent3)
+    tree.clear();
+    let root2 = tree.create_root().expect("root2");
+    tree.dispatch_event(&UiEvent::ModifiersChanged {
+        ctrl_held: true,
+        shift_held: false,
+    });
+    tree.event_state.frame_clicked_tag = Some(make_row_tag(2));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root2),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
     );
-    assert!(resp1.consumed && resp1.selection_changed);
-    assert!(state.tree_state.is_selected(&ent1));
-    assert_eq!(state.tree_state.selected_count(), 1);
+    let rt2 = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained");
+    assert!(rt2.is_selected(ent1.to_bits().get()));
+    assert!(rt2.is_selected(ent3.to_bits().get()));
+    assert_eq!(rt2.selected_count(), 2);
 
-    let resp2 = handle_tree_row_click(
-        &mut state.tree_state,
-        ent3,
-        TreeSelectionModifiers::from_ctrl_shift(true, false),
-        Some(visible_order),
+    // Reset anchor to row 0 (ent1), then Shift-click row 2 (ent3)
+    tree.clear();
+    let root3 = tree.create_root().expect("root3");
+    tree.dispatch_event(&UiEvent::ModifiersChanged {
+        ctrl_held: false,
+        shift_held: false,
+    });
+    tree.event_state.frame_clicked_tag = Some(make_row_tag(0));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root3),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
     );
-    assert!(resp2.consumed && resp2.selection_changed);
-    assert!(state.tree_state.is_selected(&ent1));
-    assert!(state.tree_state.is_selected(&ent3));
-    assert_eq!(state.tree_state.selected_count(), 2);
-
-    state.tree_state.select_single(ent1);
-    let resp3 = handle_tree_row_click(
-        &mut state.tree_state,
-        ent3,
-        TreeSelectionModifiers::from_ctrl_shift(false, true),
-        Some(visible_order),
+    tree.clear();
+    let root4 = tree.create_root().expect("root4");
+    tree.dispatch_event(&UiEvent::ModifiersChanged {
+        ctrl_held: false,
+        shift_held: true,
+    });
+    tree.event_state.frame_clicked_tag = Some(make_row_tag(2));
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root4),
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
+        &mut bus,
     );
-    assert!(resp3.consumed && resp3.selection_changed);
-    assert_eq!(state.tree_state.selected_count(), 3);
+    let rt3 = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained");
+    assert!(rt3.is_selected(ent2.to_bits().get()));
+    assert_eq!(rt3.selected_count(), 3);
 }
 
 #[test]
 fn test_hierarchy_keyboard_arrow_navigation() {
-    let mut state = HierarchyPanelState::default();
+    let mut tree_state = TreeState::expanded_by_default();
     let mut world = World::new();
 
     let ent1 = world.spawn((ae_core::ecs::Name("Entity_1".into()),));
     let ent2 = world.spawn((ae_core::ecs::Name("Entity_2".into()),));
 
-    state.model.sync(
-        &SceneHierarchySource(&world),
-        &state.tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
-    assert_eq!(state.model.visible_count(), 2);
+    let tree_items = vec![
+        TreeItemInfo::new(ent1, 0, false),
+        TreeItemInfo::new(ent2, 0, false),
+    ];
 
-    let tree_items: Vec<TreeItemInfo<hecs::Entity>> = state
-        .model
-        .rows()
-        .iter()
-        .map(|r| TreeItemInfo::new(r.id, r.depth, r.has_children))
-        .collect();
-
-    let nav1 = handle_tree_arrow_navigation(
-        &mut state.tree_state,
-        &tree_items,
-        KeyCode::ArrowDown,
-        false,
-    );
+    let nav1 =
+        handle_tree_arrow_navigation(&mut tree_state, &tree_items, KeyCode::ArrowDown, false);
     assert!(nav1.consumed);
-    assert_eq!(state.tree_state.primary_selected(), Some(&ent1));
+    assert_eq!(tree_state.primary_selected(), Some(&ent1));
 
-    let nav2 = handle_tree_arrow_navigation(
-        &mut state.tree_state,
-        &tree_items,
-        KeyCode::ArrowDown,
-        false,
-    );
+    let nav2 =
+        handle_tree_arrow_navigation(&mut tree_state, &tree_items, KeyCode::ArrowDown, false);
     assert!(nav2.consumed);
-    assert_eq!(state.tree_state.primary_selected(), Some(&ent2));
+    assert_eq!(tree_state.primary_selected(), Some(&ent2));
 
-    let nav3 =
-        handle_tree_arrow_navigation(&mut state.tree_state, &tree_items, KeyCode::ArrowUp, false);
+    let nav3 = handle_tree_arrow_navigation(&mut tree_state, &tree_items, KeyCode::ArrowUp, false);
     assert!(nav3.consumed);
-    assert_eq!(state.tree_state.primary_selected(), Some(&ent1));
+    assert_eq!(tree_state.primary_selected(), Some(&ent1));
 }
 
 #[test]
@@ -207,40 +263,26 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
     let mut world = World::new();
     let ent1 = world.spawn((ae_core::ecs::Name("Entity_A".into()),));
     let ent2 = world.spawn((ae_core::ecs::Name("Entity_B".into()),));
-
-    let mut tree_state = TreeState::new();
-    let mut model = TreeModel::new();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
     let mut bus = ActionBus::new();
 
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 400.0));
     tree.event_state.frame_clicked_tag = Some(make_row_tag(0));
-    let params = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    };
+    let mut state = HierarchyPanelState::default();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
-    assert!(tree_state.is_selected(&ent1));
-    assert_eq!(tree_state.selected_count(), 1);
+    {
+        let retained = tree
+            .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+            .expect("retained");
+        assert!(retained.is_selected(ent1.to_bits().get()));
+        assert_eq!(retained.selected_count(), 1);
+    }
     let actions: Vec<_> = bus.drain().collect();
     assert_eq!(actions.len(), 1);
     assert!(matches!(actions[0], EngineUiAction::SelectEntity(Some(e)) if e == ent1));
@@ -252,58 +294,41 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
     });
     tree.event_state.frame_clicked_tag = Some(make_row_tag(1));
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
-    assert!(tree_state.is_selected(&ent1));
-    assert!(tree_state.is_selected(&ent2));
-    assert_eq!(tree_state.selected_count(), 2);
+    let retained2 = tree
+        .retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+        .expect("retained");
+    assert!(retained2.is_selected(ent1.to_bits().get()));
+    assert!(retained2.is_selected(ent2.to_bits().get()));
+    assert_eq!(retained2.selected_count(), 2);
 }
 
 #[test]
 fn test_hierarchy_10k_entities_virtual_scroll() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node must be created");
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 800.0));
 
     let mut world = World::new();
     for i in 0..10_000 {
         world.spawn((ae_core::ecs::Name(format!("Cube_{}", i)),));
     }
 
-    let mut tree_state = TreeState::expanded_by_default();
-    let mut model = TreeModel::new();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
-
-    let params = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 800.0),
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    };
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
     let sections_initial =
         irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree, &[], &[], &[]);
@@ -313,19 +338,19 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
 
     let mut tree2 = UiTree::new();
     let root2 = tree2.create_root().expect("Root node must be created");
+    tree2.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 800.0));
     tree2.set_viewport_size(HIERARCHY_TAG_VIEWPORT.raw(), Size::new(300.0, 748.0));
     tree2.set_scroll_offset(
         HIERARCHY_TAG_VIEWPORT.raw(),
         78.0 * super::rows::HIERARCHY_ROW_STRIDE,
     );
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree2, root2),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree2, root2), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
     let sections = irisui::IrisSurfaceHost::collect_text_sections_from_tree(&tree2, &[], &[], &[]);
     let texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();

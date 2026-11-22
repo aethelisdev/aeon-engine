@@ -7,10 +7,9 @@
 //! declarative `TreeModel` row rendering, eye visibility toggles, and frustum culling.
 
 use super::add_menu::{draw_hierarchy_add_menu, hierarchy_add_menu_entries};
-use super::rows::SceneHierarchySource;
 use super::types::{
     AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_PANEL_ROOT,
-    HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, make_eye_tag,
+    HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyPanelState, make_eye_tag,
     make_row_tag,
 };
 use crate::ui::types::EngineUiAction;
@@ -18,28 +17,15 @@ use hecs::World;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
-fn panel_params(world: &World, panel_rect: Rect, is_2d: bool) -> HierarchyPanelParams<'_> {
-    HierarchyPanelParams {
-        panel_rect,
-        world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d,
-        blink_caret: false,
-        cursor_byte_idx: 0,
-    }
-}
-
 fn build_add_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
-    params: &HierarchyPanelParams<'_>,
+    is_2d: bool,
     bus: &mut ActionBus<EngineUiAction>,
 ) -> Vec<Rect> {
     tree.open_popup(HIERARCHY_TAG_ADD_BUTTON.raw());
     let mut rects = Vec::new();
-    if let Some(r) = draw_hierarchy_add_menu(&mut UiScope::new(tree, parent_id), params, bus) {
+    if let Some(r) = draw_hierarchy_add_menu(&mut UiScope::new(tree, parent_id), is_2d, bus) {
         rects.push(r);
     }
     for (_, node) in tree.iter() {
@@ -65,10 +51,9 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         AddSubmenuId::Objects3D.tag().raw(),
     );
 
-    let world = World::new();
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 600.0), false);
     let mut bus = ActionBus::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut bus);
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 1280.0, 720.0));
+    let menu_rects = build_add_menu(&mut tree, root_id, false, &mut bus);
 
     assert!(menu_rects.len() >= 2);
     let active_dropdowns = [menu_rects[0], menu_rects[1]];
@@ -108,10 +93,9 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         AddSubmenuId::HudPresets.tag().raw(),
     );
 
-    let world = World::new();
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 600.0), false);
     let mut bus = ActionBus::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut bus);
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 1280.0, 720.0));
+    let menu_rects = build_add_menu(&mut tree, root_id, false, &mut bus);
 
     assert_eq!(menu_rects.len(), 3);
     let submenu_rect = menu_rects[1];
@@ -147,10 +131,9 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         AddSubmenuId::Objects2D.tag().raw(),
     );
 
-    let world = World::new();
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 600.0), true);
     let mut bus = ActionBus::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut bus);
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 600.0));
+    let menu_rects = build_add_menu(&mut tree, root_id, true, &mut bus);
     assert_eq!(menu_rects.len(), 2);
 
     let entries = hierarchy_add_menu_entries(true);
@@ -173,41 +156,29 @@ fn test_hierarchy_row_context_menu_via_tree_ssot_and_action_bus() {
     let root_id = tree.create_root().expect("Root node must be created");
     UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
-    let mut model = TreeModel::new();
-    let mut tree_state = TreeState::expanded_by_default();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
-
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 600.0), false);
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
     // Right click on row 0 opens UiTree context menu SSOT and selects entity
     let row_tag = make_row_tag(0);
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
     let row_node_id = tree.find_node_by_tag(row_tag).expect("Row node exists");
     tree.event_state.frame_secondary_clicked_id = Some(row_node_id);
     tree.event_state.frame_secondary_clicked_tag = Some(row_tag);
     tree.event_state.frame_clicked_pos = Some(Point::new(120.0, 200.0));
     let _ = bus.drain();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
     assert!(tree.event_state.active_context_menu.is_some());
 
     // Find the actual tag assigned to "Toggle Visibility" inside ContextMenuPopup
@@ -228,13 +199,12 @@ fn test_hierarchy_row_context_menu_via_tree_ssot_and_action_bus() {
     tree.event_state.frame_secondary_clicked_tag = None;
     tree.event_state.frame_clicked_tag = Some(vis_item_tag);
     let _ = bus.drain();
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
     let mut emitted = bus.drain();
     assert!(emitted.any(|a| matches!(a, EngineUiAction::ToggleVisibility(e) if e == entity)));
@@ -253,27 +223,18 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
     UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
     let panel_rect = Rect::new(0.0, 40.0, 300.0, 600.0);
-    let params = panel_params(&world, panel_rect, false);
+    tree.set_root_bounds(panel_rect);
 
-    let mut model = TreeModel::new();
-    let mut tree_state = TreeState::expanded_by_default();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
     tree.event_state.frame_clicked_tag = Some(make_eye_tag(0));
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
     assert!(
         bus.drain()
             .any(|a| matches!(a, EngineUiAction::ToggleVisibility(e) if e == entity))
@@ -296,12 +257,14 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
 
     let mut new_tree = UiTree::new();
     let new_root = new_tree.create_root().expect("Root node must be created");
-    let new_params = panel_params(&world, panel_rect, false);
+    new_tree.set_root_bounds(panel_rect);
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut new_tree, new_root),
-        &new_params,
-        &model,
-        &mut tree_state,
+        &world,
+        1,
+        None,
+        false,
+        &mut state,
         &mut bus,
     );
 
@@ -322,28 +285,24 @@ fn test_hierarchy_panel_declarative_scope_build() {
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
+    tree.set_root_bounds(Rect::new(10.0, 10.0, 280.0, 500.0));
 
-    let params = panel_params(&world, Rect::new(10.0, 10.0, 280.0, 500.0), false);
-    let mut model = TreeModel::new();
-    let mut tree_state = TreeState::expanded_by_default();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT.raw());
-    assert_eq!(model.visible_count(), 2);
+    assert_eq!(
+        tree.retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+            .expect("retained tree")
+            .visible_count(),
+        2
+    );
     assert!(max_scroll >= 0.0);
 
     let mut found_panel_root = false;
@@ -382,28 +341,24 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 200.0));
 
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 200.0), false);
-    let mut model = TreeModel::new();
-    let mut tree_state = TreeState::expanded_by_default();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root_id),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root_id), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT.raw());
-    assert_eq!(model.visible_count(), 1000);
+    assert_eq!(
+        tree.retained_tree(HIERARCHY_TAG_VIEWPORT.raw())
+            .expect("retained tree")
+            .visible_count(),
+        1000
+    );
     assert!(max_scroll > 1000.0);
 
     let mut rendered_rows_count = 0;
@@ -422,26 +377,17 @@ fn test_hierarchy_header_and_row_hover_styling() {
 
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
+    tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 400.0));
 
-    let params = panel_params(&world, Rect::new(0.0, 0.0, 300.0, 400.0), false);
-    let mut model = TreeModel::new();
-    let mut tree_state = TreeState::expanded_by_default();
-    model.sync(
-        &SceneHierarchySource(&world),
-        &tree_state,
-        1,
-        world.len() as usize,
-        "",
-    );
+    let mut state = HierarchyPanelState::default();
     let mut bus = ActionBus::new();
 
-    super::panel::build_hierarchy_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &model,
-        &mut tree_state,
-        &mut bus,
-    );
+    crate::ui::panel_layout::PanelId::Hierarchy
+        .surface()
+        .expect("Hierarchy surface")
+        .show(&mut UiScope::new(&mut tree, root), |s| {
+            super::panel::build_hierarchy_panel(s, &world, 1, None, false, &mut state, &mut bus);
+        });
 
     let (_, add_node) = tree
         .iter()
