@@ -17,18 +17,6 @@ pub const MATERIAL_TAG_SCROLLBAR_TRACK: u64 = UiTag::from_str("material.scrollba
 /// Semantic tag for the vertical scrollbar thumb draggable pill in the Material Studio.
 pub const MATERIAL_TAG_SCROLLBAR_THUMB: u64 = UiTag::from_str("material.scrollbar_thumb").raw();
 
-/// Parameters required to construct and lay out the Material & Surface Studio panel.
-pub struct MaterialPanelParams<'a> {
-    /// Currently selected entity in the scene hierarchy or viewport, if any.
-    pub entity: Option<hecs::Entity>,
-    /// Active ECS world reference for component querying.
-    pub world: &'a hecs::World,
-    /// GPU texture asset repository for metadata resolution.
-    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-    /// GPU 3D model asset repository for submesh slot inspection.
-    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-}
-
 /// Persistent interactive state for the Material & Surface Studio panel.
 ///
 /// Actions are emitted directly through [`irisui::workbench::ActionBus`] without

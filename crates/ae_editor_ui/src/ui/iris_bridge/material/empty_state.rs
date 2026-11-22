@@ -95,9 +95,9 @@ pub fn build_no_renderable_geometry(
                         r.tag_for("Add Texture / Sprite"),
                     )
                     .on_click(|| {
-                        if let Some(ent) = entity {
+                        entity.into_iter().for_each(|ent| {
                             action_bus.emit(EngineUiAction::PickAndAssignEntityTexture(ent));
-                        }
+                        });
                     });
                 },
             );

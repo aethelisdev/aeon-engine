@@ -6,7 +6,6 @@
 //! Exposes 100% native Iris UI GPU SDF panel rendering for PBR texture inspection,
 //! submesh alpha blending modes, 2D sprite surface settings, and hardware texture array icons.
 
-pub mod builder;
 pub mod empty_state;
 pub mod header;
 pub mod panel;
@@ -20,5 +19,5 @@ pub use header::{MATERIAL_HEADER_HEIGHT, build_material_header};
 pub use panel::build_material_panel;
 pub use types::{
     MATERIAL_TAG_SCROLLBAR_THUMB, MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_VIEWPORT,
-    MaterialPanelParams, MaterialPanelState, MaterialState,
+    MaterialPanelState, MaterialState,
 };

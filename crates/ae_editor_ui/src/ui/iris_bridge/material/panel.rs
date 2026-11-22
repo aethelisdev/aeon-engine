@@ -8,15 +8,38 @@
 
 use super::empty_state::{build_no_entity_selected, build_no_renderable_geometry};
 use super::header::build_material_header;
-use super::sprite_view::{SpriteViewParams, build_sprite_view};
-use super::submesh_view::{SubmeshViewParams, build_submesh_view};
+use super::sprite_view::build_sprite_view;
+use super::submesh_view::build_submesh_view;
 use super::types::{
     MATERIAL_TAG_SCROLLBAR_THUMB, MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_VIEWPORT,
-    MaterialPanelParams,
+    MaterialPanelState,
 };
+use crate::ui::panel_registry::EditorPanelContext;
 use crate::ui::types::EngineUiAction;
+use ae_renderer::asset::AssetStorage;
+use ae_renderer::render::{ModelAsset, TextureAsset};
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
+
+impl MaterialPanelState {
+    /// Draws the Material & Surface Studio panel directly through Iris UI workbench context.
+    pub(crate) fn draw_panel(&mut self, scope: &mut UiScope<'_>, ctx: &mut EditorPanelContext<'_>) {
+        self.selected_entity = ctx.data.editor_state.primary_selected();
+        self.active_model = self
+            .selected_entity
+            .and_then(|e| ctx.data.world.get::<&ae_core::ecs::ModelId>(e).ok())
+            .map(|m| m.0);
+
+        build_material_panel(
+            scope,
+            self.selected_entity,
+            ctx.data.world,
+            ctx.data.textures,
+            ctx.data.models,
+            ctx.action_bus,
+        );
+    }
+}
 
 #[derive(Clone, Copy)]
 enum MaterialSurfaceKind {
@@ -44,21 +67,25 @@ impl MaterialSurfaceKind {
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
 pub fn build_material_panel(
     scope: &mut UiScope<'_>,
-    params: &MaterialPanelParams<'_>,
+    entity: Option<hecs::Entity>,
+    world: &hecs::World,
+    textures: &AssetStorage<TextureAsset>,
+    models: &AssetStorage<ModelAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    scope.panel("MaterialPanelRoot").show(|panel_scope| {
-        build_material_header(panel_scope, params.entity, params.world);
-        build_material_body(panel_scope, params, action_bus);
-    });
+    build_material_header(scope, entity, world);
+    build_material_body(scope, entity, world, textures, models, action_bus);
 }
 
 fn build_material_body(
     scope: &mut UiScope<'_>,
-    params: &MaterialPanelParams<'_>,
+    entity: Option<hecs::Entity>,
+    world: &hecs::World,
+    textures: &AssetStorage<TextureAsset>,
+    models: &AssetStorage<ModelAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
-    match MaterialSurfaceKind::resolve(params.world, params.entity) {
+    match MaterialSurfaceKind::resolve(world, entity) {
         MaterialSurfaceKind::NoSelection => {
             scope.centered_stretch(12.0, |center_scope| {
                 build_no_entity_selected(center_scope);
@@ -66,44 +93,30 @@ fn build_material_body(
         }
         MaterialSurfaceKind::UnsupportedGeometry => {
             scope.centered_stretch(12.0, |center_scope| {
-                build_no_renderable_geometry(center_scope, params.entity, action_bus);
+                build_no_renderable_geometry(center_scope, entity, action_bus);
             });
         }
         MaterialSurfaceKind::Model(entity) => {
-            render_material_viewport(scope, |vp_scope| {
-                build_submesh_view(
-                    vp_scope,
-                    &SubmeshViewParams {
-                        entity,
-                        world: params.world,
-                        models: params.models,
-                        textures: params.textures,
-                    },
-                    action_bus,
-                );
+            render_material_viewport(scope, entity, |vp_scope| {
+                build_submesh_view(vp_scope, entity, world, models, textures, action_bus);
             });
         }
         MaterialSurfaceKind::Sprite(entity) => {
-            render_material_viewport(scope, |vp_scope| {
-                build_sprite_view(
-                    vp_scope,
-                    &SpriteViewParams {
-                        entity,
-                        world: params.world,
-                        textures: params.textures,
-                    },
-                    action_bus,
-                );
+            render_material_viewport(scope, entity, |vp_scope| {
+                build_sprite_view(vp_scope, entity, world, textures, action_bus);
             });
         }
     }
 }
 
-fn render_material_viewport(scope: &mut UiScope<'_>, f: impl FnOnce(&mut UiScope<'_>)) {
-    scope.scroll_area(
-        "MaterialViewport",
-        MATERIAL_TAG_VIEWPORT,
-        Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
-        f,
-    );
+fn render_material_viewport(
+    scope: &mut UiScope<'_>,
+    entity: hecs::Entity,
+    f: impl FnOnce(&mut UiScope<'_>),
+) {
+    ScrollAreaView::new("MaterialViewport")
+        .tag(MATERIAL_TAG_VIEWPORT)
+        .scrollbar_tags(MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)
+        .scroll_key(entity.to_bits().get())
+        .show_scrolled(scope, f);
 }

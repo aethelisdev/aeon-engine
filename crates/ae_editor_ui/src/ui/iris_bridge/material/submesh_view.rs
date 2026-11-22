@@ -21,18 +21,6 @@ const ALPHA_MODES: [(SubmeshAlphaMode, &str); 3] = [
     (SubmeshAlphaMode::Blend, "💧 Blend"),
 ];
 
-/// Parameters for rendering the 3D Submesh material inspector view.
-pub struct SubmeshViewParams<'a> {
-    /// Target entity being inspected.
-    pub entity: hecs::Entity,
-    /// Reference to the active ECS world.
-    pub world: &'a hecs::World,
-    /// Model asset storage.
-    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-    /// Texture asset storage.
-    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-}
-
 #[inline]
 fn asset_filename(source_path: &str) -> &str {
     std::path::Path::new(source_path)
@@ -66,15 +54,17 @@ struct SubmeshSlotContext<'a> {
 /// Builds the 3D Model overview card and submesh material slot cards directly on [`UiScope`].
 pub fn build_submesh_view(
     scope: &mut UiScope<'_>,
-    params: &SubmeshViewParams<'_>,
+    entity: hecs::Entity,
+    world: &hecs::World,
+    models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.when_some(
-        params
-            .world
-            .get::<&ae_core::ecs::ModelId>(params.entity)
+        world
+            .get::<&ae_core::ecs::ModelId>(entity)
             .ok()
-            .and_then(|m| params.models.get(m.0).map(|model| (m.0, model))),
+            .and_then(|m| models.get(m.0).map(|model| (m.0, model))),
         |view, (model_handle, model)| {
             render_model_overview(view, model);
 
@@ -84,7 +74,7 @@ pub fn build_submesh_view(
                     &SubmeshSlotContext {
                         model_handle,
                         model,
-                        textures: params.textures,
+                        textures,
                         idx,
                         submesh,
                     },

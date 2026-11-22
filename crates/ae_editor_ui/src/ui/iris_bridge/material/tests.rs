@@ -35,7 +35,12 @@ fn material_root_tag(label: &str) -> u64 {
 fn render_material_host(
     tree: &mut UiTree,
     panel_rect: Rect,
-    params: &MaterialPanelParams<'_>,
+    entity: Option<hecs::Entity>,
+    world: &hecs::World,
+    (textures, models): (
+        &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+        &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    ),
     bus: &mut ActionBus<EngineUiAction>,
     events: &[(u64, InteractionEvent)],
 ) -> WidgetId {
@@ -52,7 +57,14 @@ fn render_material_host(
             .width(panel_rect.width)
             .height(panel_rect.height)
             .flex_col(),
-        |s| build_material_panel(s, params, bus),
+        |s| {
+            crate::ui::panel_layout::PanelId::MaterialEditor
+                .surface()
+                .expect("Material surface")
+                .show(s, |panel_scope| {
+                    build_material_panel(panel_scope, entity, world, textures, models, bus);
+                });
+        },
     );
     scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     root
@@ -67,20 +79,17 @@ fn test_material_panel_build_empty_state() {
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(100.0, 100.0, 300.0, 400.0);
 
-    let params = MaterialPanelParams {
-        entity: None,
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
-
     let mut bus = ActionBus::new();
     {
         let mut scope = UiScope::new(&mut tree, root);
-        scope
-            .panel("MaterialHost")
-            .bounds(panel_rect)
-            .show(|s| build_material_panel(s, &params, &mut bus));
+        scope.panel("MaterialHost").bounds(panel_rect).show(|s| {
+            crate::ui::panel_layout::PanelId::MaterialEditor
+                .surface()
+                .expect("Material surface")
+                .show(s, |panel_scope| {
+                    build_material_panel(panel_scope, None, &world, &textures, &models, &mut bus);
+                });
+        });
     }
 
     assert!(tree.find_node_by_name("MaterialPanelRoot").is_some());
@@ -96,15 +105,16 @@ fn test_material_panel_build_no_geometry() {
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 400.0);
 
-    let params = MaterialPanelParams {
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
-
     let mut bus = ActionBus::new();
-    let root = render_material_host(&mut tree, panel_rect, &params, &mut bus, &[]);
+    let root = render_material_host(
+        &mut tree,
+        panel_rect,
+        Some(ent),
+        &world,
+        (&textures, &models),
+        &mut bus,
+        &[],
+    );
 
     assert!(find_tag_recursive(
         &tree,
@@ -126,15 +136,16 @@ fn test_material_panel_build_sprite_view() {
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 450.0);
 
-    let params = MaterialPanelParams {
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
-
     let mut bus = ActionBus::new();
-    let root = render_material_host(&mut tree, panel_rect, &params, &mut bus, &[]);
+    let root = render_material_host(
+        &mut tree,
+        panel_rect,
+        Some(ent),
+        &world,
+        (&textures, &models),
+        &mut bus,
+        &[],
+    );
 
     assert!(find_tag_recursive(
         &tree,
@@ -172,15 +183,16 @@ fn test_material_panel_does_not_mutate_parent_rect() {
     let world = hecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let params = MaterialPanelParams {
-        entity: None,
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
 
     let mut bus = ActionBus::new();
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut bus);
+    build_material_panel(
+        &mut UiScope::new(&mut tree, root),
+        None,
+        &world,
+        &textures,
+        &models,
+        &mut bus,
+    );
 
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
@@ -207,17 +219,19 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
     ));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let panel_rect = Rect::new(100.0, 50.0, 300.0, 600.0);
+    let panel_rect = Rect::new(100.0, 50.0, 300.0, 180.0);
     let change_tag = material_root_tag("Change Texture");
 
-    let params_0 = MaterialPanelParams {
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
     let mut bus_0 = ActionBus::new();
-    let root = render_material_host(&mut tree, panel_rect, &params_0, &mut bus_0, &[]);
+    let root = render_material_host(
+        &mut tree,
+        panel_rect,
+        Some(ent),
+        &world,
+        (&textures, &models),
+        &mut bus_0,
+        &[],
+    );
 
     let change_btn_0 = find_node_by_tag(&tree, root, change_tag).expect("Button must exist");
     let y_0 = change_btn_0.y;
@@ -225,8 +239,15 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
     let mut tree_scroll = UiTree::new();
     tree_scroll.set_scroll_offset(MATERIAL_TAG_VIEWPORT, 50.0);
     let mut bus_50 = ActionBus::new();
-    let root_scroll =
-        render_material_host(&mut tree_scroll, panel_rect, &params_0, &mut bus_50, &[]);
+    let root_scroll = render_material_host(
+        &mut tree_scroll,
+        panel_rect,
+        Some(ent),
+        &world,
+        (&textures, &models),
+        &mut bus_50,
+        &[],
+    );
 
     let change_btn_50 =
         find_node_by_tag(&tree_scroll, root_scroll, change_tag).expect("Button must exist");
@@ -235,17 +256,13 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
 
     let mut tree_empty = UiTree::new();
     let empty_ent = world.spawn(("EmptyEntity",));
-    let params_empty = MaterialPanelParams {
-        entity: Some(empty_ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
     let mut bus_empty = ActionBus::new();
     let root_empty = render_material_host(
         &mut tree_empty,
         panel_rect,
-        &params_empty,
+        Some(empty_ent),
+        &world,
+        (&textures, &models),
         &mut bus_empty,
         &[],
     );
@@ -282,15 +299,17 @@ fn test_material_panel_declarative_actions_dispatch() {
             button: MouseButton::Left,
         },
     )];
-    let params = MaterialPanelParams {
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
 
     let mut bus = ActionBus::new();
-    render_material_host(&mut tree, panel_rect, &params, &mut bus, &events);
+    render_material_host(
+        &mut tree,
+        panel_rect,
+        Some(ent),
+        &world,
+        (&textures, &models),
+        &mut bus,
+        &events,
+    );
 
     assert!(
         bus.drain()
@@ -308,7 +327,9 @@ fn test_material_panel_declarative_actions_dispatch() {
     render_material_host(
         &mut UiTree::new(),
         panel_rect,
-        &params,
+        Some(ent),
+        &world,
+        (&textures, &models),
         &mut bus_remove,
         &events_remove,
     );
@@ -335,17 +356,13 @@ fn test_material_add_color_tint_and_scope_seed_isolation() {
             button: MouseButton::Left,
         },
     )];
-    let params = MaterialPanelParams {
-        entity: Some(ent),
-        world: &world,
-        textures: &textures,
-        models: &models,
-    };
     let mut bus = ActionBus::new();
     render_material_host(
         &mut tree,
         Rect::new(0.0, 0.0, 320.0, 450.0),
-        &params,
+        Some(ent),
+        &world,
+        (&textures, &models),
         &mut bus,
         &events,
     );
