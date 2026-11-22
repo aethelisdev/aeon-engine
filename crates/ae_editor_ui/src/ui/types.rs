@@ -220,13 +220,16 @@ impl EngineUiAction {
         type_name: &'static str,
         component: &T,
     ) -> Self {
-        let data = postcard::to_stdvec(component).unwrap_or_default();
-        Self::ModifyComponent(entity, type_name, data)
+        Self::ModifyComponent(
+            entity,
+            type_name,
+            postcard::to_stdvec(component).unwrap_or_default(),
+        )
     }
 }
 
 /// Lightweight snapshot of a single log entry – owned, no Mutex dependency.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConsoleEntry {
     pub level: log::Level,
     pub target: String,
@@ -277,3 +280,101 @@ pub struct EditorTelemetrySnapshot {
 
 /// Canonical UI element type variants for spawning from the editor hierarchy.
 pub use ae_uidesign::UiElementType;
+
+/// Complete borrowed frame state descriptor passed into [`crate::ui::EngineUi::render`].
+pub struct EditorUiRenderParams<'a> {
+    /// Active WGPU logical device handle.
+    pub device: &'a wgpu::Device,
+    /// Active WGPU command queue handle.
+    pub queue: &'a wgpu::Queue,
+    /// Frame command encoder for recording UI GPU passes.
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    /// Native OS window reference used for cursor and input queries.
+    pub window: &'a winit::window::Window,
+    /// Swapchain target texture view for the editor window.
+    pub window_surface_view: &'a wgpu::TextureView,
+    /// Physical surface dimensions `(width, height)` in pixels.
+    pub surface_size: (u32, u32),
+    /// Offscreen 3D viewport render target view when available.
+    pub viewport_texture_view: Option<&'a wgpu::TextureView>,
+    /// Measured engine frames per second for status/telemetry readouts.
+    pub fps: f32,
+    /// Authoritative ECS world containing all entities and components.
+    pub world: &'a hecs::World,
+    /// Active engine execution mode (`Edit`, `Play`, `Pause`).
+    pub mode: &'a ae_core::modules::EngineMode,
+    /// Current command undo stack slice for menu enablement.
+    pub undo_stack: &'a [ae_editor::undo_redo::Command],
+    /// Current command redo stack slice for menu enablement.
+    pub redo_stack: &'a [ae_editor::undo_redo::Command],
+    /// Active rendering quality and post-processing settings.
+    pub graphics_settings: &'a ae_renderer::graphics_settings::GraphicsSettings,
+    /// Active grid/angle snapping configuration.
+    pub snapping: &'a ae_editor::snapping::SnapSettings,
+    /// Authoritative editor state (selection, tools, overlays, revisions).
+    pub editor_state: &'a ae_editor::editor_state::EditorState,
+    /// Active editor or gameplay viewport camera.
+    pub camera: &'a ae_renderer::camera::Camera,
+    /// Resident 3D model storage pool.
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    /// Resident 2D texture storage pool.
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    /// Resident WGSL shader storage pool.
+    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
+    /// Set of currently enabled runtime engine modules.
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    /// Whether the editor viewport is operating in 2D mode.
+    pub is_2d_mode: bool,
+    /// Output queue collecting UI-triggered engine actions for this frame.
+    pub ui_actions: &'a mut Vec<EngineUiAction>,
+}
+
+/// Compact borrowed frame context supplied to registered panels via [`irisui::workbench::WorkbenchHost`].
+pub struct EditorFrameData<'frame> {
+    /// Whether the engine is currently in editor mode (not playing).
+    pub is_editing: bool,
+    /// Whether the scene is operating in 2D editing mode.
+    pub is_2d_mode: bool,
+    /// Bitmask tracking open panels for `View` / `Window` menu checkmarks.
+    pub view_panel_mask: u64,
+    /// Whether undo is currently available.
+    pub can_undo: bool,
+    /// Whether redo is currently available.
+    pub can_redo: bool,
+    /// Whether a valid 3D viewport render target texture is bound.
+    pub has_viewport_texture: bool,
+    /// Computed 3D viewport dock region in logical coordinates.
+    pub viewport_rect: irisui::prelude::Rect,
+    /// Active camera parameters for HUD and drop raycasting.
+    pub camera: &'frame ae_renderer::camera::Camera,
+    /// Authoritative ECS world.
+    pub world: &'frame hecs::World,
+    /// Authoritative editor state (selection, gizmo, wireframe, grid, revision).
+    pub editor_state: &'frame ae_editor::editor_state::EditorState,
+    /// Read-only graphics settings reference for the active frame.
+    pub graphics_settings: &'frame ae_renderer::graphics_settings::GraphicsSettings,
+    /// Read-only snap settings reference for the active frame.
+    pub snapping_settings: &'frame ae_editor::snapping::SnapSettings,
+    /// Read-only general editor configuration reference for the active frame.
+    pub editor_config: &'frame ae_editor::editor_state::EditorConfig,
+    /// Active live hot-reload editor updates toggle.
+    pub enable_live_updates: bool,
+    /// Enabled optional engine modules.
+    pub enabled_modules: &'frame std::collections::HashSet<ae_core::modules::EngineModule>,
+    /// Latest CPU/GPU telemetry snapshot.
+    pub telemetry: &'frame EditorTelemetrySnapshot,
+    /// Cached physical GPU adapter display name.
+    pub gpu_adapter_name: &'frame str,
+    /// Cached GPU backend identifier string.
+    pub gpu_backend: &'frame str,
+    /// Mutable persistent Content / Asset Browser state.
+    pub asset_browser: &'frame mut crate::assets::AssetBrowserState,
+    /// Mutable persistent 2D UI Designer canvas state.
+    pub ui_designer_state: &'frame mut ae_uidesign::UiDesignerState,
+    /// Mutable Export Project modal dialog state.
+    pub export_modal: &'frame mut ExportDialogState,
+    /// Resident 2D texture storage pool.
+    pub textures: &'frame ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    /// Resident 3D model storage pool.
+    pub models: &'frame ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+}

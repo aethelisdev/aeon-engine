@@ -2,7 +2,17 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Modular panel identification, tree docking state (`irisui_dock`),
 /// and layout persistence for the Aeon Engine editor interface.
-use irisui::dock::{DockState, DockTree};
+use super::iris_bridge::{
+    assets::ASSETS_TAG_PANEL_ROOT, console::CONSOLE_TAG_PANEL_ROOT,
+    hierarchy::HIERARCHY_TAG_PANEL_ROOT, inspector::TAG_INSPECTOR_PANEL_ROOT,
+    stats::STATS_TAG_PANEL_ROOT, timeline::TIMELINE_TAG_PANEL_ROOT,
+    ui_designer::UI_DESIGNER_TAG_PANEL_ROOT,
+};
+use irisui::core::Color;
+use irisui::dock::{DockLayoutNode, DockState};
+use irisui::workbench::{
+    LiveRefreshInterval, PanelBackground, PanelBorder, PanelMetadata, PanelSurfaceStyle,
+};
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for each editor tool panel.
@@ -181,58 +191,104 @@ impl PanelId {
             Self::Preferences,
         ]
     }
+
+    /// Builds the optional declarative [`PanelSurfaceStyle`] wrapping this panel's leaf content.
+    ///
+    /// [`Self::Viewport`] returns `None` so its WGPU render target compositing and viewport HUD
+    /// manage their own pass-through surface directly.
+    #[must_use]
+    pub const fn surface(self) -> Option<PanelSurfaceStyle> {
+        match self {
+            Self::Viewport => None,
+            Self::Hierarchy => Some(
+                PanelSurfaceStyle::new("HierarchyPanelRoot")
+                    .with_tag(HIERARCHY_TAG_PANEL_ROOT.raw()),
+            ),
+            Self::Stats => Some(
+                PanelSurfaceStyle::new("StatsPanelRoot")
+                    .with_tag(STATS_TAG_PANEL_ROOT)
+                    .with_background(PanelBackground::Color(Color::rgba(0.06, 0.07, 0.09, 1.0))),
+            ),
+            Self::Inspector => Some(
+                PanelSurfaceStyle::new("InspectorPanelRoot").with_tag(TAG_INSPECTOR_PANEL_ROOT),
+            ),
+            Self::MaterialEditor => Some(PanelSurfaceStyle::new("MaterialPanelRoot")),
+            Self::Assets => {
+                Some(PanelSurfaceStyle::new("AssetsPanelRoot").with_tag(ASSETS_TAG_PANEL_ROOT))
+            }
+            Self::Console => Some(
+                PanelSurfaceStyle::new("ConsolePanelRoot")
+                    .with_tag(CONSOLE_TAG_PANEL_ROOT)
+                    .with_background(PanelBackground::Color(Color::rgba(0.05, 0.06, 0.08, 1.0))),
+            ),
+            Self::AnimationTimeline => Some(
+                PanelSurfaceStyle::new("AnimationTimelinePanelRoot")
+                    .with_tag(TIMELINE_TAG_PANEL_ROOT)
+                    .with_border(PanelBorder::ThemeWidth(1.0)),
+            ),
+            Self::UiDesigner => Some(
+                PanelSurfaceStyle::new("UiDesignerPanelRoot")
+                    .with_tag(UI_DESIGNER_TAG_PANEL_ROOT)
+                    .with_background(PanelBackground::Color(Color::rgba(
+                        0.065, 0.070, 0.082, 1.0,
+                    )))
+                    .with_border(PanelBorder::Custom(
+                        1.0,
+                        Color::rgba(0.14, 0.15, 0.18, 0.70),
+                    )),
+            ),
+            Self::Preferences => Some(
+                PanelSurfaceStyle::new("Preferences")
+                    .row()
+                    .with_border(PanelBorder::None),
+            ),
+        }
+    }
+
+    /// Builds declarative [`PanelMetadata`] for persistent registration in `ScopedPanelRegistry`.
+    #[must_use]
+    pub fn metadata(self, live_refresh: LiveRefreshInterval) -> PanelMetadata<Self> {
+        PanelMetadata::new(self, self.title())
+            .with_optional_icon(Some(self.ui_icon()))
+            .with_domain_bound(matches!(
+                self,
+                Self::Hierarchy | Self::Inspector | Self::MaterialEditor | Self::AnimationTimeline
+            ))
+            .with_closeable(!matches!(self, Self::Viewport))
+            .with_clear_background(matches!(self, Self::Viewport))
+            .with_placement(self.placement())
+            .with_live_refresh(live_refresh)
+            .with_skip_collapsed(true)
+            .with_optional_surface(self.surface())
+    }
 }
 
-/// Constructs the default tree layout using `irisui_dock`.
+/// Constructs the default tree layout using `irisui_dock`'s declarative [`DockLayoutNode`].
 ///
 /// **Layout Topology:**
 /// - Center: `[Viewport, UiDesigner]` (Tabbed 3D & 2D workspace)
-/// - Left Split (15%): `[Hierarchy, Stats]`
-/// - Right Split (19%): `[Inspector, MaterialEditor]`
-/// - Bottom Split (19%): `[Assets, Console, AnimationTimeline]`
+/// - Left Split (14%): `[Hierarchy, Stats]`
+/// - Right Split (18% of remaining): `[Inspector, MaterialEditor]`
+/// - Bottom Split (20% of center): `[Assets, Console, AnimationTimeline]`
 pub fn create_default_dock_state() -> DockState<PanelId> {
-    let mut tree = DockTree::new();
-    let center = tree.create_leaf(vec![PanelId::Viewport, PanelId::UiDesigner]);
-    tree.set_root(center);
-
-    // 1. Split Left: Hierarchy (active) + Stats at ratio 0.14 (14% width)
-    let (_left_leaf, center_right) = tree
-        .split_ordered(
-            center,
-            irisui::dock::SplitDirection::Horizontal,
-            0.14,
-            vec![PanelId::Hierarchy, PanelId::Stats],
-            true,
-        )
-        .expect("Left split succeeds");
-
-    // 2. Split Right: Inspector (active) + Material Editor at ratio 0.82 (18% of remainder, ~15% screen width)
-    let (center_leaf, _right_leaf) = tree
-        .split_ordered(
-            center_right,
-            irisui::dock::SplitDirection::Horizontal,
+    DockState::from_layout(DockLayoutNode::split_horizontal(
+        0.14,
+        DockLayoutNode::tabs(vec![PanelId::Hierarchy, PanelId::Stats]),
+        DockLayoutNode::split_horizontal(
             0.82,
-            vec![PanelId::Inspector, PanelId::MaterialEditor],
-            false,
-        )
-        .expect("Right split succeeds");
-
-    // 3. Split Below Center: Assets (active) + Console + Animation Timeline at ratio 0.80 (20% of center, ~18% screen height)
-    let (_viewport_leaf, _bottom_leaf) = tree
-        .split_ordered(
-            center_leaf,
-            irisui::dock::SplitDirection::Vertical,
-            0.80,
-            vec![
-                PanelId::Assets,
-                PanelId::Console,
-                PanelId::AnimationTimeline,
-            ],
-            false,
-        )
-        .expect("Bottom split succeeds");
-
-    DockState::new(tree).with_min_pane_size(60.0)
+            DockLayoutNode::split_vertical(
+                0.80,
+                DockLayoutNode::tabs(vec![PanelId::Viewport, PanelId::UiDesigner]),
+                DockLayoutNode::tabs(vec![
+                    PanelId::Assets,
+                    PanelId::Console,
+                    PanelId::AnimationTimeline,
+                ]),
+            ),
+            DockLayoutNode::tabs(vec![PanelId::Inspector, PanelId::MaterialEditor]),
+        ),
+    ))
+    .with_min_pane_size(60.0)
 }
 
 /// Returns the canonical sibling/partner panel paired with `panel` for opening or docking back.
