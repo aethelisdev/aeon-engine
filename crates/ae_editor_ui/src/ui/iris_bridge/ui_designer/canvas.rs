@@ -1,418 +1,285 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # 2D Visual UI Designer Virtual Canvas & Element Projection
+//! # 2D Visual UI Designer Virtual Canvas (`PanZoomViewport`-Backed)
 //!
-//! Renders the letterboxed virtual canvas surface, background grid lines,
-//! and projected in-game UI element hierarchies using declarative [`UiScope`]
-//! absolute layout and 64-bit hardware semantic tags in proper local coordinates.
+//! Delegates letterbox aspect-fitting, zoom/pan navigation, coordinate transforms, grid drawing,
+//! draggable element boxes, and anchor pin guide overlays cleanly to
+//! [`irisui::prelude::UiScope::pan_zoom_viewport`] without local layout arithmetic or `let` plumbing.
 
-use super::anchors::{AnchorGuideParams, build_anchor_pin_and_guide};
-use super::toolbar::UI_DESIGNER_TOOLBAR_HEIGHT;
 use super::types::{
-    UI_DESIGNER_TAG_CANVAS_BOARD, UI_DESIGNER_TAG_LETTERBOX, UiDesignerAction,
-    UiDesignerCanvasMetrics, UiDesignerPanelParams, UiDesignerPanelState, UiElementDragContext,
+    UI_DESIGNER_TAG_CANVAS_BOARD, UI_DESIGNER_TAG_LETTERBOX, UiDesignerState, UiDragState,
     encode_element_tag,
 };
-use ae_core::ecs::UiElement;
+use crate::ui::panel_layout::PanelId;
+use crate::ui::types::EngineUiAction;
+use ae_core::ecs::{UiAnchor, UiElement};
 use ae_core::ui::{UiDrawCommand, UiLayoutResolver, UiTextAlignment};
+use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
 
-/// Builds the virtual canvas viewport, background grid, and rendered UI elements.
-pub fn build_designer_canvas(
-    scope: &mut UiScope<'_>,
-    params: &UiDesignerPanelParams<'_>,
-    designer: &mut UiDesignerPanelState,
-) -> UiDesignerCanvasMetrics {
-    let avail_w = params.panel_rect.width;
-    let avail_h = (params.panel_rect.height - UI_DESIGNER_TOOLBAR_HEIGHT).max(10.0);
-
-    let [screen_w, screen_h] = params.state.aspect_ratio.resolution();
-
-    // ── 1. Compute Fitted Virtual Canvas Dimensions & Local Offsets ───────────
-    let margin = 32.0;
-    let max_w = (avail_w - margin * 2.0).max(100.0);
-    let max_h = (avail_h - margin * 2.0).max(100.0);
-
-    let scale_w = max_w / screen_w;
-    let scale_h = max_h / screen_h;
-    let base_scale = scale_w.min(scale_h) * params.state.zoom;
-
-    let canvas_w = screen_w * base_scale;
-    let canvas_h = screen_h * base_scale;
-
-    let canvas_local_x = (avail_w - canvas_w) * 0.5 + params.state.pan_offset[0];
-    let canvas_local_y = (avail_h - canvas_h) * 0.5 + params.state.pan_offset[1];
-
-    let canvas_screen_x = params.panel_rect.x + canvas_local_x;
-    let canvas_screen_y = params.panel_rect.y + UI_DESIGNER_TOOLBAR_HEIGHT + canvas_local_y;
-
-    let canvas_screen_rect = Rect::new(canvas_screen_x, canvas_screen_y, canvas_w, canvas_h);
-
-    let metrics = UiDesignerCanvasMetrics {
-        panel_rect: params.panel_rect,
-        canvas_rect: canvas_screen_rect,
-        resolution: [screen_w, screen_h],
-        base_scale,
-        current_zoom: params.state.zoom,
-        snap_grid: params.state.snap_grid,
-    };
-
-    let to_local_pos = |cx: f32, cy: f32| -> Point {
-        Point::new((cx / screen_w) * canvas_w, (cy / screen_h) * canvas_h)
-    };
-
-    let to_canvas_pos = |pt: Point| -> [f32; 2] {
-        if canvas_w <= 0.0 || canvas_h <= 0.0 {
-            return [0.0, 0.0];
-        }
-        let rel_x = (pt.x - canvas_screen_rect.x) / canvas_w;
-        let rel_y = (pt.y - canvas_screen_rect.y) / canvas_h;
-        [rel_x * screen_w, rel_y * screen_h]
-    };
-
-    // ── 2. Letterbox Outer Background (Local to PanelRoot) ────────────────────
-    let letterbox_style = Style::new()
-        .position_absolute()
-        .left(0.0)
-        .top(UI_DESIGNER_TOOLBAR_HEIGHT)
-        .width(avail_w)
-        .height(avail_h)
-        .background(Color::rgba(0.055, 0.063, 0.086, 1.0))
-        .clip_children(true);
-
-    scope.container_tagged(
-        "UiDesignerLetterbox",
-        letterbox_style,
-        WidgetRole::Default,
-        UI_DESIGNER_TAG_LETTERBOX,
-        |lb_scope| {
-            // ── 3. Virtual Canvas Viewport Surface (Local to Letterbox) ─────────
-            let canvas_style = Style::new()
-                .position_absolute()
-                .left(canvas_local_x)
-                .top(canvas_local_y)
-                .width(canvas_w)
-                .height(canvas_h)
-                .background(Color::rgba(0.086, 0.102, 0.137, 1.0))
-                .border(1.5, Color::rgba(0.0, 0.706, 0.941, 0.85))
-                .clip_children(true);
-
-            lb_scope.container_tagged(
-                "UiDesignerCanvasSurface",
-                canvas_style,
-                WidgetRole::Default,
-                UI_DESIGNER_TAG_CANVAS_BOARD,
-                |canvas_scope| {
-                    // ── 4. Background Grid Lines (Local to CanvasSurface) ──────
-                    if params.state.show_grid {
-                        build_canvas_grid(canvas_scope, canvas_w, canvas_h, base_scale);
-                    }
-
-                    // ── 5. Resolve and Render In-Game UI Elements from ECS ─────
-                    let is_mouse_over_canvas = params.cursor_pos.x >= canvas_screen_rect.x
-                        && params.cursor_pos.x <= canvas_screen_rect.right()
-                        && params.cursor_pos.y >= canvas_screen_rect.y
-                        && params.cursor_pos.y <= canvas_screen_rect.bottom();
-                    let mouse_canvas_pos = if is_mouse_over_canvas {
-                        Some(to_canvas_pos(params.cursor_pos))
-                    } else {
-                        None
-                    };
-
-                    let draw_commands = UiLayoutResolver::resolve_draw_commands(
-                        params.world,
-                        screen_w,
-                        screen_h,
-                        mouse_canvas_pos,
-                        false,
-                    );
-
-                    for cmd in draw_commands.iter() {
-                        match cmd {
-                            UiDrawCommand::Rect {
-                                rect,
-                                fill_color,
-                                border_color,
-                                border_width,
-                                border_radius,
-                                ..
-                            } => {
-                                let min_p = to_local_pos(rect.min_x, rect.min_y);
-                                let max_p = to_local_pos(rect.max_x, rect.max_y);
-                                let w = (max_p.x - min_p.x).max(0.0);
-                                let h = (max_p.y - min_p.y).max(0.0);
-
-                                let mut style = Style::new()
-                                    .position_absolute()
-                                    .left(min_p.x)
-                                    .top(min_p.y)
-                                    .width(w)
-                                    .height(h)
-                                    .background(Color::rgba(
-                                        fill_color[0],
-                                        fill_color[1],
-                                        fill_color[2],
-                                        fill_color[3],
-                                    ));
-
-                                if border_color[3] > 0.01 && *border_width > 0.0 {
-                                    style = style.border(
-                                        (*border_width * base_scale).max(1.0),
-                                        Color::rgba(
-                                            border_color[0],
-                                            border_color[1],
-                                            border_color[2],
-                                            border_color[3],
-                                        ),
-                                    );
-                                }
-                                if *border_radius > 0.0 {
-                                    style = style.border_radius(*border_radius * base_scale);
-                                }
-                                canvas_scope.empty_box_passive(style);
-                            }
-                            UiDrawCommand::Text {
-                                pos,
-                                text,
-                                font_size,
-                                color,
-                                alignment,
-                                ..
-                            } => {
-                                let p = to_local_pos(pos[0], pos[1]);
-                                let scaled_font_size = (*font_size * base_scale).max(8.0);
-                                let approx_w = (text.len() as f32) * (scaled_font_size * 0.65);
-                                let approx_h = scaled_font_size * 1.3;
-
-                                let (text_x, iris_align) = match alignment {
-                                    UiTextAlignment::Left => (p.x, TextAlign::Left),
-                                    UiTextAlignment::Center => {
-                                        (p.x - approx_w * 0.5, TextAlign::Center)
-                                    }
-                                    UiTextAlignment::Right => (p.x - approx_w, TextAlign::Right),
-                                };
-                                let text_y = p.y - approx_h * 0.5;
-
-                                let text_style = Style::new()
-                                    .position_absolute()
-                                    .left(text_x)
-                                    .top(text_y)
-                                    .width(approx_w)
-                                    .height(approx_h);
-
-                                canvas_scope.container_passive(text_style, |ts| {
-                                    ts.label_custom(
-                                        text.as_str(),
-                                        scaled_font_size,
-                                        Color::rgba(color[0], color[1], color[2], color[3]),
-                                        iris_align,
-                                    );
-                                });
-                            }
-                            UiDrawCommand::Image { rect, tint, .. } => {
-                                let min_p = to_local_pos(rect.min_x, rect.min_y);
-                                let max_p = to_local_pos(rect.max_x, rect.max_y);
-                                let w = (max_p.x - min_p.x).max(0.0);
-                                let h = (max_p.y - min_p.y).max(0.0);
-
-                                let img_style = Style::new()
-                                    .position_absolute()
-                                    .left(min_p.x)
-                                    .top(min_p.y)
-                                    .width(w)
-                                    .height(h)
-                                    .background(Color::rgba(tint[0], tint[1], tint[2], tint[3]));
-
-                                canvas_scope.empty_box_passive(img_style);
-                            }
-                        }
-                    }
-
-                    // ── 6. Element Tagged Nodes, Drag Contexts, & Selection Outlines ──
-                    for (ent, elem) in params.world.query::<(hecs::Entity, &UiElement)>().iter() {
-                        if !elem.visible {
-                            continue;
-                        }
-
-                        let elem_rect = elem.compute_rect(screen_w, screen_h);
-                        let local_min = to_local_pos(elem_rect.min_x, elem_rect.min_y);
-                        let local_max = to_local_pos(elem_rect.max_x, elem_rect.max_y);
-                        let local_w = (local_max.x - local_min.x).max(1.0);
-                        let local_h = (local_max.y - local_min.y).max(1.0);
-                        let local_elem_rect = Rect::new(local_min.x, local_min.y, local_w, local_h);
-
-                        let elem_idx = designer.drag_contexts.len();
-                        designer.drag_contexts.push(UiElementDragContext {
-                            entity: ent,
-                            anchor_origin: elem.anchor.compute_origin(screen_w, screen_h),
-                            initial_offset: elem.offset,
-                        });
-
-                        let elem_tag = encode_element_tag(elem_idx);
-                        let is_selected = params.selected_entity == Some(ent);
-
-                        // Element screen-space hitbox for hover detection
-                        let screen_elem_x = canvas_screen_rect.x + local_min.x;
-                        let screen_elem_y = canvas_screen_rect.y + local_min.y;
-                        let is_hovered = params.cursor_pos.x >= screen_elem_x
-                            && params.cursor_pos.x <= screen_elem_x + local_w
-                            && params.cursor_pos.y >= screen_elem_y
-                            && params.cursor_pos.y <= screen_elem_y + local_h;
-
-                        let elem_style = Style::new()
-                            .position_absolute()
-                            .left(local_elem_rect.x)
-                            .top(local_elem_rect.y)
-                            .width(local_elem_rect.width)
-                            .height(local_elem_rect.height)
-                            .background(Color::TRANSPARENT);
-
-                        canvas_scope
-                            .add(
-                                EmptyBox::new("UiCanvasElement", elem_style)
-                                    .role(WidgetRole::Button)
-                                    .tag(elem_tag),
-                            )
-                            .on_click(|| {
-                                designer.dispatch(UiDesignerAction::SelectEntity(Some(ent)));
-                            });
-
-                        if is_selected {
-                            // Glowing cyan selection outline (Passive: non-blocking hit-test)
-                            let outline_style = Style::new()
-                                .position_absolute()
-                                .left(local_elem_rect.x - 2.0)
-                                .top(local_elem_rect.y - 2.0)
-                                .width(local_elem_rect.width + 4.0)
-                                .height(local_elem_rect.height + 4.0)
-                                .border(1.8, Color::rgba(0.0, 0.85, 1.0, 0.95))
-                                .border_radius(2.0);
-                            canvas_scope.empty_box_passive(outline_style);
-
-                            // 4 corner sizing handles (Passive: non-blocking hit-test)
-                            let handle_size = 6.0;
-                            let corners = [
-                                Point::new(local_elem_rect.x, local_elem_rect.y),
-                                Point::new(
-                                    local_elem_rect.x + local_elem_rect.width,
-                                    local_elem_rect.y,
-                                ),
-                                Point::new(
-                                    local_elem_rect.x,
-                                    local_elem_rect.y + local_elem_rect.height,
-                                ),
-                                Point::new(
-                                    local_elem_rect.x + local_elem_rect.width,
-                                    local_elem_rect.y + local_elem_rect.height,
-                                ),
-                            ];
-                            for corner in corners.iter() {
-                                let handle_style = Style::new()
-                                    .position_absolute()
-                                    .left(corner.x - handle_size * 0.5)
-                                    .top(corner.y - handle_size * 0.5)
-                                    .width(handle_size)
-                                    .height(handle_size)
-                                    .background(Color::rgba(1.0, 1.0, 1.0, 0.98))
-                                    .border(1.0, Color::rgba(0.0, 0.5, 0.8, 0.9))
-                                    .border_radius(1.0);
-                                canvas_scope.empty_box_passive(handle_style);
-                            }
-
-                            // Anchor guide lines and pins
-                            if params.state.show_anchor_guides {
-                                build_anchor_pin_and_guide(
-                                    canvas_scope,
-                                    &AnchorGuideParams {
-                                        elem,
-                                        local_elem_rect,
-                                        screen_w,
-                                        screen_h,
-                                        base_scale,
-                                        to_local_pos: &to_local_pos,
-                                    },
-                                );
-                            }
-                        } else if is_hovered {
-                            // Passive hover outline so it doesn't occlude element clicks
-                            let hover_style = Style::new()
-                                .position_absolute()
-                                .left(local_elem_rect.x - 1.0)
-                                .top(local_elem_rect.y - 1.0)
-                                .width(local_elem_rect.width + 2.0)
-                                .height(local_elem_rect.height + 2.0)
-                                .border(1.0, Color::rgba(0.0, 0.706, 0.941, 0.50))
-                                .border_radius(2.0);
-                            canvas_scope.empty_box_passive(hover_style);
-                        }
-                    }
-
-                    // ── 7. Canvas Dimensions Indicator (Local to CanvasSurface) ──
-                    let dim_text = format!("{:.0} × {:.0}", screen_w, screen_h);
-                    let dim_style = Style::new()
-                        .position_absolute()
-                        .left(8.0)
-                        .top(canvas_h - 22.0)
-                        .width(100.0)
-                        .height(16.0);
-                    canvas_scope.container_passive(dim_style, |ds| {
-                        ds.label_custom(
-                            dim_text.as_str(),
-                            10.0,
-                            Color::rgba(0.0, 0.706, 0.941, 0.75),
-                            TextAlign::Left,
-                        );
-                    });
-                },
-            );
-        },
-    );
-
-    metrics
+/// Maps an in-game [`UiTextAlignment`] into an Iris UI [`TextAlign`] token.
+#[inline]
+#[must_use]
+const fn map_text_align(align: UiTextAlignment) -> TextAlign {
+    match align {
+        UiTextAlignment::Left => TextAlign::Left,
+        UiTextAlignment::Center => TextAlign::Center,
+        UiTextAlignment::Right => TextAlign::Right,
+    }
 }
 
-/// Builds vertical and horizontal background grid lines on the virtual canvas.
-fn build_canvas_grid(scope: &mut UiScope<'_>, canvas_w: f32, canvas_h: f32, base_scale: f32) {
-    let grid_step = 64.0 * base_scale;
-    if grid_step < 8.0 {
-        return;
+/// Returns the human-readable anchor name shown next to active anchor pins.
+#[inline]
+#[must_use]
+const fn anchor_label(anchor: UiAnchor) -> &'static str {
+    match anchor {
+        UiAnchor::TopLeft => "TopLeft",
+        UiAnchor::TopCenter => "TopCenter",
+        UiAnchor::TopRight => "TopRight",
+        UiAnchor::CenterLeft => "CenterLeft",
+        UiAnchor::Center => "Center",
+        UiAnchor::CenterRight => "CenterRight",
+        UiAnchor::BottomLeft => "BottomLeft",
+        UiAnchor::BottomCenter => "BottomCenter",
+        UiAnchor::BottomRight => "BottomRight",
     }
+}
 
-    let minor_color = Color::rgba(1.0, 1.0, 1.0, 0.035);
-    let major_color = Color::rgba(1.0, 1.0, 1.0, 0.080);
+struct DragEmitCtx<'a> {
+    drag_state: &'a mut Option<UiDragState>,
+    snap_grid: Option<f32>,
+    action_bus: &'a mut ActionBus<EngineUiAction>,
+    notifier: &'a mut DeferredNotifier<PanelId>,
+}
 
-    // Vertical grid lines
-    let mut x = 0.0;
-    let mut col_idx = 0;
-    while x <= canvas_w {
-        let is_major = col_idx % 4 == 0;
-        let line_style = Style::new()
-            .position_absolute()
-            .left(x)
-            .top(0.0)
-            .width(1.0)
-            .height(canvas_h)
-            .background(if is_major { major_color } else { minor_color });
-        scope.empty_box_passive(line_style);
-        x += grid_step;
-        col_idx += 1;
+/// Translates an active drag gesture on `elem` into an ECS [`EngineUiAction::modify_component`] mutation.
+fn apply_element_drag(
+    entity: hecs::Entity,
+    elem: &UiElement,
+    total_virtual_delta: Point,
+    virtual_size: Size,
+    ctx: &mut DragEmitCtx<'_>,
+) {
+    ctx.action_bus.emit(EngineUiAction::modify_component(
+        entity,
+        "UiElement",
+        &UiElement {
+            offset: [
+                snap_scalar(
+                    ctx.drag_state
+                        .get_or_insert_with(|| UiDragState {
+                            entity,
+                            anchor_origin: elem
+                                .anchor
+                                .compute_origin(virtual_size.width, virtual_size.height),
+                            drag_start_mouse_canvas: [0.0, 0.0],
+                            initial_offset: elem.offset,
+                        })
+                        .initial_offset[0]
+                        + total_virtual_delta.x,
+                    ctx.snap_grid,
+                ),
+                snap_scalar(
+                    ctx.drag_state
+                        .filter(|d| d.entity == entity)
+                        .map_or(elem.offset[1], |d| d.initial_offset[1])
+                        + total_virtual_delta.y,
+                    ctx.snap_grid,
+                ),
+            ],
+            ..*elem
+        },
+    ));
+    ctx.notifier.tag_redraw(PanelId::UiDesigner);
+}
+
+/// Helper building the configured [`PanZoomBoxSpec`] for `elem` cleanly without local `let` bindings.
+fn build_element_box_spec(
+    elem: &UiElement,
+    ent: hecs::Entity,
+    virtual_size: Size,
+    is_selected: bool,
+    show_anchor_guides: bool,
+) -> PanZoomBoxSpec {
+    PanZoomBoxSpec::new(
+        "UiCanvasElement",
+        encode_element_tag(ent),
+        [
+            elem.compute_rect(virtual_size.width, virtual_size.height)
+                .min_x,
+            elem.compute_rect(virtual_size.width, virtual_size.height)
+                .min_y,
+            elem.compute_rect(virtual_size.width, virtual_size.height)
+                .max_x,
+            elem.compute_rect(virtual_size.width, virtual_size.height)
+                .max_y,
+        ],
+        is_selected,
+    )
+    .with_anchor_guide(
+        is_selected && show_anchor_guides,
+        Point::new(
+            elem.anchor
+                .compute_origin(virtual_size.width, virtual_size.height)[0],
+            elem.anchor
+                .compute_origin(virtual_size.width, virtual_size.height)[1],
+        ),
+        anchor_label(elem.anchor),
+    )
+}
+
+/// Renders one resolved in-game [`UiDrawCommand`] inside `pz` without intermediate bindings.
+fn emit_draw_command(pz: &mut PanZoomScope<'_, '_>, cmd: &UiDrawCommand) {
+    match cmd {
+        UiDrawCommand::Rect {
+            rect,
+            fill_color,
+            border_color,
+            border_width,
+            border_radius,
+            ..
+        } => {
+            pz.draw_filled_rect_virtual(
+                [rect.min_x, rect.min_y, rect.max_x, rect.max_y],
+                Color::rgba(fill_color[0], fill_color[1], fill_color[2], fill_color[3]),
+                (border_color[3] > 0.01 && *border_width > 0.0).then_some(Color::rgba(
+                    border_color[0],
+                    border_color[1],
+                    border_color[2],
+                    border_color[3],
+                )),
+                *border_width,
+                *border_radius,
+            );
+        }
+        UiDrawCommand::Text {
+            pos,
+            text,
+            font_size,
+            color,
+            alignment,
+            ..
+        } => {
+            pz.draw_text_virtual(
+                Point::new(pos[0], pos[1]),
+                text.as_str(),
+                *font_size,
+                Color::rgba(color[0], color[1], color[2], color[3]),
+                map_text_align(*alignment),
+            );
+        }
+        UiDrawCommand::Image { rect, tint, .. } => {
+            pz.draw_image_rect_virtual(
+                [rect.min_x, rect.min_y, rect.max_x, rect.max_y],
+                Color::rgba(tint[0], tint[1], tint[2], tint[3]),
+            );
+        }
     }
+}
 
-    // Horizontal grid lines
-    let mut y = 0.0;
-    let mut row_idx = 0;
-    while y <= canvas_h {
-        let is_major = row_idx % 4 == 0;
-        let line_style = Style::new()
-            .position_absolute()
-            .left(0.0)
-            .top(y)
-            .width(canvas_w)
-            .height(1.0)
-            .background(if is_major { major_color } else { minor_color });
-        scope.empty_box_passive(line_style);
-        y += grid_step;
-        row_idx += 1;
+/// Emits interactive hitboxes, drag handlers, selection outlines, and anchor guides for all visible [`UiElement`]s.
+fn emit_canvas_elements(
+    pz: &mut PanZoomScope<'_, '_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
+    show_anchor_guides: bool,
+    ctx: &mut DragEmitCtx<'_>,
+) {
+    for (ent, elem) in world.query::<(hecs::Entity, &UiElement)>().iter() {
+        if !elem.visible {
+            continue;
+        }
+        pz.draggable_box(build_element_box_spec(
+            elem,
+            ent,
+            pz.transform().virtual_size,
+            selected_entity == Some(ent),
+            show_anchor_guides,
+        ))
+        .on_click(|| {
+            *ctx.drag_state = None;
+            ctx.action_bus.emit(EngineUiAction::SelectEntity(Some(ent)));
+            ctx.notifier.tag_redraw(PanelId::UiDesigner);
+        })
+        .on_drag_total_virtual(|total_v_delta| {
+            if ctx.drag_state.is_none_or(|d| d.entity != ent) {
+                *ctx.drag_state = Some(UiDragState {
+                    entity: ent,
+                    anchor_origin: elem.anchor.compute_origin(
+                        pz.transform().virtual_size.width,
+                        pz.transform().virtual_size.height,
+                    ),
+                    drag_start_mouse_canvas: [0.0, 0.0],
+                    initial_offset: elem.offset,
+                });
+                ctx.action_bus.emit(EngineUiAction::SelectEntity(Some(ent)));
+            }
+            apply_element_drag(ent, elem, total_v_delta, pz.transform().virtual_size, ctx);
+        })
+        .on_drag_end(|| {
+            *ctx.drag_state = None;
+        });
     }
+}
+
+/// Builds the [`PanZoomViewport`](irisui::prelude::UiScope::pan_zoom_viewport)-backed virtual
+/// canvas surface, element hierarchy projection, and interactive drag/selection handlers.
+pub fn build_designer_canvas(
+    scope: &mut UiScope<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
+    state: &mut UiDesignerState,
+    action_bus: &mut ActionBus<EngineUiAction>,
+    notifier: &mut DeferredNotifier<PanelId>,
+) -> PanZoomTransform {
+    scope
+        .pan_zoom_viewport(
+            PanZoomSpec::new(
+                UI_DESIGNER_TAG_LETTERBOX,
+                UI_DESIGNER_TAG_CANVAS_BOARD,
+                Size::new(
+                    state.aspect_ratio.resolution()[0],
+                    state.aspect_ratio.resolution()[1],
+                ),
+                &mut state.zoom,
+                &mut state.pan_offset,
+            )
+            .with_names("UiDesignerLetterbox", "UiDesignerCanvasSurface")
+            .grid(state.show_grid, 64.0),
+            |pz| {
+                for cmd in UiLayoutResolver::resolve_draw_commands(
+                    world,
+                    pz.transform().virtual_size.width,
+                    pz.transform().virtual_size.height,
+                    pz.pointer_virtual_pos().map(|p| [p.x, p.y]),
+                    false,
+                )
+                .iter()
+                {
+                    emit_draw_command(pz, cmd);
+                }
+
+                emit_canvas_elements(
+                    pz,
+                    world,
+                    selected_entity,
+                    state.show_anchor_guides,
+                    &mut DragEmitCtx {
+                        drag_state: &mut state.drag_state,
+                        snap_grid: state.snap_grid,
+                        action_bus,
+                        notifier,
+                    },
+                );
+            },
+        )
+        .on_view_changed(|| notifier.tag_redraw(PanelId::UiDesigner))
+        .on_background_click(|| {
+            state.drag_state = None;
+            action_bus.emit(EngineUiAction::SelectEntity(None));
+            notifier.tag_redraw(PanelId::UiDesigner);
+        })
+        .transform
 }

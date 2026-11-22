@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # 2D Visual UI Designer & HUD Studio Native Iris Bridge
+//! # 2D Visual UI Designer Bridge (`iris_bridge::ui_designer`)
 //!
-//! Provides the complete 100% native Iris UI GPU SDF implementation of the
-//! 2D in-game UI Designer and interactive WYSIWYG canvas studio.
+//! Renders the interactive virtual canvas HUD & UI Designer studio using
+//! `irisui_widgets::PanZoomViewport` and direct `ActionBus<EngineUiAction>` dispatch.
 
-pub mod anchors;
-pub mod builder;
 pub mod canvas;
 pub mod panel;
 pub mod popups;
@@ -16,9 +14,12 @@ mod tests;
 pub mod toolbar;
 pub mod types;
 
-pub use panel::{build_ui_designer_overlays, build_ui_designer_panel};
-pub use toolbar::UI_DESIGNER_TOOLBAR_HEIGHT;
+pub use panel::build_ui_designer_panel;
 pub use types::{
-    CanvasAspectRatio, UiDesignerAction, UiDesignerCanvasMetrics, UiDesignerPanelParams,
-    UiDesignerPanelState, UiDesignerState, UiDragState, UiElementDragContext, UiElementType,
+    CanvasAspectRatio, UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UI_DESIGNER_TAG_ANCHORS_BTN,
+    UI_DESIGNER_TAG_ASPECT_BTN, UI_DESIGNER_TAG_CANVAS_BOARD, UI_DESIGNER_TAG_GRID_BTN,
+    UI_DESIGNER_TAG_LETTERBOX, UI_DESIGNER_TAG_PANEL_ROOT, UI_DESIGNER_TAG_SNAP_BTN,
+    UI_DESIGNER_TAG_TOOLBAR, UI_DESIGNER_TAG_ZOOM_IN, UI_DESIGNER_TAG_ZOOM_OUT,
+    UI_DESIGNER_TAG_ZOOM_RESET, UiDesignerPanelState, UiDesignerState, UiDragState, UiElementType,
+    encode_element_tag,
 };

@@ -4,57 +4,58 @@
 //! # 2D Visual UI Designer Panel Root Builder
 //!
 //! Assembles the complete UI Designer panel hierarchy in the Iris UI tree,
-//! including the virtual canvas, 34px elevated toolbar, and interactive dropdown popups
-//! purely using declarative [`UiScope`] containers and 64-bit hardware semantic tags.
+//! including the 34px elevated toolbar, virtual pan/zoom canvas, and anchored dropdown
+//! popups purely using declarative [`UiScope`] containers and 64-bit semantic tags.
 
 use super::canvas::build_designer_canvas;
-use super::popups::{build_add_element_popup, build_aspect_ratio_popup};
+use super::popups::build_add_element_popup;
 use super::toolbar::build_designer_toolbar;
-use super::types::{
-    UI_DESIGNER_TAG_PANEL_ROOT, UiDesignerCanvasMetrics, UiDesignerPanelParams,
-    UiDesignerPanelState,
-};
+use super::types::{UiDesignerPanelState, UiDesignerState};
+use crate::ui::panel_layout::PanelId;
+use crate::ui::panel_registry::EditorPanelContext;
+use crate::ui::types::EngineUiAction;
+use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
+use irisui::workbench::ActionBus;
+
+impl UiDesignerPanelState {
+    /// Entrypoint invoked directly by [`irisui::workbench::ScopedPanelRegistry`].
+    pub(crate) fn draw_panel(&mut self, scope: &mut UiScope<'_>, ctx: &mut EditorPanelContext<'_>) {
+        self.last_transform = build_ui_designer_panel(
+            scope,
+            ctx.data.world,
+            ctx.data.editor_state.primary_selected(),
+            ctx.data.ui_designer_state,
+            self,
+            ctx.action_bus,
+            ctx.notifier,
+        );
+    }
+}
 
 /// Assembles the complete 2D Visual UI Designer panel tree in native Iris UI.
 pub fn build_ui_designer_panel(
     scope: &mut UiScope<'_>,
-    params: &UiDesignerPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
+    state: &mut UiDesignerState,
     designer: &mut UiDesignerPanelState,
-) -> UiDesignerCanvasMetrics {
-    designer.drag_contexts.clear();
+    action_bus: &mut ActionBus<EngineUiAction>,
+    notifier: &mut DeferredNotifier<PanelId>,
+) -> PanZoomTransform {
+    build_designer_toolbar(scope, state, notifier);
+    designer.last_transform =
+        build_designer_canvas(scope, world, selected_entity, state, action_bus, notifier);
 
-    let canvas_metrics = scope
-        .panel("UiDesignerPanelRoot")
-        .tagged(UI_DESIGNER_TAG_PANEL_ROOT)
-        .bounds(params.panel_rect)
-        .background(Color::rgba(0.065, 0.070, 0.082, 1.0))
-        .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.70))
-        .show(|panel_scope| {
-            // ── 1. Virtual Canvas & Elements Viewport ──────────────────────────
-            let metrics = build_designer_canvas(panel_scope, params, designer);
-
-            // ── 2. Elevated 34px Top Control Bar ──────────────────────────────
-            build_designer_toolbar(panel_scope, params, designer);
-            metrics
-        })
-        .inner;
-
-    designer.canvas_metrics = canvas_metrics;
-
-    // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
-    build_ui_designer_overlays(scope, params, designer);
-
-    canvas_metrics
+    build_ui_designer_overlays(scope, action_bus, notifier);
+    designer.last_transform
 }
 
-/// Builds top-level floating popups (Aspect Ratio and Add Element palettes)
-/// into the designated overlay or portal scope, preventing panel scissor clipping (Mine 2).
+/// Builds top-level floating popups (`Add Element` palette) on `UiLayer::Popup` via [`UiScope`].
 pub fn build_ui_designer_overlays(
     scope: &mut UiScope<'_>,
-    params: &UiDesignerPanelParams<'_>,
-    designer: &mut UiDesignerPanelState,
+    action_bus: &mut ActionBus<EngineUiAction>,
+    notifier: &mut DeferredNotifier<PanelId>,
 ) {
-    build_aspect_ratio_popup(scope, params, designer);
-    build_add_element_popup(scope, params, designer);
+    build_add_element_popup(scope, action_bus, notifier);
 }
