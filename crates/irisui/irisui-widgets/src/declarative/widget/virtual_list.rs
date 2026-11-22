@@ -9,6 +9,9 @@
 pub mod math;
 pub mod widget;
 
+#[cfg(test)]
+mod tests;
+
 pub use math::{
     DEFAULT_OVERSCAN, VirtualSlice, VirtualSliceParams, compute_slice, compute_virtual_slice,
 };
