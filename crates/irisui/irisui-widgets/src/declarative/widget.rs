@@ -19,6 +19,7 @@ pub mod drag_vec3;
 pub mod drop_target;
 pub mod empty_box;
 pub mod numeric_drag;
+pub mod pan_zoom_viewport;
 pub mod popup_hosts;
 pub mod scroll_area;
 pub mod title_bar;
@@ -40,6 +41,10 @@ pub use drag_vec3::{DragVec3, Vec3Response};
 pub use drop_target::{DROP_TARGET_SEED, DropTargetId, DropTargetResponse};
 pub use empty_box::EmptyBox;
 pub use numeric_drag::{DEFAULT_PROPERTY_LABEL_WIDTH, DragCurve, NumericDrag, ScalarResponse};
+pub use pan_zoom_viewport::{
+    PanZoomBoxResponse, PanZoomBoxSpec, PanZoomScope, PanZoomSpec, PanZoomTransform,
+    PanZoomViewportResponse, PinGuideSpec, snap_scalar,
+};
 pub use popup_hosts::{ContextMenuHost, DropdownHost, DropdownItem, POPUP_HOST_ITEM_SEED};
 pub use scroll_area::ScrollAreaView;
 pub use title_bar::{
