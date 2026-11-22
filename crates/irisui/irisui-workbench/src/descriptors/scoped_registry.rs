@@ -12,13 +12,34 @@ use super::panel_catalog::{
     PanelCatalog, PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer,
     draw_leaf_on_target, render_dirty_tabs_on_target,
 };
+use super::stateful_panel::StatefulPanel;
 use crate::error::{WorkbenchError, WorkbenchResult};
 use irisui_core::{UiTree, WidgetId};
 use irisui_widgets::UiScope;
+use std::any::Any;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
+
+trait StoredScopedPanel<TabId, S: ScopedPanelContext>: ScopedWorkbenchPanel<TabId, S> {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<P, TabId, S> StoredScopedPanel<TabId, S> for P
+where
+    P: ScopedWorkbenchPanel<TabId, S> + 'static,
+    S: ScopedPanelContext,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 /// Thread-safe higher-ranked panel drawing closure parameterized by [`ScopedPanelContext`].
 pub type ScopedPanelDrawFn<S> = Box<
@@ -30,7 +51,7 @@ pub type ScopedPanelDrawFn<S> = Box<
 /// Persistent registry of panels accepting a frame-borrowed context via [`ScopedPanelContext`].
 pub struct ScopedPanelRegistry<TabId, S: ScopedPanelContext> {
     catalog: PanelCatalog<TabId>,
-    panels: HashMap<TabId, Box<dyn ScopedWorkbenchPanel<TabId, S>>>,
+    panels: HashMap<TabId, Box<dyn StoredScopedPanel<TabId, S>>>,
     draw_callbacks: HashMap<TabId, ScopedPanelDrawFn<S>>,
 }
 
@@ -65,6 +86,110 @@ where
         let meta = PanelMetadata::from_scoped_panel(&panel);
         self.catalog.record_metadata(meta);
         self.panels.insert(id, Box::new(panel));
+    }
+
+    /// Registers an autonomous scoped panel via fluent builder chaining.
+    #[must_use]
+    pub fn with_panel<P>(mut self, panel: P) -> Self
+    where
+        P: ScopedWorkbenchPanel<TabId, S> + 'static,
+    {
+        self.register(panel);
+        self
+    }
+
+    /// Registers a library-managed [`StatefulPanel`] initialized with `State::default()`.
+    pub fn register_stateful_panel<State>(
+        &mut self,
+        metadata: PanelMetadata<TabId>,
+        draw_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+    ) where
+        TabId: Copy + Send + Sync + 'static,
+        State: Default + Send + Sync + 'static,
+    {
+        self.register(StatefulPanel::new(metadata, draw_fn));
+    }
+
+    /// Registers a library-managed [`StatefulPanel`] with an attached `refresh_live` hook.
+    pub fn register_live_stateful_panel<State>(
+        &mut self,
+        metadata: PanelMetadata<TabId>,
+        draw_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+        refresh_live_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+    ) where
+        TabId: Copy + Send + Sync + 'static,
+        State: Default + Send + Sync + 'static,
+    {
+        self.register(StatefulPanel::new(metadata, draw_fn).with_live_refresh(refresh_live_fn));
+    }
+
+    /// Registers a library-managed [`StatefulPanel`] initialized with `State::default()`
+    /// via fluent builder chaining.
+    #[must_use]
+    pub fn with_stateful_panel<State>(
+        mut self,
+        metadata: PanelMetadata<TabId>,
+        draw_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+    ) -> Self
+    where
+        TabId: Copy + Send + Sync + 'static,
+        State: Default + Send + Sync + 'static,
+    {
+        self.register_stateful_panel(metadata, draw_fn);
+        self
+    }
+
+    /// Registers a library-managed [`StatefulPanel`] with a `refresh_live` hook
+    /// via fluent builder chaining.
+    #[must_use]
+    pub fn with_live_stateful_panel<State>(
+        mut self,
+        metadata: PanelMetadata<TabId>,
+        draw_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+        refresh_live_fn: impl for<'scope, 'frame> FnMut(
+            &mut State,
+            &mut UiScope<'scope>,
+            &mut S::Context<'frame>,
+        ) + Send
+        + Sync
+        + 'static,
+    ) -> Self
+    where
+        TabId: Copy + Send + Sync + 'static,
+        State: Default + Send + Sync + 'static,
+    {
+        self.register_live_stateful_panel(metadata, draw_fn, refresh_live_fn);
+        self
     }
 
     /// Registers standalone panel metadata without requiring an immediate panel drawer.
@@ -127,6 +252,48 @@ where
         removed_panel || removed_callback
     }
 
+    /// Returns an immutable typed reference to the registered panel owning `tab`, if stored
+    /// as a [`ScopedWorkbenchPanel`] object of concrete type `P`.
+    #[must_use]
+    pub fn panel<P>(&self, tab: &TabId) -> Option<&P>
+    where
+        P: ScopedWorkbenchPanel<TabId, S> + 'static,
+    {
+        self.panels.get(tab)?.as_any().downcast_ref::<P>()
+    }
+
+    /// Returns a mutable typed reference to the registered panel owning `tab`, enabling
+    /// persistent panel state updates without external state bags.
+    #[must_use]
+    pub fn panel_mut<P>(&mut self, tab: &TabId) -> Option<&mut P>
+    where
+        P: ScopedWorkbenchPanel<TabId, S> + 'static,
+    {
+        self.panels.get_mut(tab)?.as_any_mut().downcast_mut::<P>()
+    }
+
+    /// Returns an immutable reference to the state owned by a [`StatefulPanel`] at `tab`.
+    #[must_use]
+    pub fn panel_state<State>(&self, tab: &TabId) -> Option<&State>
+    where
+        TabId: Copy + Send + Sync + 'static,
+        State: Send + Sync + 'static,
+    {
+        self.panel::<StatefulPanel<TabId, State, S>>(tab)
+            .map(StatefulPanel::state)
+    }
+
+    /// Returns a mutable reference to the state owned by a [`StatefulPanel`] at `tab`.
+    #[must_use]
+    pub fn panel_state_mut<State>(&mut self, tab: &TabId) -> Option<&mut State>
+    where
+        TabId: Copy + Send + Sync + 'static,
+        State: Send + Sync + 'static,
+    {
+        self.panel_mut::<StatefulPanel<TabId, State, S>>(tab)
+            .map(StatefulPanel::state_mut)
+    }
+
     /// Returns `true` if a panel or drawing callback is registered for `tab`.
     #[inline]
     #[must_use]
@@ -172,6 +339,9 @@ where
         scope: &mut UiScope<'_>,
         context: &mut S::Context<'frame>,
     ) -> WorkbenchResult<()> {
+        if self.catalog.tab_skip_when_collapsed(tab) && scope.is_collapsed() {
+            return Ok(());
+        }
         if let Some(panel) = self.panels.get_mut(tab) {
             panel.render(scope, context);
             Ok(())
@@ -251,6 +421,9 @@ where
 
     #[inline]
     fn refresh_live(&mut self, tab: &TabId, scope: &mut UiScope<'_>, context: &mut S::Context<'_>) {
+        if self.catalog.tab_skip_when_collapsed(tab) && scope.is_collapsed() {
+            return;
+        }
         if let Some(panel) = self.panels.get_mut(tab) {
             panel.refresh_live(scope, context);
         }
@@ -280,7 +453,9 @@ mod tests {
         type Context<'frame> = BorrowedView<'frame>;
     }
 
-    struct HierarchyScopedPanel;
+    struct HierarchyScopedPanel {
+        draws: usize,
+    }
 
     impl ScopedWorkbenchPanel<ScopedTab, TestScope> for HierarchyScopedPanel {
         fn id(&self) -> ScopedTab {
@@ -302,6 +477,7 @@ mod tests {
         }
 
         fn render<'frame>(&mut self, scope: &mut UiScope<'_>, state: &mut BorrowedView<'frame>) {
+            self.draws += 1;
             *state.draws += 1;
             scope.label(state.label);
         }
@@ -310,7 +486,7 @@ mod tests {
     #[test]
     fn persistent_scoped_registry_renders_multiple_frame_lifetimes_without_rebuild() {
         let mut registry = ScopedPanelRegistry::<ScopedTab, TestScope>::new();
-        registry.register(HierarchyScopedPanel);
+        registry.register(HierarchyScopedPanel { draws: 0 });
         registry.register_panel(ScopedTab::Stats, |scope, state| {
             *state.draws += 10;
             scope.container(Style::new().height(20.0), |c| {
@@ -362,5 +538,142 @@ mod tests {
             assert_eq!(rebuilt, 1);
         }
         assert_eq!(draws, 11);
+
+        let panel_ref = registry
+            .panel::<HierarchyScopedPanel>(&ScopedTab::Hierarchy)
+            .expect("typed panel ref");
+        assert_eq!(panel_ref.draws, 1);
+
+        let panel_mut = registry
+            .panel_mut::<HierarchyScopedPanel>(&ScopedTab::Hierarchy)
+            .expect("typed panel mut");
+        panel_mut.draws = 42;
+        assert_eq!(
+            registry
+                .panel::<HierarchyScopedPanel>(&ScopedTab::Hierarchy)
+                .expect("typed panel ref after mut")
+                .draws,
+            42
+        );
+        assert!(
+            registry
+                .panel::<HierarchyScopedPanel>(&ScopedTab::Stats)
+                .is_none()
+        );
+    }
+
+    #[derive(Default)]
+    struct CounterPanelState {
+        renders: usize,
+        refreshes: usize,
+    }
+
+    fn draw_counter_panel(
+        state: &mut CounterPanelState,
+        scope: &mut UiScope<'_>,
+        ctx: &mut BorrowedView<'_>,
+    ) {
+        state.renders += 1;
+        *ctx.draws += 1;
+        scope.label(ctx.label);
+    }
+
+    fn refresh_counter_panel(
+        state: &mut CounterPanelState,
+        _scope: &mut UiScope<'_>,
+        ctx: &mut BorrowedView<'_>,
+    ) {
+        state.refreshes += 1;
+        *ctx.draws += 100;
+    }
+
+    #[test]
+    fn stateful_panel_fluent_registration_and_state_access() {
+        let mut registry = ScopedPanelRegistry::<ScopedTab, TestScope>::new()
+            .with_live_stateful_panel(
+                PanelMetadata::new(ScopedTab::Stats, "Stats"),
+                draw_counter_panel,
+                refresh_counter_panel,
+            );
+
+        let mut tree = UiTree::new();
+        let leaf = tree.create_root().expect("root");
+        let mut draws = 0usize;
+        let label = String::from("Live");
+        let mut ctx = BorrowedView {
+            label: &label,
+            draws: &mut draws,
+        };
+
+        registry
+            .draw_leaf(&ScopedTab::Stats, &mut tree, leaf, &mut ctx)
+            .expect("draw stateful panel");
+        {
+            let mut scope = UiScope::new(&mut tree, leaf);
+            PanelRegistryTarget::refresh_live(
+                &mut registry,
+                &ScopedTab::Stats,
+                &mut scope,
+                &mut ctx,
+            );
+        }
+
+        assert_eq!(draws, 101);
+        let state = registry
+            .panel_state::<CounterPanelState>(&ScopedTab::Stats)
+            .expect("stateful panel lookup");
+        assert_eq!(state.renders, 1);
+        assert_eq!(state.refreshes, 1);
+
+        registry
+            .panel_state_mut::<CounterPanelState>(&ScopedTab::Stats)
+            .expect("mutable state lookup")
+            .renders = 9;
+        assert_eq!(
+            registry
+                .panel_state::<CounterPanelState>(&ScopedTab::Stats)
+                .expect("stateful panel lookup after mut")
+                .renders,
+            9
+        );
+    }
+
+    #[test]
+    fn skip_when_collapsed_guards_draw_and_refresh_live() {
+        let mut registry = ScopedPanelRegistry::<ScopedTab, TestScope>::new()
+            .with_live_stateful_panel(
+                PanelMetadata::new(ScopedTab::Stats, "Stats").with_skip_collapsed(true),
+                draw_counter_panel,
+                refresh_counter_panel,
+            );
+
+        let mut tree = UiTree::new();
+        let collapsed_leaf = tree.create_root().expect("root");
+        let mut draws = 0usize;
+        let label = String::from("Hidden");
+        let mut ctx = BorrowedView {
+            label: &label,
+            draws: &mut draws,
+        };
+
+        registry
+            .draw_leaf(&ScopedTab::Stats, &mut tree, collapsed_leaf, &mut ctx)
+            .expect("draw skipped when collapsed");
+        {
+            let mut scope = UiScope::new(&mut tree, collapsed_leaf);
+            PanelRegistryTarget::refresh_live(
+                &mut registry,
+                &ScopedTab::Stats,
+                &mut scope,
+                &mut ctx,
+            );
+        }
+
+        assert_eq!(draws, 0);
+        let state = registry
+            .panel_state::<CounterPanelState>(&ScopedTab::Stats)
+            .expect("state");
+        assert_eq!(state.renders, 0);
+        assert_eq!(state.refreshes, 0);
     }
 }

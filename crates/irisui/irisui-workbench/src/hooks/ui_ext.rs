@@ -191,6 +191,13 @@ pub trait WorkbenchUiScopeExt {
         viewport: Rect,
     ) -> ModalOutcome<bool>;
 
+    /// Variant of [`Self::info_modal_tagged`] that resolves `viewport` automatically from [`UiScope::screen_bounds`].
+    fn info_modal_tagged_auto(
+        &mut self,
+        tag: u64,
+        descriptor: &InfoCardDialogDescriptor<()>,
+    ) -> ModalOutcome<bool>;
+
     /// Declaratively renders the active dialog stack from a [`DialogHost`] into this scope.
     ///
     /// Manages full-screen backdrop scrim presentation, layered dialog stacking, keyboard
@@ -463,6 +470,15 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
             self.close_modal(tag);
         }
         outcome
+    }
+
+    fn info_modal_tagged_auto(
+        &mut self,
+        tag: u64,
+        descriptor: &InfoCardDialogDescriptor<()>,
+    ) -> ModalOutcome<bool> {
+        let viewport = self.screen_bounds();
+        self.info_modal_tagged(tag, descriptor, viewport)
     }
 
     fn dialog_host<Action: 'static + Send + Sync>(

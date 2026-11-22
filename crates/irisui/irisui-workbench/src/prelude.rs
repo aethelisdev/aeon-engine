@@ -9,10 +9,12 @@
 pub use crate::action_bus::ActionBus;
 pub use crate::descriptors::{
     LiveRefreshInterval, MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor,
-    MenuRightItemDescriptor, MenuSectionDescriptor, PanelCatalog, PanelDrawFn, PanelMetadata,
-    PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer, ScopedPanelContext,
-    ScopedPanelDrawFn, ScopedPanelRegistry, ScopedWorkbenchPanel, StatusBarDescriptor,
-    StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanel,
+    MenuRightItemDescriptor, MenuSectionDescriptor, PanelBackground, PanelBorder, PanelCatalog,
+    PanelDrawFn, PanelMetadata, PanelRegistryTarget, PanelSurfaceStyle, RegistryActiveTabViewer,
+    RegistryTabViewer, ScopedPanelContext, ScopedPanelDrawFn, ScopedPanelRegistry,
+    ScopedWorkbenchPanel, StatefulPanel, StatefulPanelDrawFn, StatefulPanelLiveFn,
+    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchAppData,
+    WorkbenchAppScope, WorkbenchDescriptor, WorkbenchPanel, WorkbenchPanelContext,
     WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
@@ -39,7 +41,9 @@ pub use crate::lifecycle::{
     route_event_invalidation, route_event_invalidation_with_fallback,
 };
 pub use crate::workbench::{
-    PointerState, Workbench, WorkbenchExternalContext, WorkbenchFrameOutcome,
-    WorkbenchFrameUpdateParams, WorkbenchOutcome, WorkbenchOwnedFrameParams,
-    WorkbenchSurfaceRender,
+    PointerState, UiInspectionSummary, UiNodeDump, UiTreeDump, Workbench, WorkbenchChromeBuilderFn,
+    WorkbenchExternalContext, WorkbenchFrameOutcome, WorkbenchFramePassResult,
+    WorkbenchFrameRunner, WorkbenchFrameServices, WorkbenchFrameUpdateParams, WorkbenchHost,
+    WorkbenchHostEventResult, WorkbenchHostFrameParams, WorkbenchHostPass, WorkbenchOutcome,
+    WorkbenchOwnedFrameParams, WorkbenchSurfaceFrameParams, WorkbenchSurfaceRender,
 };

@@ -34,11 +34,13 @@ pub mod workbench;
 pub use action_bus::ActionBus;
 pub use descriptors::{
     LiveRefreshInterval, MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor,
-    MenuRightItemDescriptor, MenuSectionDescriptor, PanelCatalog, PanelDrawFn, PanelMetadata,
-    PanelRegistry, PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer,
-    ScopedPanelContext, ScopedPanelDrawFn, ScopedPanelRegistry, ScopedWorkbenchPanel,
-    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
-    WorkbenchPanel, WorkbenchPanelRegistry,
+    MenuRightItemDescriptor, MenuSectionDescriptor, PanelBackground, PanelBorder, PanelCatalog,
+    PanelDrawFn, PanelMetadata, PanelRegistry, PanelRegistryTarget, PanelSurfaceStyle,
+    RegistryActiveTabViewer, RegistryTabViewer, ScopedPanelContext, ScopedPanelDrawFn,
+    ScopedPanelRegistry, ScopedWorkbenchPanel, StatefulPanel, StatefulPanelDrawFn,
+    StatefulPanelLiveFn, StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle,
+    WorkbenchAppData, WorkbenchAppScope, WorkbenchDescriptor, WorkbenchPanel,
+    WorkbenchPanelContext, WorkbenchPanelRegistry,
 };
 pub use dialogs::{
     ActiveDialog, ConfirmDialogDescriptor, ConfirmationDialogDescriptor, CustomDialogDescriptor,
@@ -64,8 +66,10 @@ pub use lifecycle::{
     route_event_invalidation, route_event_invalidation_with_fallback,
 };
 pub use workbench::{
-    HoverTargetResolution, PointerState, Workbench, WorkbenchExternalContext,
-    WorkbenchFrameOutcome, WorkbenchFrameSync, WorkbenchFrameSyncParams,
-    WorkbenchFrameUpdateParams, WorkbenchOutcome, WorkbenchOwnedFrameParams,
-    WorkbenchSurfaceRender, resolve_hover_targets,
+    HoverTargetResolution, PointerState, UiInspectionSummary, UiNodeDump, UiTreeDump, Workbench,
+    WorkbenchChromeBuilderFn, WorkbenchExternalContext, WorkbenchFrameOutcome,
+    WorkbenchFramePassResult, WorkbenchFrameRunner, WorkbenchFrameServices, WorkbenchFrameSync,
+    WorkbenchFrameSyncParams, WorkbenchFrameUpdateParams, WorkbenchHost, WorkbenchHostEventResult,
+    WorkbenchHostFrameParams, WorkbenchHostPass, WorkbenchOutcome, WorkbenchOwnedFrameParams,
+    WorkbenchSurfaceFrameParams, WorkbenchSurfaceRender, resolve_hover_targets,
 };
