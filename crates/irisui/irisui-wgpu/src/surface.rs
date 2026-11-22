@@ -52,6 +52,27 @@ pub struct IrisSurfaceRenderParams<'a> {
     pub extra_text_occluders: &'a [Rect],
 }
 
+/// Queued CPU-side atlas upload flushed automatically on the first [`IrisSurfaceHost::render_to_view`] pass.
+enum PendingAtlasUpload {
+    SpriteSheet {
+        start_layer: u32,
+        width: u32,
+        height: u32,
+        rgba: Vec<u8>,
+    },
+    CroppedLayer {
+        layer: u32,
+        width: u32,
+        height: u32,
+        crop: [u32; 4],
+        rgba: Vec<u8>,
+    },
+    RgbaLayer {
+        layer: u32,
+        rgba: Vec<u8>,
+    },
+}
+
 /// Autonomous GPU render surface and command compiler for retained [`UiTree`] hosts.
 ///
 /// Owns [`IrisRenderer`], optional [`LayeredTextRenderer`], retained [`DrawCommandList`],
@@ -70,6 +91,7 @@ pub struct IrisSurfaceHost {
     pub target_format: wgpu::TextureFormat,
     /// Optional mipmapped 2D texture array atlas bound for icon sheets and dynamic thumbnails.
     pub texture_atlas: Option<TextureArrayAtlas>,
+    pending_atlas_uploads: Vec<PendingAtlasUpload>,
     /// Offscreen rasterization cache and 1-quad blit pipeline for dormant UI frames.
     pub surface_cache: StaticUiSurfaceCache,
     /// Refresh mode observed in the most recent [`Self::apply_frame_flags`] call.
@@ -95,6 +117,7 @@ impl IrisSurfaceHost {
             compiler_scratch: TreeCompilerScratch::default(),
             target_format,
             texture_atlas: None,
+            pending_atlas_uploads: Vec::new(),
             surface_cache: StaticUiSurfaceCache::new(device, target_format),
             last_frame_mode: SurfaceRefreshMode::StructuralRebuild {
                 is_full_shell: true,
@@ -174,6 +197,115 @@ impl IrisSurfaceHost {
         self.texture_atlas
             .as_ref()
             .unwrap_or_else(|| unreachable!("texture_atlas initialized immediately above"))
+    }
+
+    /// Initializes the surface's [`TextureArrayAtlas`] once on `device` with `reserved_static_layers`
+    /// preserved for application icons before dynamic allocations start.
+    pub fn init_texture_atlas(
+        &mut self,
+        device: &wgpu::Device,
+        tile_size: u32,
+        layer_count: u32,
+        reserved_static_layers: u32,
+        label: Option<&str>,
+    ) {
+        let mut atlas = TextureArrayAtlas::new(
+            device,
+            &self.renderer.texture_pipeline,
+            tile_size,
+            layer_count,
+            label,
+        );
+        atlas.set_reserved_static_layers(reserved_static_layers);
+        self.renderer
+            .set_texture_bind_group(Some(atlas.bind_group().clone()));
+        self.texture_atlas = Some(atlas);
+        self.invalidate_surface_cache();
+    }
+
+    /// Stages a packed RGBA8 sprite sheet to be uploaded automatically on the next render pass.
+    pub fn stage_atlas_sprite_sheet(
+        &mut self,
+        start_layer: u32,
+        width: u32,
+        height: u32,
+        rgba: Vec<u8>,
+    ) {
+        self.pending_atlas_uploads
+            .push(PendingAtlasUpload::SpriteSheet {
+                start_layer,
+                width,
+                height,
+                rgba,
+            });
+    }
+
+    /// Stages a cropped and box-resampled RGBA8 layer upload executed automatically on the next render pass.
+    pub fn stage_atlas_cropped_rgba_layer(
+        &mut self,
+        layer: u32,
+        width: u32,
+        height: u32,
+        crop: [u32; 4],
+        rgba: Vec<u8>,
+    ) {
+        self.pending_atlas_uploads
+            .push(PendingAtlasUpload::CroppedLayer {
+                layer,
+                width,
+                height,
+                crop,
+                rgba,
+            });
+    }
+
+    /// Stages a single pre-sized `tile_size x tile_size` RGBA8 layer upload for the next render pass.
+    pub fn stage_atlas_rgba_layer(&mut self, layer: u32, rgba: Vec<u8>) {
+        self.pending_atlas_uploads
+            .push(PendingAtlasUpload::RgbaLayer { layer, rgba });
+    }
+
+    /// Allocates the next dynamic slot on the bound [`TextureArrayAtlas`], uploads `rgba`, and
+    /// returns its assigned array layer index, or `None` if uninitialized/full.
+    pub fn alloc_atlas_rgba_layer(&mut self, queue: &wgpu::Queue, rgba: &[u8]) -> Option<u32> {
+        self.texture_atlas.as_mut()?.alloc_rgba_layer(queue, rgba)
+    }
+
+    /// Flushes any staged atlas sprite sheets or layers to GPU memory immediately using `queue`.
+    pub fn flush_pending_atlas_uploads(&mut self, queue: &wgpu::Queue) {
+        if self.pending_atlas_uploads.is_empty() {
+            return;
+        }
+        let Some(atlas) = self.texture_atlas.as_ref() else {
+            return;
+        };
+        for upload in self.pending_atlas_uploads.drain(..) {
+            match upload {
+                PendingAtlasUpload::SpriteSheet {
+                    start_layer,
+                    width,
+                    height,
+                    rgba,
+                } => {
+                    let _ =
+                        atlas.upload_sprite_sheet_tiles(queue, width, height, &rgba, start_layer);
+                }
+                PendingAtlasUpload::CroppedLayer {
+                    layer,
+                    width,
+                    height,
+                    crop,
+                    rgba,
+                } => {
+                    let _ =
+                        atlas.upload_cropped_rgba_layer(queue, layer, width, height, crop, &rgba);
+                }
+                PendingAtlasUpload::RgbaLayer { layer, rgba } => {
+                    let _ = atlas.upload_rgba_layer(queue, layer, &rgba);
+                }
+            }
+        }
+        self.pending_atlas_uploads.shrink_to_fit();
     }
 
     /// Uploads a single `tile_size x tile_size` RGBA8 image into `layer` of [`Self::texture_atlas`]
@@ -402,6 +534,7 @@ impl IrisSurfaceHost {
         hovered_tag: Option<u64>,
         params: IrisSurfaceRenderParams<'_>,
     ) {
+        self.flush_pending_atlas_uploads(params.queue);
         if !self.is_visible
             || (self.command_list.quads.is_empty()
                 && self.command_list.texture_quads.is_empty()

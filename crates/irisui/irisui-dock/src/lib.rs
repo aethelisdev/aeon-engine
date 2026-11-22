@@ -18,6 +18,7 @@ pub mod drag_drop;
 pub mod events;
 pub mod floating;
 pub mod layout;
+pub mod layout_spec;
 pub mod navigator;
 pub mod notifier;
 pub mod overflow;
@@ -64,6 +65,7 @@ pub use layout::{
     SplitterLayoutInfo, compute_dock_layout, compute_dock_layout_advanced,
     compute_dock_layout_with_options, compute_dock_layout_with_viewer, compute_floating_layouts,
 };
+pub use layout_spec::DockLayoutNode;
 pub use navigator::{
     DockNavigatorGeometry, DockNavigatorStyle, FloatingTabBadgeParams, build_dock_navigator_nodes,
     build_drop_preview_node, build_floating_tab_badge, hit_test_navigator,
@@ -89,8 +91,8 @@ pub use viewport::{FloatingDockWindow, FloatingWindowId, MultiViewportManager};
 pub mod prelude {
     pub use crate::{
         DeferredNotifier, DockArea, DockChromeFrame, DockChromeParams, DockChromeStyle, DockError,
-        DockInteractionConfig, DockLayoutOptions, DockNode, DockNodeId, DockPanel, DockResponse,
-        DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
+        DockInteractionConfig, DockLayoutNode, DockLayoutOptions, DockNode, DockNodeId, DockPanel,
+        DockResponse, DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
         FloatingWindowId, FloatingWindowManager, FloatingWindowStyle, MultiViewportManager,
         PanelRegistry, SimpleTabViewer, SplitDirection, TabPlacement, TabViewer, UiNotifier,
         resolve_centered_floating_rect,

@@ -169,11 +169,15 @@ impl<T> DockTree<T> {
 
     /// Creates a new terminal leaf node hosting the provided tabs.
     pub fn create_leaf(&mut self, tabs: Vec<T>) -> DockNodeId {
-        self.bump_revision();
-        self.nodes.insert(DockNode::Leaf {
+        self.insert_node_internal(DockNode::Leaf {
             tabs,
             active_tab: 0,
         })
+    }
+
+    pub(crate) fn insert_node_internal(&mut self, node: DockNode<T>) -> DockNodeId {
+        self.bump_revision();
+        self.nodes.insert(node)
     }
 
     /// Partitions an existing leaf node into a split container holding two leaves.

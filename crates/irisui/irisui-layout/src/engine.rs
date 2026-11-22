@@ -366,6 +366,7 @@ impl LayoutEngine {
                 self.apply_layout_filtered(tree, child_id, child_parent_x, child_parent_y, true);
             }
         }
+        Self::sync_scroll_viewports_for_parent(tree, boundary_id);
 
         Ok(())
     }
@@ -487,6 +488,28 @@ impl LayoutEngine {
                     child_parent_y,
                     skip_modal_overlays,
                 );
+            }
+        }
+        Self::sync_scroll_viewports_for_parent(tree, current_id);
+    }
+
+    fn sync_scroll_viewports_for_parent(tree: &mut UiTree, parent_id: WidgetId) {
+        let is_vp = tree
+            .get(parent_id)
+            .is_some_and(|n| n.role == WidgetRole::ScrollAreaViewport);
+        if is_vp {
+            tree.sync_scroll_viewport_after_layout(parent_id);
+        }
+        let child_count = tree.get(parent_id).map_or(0, |n| n.children.len());
+        for i in 0..child_count {
+            let Some(cid) = tree.get(parent_id).and_then(|n| n.children.get(i).copied()) else {
+                continue;
+            };
+            if tree
+                .get(cid)
+                .is_some_and(|n| n.role == WidgetRole::ScrollAreaViewport)
+            {
+                tree.sync_scroll_viewport_after_layout(cid);
             }
         }
     }

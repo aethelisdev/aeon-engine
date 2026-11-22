@@ -100,6 +100,62 @@ pub(crate) fn extract_rgba_tile(
     true
 }
 
+pub(crate) fn resample_cropped_rgba_box(
+    src_rgba: &[u8],
+    src_w: u32,
+    src_h: u32,
+    crop_rect: [u32; 4],
+    dst_size: u32,
+) -> Option<Vec<u8>> {
+    if src_w == 0 || src_h == 0 || dst_size == 0 {
+        return None;
+    }
+    let expected_len = (src_w as usize)
+        .checked_mul(src_h as usize)?
+        .checked_mul(4)?;
+    if src_rgba.len() < expected_len {
+        return None;
+    }
+    let [cx, cy, cw, ch] = crop_rect;
+    if cx >= src_w || cy >= src_h || cw == 0 || ch == 0 {
+        return None;
+    }
+    let crop_w = cw.min(src_w - cx);
+    let crop_h = ch.min(src_h - cy);
+    let mut out = vec![0u8; (dst_size as usize) * (dst_size as usize) * 4];
+
+    for dy in 0..dst_size {
+        let sy0 = cy + (u64::from(dy) * u64::from(crop_h) / u64::from(dst_size)) as u32;
+        let sy1 = (cy + (u64::from(dy + 1) * u64::from(crop_h) / u64::from(dst_size)) as u32)
+            .max(sy0 + 1)
+            .min(cy + crop_h);
+        for dx in 0..dst_size {
+            let sx0 = cx + (u64::from(dx) * u64::from(crop_w) / u64::from(dst_size)) as u32;
+            let sx1 = (cx + (u64::from(dx + 1) * u64::from(crop_w) / u64::from(dst_size)) as u32)
+                .max(sx0 + 1)
+                .min(cx + crop_w);
+
+            let mut accum = [0u64; 4];
+            let mut count = 0u64;
+            for sy in sy0..sy1 {
+                let row_off = (sy as usize) * (src_w as usize) * 4;
+                for sx in sx0..sx1 {
+                    let px = row_off + (sx as usize) * 4;
+                    for (acc, &chan) in accum.iter_mut().zip(&src_rgba[px..px + 4]) {
+                        *acc += u64::from(chan);
+                    }
+                    count += 1;
+                }
+            }
+            let out_idx = ((dy as usize) * (dst_size as usize) + (dx as usize)) * 4;
+            for (dst_chan, &acc) in out[out_idx..out_idx + 4].iter_mut().zip(&accum) {
+                *dst_chan = (acc / count.max(1)) as u8;
+            }
+        }
+    }
+    Some(out)
+}
+
 /// Managed `D2Array` GPU texture atlas for tile-uniform icons and thumbnails.
 ///
 /// Isolates each icon/thumbnail in its own array slice with independent mipmaps, preventing
@@ -111,6 +167,7 @@ pub struct TextureArrayAtlas {
     tile_size: u32,
     layer_count: u32,
     mip_level_count: u32,
+    next_dynamic_layer: u32,
 }
 
 impl TextureArrayAtlas {
@@ -158,6 +215,36 @@ impl TextureArrayAtlas {
             tile_size,
             layer_count,
             mip_level_count,
+            next_dynamic_layer: 0,
+        }
+    }
+
+    /// Reserves `reserved` leading static layers (`0..reserved`) so subsequent calls to
+    /// [`Self::alloc_rgba_layer`] allocate only at or above `reserved`.
+    #[inline]
+    pub fn set_reserved_static_layers(&mut self, reserved: u32) {
+        self.next_dynamic_layer = self.next_dynamic_layer.max(reserved.min(self.layer_count));
+    }
+
+    /// Returns the next dynamic array layer index returned by [`Self::alloc_rgba_layer`].
+    #[inline]
+    #[must_use]
+    pub const fn next_dynamic_layer(&self) -> u32 {
+        self.next_dynamic_layer
+    }
+
+    /// Allocates the next available dynamic layer, uploads `rgba` with full mipmaps, and returns
+    /// the allocated layer index, or `None` if capacity is exhausted or upload validation fails.
+    pub fn alloc_rgba_layer(&mut self, queue: &wgpu::Queue, rgba: &[u8]) -> Option<u32> {
+        let layer = self.next_dynamic_layer;
+        if layer >= self.layer_count {
+            return None;
+        }
+        if self.upload_rgba_layer(queue, layer, rgba) {
+            self.next_dynamic_layer += 1;
+            Some(layer)
+        } else {
+            None
         }
     }
 
@@ -251,6 +338,25 @@ impl TextureArrayAtlas {
         true
     }
 
+    /// Crops `crop_rect` (`[x, y, width, height]`) from a raw RGBA8 source image, box-resamples
+    /// it to `tile_size x tile_size`, and uploads it into `layer` with full mipmaps.
+    pub fn upload_cropped_rgba_layer(
+        &self,
+        queue: &wgpu::Queue,
+        layer: u32,
+        src_width: u32,
+        src_height: u32,
+        crop_rect: [u32; 4],
+        src_rgba: &[u8],
+    ) -> bool {
+        let Some(tile) =
+            resample_cropped_rgba_box(src_rgba, src_width, src_height, crop_rect, self.tile_size)
+        else {
+            return false;
+        };
+        self.upload_rgba_layer(queue, layer, &tile)
+    }
+
     /// Slices a packed RGBA8 sprite sheet into `tile_size x tile_size` tiles in row-major order
     /// and uploads them into consecutive array layers starting at `start_layer`.
     ///
@@ -329,7 +435,9 @@ impl TextureArrayAtlas {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_mip_level_count, downsample_rgba_2x2, extract_rgba_tile};
+    use super::{
+        compute_mip_level_count, downsample_rgba_2x2, extract_rgba_tile, resample_cropped_rgba_box,
+    };
 
     #[test]
     fn test_compute_mip_level_count() {
@@ -387,5 +495,21 @@ mod tests {
         assert!(!extract_rgba_tile(&sheet, 4, 4, 2, 2, 0, &mut tile));
         assert!(!extract_rgba_tile(&sheet[..8], 4, 4, 2, 0, 0, &mut tile));
         assert!(!extract_rgba_tile(&sheet, 4, 4, 0, 0, 0, &mut tile));
+    }
+
+    #[test]
+    fn test_resample_cropped_rgba_box_crops_and_averages() {
+        // 4x4 image where bottom-right 2x2 quadrant is solid [10, 20, 30, 255]
+        let mut img = vec![0u8; 4 * 4 * 4];
+        for y in 2..4u32 {
+            for x in 2..4u32 {
+                let idx = ((y * 4 + x) * 4) as usize;
+                img[idx..idx + 4].copy_from_slice(&[10, 20, 30, 255]);
+            }
+        }
+        let tile = resample_cropped_rgba_box(&img, 4, 4, [2, 2, 2, 2], 1).expect("crop 2x2->1x1");
+        assert_eq!(tile, [10, 20, 30, 255]);
+        assert!(resample_cropped_rgba_box(&img, 4, 4, [4, 0, 1, 1], 1).is_none());
+        assert!(resample_cropped_rgba_box(&img, 0, 4, [0, 0, 1, 1], 1).is_none());
     }
 }
