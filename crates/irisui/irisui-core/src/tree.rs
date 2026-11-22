@@ -5,8 +5,12 @@
 
 pub mod arena;
 pub mod dirty;
+pub mod focus_sync;
 pub mod hit_test;
+pub mod live_text;
 pub mod query;
+pub mod retained_tree;
+pub mod scroll_sync;
 pub mod state;
 
 #[cfg(test)]
@@ -14,3 +18,4 @@ mod tests;
 
 pub use arena::{RetainedRevisionStatus, UiTree};
 pub use hit_test::HitTargetInfo;
+pub use retained_tree::{RetainedTreeRow, RetainedTreeState};

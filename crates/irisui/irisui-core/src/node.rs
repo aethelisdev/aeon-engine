@@ -71,6 +71,8 @@ pub enum WidgetRole {
     TextInputCaret,
     /// Scroll area clipped viewport container holding scrollable child nodes.
     ScrollAreaViewport,
+    /// Interactive 2D pan-and-zoom viewport container capturing wheel zoom and middle-drag panning.
+    PanZoomViewport,
     /// Vertical or horizontal scrollbar track background line.
     ScrollBarTrack,
     /// Draggable vertical or horizontal scrollbar thumb handle indicator.
@@ -175,6 +177,7 @@ impl WidgetRole {
             | WidgetRole::TextInputIcon
             | WidgetRole::TextInputCaret
             | WidgetRole::ScrollAreaViewport
+            | WidgetRole::PanZoomViewport
             | WidgetRole::ScrollBarTrack
             | WidgetRole::ScrollBarThumb
             | WidgetRole::ColorPickerArea => UiLayer::Content,
@@ -224,6 +227,7 @@ impl WidgetRole {
                 | WidgetRole::NumericInput
                 | WidgetRole::ColorSwatch
                 | WidgetRole::ColorPickerArea
+                | WidgetRole::PanZoomViewport
                 | WidgetRole::DockTab
                 | WidgetRole::DockSplitterHorizontal
                 | WidgetRole::DockSplitterVertical

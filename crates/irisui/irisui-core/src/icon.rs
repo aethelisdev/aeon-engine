@@ -33,6 +33,21 @@ impl UiIcon {
         Self::Atlas(uv)
     }
 
+    /// Constructs normalized GPU texture atlas UV coordinates (`[0.0, 0.0, 1.0, layer]`)
+    /// targeting array slice `layer` in `TextureArrayAtlas`.
+    #[inline]
+    #[must_use]
+    pub const fn layer_uv(layer: u32) -> [f32; 4] {
+        [0.0, 0.0, 1.0, layer as f32]
+    }
+
+    /// Constructs a [`UiIcon::Atlas`] referencing array slice `layer` in `TextureArrayAtlas`.
+    #[inline]
+    #[must_use]
+    pub const fn atlas_layer(layer: u32) -> Self {
+        Self::Atlas(Self::layer_uv(layer))
+    }
+
     /// Returns the static glyph slice when this icon is [`UiIcon::Glyph`].
     #[inline]
     #[must_use]
@@ -91,6 +106,9 @@ mod tests {
         assert_eq!(a.as_glyph(), None);
         assert_eq!(a.as_atlas(), Some([0.0, 0.25, 0.25, 0.5]));
         assert!(a.is_atlas());
+
+        assert_eq!(UiIcon::layer_uv(6), [0.0, 0.0, 1.0, 6.0]);
+        assert_eq!(UiIcon::atlas_layer(6), UiIcon::Atlas([0.0, 0.0, 1.0, 6.0]));
 
         assert_eq!(UiIcon::from("📁"), UiIcon::Glyph("📁"));
         assert_eq!(
