@@ -6,10 +6,10 @@
 //! Provides the core data structures, actions, category definitions,
 //! and interaction state models for the Iris UI GPU SDF Inspector panel.
 
-use irisui::prelude::*;
+use irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH;
 
 /// Canonical default column width in logical pixels allocated for Inspector property labels.
-pub const DEFAULT_INSPECTOR_LABEL_WIDTH: f32 = irisui::prelude::DEFAULT_PROPERTY_LABEL_WIDTH;
+pub const DEFAULT_INSPECTOR_LABEL_WIDTH: f32 = DEFAULT_PROPERTY_LABEL_WIDTH;
 
 /// 8-Category classification for the `➕ Add Component` cascading menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -104,30 +104,6 @@ impl ComponentCategory {
             8 => Some(Self::CustomDynamic),
             _ => None,
         }
-    }
-}
-
-/// Input parameters supplied to the Scene Inspector panel layout builder.
-pub struct InspectorPanelParams<'a> {
-    /// Bounding rectangle of the docked Inspector panel tab.
-    pub panel_rect: Rect,
-    /// The ECS world containing entities and components.
-    pub world: &'a hecs::World,
-    /// Currently selected entity in the editor.
-    pub selected_entity: Option<hecs::Entity>,
-    /// Current mouse cursor position in global screen coordinates.
-    pub cursor_pos: Point,
-}
-
-impl<'a> InspectorPanelParams<'a> {
-    /// Resolves the human-readable display name for the inspected entity from its
-    /// ECS [`ae_core::ecs::Name`] component, falling back to a formatted entity ID.
-    pub fn entity_display_name(&self, entity: hecs::Entity) -> String {
-        self.world
-            .get::<&ae_core::ecs::Name>(entity)
-            .ok()
-            .map(|n| n.0.clone())
-            .unwrap_or_else(|| format!("Entity ({:?})", entity))
     }
 }
 

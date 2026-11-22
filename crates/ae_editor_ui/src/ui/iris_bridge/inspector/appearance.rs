@@ -10,13 +10,15 @@ use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
 
 /// Semantic tag for the interactive object color swatch button.
-pub const TAG_APPEARANCE_COLOR_SWATCH: u64 = 0xDA00_0007;
+pub const TAG_APPEARANCE_COLOR_SWATCH: u64 =
+    UiTag::from_str("ae.inspector.appearance.color_swatch").raw();
 
 /// Semantic tag for the hexadecimal color text input box.
-pub const TAG_APPEARANCE_COLOR_HEX: u64 = 0xDA00_0008;
+pub const TAG_APPEARANCE_COLOR_HEX: u64 =
+    UiTag::from_str("ae.inspector.appearance.color_hex").raw();
 
-/// Base numeric domain for color palette swatch buttons.
-pub const TAG_APPEARANCE_PALETTE_BASE: u64 = 0xDF20_0000;
+/// Base semantic domain tag for color palette swatch buttons.
+pub const TAG_APPEARANCE_PALETTE: UiTag = UiTag::from_str("ae.inspector.appearance.palette");
 
 /// Default 7-color palette swatches displayed in the Appearance inspector card.
 pub const DEFAULT_PALETTE: [Color; 7] = [
@@ -47,7 +49,7 @@ pub const fn appearance_hex_input_tag() -> u64 {
 #[inline]
 #[must_use]
 pub const fn appearance_palette_swatch_tag(idx: usize) -> u64 {
-    TAG_APPEARANCE_PALETTE_BASE + idx as u64
+    TAG_APPEARANCE_PALETTE.indexed(idx as u64).raw()
 }
 
 /// Extracts the current [`ae_core::ecs::Color`] of an entity, or returns the canonical fallback.
@@ -148,11 +150,11 @@ mod tests {
     fn test_appearance_semantic_tags() {
         assert_eq!(appearance_color_swatch_tag(), TAG_APPEARANCE_COLOR_SWATCH);
         assert_eq!(appearance_hex_input_tag(), TAG_APPEARANCE_COLOR_HEX);
+        assert_ne!(appearance_color_swatch_tag(), appearance_hex_input_tag());
         for idx in [0, 1, 6, 7, 15] {
-            assert_eq!(
-                appearance_palette_swatch_tag(idx),
-                TAG_APPEARANCE_PALETTE_BASE + idx as u64
-            );
+            let tag = appearance_palette_swatch_tag(idx);
+            assert_eq!(tag, TAG_APPEARANCE_PALETTE.indexed(idx as u64).raw());
+            assert_ne!(tag, appearance_color_swatch_tag());
         }
     }
 

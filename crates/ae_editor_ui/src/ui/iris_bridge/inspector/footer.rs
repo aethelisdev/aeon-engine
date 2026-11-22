@@ -5,11 +5,11 @@
 //!
 //! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope::dual_action_bar`].
 
-/// Semantic tag for the `➕ Add Component` button in the Inspector footer.
-pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = 0xDA00_0001;
-use super::types::InspectorPanelParams;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+
+/// Semantic tag for the `➕ Add Component` button in the Inspector footer.
+pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = UiTag::from_str("ae.inspector.add_component").raw();
 
 /// Resolves the sanitized prefab file path for the specified entity from its ECS [`ae_core::ecs::Name`] component.
 ///
@@ -44,12 +44,12 @@ pub fn prefab_file_path_for_entity(
 /// button is clicked.
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
 ) -> Option<EngineUiAction> {
     scope
-        .dual_action_bar(
+        .dual_action_bar_auto(
             "InspectorFooter",
-            params.panel_rect.width,
             ActionBarButton::new("AddComponentBtn", "Add Component")
                 .with_icon(
                     "AddComponentPlusIcon",
@@ -65,10 +65,10 @@ pub fn build_inspector_footer(
                 .with_text_align(TextAlign::Center),
         )
         .then_secondary(|| {
-            params.selected_entity.map(|entity| {
+            selected_entity.map(|entity| {
                 EngineUiAction::SaveEntityAsPrefab(
                     entity,
-                    prefab_file_path_for_entity(params.world, entity),
+                    prefab_file_path_for_entity(world, entity),
                 )
             })
         })
@@ -84,20 +84,15 @@ mod tests {
         let root = tree.create_root().expect("Root must be created");
         let mut world = hecs::World::new();
         let entity = world.spawn((ae_core::ecs::Name("Hero Guard".to_string()),));
-
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            cursor_pos: Point::new(12.0, 775.0),
-        };
+        let panel_rect = Rect::new(0.0, 0.0, 320.0, 800.0);
+        tree.set_root_bounds(panel_rect);
 
         {
             let mut scope = UiScope::new(&mut tree, root);
             scope.configure_container("TestRoot", Style::new().flex_col(), false);
-            let ui_action = build_inspector_footer(&mut scope, &params);
+            let ui_action = build_inspector_footer(&mut scope, &world, Some(entity));
             assert!(ui_action.is_none());
-            scope.finish_layout(params.panel_rect);
+            scope.finish_layout(panel_rect);
         }
 
         let add_btn = tree.assert_node("AddComponentBtn", WidgetRole::Button);
@@ -133,7 +128,7 @@ mod tests {
         });
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let _ = build_inspector_footer(&mut scope, &params);
+            let _ = build_inspector_footer(&mut scope, &world, Some(entity));
         }
         assert!(
             tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
@@ -152,7 +147,7 @@ mod tests {
         });
         {
             let mut scope = UiScope::new(&mut tree, root);
-            let _ = build_inspector_footer(&mut scope, &params);
+            let _ = build_inspector_footer(&mut scope, &world, Some(entity));
         }
         assert!(
             !tree.is_popup_tag_active(TAG_INSPECTOR_ADD_COMPONENT),
@@ -173,7 +168,7 @@ mod tests {
 
         let emitted = {
             let mut scope = UiScope::new(&mut tree, root);
-            build_inspector_footer(&mut scope, &params)
+            build_inspector_footer(&mut scope, &world, Some(entity))
         };
         let Some(EngineUiAction::SaveEntityAsPrefab(ent, path)) = emitted else {
             panic!("Expected EngineUiAction::SaveEntityAsPrefab");

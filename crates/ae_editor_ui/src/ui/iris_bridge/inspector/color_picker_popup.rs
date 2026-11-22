@@ -8,20 +8,24 @@
 //! [`UiScope::color_picker_popup_rgba`] and [`UiScope::color_picker_popup_detached`].
 
 use super::appearance::appearance_color_swatch_tag;
-/// Semantic tag for the floating 2D HSV Color Picker popup card container.
-pub const TAG_INSPECTOR_COLOR_PICKER_CARD: u64 = 0xDA00_000B;
-
-/// Semantic tag for the floating 2D HSV Color Picker close `✖` button.
-pub const TAG_INSPECTOR_COLOR_PICKER_CLOSE: u64 = 0xDA00_000C;
-
-/// Semantic tag for the floating 2D HSV Color Picker 2D Saturation-Value box.
-pub const TAG_INSPECTOR_COLOR_PICKER_SV_BOX: u64 = 0xDA00_000D;
-
-/// Semantic tag for the floating 2D HSV Color Picker vertical rainbow Hue spectrum bar.
-pub const TAG_INSPECTOR_COLOR_PICKER_HUE_BAR: u64 = 0xDA00_000E;
-use super::types::InspectorPanelParams;
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
+
+/// Semantic tag for the floating 2D HSV Color Picker popup card container.
+pub const TAG_INSPECTOR_COLOR_PICKER_CARD: u64 =
+    UiTag::from_str("ae.inspector.color_picker.card").raw();
+
+/// Semantic tag for the floating 2D HSV Color Picker close `✖` button.
+pub const TAG_INSPECTOR_COLOR_PICKER_CLOSE: u64 =
+    UiTag::from_str("ae.inspector.color_picker.close").raw();
+
+/// Semantic tag for the floating 2D HSV Color Picker 2D Saturation-Value box.
+pub const TAG_INSPECTOR_COLOR_PICKER_SV_BOX: u64 =
+    UiTag::from_str("ae.inspector.color_picker.sv_box").raw();
+
+/// Semantic tag for the floating 2D HSV Color Picker vertical rainbow Hue spectrum bar.
+pub const TAG_INSPECTOR_COLOR_PICKER_HUE_BAR: u64 =
+    UiTag::from_str("ae.inspector.color_picker.hue_bar").raw();
 
 const fn to_ecs_color(color: Color) -> ae_core::ecs::Color {
     ae_core::ecs::Color {
@@ -40,12 +44,9 @@ fn map_some_rect(
 
 /// Constructs the [`ColorPickerPopupConfig`] for the Inspector floating 2D HSV Color Picker popup.
 #[must_use]
-pub fn inspector_color_picker_config<'a>(
-    params: &'a InspectorPanelParams<'a>,
-) -> ColorPickerPopupConfig<'a> {
-    ColorPickerPopupConfig::new(
+pub fn inspector_color_picker_config() -> ColorPickerPopupConfig<'static> {
+    ColorPickerPopupConfig::new_auto(
         "🎨 Color Picker",
-        params.panel_rect,
         ColorPickerPopupTags::new(
             appearance_color_swatch_tag(),
             TAG_INSPECTOR_COLOR_PICKER_CARD,
@@ -62,12 +63,11 @@ pub fn draw_entity_color_picker_popup(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
     color: &mut ae_core::ecs::Color,
-    params: &InspectorPanelParams<'_>,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
         .scoped_color_picker_popup_rgba(
             (&mut color.r, &mut color.g, &mut color.b, &mut color.a),
-            inspector_color_picker_config(params),
+            inspector_color_picker_config(),
         )
         .map(|resp| {
             map_some_rect(resp.into_rect_and_commit(|old_c, new_c| {
@@ -81,16 +81,16 @@ pub fn draw_entity_color_picker_popup(
 /// is currently attached and the swatch popup tag is active, returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn draw_detached_color_picker_popup(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    selected_entity: Option<hecs::Entity>,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
         .scoped_color_picker_popup_detached(
             Color::rgba(0.60, 0.75, 0.95, 1.0),
-            inspector_color_picker_config(params),
+            inspector_color_picker_config(),
         )
         .map(|resp| {
             map_some_rect(resp.into_rect_and_opt_commit(|old_c, new_c| {
-                params.selected_entity.map(|entity| {
+                selected_entity.map(|entity| {
                     EngineUiAction::ModifyColor(entity, to_ecs_color(old_c), to_ecs_color(new_c))
                 })
             }))
@@ -102,19 +102,17 @@ pub fn draw_detached_color_picker_popup(
 /// mutating [`ae_core::ecs::Color`] live in-place and returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn build_color_picker_popup_with_action(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
-    match params.selected_entity.and_then(|ent| {
-        params
-            .world
+    match selected_entity.and_then(|ent| {
+        world
             .get::<&mut ae_core::ecs::Color>(ent)
             .ok()
             .map(|c| (ent, c))
     }) {
-        Some((entity, mut color)) => {
-            draw_entity_color_picker_popup(scope, entity, &mut color, params)
-        }
-        None => draw_detached_color_picker_popup(scope, params),
+        Some((entity, mut color)) => draw_entity_color_picker_popup(scope, entity, &mut color),
+        None => draw_detached_color_picker_popup(scope, selected_entity),
     }
 }
 
@@ -123,9 +121,10 @@ pub fn build_color_picker_popup_with_action(
 /// Returns the screen-space bounding box of the constructed color picker popup, if active.
 pub fn build_color_picker_popup(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
 ) -> Option<Rect> {
-    build_color_picker_popup_with_action(scope, params).0
+    build_color_picker_popup_with_action(scope, world, selected_entity).0
 }
 
 #[cfg(test)]
@@ -169,16 +168,9 @@ mod tests {
         );
         scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 600.0));
 
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            cursor_pos: Point::new(0.0, 0.0),
-        };
-
         tree.open_popup(appearance_color_swatch_tag());
         let mut scope = UiScope::new(&mut tree, root);
-        build_color_picker_popup(&mut scope, &params);
+        build_color_picker_popup(&mut scope, &world, Some(entity));
 
         let popup_card = tree
             .iter()

@@ -13,29 +13,23 @@ use crate::ui::types::EngineUiAction;
 use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, UiElement};
 use irisui::prelude::*;
 
-fn test_params<'a>(world: &'a hecs::World, entity: hecs::Entity) -> InspectorPanelParams<'a> {
-    InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-        world,
-        selected_entity: Some(entity),
-        cursor_pos: Point::new(0.0, 0.0),
-    }
-}
-
-/// Builds the panel, clicks the delete button of `component_name` through the dispatcher, then
-/// rebuilds the panel and returns the directly emitted declarative action.
 fn click_delete_and_rebuild(
     world: &hecs::World,
     entity: hecs::Entity,
     component_name: &str,
 ) -> Option<EngineUiAction> {
-    let params = test_params(world, entity);
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let mut name = String::new();
 
     assert!(
-        build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name).is_none(),
+        build_inspector_panel(
+            &mut UiScope::new(&mut tree, root),
+            world,
+            Some(entity),
+            &mut name
+        )
+        .is_none(),
         "No action may be emitted before any click"
     );
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
@@ -57,7 +51,12 @@ fn click_delete_and_rebuild(
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut name)
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root2),
+        world,
+        Some(entity),
+        &mut name,
+    )
 }
 
 #[test]

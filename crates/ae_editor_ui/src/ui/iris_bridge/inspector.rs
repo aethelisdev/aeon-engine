@@ -8,7 +8,6 @@
 
 pub mod add_menu;
 pub mod appearance;
-pub mod builder;
 pub mod color_picker_popup;
 pub mod components;
 pub mod footer;
@@ -39,4 +38,4 @@ pub use header::{component_delete_action, entity_name_input_tag};
 pub use panel::{TAG_INSPECTOR_CARDS_CONTAINER, TAG_INSPECTOR_PANEL_ROOT, build_inspector_panel};
 pub use state::{InspectorPanelState, InspectorState};
 pub use transform::{build_transform_card, draw_transform_card};
-pub use types::{ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams};
+pub use types::{ComponentCategory, DEFAULT_INSPECTOR_LABEL_WIDTH};

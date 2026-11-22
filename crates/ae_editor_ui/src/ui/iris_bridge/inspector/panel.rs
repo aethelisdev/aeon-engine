@@ -8,9 +8,10 @@ use super::appearance;
 use super::color_picker_popup;
 use super::footer;
 use super::header;
+use super::state::InspectorPanelState;
 use super::transform;
-use super::types::InspectorPanelParams;
 use super::ui_transform;
+use crate::ui::panel_registry::EditorPanelContext;
 use irisui::prelude::*;
 
 /// Semantic tag for the Inspector root scroll panel container.
@@ -19,36 +20,50 @@ pub const TAG_INSPECTOR_PANEL_ROOT: u64 = 0xDAFF_0000;
 /// Semantic tag for the Inspector scrollable cards container viewport.
 pub const TAG_INSPECTOR_CARDS_CONTAINER: u64 = 0xDAFF_0001;
 
+impl InspectorPanelState {
+    /// Entrypoint invoked directly by [`irisui::workbench::ScopedPanelRegistry`].
+    pub(crate) fn draw_panel(&mut self, scope: &mut UiScope<'_>, ctx: &mut EditorPanelContext<'_>) {
+        build_inspector_panel(
+            scope,
+            ctx.data.world,
+            ctx.data.editor_state.primary_selected(),
+            &mut self.inspected_entity_name,
+        )
+        .into_iter()
+        .for_each(|act| ctx.action_bus.emit(act));
+    }
+}
+
+#[inline]
+fn entity_display_name(world: &hecs::World, entity: hecs::Entity) -> String {
+    world
+        .get::<&ae_core::ecs::Name>(entity)
+        .ok()
+        .map(|n| n.0.clone())
+        .unwrap_or_else(|| format!("Entity ({:?})", entity))
+}
+
 /// Builds the complete Scene Inspector layout and returns any direct [`crate::ui::types::EngineUiAction`] emitted.
 pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
     inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    scope
-        .panel("InspectorPanelRoot")
-        .tagged(TAG_INSPECTOR_PANEL_ROOT)
-        .bounds(params.panel_rect)
-        .background_themed(|t| t.panel_bg)
-        .show(
-            |panel_scope| match params.selected_entity.filter(|e| params.world.contains(*e)) {
-                Some(entity) => {
-                    render_inspected_entity(panel_scope, entity, params, inspected_name)
-                }
-                None => {
-                    render_empty_selection_view(panel_scope, params);
-                    None
-                }
-            },
-        )
-        .inner
+    match selected_entity.filter(|e| world.contains(*e)) {
+        Some(entity) => render_inspected_entity(scope, world, entity, inspected_name),
+        None => {
+            render_empty_selection_view(scope);
+            None
+        }
+    }
 }
 
 /// Renders the full inspected entity view combining header, scrollable cards, and footer controls.
 fn render_inspected_entity(
     scope: &mut UiScope<'_>,
+    world: &hecs::World,
     entity: hecs::Entity,
-    params: &InspectorPanelParams<'_>,
     inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
@@ -58,24 +73,24 @@ fn render_inspected_entity(
                     header::build_entity_header_modify_action(
                         scope,
                         entity,
-                        &params.entity_display_name(entity),
+                        &entity_display_name(world, entity),
                         inspected_name,
-                        params.panel_rect.width,
+                        0.0,
                     ),
                     scope
                         .scroll_area(
                             "InspectorCardsContainer",
                             TAG_INSPECTOR_CARDS_CONTAINER,
                             None,
-                            |cards_scope| render_inspector_cards(cards_scope, entity, params),
+                            |cards_scope| render_inspector_cards(cards_scope, entity, world),
                         )
                         .inner,
                 ),
-                footer::build_inspector_footer(scope, params),
+                footer::build_inspector_footer(scope, world, Some(entity)),
             ),
-            add_menu::draw_add_component_menu(scope, params).1,
+            add_menu::draw_add_component_menu(scope, world, Some(entity)).1,
         ),
-        color_picker_popup::build_color_picker_popup_with_action(scope, params).1,
+        color_picker_popup::build_color_picker_popup_with_action(scope, world, Some(entity)).1,
     )
 }
 
@@ -83,9 +98,9 @@ fn render_inspected_entity(
 fn render_inspector_cards(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    render_context_cards(scope, params.world, entity)
+    render_context_cards(scope, world, entity)
 }
 
 /// Evaluates primary cards followed by dynamic registry cards for the active rendering context.
@@ -289,22 +304,20 @@ pub fn render_registry_cards(
 
 /// Renders the empty state placeholder when no entity is selected in the editor,
 /// styled identically to the Material & Surface Studio empty card via declarative [`UiScope`].
-fn render_empty_selection_view(scope: &mut UiScope<'_>, params: &InspectorPanelParams<'_>) {
+fn render_empty_selection_view(scope: &mut UiScope<'_>) {
     scope.container_named(
         "InspectorEmptyCenter",
         Style::new()
             .flex_col()
             .flex_grow(1.0)
-            .align_items(AlignItems::Center)
+            .align_items(AlignItems::Stretch)
             .justify_content(JustifyContent::Center)
-            .width(params.panel_rect.width)
             .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0)),
         |center| {
             center.container_named(
                 "EmptySelectionCard",
                 Style::new()
                     .flex_col()
-                    .width(params.panel_rect.width - 24.0)
                     .background(center.theme().card_bg)
                     .border(1.0, center.theme().card_border)
                     .border_radius(8.0)
@@ -367,18 +380,11 @@ mod tests {
     fn test_inspector_empty_selection_view_renders_material_style_card() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let world = hecs::World::new();
-
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-            world: &world,
-            selected_entity: None,
-            cursor_pos: Point::new(0.0, 0.0),
-        };
+        let panel_rect = Rect::new(0.0, 0.0, 320.0, 600.0);
 
         let mut scope = UiScope::new(&mut tree, root);
-        render_empty_selection_view(&mut scope, &params);
-        scope.finish_layout(params.panel_rect);
+        render_empty_selection_view(&mut scope);
+        scope.finish_layout(panel_rect);
 
         // Verify EmptySelectionCard, EmptyWorldIcon, and EmptySelectionTitle exist in tree
         assert_eq!(

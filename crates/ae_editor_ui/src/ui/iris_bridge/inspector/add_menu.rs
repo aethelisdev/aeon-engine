@@ -9,16 +9,14 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`) and pure declarative
 //! closure workflows without imperative intermediate `let` variables or pyramid nesting.
 
-use std::ops::BitXor;
-
 use super::footer::TAG_INSPECTOR_ADD_COMPONENT;
-use super::types::{ComponentCategory, InspectorPanelParams};
+use super::types::ComponentCategory;
 use irisui::prelude::*;
 use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};
 use irisui::widgets::declarative::scope::{CascadingPopupConfig, PopupPlacement};
 
-/// Base numeric domain for attachable component items inside the Add Component menu.
-pub const TAG_ADD_MENU_COMPONENT_BASE: u64 = 0xDB00_0000;
+/// Semantic base domain tag for attachable component items inside the Add Component menu.
+const TAG_ADD_MENU_COMPONENT: UiTag = UiTag::from_str("ae.inspector.add_menu.component");
 
 /// Canonical list of all attachable component categories available in the cascading Add Menu.
 ///
@@ -37,17 +35,12 @@ const ALL_COMPONENT_CATEGORIES: [ComponentCategory; 7] = [
 pub mod catalog;
 pub use catalog::*;
 
-/// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
-///
-/// Masks the 64-bit hash into a 24-bit range and prefixes it with [`TAG_ADD_MENU_COMPONENT_BASE`]
-/// (`0xDB00_0000`), guaranteeing that tag bounds stay strictly inside the Inspector domain.
+/// Computes a deterministic scoped 64-bit [`UiTag`] for an attachable component type name
+/// derived directly from [`TAG_ADD_MENU_COMPONENT`].
 #[inline]
 #[must_use]
-pub fn component_name_to_tag(name: &str) -> u64 {
-    TAG_ADD_MENU_COMPONENT_BASE
-        | (name.bytes().fold(0xcbf2_9ce4_8422_2325u64, |acc, b| {
-            acc.bitxor(b as u64).wrapping_mul(0x100_0000_01b3)
-        }) & 0x00FF_FFFF)
+pub const fn component_name_to_tag(name: &str) -> u64 {
+    TAG_ADD_MENU_COMPONENT.child(name).raw()
 }
 
 /// Resolves a numeric menu item tag into its canonical component type name.
@@ -213,7 +206,7 @@ fn render_submenu_children(
 fn render_category_item(
     card: &mut UiScope<'_>,
     item: &CascadingMenuItem,
-    params: &InspectorPanelParams<'_>,
+    selected_entity: Option<hecs::Entity>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if !item.has_submenu() {
         card.dropdown_menu_item_autoclose(item);
@@ -229,7 +222,7 @@ fn render_category_item(
             render_submenu_children(
                 sub_card,
                 item.submenu.as_deref().unwrap_or(&[]),
-                params.selected_entity,
+                selected_entity,
             )
         },
     )
@@ -241,40 +234,28 @@ fn render_category_item(
 fn render_category_items(
     card: &mut UiScope<'_>,
     menu_items: &[CascadingMenuItem],
-    params: &InspectorPanelParams<'_>,
+    selected_entity: Option<hecs::Entity>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     menu_items
         .iter()
-        .find_map(|item| render_category_item(card, item, params))
-}
-
-/// Computes the fallback screen-space anchor bounds when the tagged button rectangle is unavailable.
-#[inline]
-#[must_use]
-fn fallback_add_menu_anchor(panel_rect: Rect) -> Rect {
-    Rect::new(
-        panel_rect.x + 8.0,
-        panel_rect.bottom() - 32.0,
-        ((panel_rect.width - 24.0) * 0.5).max(60.0),
-        24.0,
-    )
+        .find_map(|item| render_category_item(card, item, selected_entity))
 }
 
 /// Renders the root Add Component popup menu card into [`UiScope`] when active in `UiTree`,
 /// returning the outer bounding bounds and any triggered action.
 pub fn draw_add_component_menu(
     scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
+    world: &hecs::World,
+    selected_entity: Option<hecs::Entity>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
-    match get_add_component_menu_items(params.world, params.selected_entity) {
+    match get_add_component_menu_items(world, selected_entity) {
         items if !items.is_empty() => scope
-            .scoped_cascading_popup_anchored_to_tag(
+            .scoped_cascading_popup_anchored_auto(
                 "AddComponentMenu",
                 TAG_INSPECTOR_ADD_COMPONENT,
-                fallback_add_menu_anchor(params.panel_rect),
                 CascadingPopupConfig::new(175.0, PopupPlacement::Above)
                     .with_item_count(items.len()),
-                |card| render_category_items(card, &items, params),
+                |card| render_category_items(card, &items, selected_entity),
             )
             .map(|res| res.map_response(|rect, action| (Some(rect), action)))
             .unwrap_or((None, None)),
@@ -293,19 +274,12 @@ mod tests {
         let root = tree.create_root().expect("root node");
         let world = hecs::World::new();
 
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-            world: &world,
-            selected_entity: None,
-            cursor_pos: Point::new(0.0, 0.0),
-        };
-
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
         tree.set_active_submenu(
             hash_label("AddComponentMenu"),
             ComponentCategory::Physics.to_tag(),
         );
-        draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
+        draw_add_component_menu(&mut UiScope::new(&mut tree, root), &world, None);
 
         assert_eq!(
             tree.node_named("AddComponentMenu")
@@ -346,11 +320,9 @@ mod tests {
     #[test]
     fn test_component_name_to_tag_domain_conformance() {
         let tag = component_name_to_tag("RigidBody");
-        assert!(
-            (TAG_ADD_MENU_COMPONENT_BASE..=(TAG_ADD_MENU_COMPONENT_BASE | 0x00FF_FFFF))
-                .contains(&tag),
-            "Component tag must stay strictly within TAG_ADD_MENU_COMPONENT_BASE domain"
-        );
+        assert_eq!(tag, TAG_ADD_MENU_COMPONENT.child("RigidBody").raw());
+        assert_ne!(tag, 0);
+        assert_ne!(tag, component_name_to_tag("Collider"));
         let resolved = resolve_component_name_from_tag(tag);
         assert_eq!(resolved, Some("RigidBody"));
     }
@@ -362,26 +334,20 @@ mod tests {
         let mut world = hecs::World::new();
         let entity = world.spawn(());
 
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-            world: &world,
-            selected_entity: Some(entity),
-            cursor_pos: Point::new(0.0, 0.0),
-        };
-
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
         tree.set_active_submenu(
             hash_label("AddComponentMenu"),
             ComponentCategory::Physics.to_tag(),
         );
-        let (_, action) = draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
+        let (_, action) =
+            draw_add_component_menu(&mut UiScope::new(&mut tree, root), &world, Some(entity));
         assert!(action.is_none());
 
         let tag = component_name_to_tag("RigidBody");
         tree.event_state.frame_clicked_tag = Some(tag);
 
         let (rect, ui_action) =
-            draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
+            draw_add_component_menu(&mut UiScope::new(&mut tree, root), &world, Some(entity));
 
         assert!(rect.is_some(), "Menu rect must be returned");
         assert!(

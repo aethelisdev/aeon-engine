@@ -13,30 +13,16 @@ use ae_core::ecs::{
 };
 use irisui::prelude::*;
 
-/// Creates default [`InspectorPanelParams`] configured for inspector unit testing.
-fn create_default_test_params<'a>(
-    world: &'a hecs::World,
-    selected_entity: Option<hecs::Entity>,
-) -> InspectorPanelParams<'a> {
-    InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-        world,
-        selected_entity,
-        cursor_pos: Point::new(0.0, 0.0),
-    }
-}
-
 #[test]
 fn test_inspector_empty_selection_renders_placeholder() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = hecs::World::new();
 
-    let params = create_default_test_params(&world, None);
-
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &world,
+        None,
         &mut String::new(),
     );
 
@@ -59,13 +45,13 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
         Scale::one(),
     ));
 
-    let params = create_default_test_params(&world, Some(entity));
-
-    build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut String::new(),
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .panel("InspectorTestHost")
+            .bounds(Rect::new(0.0, 0.0, 320.0, 900.0))
+            .show(|s| build_inspector_panel(s, &world, Some(entity), &mut String::new()));
+    }
 
     // Verify 3D Transform inputs are present via declarative assertions
     tree.assert_node_exists("NumBox_Position_X");
@@ -89,13 +75,13 @@ fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
         Scale::one(),
     ));
 
-    let params = create_default_test_params(&world, Some(entity));
-
-    build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut String::new(),
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .panel("InspectorTestHost")
+            .bounds(Rect::new(0.0, 0.0, 320.0, 900.0))
+            .show(|s| build_inspector_panel(s, &world, Some(entity), &mut String::new()));
+    }
 
     // Capture initial geometric positions immediately after declarative build (layout_subtree pass)
     let pre_pos_x = tree.assert_node_rect("NumBox_Position_X");
@@ -171,13 +157,13 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
         },
     ));
 
-    let params = create_default_test_params(&world, Some(entity));
-
-    build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut String::new(),
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .panel("InspectorTestHost")
+            .bounds(Rect::new(0.0, 0.0, 320.0, 900.0))
+            .show(|s| build_inspector_panel(s, &world, Some(entity), &mut String::new()));
+    }
 
     // Verify 3D Transform inputs are NOT present
     tree.assert_node_absent("NumBox_Position_X");
@@ -255,18 +241,11 @@ fn test_inspector_entity_isolation_invariant() {
         },
     ));
 
-    let params = create_default_test_params(&world, Some(ent_a));
-
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut String::new(),
-    );
-
-    assert_eq!(
-        params.selected_entity,
+        &world,
         Some(ent_a),
-        "InspectorPanelParams must explicitly carry the inspected entity"
+        &mut String::new(),
     );
 
     // Verify reset transform button exists on UiTree declaratively
@@ -285,12 +264,11 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         Scale::default(),
     ));
 
-    let params = create_default_test_params(&world, Some(ent));
-
     // 1. Initial State: Rotation Y must be 0.0
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
-        &params,
+        &world,
+        Some(ent),
         &mut String::new(),
     );
     let mut rot_y_text = None;
@@ -315,7 +293,8 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let root2 = tree2.create_root().expect("root node");
     build_inspector_panel(
         &mut UiScope::new(&mut tree2, root2),
-        &params,
+        &world,
+        Some(ent),
         &mut String::new(),
     );
     let mut rot_y_text2 = None;
@@ -334,7 +313,8 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let root3 = tree3.create_root().expect("root node");
     build_inspector_panel(
         &mut UiScope::new(&mut tree3, root3),
-        &params,
+        &world,
+        Some(ent),
         &mut String::new(),
     );
     let mut rot_y_text3 = None;
@@ -401,13 +381,13 @@ fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
         ae_core::ecs::Shape::Cube,
     ));
 
-    let params = create_default_test_params(&world, Some(entity));
-
-    build_inspector_panel(
-        &mut UiScope::new(&mut tree, root),
-        &params,
-        &mut String::new(),
-    );
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope
+            .panel("InspectorTestHost")
+            .bounds(Rect::new(0.0, 0.0, 320.0, 900.0))
+            .show(|s| build_inspector_panel(s, &world, Some(entity), &mut String::new()));
+    }
 
     let find_node_rect = |tree: &UiTree, label: &str| -> Option<Rect> {
         for (_id, node) in tree.iter() {

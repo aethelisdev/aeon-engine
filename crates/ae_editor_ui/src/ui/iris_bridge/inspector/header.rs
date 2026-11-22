@@ -8,17 +8,40 @@
 
 use crate::ui::types::EngineUiAction;
 use irisui::prelude::*;
-use irisui::widgets::declarative::hash_label_with_seed;
+
+/// Semantic [`UiTag`] identifying the entity rename text input box.
+pub const TAG_INSPECTOR_ENTITY_NAME: UiTag = UiTag::from_str("ae.inspector.entity_name");
 
 /// Returns the persistent 64-bit semantic tag identifying the entity rename text input box for $O(1)$ hit-testing.
 #[inline]
-pub fn entity_name_input_tag() -> u64 {
-    hash_label_with_seed(0, "InspectorEntityName")
+#[must_use]
+pub const fn entity_name_input_tag() -> u64 {
+    TAG_INSPECTOR_ENTITY_NAME.raw()
+}
+
+/// Builds the top Entity Name header declaratively into the parent [`UiScope`] using
+/// [`UiScope::prop_text_synced_with_options`] so `scratch` synchronizes from `external_value`
+/// automatically whenever the input is not actively focused for editing.
+pub fn build_entity_header_synced(
+    scope: &mut UiScope<'_>,
+    scratch: &mut String,
+    external_value: &str,
+) -> WidgetResponse {
+    scope.prop_text_synced_with_options(
+        "🏷 Name:",
+        TAG_INSPECTOR_ENTITY_NAME,
+        scratch,
+        external_value,
+        PropertyTextOptions::new()
+            .with_placeholder("Entity name...")
+            .with_label_width(55.0)
+            .with_margin_insets(Insets::new(6.0, 6.0, 4.0, 6.0)),
+    )
 }
 
 /// Builds the top Entity Name header declaratively into the parent [`UiScope`].
 ///
-/// Encapsulates the entity name editor within a standardized declarative [`UiScope::prop_text_with_options`]
+/// Encapsulates the entity name editor within a standardized declarative [`UiScope::prop_text_synced_with_options`]
 /// row, managing clicking, focusing, keyboard typing, and inline string editing autonomously via Iris UI.
 /// Emits [`WidgetResponse`] where [`WidgetResponse::changed`] signals a committed name change.
 pub fn build_entity_header(
@@ -45,13 +68,13 @@ pub fn build_entity_header_modify<F>(
     entity: hecs::Entity,
     old_name: &str,
     name: &mut String,
-    panel_w: f32,
+    _panel_w: f32,
     mut on_modify: F,
 ) -> WidgetResponse
 where
     F: FnMut(EngineUiAction),
 {
-    build_entity_header(scope, name, panel_w).on_change(|| {
+    build_entity_header_synced(scope, name, old_name).on_change(|| {
         if name != old_name {
             on_modify(EngineUiAction::ModifyName(
                 entity,
@@ -64,17 +87,15 @@ where
 
 /// Emits the top Entity Name header declaratively and returns an optional [`EngineUiAction::ModifyName`] when committed.
 ///
-/// Emits the top Entity Name header declaratively and returns an optional [`EngineUiAction::ModifyName`] when committed.
-///
 /// Eliminates intermediate imperative variable plumbing and directly generates the engine UI action.
 pub fn build_entity_header_modify_action(
     scope: &mut UiScope<'_>,
     entity: hecs::Entity,
     old_name: &str,
     name: &mut String,
-    panel_w: f32,
+    _panel_w: f32,
 ) -> Option<EngineUiAction> {
-    (build_entity_header(scope, name, panel_w).changed() && name != old_name)
+    (build_entity_header_synced(scope, name, old_name).changed() && name != old_name)
         .then(|| EngineUiAction::ModifyName(entity, old_name.to_string(), name.clone()))
 }
 

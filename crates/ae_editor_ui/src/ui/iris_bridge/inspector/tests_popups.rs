@@ -11,18 +11,6 @@ use super::*;
 use ae_core::ecs::Position;
 use irisui::prelude::*;
 
-fn create_default_test_params<'a>(
-    world: &'a hecs::World,
-    selected_entity: Option<hecs::Entity>,
-) -> InspectorPanelParams<'a> {
-    InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
-        world,
-        selected_entity,
-        cursor_pos: Point::new(0.0, 0.0),
-    }
-}
-
 #[test]
 fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     use irisui::widgets::declarative::hash_label;
@@ -30,8 +18,6 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
-
-    let params = create_default_test_params(&world, Some(entity));
 
     // Build Add Component button anchor via declarative UiScope directly in tree
     {
@@ -66,7 +52,7 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
         hash_label("AddComponentMenu"),
         ComponentCategory::Physics.to_tag(),
     );
-    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
+    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &world, Some(entity));
 
     // Find Physics category card item
     let mut physics_cat_node = None;
@@ -115,8 +101,6 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
 
-    let params = create_default_test_params(&world, Some(entity));
-
     // Build Swatch trigger anchor via declarative UiScope directly in tree
     {
         let mut scope = UiScope::new(&mut tree, root);
@@ -147,7 +131,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     // Build color picker popup via declarative UiScope
     tree.open_popup(appearance_color_swatch_tag());
     let mut scope = UiScope::new(&mut tree, root);
-    color_picker_popup::build_color_picker_popup(&mut scope, &params);
+    color_picker_popup::build_color_picker_popup(&mut scope, &world, Some(entity));
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;
@@ -203,10 +187,14 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
     let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let entity = world.spawn((Position::default(),));
-    let params = create_default_test_params(&world, Some(entity));
 
     let mut name = String::new();
-    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name);
+    let _ = panel::build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &world,
+        Some(entity),
+        &mut name,
+    );
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(320.0, 900.0));
 
     let swatch_rect = tree
@@ -231,7 +219,12 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
 
     tree.clear();
     let root2 = tree.create_root().expect("root2");
-    let _ = panel::build_inspector_panel(&mut UiScope::new(&mut tree, root2), &params, &mut name);
+    let _ = panel::build_inspector_panel(
+        &mut UiScope::new(&mut tree, root2),
+        &world,
+        Some(entity),
+        &mut name,
+    );
 
     assert!(
         tree.is_popup_tag_active(appearance_color_swatch_tag()),
@@ -255,20 +248,14 @@ fn test_color_picker_drag_and_undo_restoration() {
     };
     let entity = world.spawn((initial_color,));
 
-    let params = InspectorPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
-        world: &world,
-        selected_entity: Some(entity),
-        cursor_pos: Point::new(0.0, 0.0),
-    };
-
     tree.open_popup(appearance_color_swatch_tag());
     let mut ui_actions = Vec::new();
     // 0. Initial popup build to register SV box bounds
     let (_, init_act) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
-            &params,
+            &world,
+            Some(entity),
         );
     assert!(init_act.is_none());
 
@@ -288,7 +275,8 @@ fn test_color_picker_drag_and_undo_restoration() {
     if let (_, Some(act)) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
-            &params,
+            &world,
+            Some(entity),
         )
     {
         ui_actions.push(act);
@@ -309,7 +297,8 @@ fn test_color_picker_drag_and_undo_restoration() {
         if let (_, Some(act)) =
             crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
                 &mut UiScope::new(&mut tree, root),
-                &params,
+                &world,
+                Some(entity),
             )
         {
             ui_actions.push(act);
@@ -335,7 +324,8 @@ fn test_color_picker_drag_and_undo_restoration() {
     if let (_, Some(act)) =
         crate::ui::iris_bridge::inspector::color_picker_popup::build_color_picker_popup_with_action(
             &mut UiScope::new(&mut tree, root),
-            &params,
+            &world,
+            Some(entity),
         )
     {
         ui_actions.push(act);
@@ -374,12 +364,11 @@ fn test_color_picker_popup_close_button_interaction() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
     let world = hecs::World::new();
-    let params = create_default_test_params(&world, None);
 
     tree.open_popup(appearance_color_swatch_tag());
     {
         let mut scope = UiScope::new(&mut tree, root);
-        color_picker_popup::build_color_picker_popup(&mut scope, &params);
+        color_picker_popup::build_color_picker_popup(&mut scope, &world, None);
     }
     let _ = LayoutEngine::new().compute_layout(&mut tree, Size::new(800.0, 600.0));
 
@@ -410,7 +399,7 @@ fn test_color_picker_popup_close_button_interaction() {
     let root2 = tree.create_root().expect("root2");
     {
         let mut scope = UiScope::new(&mut tree, root2);
-        color_picker_popup::build_color_picker_popup(&mut scope, &params);
+        color_picker_popup::build_color_picker_popup(&mut scope, &world, None);
     }
 
     assert!(
@@ -453,11 +442,10 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let params = create_default_test_params(&world, Some(entity));
     tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
 
     // 2. Build cascading add menu
-    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &params);
+    add_menu::draw_add_component_menu(&mut UiScope::new(&mut tree, root), &world, Some(entity));
 
     // 3. Verify TAG_INSPECTOR_ADD_COMPONENT is registered as active popup tag
     assert!(
@@ -521,13 +509,12 @@ fn test_inspector_color_picker_popup_outside_click() {
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
-    let params = create_default_test_params(&world, Some(entity));
     tree.open_popup(swatch_tag);
 
     // 2. Build color picker popup
     {
         let mut scope = UiScope::new(&mut tree, root);
-        color_picker_popup::build_color_picker_popup(&mut scope, &params);
+        color_picker_popup::build_color_picker_popup(&mut scope, &world, Some(entity));
     }
 
     // 3. Verify swatch tag is registered as active popup tag
@@ -609,14 +596,7 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         });
     }
     registry.register_domain_panel(PanelId::Inspector, |scope, ctx| {
-        let panel_rect = scope.parent_rect();
-        let params = InspectorPanelParams {
-            panel_rect,
-            world: ctx.world,
-            selected_entity: Some(ctx.entity),
-            cursor_pos: Point::ZERO,
-        };
-        let _ = panel::build_inspector_panel(scope, &params, ctx.name);
+        let _ = panel::build_inspector_panel(scope, ctx.world, Some(ctx.entity), ctx.name);
     });
 
     let mut ctx = Ctx {
@@ -625,45 +605,47 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         name: &mut name,
     };
 
+    fn step<'a>(
+        wb: &mut Workbench<PanelId, (), ()>,
+        d: &irisui::dock::DockState<PanelId>,
+        reg: &mut WorkbenchPanelRegistry<PanelId, Ctx<'a>>,
+        c: &mut Ctx<'a>,
+        popup: Option<bool>,
+        label: &str,
+    ) {
+        wb.update_frame_live_with_registry(
+            WorkbenchFrameUpdateParams {
+                dock: d,
+                scale_factor: 1.0,
+                selection_id: None,
+                domain_revision: 0,
+                is_cursor_occluded: false,
+            },
+            WorkbenchExternalContext {
+                registry: reg,
+                context: c,
+            },
+            |i| popup.map_or(i, |p| i.with_popup_active(p)),
+            |_s, _c, _sz| {},
+            |_s, _c| {},
+        )
+        .expect(label);
+    }
+
     // Frame 0: initial build
-    wb.update_frame_live_with_registry(
-        WorkbenchFrameUpdateParams {
-            dock: &dock,
-            scale_factor: 1.0,
-            selection_id: None,
-            domain_revision: 0,
-            is_cursor_occluded: false,
-        },
-        WorkbenchExternalContext {
-            registry: &mut registry,
-            context: &mut ctx,
-        },
-        |i| i,
-        |_s, _c, _sz| {},
-        |_s, _c| {},
-    )
-    .expect("frame 0");
+    step(&mut wb, &dock, &mut registry, &mut ctx, None, "frame 0");
 
     // Frame 1: open Add Component menu
     wb.tree.open_popup(footer::TAG_INSPECTOR_ADD_COMPONENT);
     wb.notifier.tag_redraw(PanelId::Inspector);
-    wb.update_frame_live_with_registry(
-        WorkbenchFrameUpdateParams {
-            dock: &dock,
-            scale_factor: 1.0,
-            selection_id: None,
-            domain_revision: 0,
-            is_cursor_occluded: false,
-        },
-        WorkbenchExternalContext {
-            registry: &mut registry,
-            context: &mut ctx,
-        },
-        |i| i.with_popup_active(true),
-        |_s, _c, _sz| {},
-        |_s, _c| {},
-    )
-    .expect("frame 1");
+    step(
+        &mut wb,
+        &dock,
+        &mut registry,
+        &mut ctx,
+        Some(true),
+        "frame 1",
+    );
 
     let add_menu_rect = wb
         .tree
@@ -685,23 +667,14 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         .expect("RigidBody ComboPill must exist");
     wb.tree.active_combobox_tag = Some(rb_combo_tag);
     wb.notifier.tag_redraw(PanelId::Inspector);
-    wb.update_frame_live_with_registry(
-        WorkbenchFrameUpdateParams {
-            dock: &dock,
-            scale_factor: 1.0,
-            selection_id: None,
-            domain_revision: 0,
-            is_cursor_occluded: false,
-        },
-        WorkbenchExternalContext {
-            registry: &mut registry,
-            context: &mut ctx,
-        },
-        |i| i.with_popup_active(false),
-        |_s, _c, _sz| {},
-        |_s, _c| {},
-    )
-    .expect("frame 2");
+    step(
+        &mut wb,
+        &dock,
+        &mut registry,
+        &mut ctx,
+        Some(false),
+        "frame 2",
+    );
 
     let combo_rect = wb
         .tree
@@ -709,30 +682,20 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         .expect("ComboBoxPopup must exist");
     assert!(
         combo_rect.x > 900.0,
-        "RigidBody ComboBoxPopup must open on right Inspector panel, got {:?}",
-        combo_rect
+        "RigidBody ComboBoxPopup must open on right Inspector panel, got {combo_rect:?}"
     );
 
     // Frame 3: clear active combobox with a clean rebuild, then click the second ComboPill (Collider Shape)
     wb.tree.active_combobox_tag = None;
     wb.notifier.tag_redraw(PanelId::Inspector);
-    wb.update_frame_live_with_registry(
-        WorkbenchFrameUpdateParams {
-            dock: &dock,
-            scale_factor: 1.0,
-            selection_id: None,
-            domain_revision: 0,
-            is_cursor_occluded: false,
-        },
-        WorkbenchExternalContext {
-            registry: &mut registry,
-            context: &mut ctx,
-        },
-        |i| i.with_popup_active(false),
-        |_s, _c, _sz| {},
-        |_s, _c| {},
-    )
-    .expect("frame 2.5 clear");
+    step(
+        &mut wb,
+        &dock,
+        &mut registry,
+        &mut ctx,
+        Some(false),
+        "frame 2.5 clear",
+    );
     let collider_pill_rect = wb
         .tree
         .iter()
@@ -796,23 +759,14 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         &mut dock_mut,
     );
     wb.notifier.tag_redraw(PanelId::Inspector);
-    wb.update_frame_live_with_registry(
-        WorkbenchFrameUpdateParams {
-            dock: &dock_mut,
-            scale_factor: 1.0,
-            selection_id: None,
-            domain_revision: 0,
-            is_cursor_occluded: false,
-        },
-        WorkbenchExternalContext {
-            registry: &mut registry,
-            context: &mut ctx,
-        },
-        |i| i.with_popup_active(false),
-        |_s, _c, _sz| {},
-        |_s, _c| {},
-    )
-    .expect("frame 3");
+    step(
+        &mut wb,
+        &dock_mut,
+        &mut registry,
+        &mut ctx,
+        Some(false),
+        "frame 3",
+    );
 
     let collider_popup_rect = wb
         .tree
