@@ -77,6 +77,16 @@ pub trait ScopedWorkbenchPanel<TabId, S: ScopedPanelContext>: Send + Sync {
         LiveRefreshInterval::OnChange
     }
 
+    /// Whether dock leaves collapsed below the minimum threshold skip `render` and `refresh_live`.
+    fn skip_when_collapsed(&self) -> bool {
+        false
+    }
+
+    /// Optional declarative root surface container descriptor applied automatically around [`Self::render`].
+    fn surface_style(&self) -> Option<super::panel_surface::PanelSurfaceStyle> {
+        None
+    }
+
     /// Performs lightweight in-place live updates (canvas primitives, telemetry text) during `InPlaceRefresh`.
     fn refresh_live<'frame>(&mut self, _scope: &mut UiScope<'_>, _state: &mut S::Context<'frame>) {}
 
@@ -126,6 +136,16 @@ pub trait WorkbenchPanel<TabId, AppState>: Send + Sync {
         LiveRefreshInterval::OnChange
     }
 
+    /// Whether dock leaves collapsed below the minimum threshold skip `render` and `refresh_live`.
+    fn skip_when_collapsed(&self) -> bool {
+        false
+    }
+
+    /// Optional declarative root surface container descriptor applied automatically around [`Self::render`].
+    fn surface_style(&self) -> Option<super::panel_surface::PanelSurfaceStyle> {
+        None
+    }
+
     /// Performs lightweight in-place live updates (canvas primitives, telemetry text) during `InPlaceRefresh`.
     fn refresh_live(&mut self, _scope: &mut UiScope<'_>, _state: &mut AppState) {}
 
@@ -156,6 +176,10 @@ pub struct PanelMetadata<TabId> {
     pub placement: Option<TabPlacement<TabId>>,
     /// Scheduling policy for in-place [`refresh_live`](ScopedWorkbenchPanel::refresh_live) ticks.
     pub live_refresh: LiveRefreshInterval,
+    /// When `true`, skips panel `render` and `refresh_live` callbacks while the dock leaf is collapsed.
+    pub skip_when_collapsed: bool,
+    /// Optional declarative root container descriptor automatically wrapping panel contents.
+    pub surface: Option<super::panel_surface::PanelSurfaceStyle>,
 }
 
 impl<TabId: Clone> PanelMetadata<TabId> {
@@ -172,6 +196,8 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             is_domain_bound: false,
             placement: None,
             live_refresh: LiveRefreshInterval::OnChange,
+            skip_when_collapsed: false,
+            surface: None,
         }
     }
 
@@ -208,6 +234,7 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             .with_clear_background(panel.clear_background())
             .with_domain_bound(panel.is_domain_bound())
             .with_live_refresh(panel.live_refresh_interval())
+            .with_optional_surface(panel.surface_style())
     }
 
     /// Constructs panel metadata from an existing [`ScopedWorkbenchPanel`].
@@ -222,6 +249,8 @@ impl<TabId: Clone> PanelMetadata<TabId> {
             .with_domain_bound(panel.is_domain_bound())
             .with_optional_placement(panel.placement())
             .with_live_refresh(panel.live_refresh_interval())
+            .with_skip_collapsed(panel.skip_when_collapsed())
+            .with_optional_surface(panel.surface_style())
     }
 
     /// Sets the periodic live-refresh scheduling policy via fluent builder.
@@ -232,21 +261,56 @@ impl<TabId: Clone> PanelMetadata<TabId> {
         self
     }
 
+    /// Attaches an optional unified icon via fluent builder.
     #[inline]
-    fn with_optional_icon(mut self, icon: Option<irisui_core::UiIcon>) -> Self {
+    #[must_use]
+    pub const fn with_optional_icon(mut self, icon: Option<irisui_core::UiIcon>) -> Self {
         self.icon = icon;
         self
     }
 
+    /// Configures whether panel content keeps a transparent background via fluent builder.
     #[inline]
-    fn with_clear_background(mut self, clear_background: bool) -> Self {
+    #[must_use]
+    pub const fn with_clear_background(mut self, clear_background: bool) -> Self {
         self.clear_background = clear_background;
         self
     }
 
+    /// Marks whether this panel subscribes to domain revision invalidations via fluent builder.
     #[inline]
-    fn with_domain_bound(mut self, is_domain_bound: bool) -> Self {
+    #[must_use]
+    pub const fn with_domain_bound(mut self, is_domain_bound: bool) -> Self {
         self.is_domain_bound = is_domain_bound;
+        self
+    }
+
+    /// Marks whether collapsed dock leaves skip invoking panel draw and live-refresh callbacks.
+    #[inline]
+    #[must_use]
+    pub const fn with_skip_collapsed(mut self, skip: bool) -> Self {
+        self.skip_when_collapsed = skip;
+        self
+    }
+
+    /// Attaches an optional declarative [`PanelSurfaceStyle`](super::panel_surface::PanelSurfaceStyle)
+    /// root container descriptor via fluent builder.
+    #[inline]
+    #[must_use]
+    pub const fn with_surface(mut self, surface: super::panel_surface::PanelSurfaceStyle) -> Self {
+        self.surface = Some(surface);
+        self
+    }
+
+    /// Attaches an optional declarative [`PanelSurfaceStyle`](super::panel_surface::PanelSurfaceStyle)
+    /// root container descriptor via fluent builder.
+    #[inline]
+    #[must_use]
+    pub const fn with_optional_surface(
+        mut self,
+        surface: Option<super::panel_surface::PanelSurfaceStyle>,
+    ) -> Self {
+        self.surface = surface;
         self
     }
 
@@ -255,4 +319,102 @@ impl<TabId: Clone> PanelMetadata<TabId> {
         self.placement = placement;
         self
     }
+}
+
+/// Application data and action contract bound to a declarative workbench session.
+///
+/// Implementations supply only associated types defining the transient frame payload
+/// (`Data<'frame>`), command action type (`Action`), and dock tab identifier (`TabId`),
+/// allowing host applications to share [`WorkbenchPanelContext`] and [`WorkbenchAppScope`]
+/// without writing custom context glue in consumer crates.
+pub trait WorkbenchAppData: 'static {
+    /// Per-frame borrowed data slice supplied into stateful panel callbacks.
+    type Data<'frame>;
+    /// Strongly typed UI action emitted onto [`crate::action_bus::ActionBus`].
+    type Action: 'static + Send + Sync;
+    /// Strongly typed dock tab identifier indexing panels in the workbench.
+    type TabId: Copy + Eq + std::hash::Hash + std::fmt::Debug + Send + Sync + 'static;
+}
+
+/// Standardized per-frame context passed to stateful workbench panels bound to [`WorkbenchAppData`].
+///
+/// Bundles transient application data alongside direct mutable borrows of workbench services
+/// (action emission, overlay dialogs, deferred dock mutations, caret blink, and logical pointer)
+/// with zero heap allocations.
+pub struct WorkbenchPanelContext<'frame, A: WorkbenchAppData> {
+    /// Transient host application data slice for the active frame.
+    pub data: A::Data<'frame>,
+    /// Central workbench action bus receiving emitted UI commands.
+    pub action_bus: &'frame mut crate::action_bus::ActionBus<A::Action>,
+    /// Central workbench dialog host for modals, confirmations, and notifications.
+    pub dialog_host: &'frame mut crate::dialogs::host::DialogHost<A::Action>,
+    /// Deferred dock layout mutation queue applied automatically when the frame pass ends.
+    pub notifier: &'frame mut irisui_dock::DeferredNotifier<A::TabId>,
+    /// Current caret blink visibility sampled from the workbench text system.
+    pub blink_caret: bool,
+    /// Effective logical pointer coordinates resolved for the active frame.
+    pub cursor_pos: irisui_core::Point,
+    /// Current logical workbench surface dimensions.
+    pub screen_size: irisui_core::Size,
+    /// Active UI scale factor applied by the workbench.
+    pub zoom_factor: f32,
+    /// Active timed status notification spans managed by the workbench, if any.
+    pub status_spans: Option<&'frame [(String, irisui_core::Color)]>,
+}
+
+impl<'frame, A: WorkbenchAppData> WorkbenchPanelContext<'frame, A> {
+    /// Assembles a [`WorkbenchPanelContext`] directly from borrowed `data` and
+    /// [`crate::workbench::frame_services::WorkbenchFrameServices`].
+    #[inline]
+    #[must_use]
+    pub fn from_services(
+        data: A::Data<'frame>,
+        services: crate::workbench::frame_services::WorkbenchFrameServices<
+            'frame,
+            A::Action,
+            A::TabId,
+        >,
+    ) -> Self {
+        Self {
+            data,
+            action_bus: services.action_bus,
+            dialog_host: services.dialog_host,
+            notifier: services.notifier,
+            blink_caret: services.blink_caret,
+            cursor_pos: services.cursor_pos,
+            screen_size: services.screen_size,
+            zoom_factor: services.zoom_factor,
+            status_spans: services.status_spans,
+        }
+    }
+
+    /// Evaluates a retained panel revision pair `(structural_hash, live_hash)` for `tag`
+    /// and dispatches either no-op, in-place live refresh via `refresh_fn`, or an automatic
+    /// granular redraw request on `self.notifier` for `tab_id`.
+    pub fn sync_live_revision<F>(
+        &mut self,
+        scope: &mut UiScope<'_>,
+        tag: u64,
+        tab_id: A::TabId,
+        structural_hash: u64,
+        live_hash: u64,
+        refresh_fn: F,
+    ) where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        match scope.sync_retained_revision(tag, structural_hash, live_hash) {
+            irisui_core::RetainedRevisionStatus::Unchanged => {}
+            irisui_core::RetainedRevisionStatus::RefreshLive => refresh_fn(scope),
+            irisui_core::RetainedRevisionStatus::Rebuild => {
+                self.notifier.tag_redraw(tab_id);
+            }
+        }
+    }
+}
+
+/// Zero-sized [`ScopedPanelContext`] family mapping frame lifetimes to [`WorkbenchPanelContext`].
+pub struct WorkbenchAppScope<A: WorkbenchAppData>(std::marker::PhantomData<fn() -> A>);
+
+impl<A: WorkbenchAppData> ScopedPanelContext for WorkbenchAppScope<A> {
+    type Context<'frame> = WorkbenchPanelContext<'frame, A>;
 }

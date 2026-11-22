@@ -175,6 +175,23 @@ where
     pub fn tab_clear_background(&self, tab: &TabId) -> bool {
         self.metadata.get(tab).is_some_and(|m| m.clear_background)
     }
+
+    /// Returns whether collapsed dock leaves skip invoking draw/refresh callbacks for `tab`.
+    #[inline]
+    #[must_use]
+    pub fn tab_skip_when_collapsed(&self, tab: &TabId) -> bool {
+        self.metadata
+            .get(tab)
+            .is_some_and(|m| m.skip_when_collapsed)
+    }
+
+    /// Returns the optional declarative [`PanelSurfaceStyle`](super::panel_surface::PanelSurfaceStyle)
+    /// root container descriptor registered for `tab`.
+    #[inline]
+    #[must_use]
+    pub fn tab_surface(&self, tab: &TabId) -> Option<super::panel_surface::PanelSurfaceStyle> {
+        self.metadata.get(tab).and_then(|m| m.surface)
+    }
 }
 
 /// Unified dispatch interface implemented by both owned and lifetime-scoped panel registries.
@@ -212,10 +229,23 @@ pub fn draw_leaf_on_target<TabId, Ctx, R>(
     context: &mut Ctx,
 ) -> WorkbenchResult<()>
 where
+    TabId: Eq + Hash + Clone + Debug,
     R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
 {
+    let skip_collapsed = target.catalog().tab_skip_when_collapsed(tab);
+    let surface = target.catalog().tab_surface(tab);
     let mut scope = UiScope::new(tree, leaf_id);
-    target.draw(tab, &mut scope, context)?;
+    if !(skip_collapsed && scope.is_collapsed()) {
+        if let Some(surface) = surface {
+            surface
+                .show(&mut scope, |panel_scope| {
+                    target.draw(tab, panel_scope, context)
+                })
+                .inner?;
+        } else {
+            target.draw(tab, &mut scope, context)?;
+        }
+    }
     tree.set_boundary(leaf_id, true);
     tree.mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
     Ok(())
@@ -230,6 +260,7 @@ pub fn render_dirty_tabs_on_target<TabId, Ctx, R, I, F>(
     context: &mut Ctx,
 ) -> usize
 where
+    TabId: Eq + Hash + Clone + Debug,
     R: PanelRegistryTarget<TabId, Ctx> + ?Sized,
     I: IntoIterator,
     I::Item: Borrow<TabId>,
@@ -335,10 +366,85 @@ where
 
     fn ui(&mut self, scope: &mut UiScope<'_>, tab: &TabId) {
         let leaf_id = scope.parent();
-        let _ = self.registry.draw(tab, scope, self.context);
+        if !(self.registry.catalog().tab_skip_when_collapsed(tab) && scope.is_collapsed()) {
+            if let Some(surface) = self.registry.catalog().tab_surface(tab) {
+                surface.show(scope, |panel_scope| {
+                    let _ = self.registry.draw(tab, panel_scope, self.context);
+                });
+            } else {
+                let _ = self.registry.draw(tab, scope, self.context);
+            }
+        }
         scope.tree_mut().set_boundary(leaf_id, true);
         scope
             .tree_mut()
             .mark_dirty(leaf_id, DirtyFlags::PAINT | DirtyFlags::TEXT);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::descriptors::panel_surface::{PanelBackground, PanelBorder, PanelSurfaceStyle};
+    use crate::descriptors::{ScopedPanelContext, ScopedPanelRegistry, StatefulPanel};
+    use irisui_core::{Color, Insets, Rect};
+
+    struct EmptyCtx;
+    impl ScopedPanelContext for EmptyCtx {
+        type Context<'frame> = ();
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    enum Tab {
+        Styled,
+        Plain,
+    }
+
+    #[test]
+    fn test_draw_leaf_on_target_wraps_surface_automatically() {
+        let bg = Color::rgba(0.12, 0.14, 0.18, 1.0);
+        let mut registry = ScopedPanelRegistry::<Tab, EmptyCtx>::new();
+        registry.register(StatefulPanel::new(
+            PanelMetadata::new(Tab::Styled, "Styled").with_surface(
+                PanelSurfaceStyle::new("StyledPanelRoot")
+                    .with_tag(0xABCD_1234)
+                    .with_background(PanelBackground::Color(bg))
+                    .with_border(PanelBorder::None),
+            ),
+            |_: &mut (), scope, ()| {
+                scope.text("Inside");
+            },
+        ));
+        registry.register(StatefulPanel::new(
+            PanelMetadata::new(Tab::Plain, "Plain"),
+            |_: &mut (), scope, ()| {
+                scope.text("Bare");
+            },
+        ));
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root");
+        let styled_leaf = tree.create_node();
+        let plain_leaf = tree.create_node();
+        for leaf in [styled_leaf, plain_leaf] {
+            if let Some(n) = tree.get_mut(leaf) {
+                n.computed_rect = Rect::new(0.0, 0.0, 240.0, 180.0);
+            }
+            let _ = tree.add_child(root, leaf);
+        }
+
+        draw_leaf_on_target(&mut registry, &Tab::Styled, &mut tree, styled_leaf, &mut ())
+            .expect("styled leaf draw");
+        draw_leaf_on_target(&mut registry, &Tab::Plain, &mut tree, plain_leaf, &mut ())
+            .expect("plain leaf draw");
+
+        let styled_root = tree
+            .iter()
+            .find_map(|(_, n)| (n.tag == 0xABCD_1234).then_some(n))
+            .expect("surface root emitted automatically");
+        assert_eq!(styled_root.name.as_deref(), Some("StyledPanelRoot"));
+        assert_eq!(styled_root.style.background_color, bg);
+        assert_eq!(styled_root.style.border.width, Insets::all(0.0));
+        assert_eq!(tree.get(plain_leaf).expect("plain").children.len(), 1);
     }
 }

@@ -11,7 +11,9 @@ pub mod menu;
 pub mod panel;
 pub mod panel_catalog;
 pub mod panel_registry;
+pub mod panel_surface;
 pub mod scoped_registry;
+pub mod stateful_panel;
 pub mod status;
 pub mod workbench;
 
@@ -23,12 +25,15 @@ pub use menu::{
     MenuSectionDescriptor,
 };
 pub use panel::{
-    LiveRefreshInterval, PanelMetadata, ScopedPanelContext, ScopedWorkbenchPanel, WorkbenchPanel,
+    LiveRefreshInterval, PanelMetadata, ScopedPanelContext, ScopedWorkbenchPanel, WorkbenchAppData,
+    WorkbenchAppScope, WorkbenchPanel, WorkbenchPanelContext,
 };
 pub use panel_catalog::{
     PanelCatalog, PanelRegistryTarget, RegistryActiveTabViewer, RegistryTabViewer,
 };
 pub use panel_registry::{PanelDrawFn, PanelRegistry, WorkbenchPanelRegistry};
+pub use panel_surface::{PanelBackground, PanelBorder, PanelSurfaceStyle};
 pub use scoped_registry::{ScopedPanelDrawFn, ScopedPanelRegistry};
+pub use stateful_panel::{StatefulPanel, StatefulPanelDrawFn, StatefulPanelLiveFn};
 pub use status::{StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle};
 pub use workbench::WorkbenchDescriptor;
