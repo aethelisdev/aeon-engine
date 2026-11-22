@@ -93,11 +93,7 @@ pub fn handle_spawn_model_at(
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }
 
 /// Handles spawning a 2D sprite texture asset entity into the ECS world at default origin.
@@ -154,11 +150,7 @@ pub fn handle_spawn_sprite_at(
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }
 
 /// Handles spawning a 3D model entity into the ECS world from an arbitrary file path.
@@ -280,27 +272,17 @@ pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_core::ecs::Shape) {
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }
 
 /// Handles selecting an entity in the editor hierarchy or viewport.
 pub fn handle_select_entity(ctx: &mut UiContext, entity_opt: Option<hecs::Entity>) {
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    if let Some(e) = entity_opt {
-        ctx.editor.selected_entities.push(e);
-        ctx.editor.selected_entities_set.insert(e);
-    }
-    ctx.ui.selected_entity = entity_opt;
+    ctx.editor.select_single(entity_opt);
 }
 
 /// Handles deleting selected entities from the ECS world and editor state.
 pub fn handle_delete_selected(ctx: &mut UiContext) {
-    ae_editor::actions::delete_selected(ctx.world, ctx.editor, &mut ctx.ui.selected_entity);
+    ae_editor::actions::delete_selected(ctx.world, ctx.editor);
 }
 
 /// Handles running the multi-object stress test spawning benchmark.
@@ -353,9 +335,7 @@ pub fn handle_stress_test(ctx: &mut UiContext, count: usize) {
 /// Handles spawning the Phase 1 interactive test sandbox.
 pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
     ctx.world.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.ui.selected_entity = None;
+    ctx.editor.select_single(None);
 
     // 1. Static Ground Platform (50m x 1m x 50m)
     ctx.world.spawn((
@@ -598,9 +578,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
         ));
     }
 
-    ctx.editor.selected_entities.push(player_ent);
-    ctx.editor.selected_entities_set.insert(player_ent);
-    ctx.ui.selected_entity = Some(player_ent);
+    ctx.editor.select_single(Some(player_ent));
 
     log::info!("🎮 Spawned Phase 1 Interactive Test Sandbox into editor!");
 }
@@ -609,11 +587,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
 pub fn handle_spawn_ui_element(ctx: &mut UiContext, ui_type: crate::ui::UiElementType) {
     let ent = ae_uidesign::spawn_ui_element(ctx.world, ui_type);
 
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(ent);
-    ctx.editor.selected_entities_set.insert(ent);
-    ctx.ui.selected_entity = Some(ent);
+    ctx.editor.select_single(Some(ent));
 }
 
 /// Spawns a standard 2D Sprite entity at the origin and registers it in undo/redo history.
@@ -645,11 +619,7 @@ pub fn handle_spawn_default_sprite(ctx: &mut UiContext) {
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }
 
 /// Spawns a 2D Player Sprite entity with `PlayerTag` component at the origin.
@@ -682,11 +652,7 @@ pub fn handle_spawn_player_sprite(ctx: &mut UiContext) {
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }
 
 /// Spawns an empty 2D entity with spatial transform components at the origin.
@@ -712,9 +678,5 @@ pub fn handle_spawn_empty_2d(ctx: &mut UiContext) {
         ae_editor::undo_redo::Command::Spawn(new_entity, snap),
     );
     ctx.editor.redo_stack.clear();
-    ctx.editor.selected_entities.clear();
-    ctx.editor.selected_entities_set.clear();
-    ctx.editor.selected_entities.push(new_entity);
-    ctx.editor.selected_entities_set.insert(new_entity);
-    ctx.ui.selected_entity = Some(new_entity);
+    ctx.editor.select_single(Some(new_entity));
 }

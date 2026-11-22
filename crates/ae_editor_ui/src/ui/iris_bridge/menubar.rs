@@ -30,7 +30,7 @@ pub const ABOUT_MODAL_TAG: UiTag = UiTag::from_str("modal.about");
 /// Default width of floating dropdown popup menus in physical pixels.
 pub const DROPDOWN_WIDTH: f32 = 260.0;
 
-/// Ordered panel identifiers matching bit indices in [`MenuBarParams::view_panel_mask`].
+/// Ordered panel identifiers matching bit indices in `view_panel_mask`.
 pub const VIEW_PANEL_IDS: [PanelId; 8] = [
     PanelId::Hierarchy,
     PanelId::Inspector,
@@ -54,36 +54,22 @@ const VIEW_PANELS: [(PanelId, &str); 8] = [
     (PanelId::UiDesigner, "UI Designer"),
 ];
 
-/// Configuration descriptor passed to [`build_top_menu_bar`].
-#[derive(Debug, Clone, Copy)]
-pub struct MenuBarParams {
-    /// Screen width constraint in physical pixels.
-    pub screen_width: f32,
-    /// 64-bit visibility mask over [`VIEW_PANEL_IDS`] computed by `Workbench::tab_visibility_mask`.
-    pub view_panel_mask: u64,
-    /// Whether the editor command stack supports undo operations.
-    pub can_undo: bool,
-    /// Whether the editor command stack supports redo operations.
-    pub can_redo: bool,
-    /// Whether the engine is currently in play/editing mode.
-    pub is_editing: bool,
-}
-
 /// Declaratively constructs and renders the top application menu bar into the provided [`UiScope`].
 ///
 /// Directly emits strongly-typed [`EngineUiAction`] commands and opens declarative modals without
 /// manual numeric tag dispatch tables.
 pub fn build_top_menu_bar(
     scope: &mut UiScope<'_>,
-    params: &MenuBarParams,
+    screen_width: f32,
+    view_panel_mask: u64,
+    can_undo: bool,
+    can_redo: bool,
+    is_editing: bool,
     action_bus: &mut irisui::workbench::ActionBus<EngineUiAction>,
 ) -> Option<UiTag> {
     (
-        build_workbench_menubar_descriptor(params).render_into(
-            scope,
-            params.screen_width,
-            action_bus,
-        ),
+        build_workbench_menubar_descriptor(view_panel_mask, can_undo, can_redo, is_editing)
+            .render_into(scope, screen_width, action_bus),
         render_about_modal_if_active(scope),
     )
         .0
@@ -111,19 +97,18 @@ pub fn about_engine_descriptor() -> irisui::workbench::InfoCardDialogDescriptor<
         .with_size(480.0, 250.0)
 }
 
-/// Renders the informational 'About Aeon Engine' modal dialogue using [`WorkbenchUiScopeExt::info_modal_tagged`].
+/// Renders the informational 'About Aeon Engine' modal dialogue using [`WorkbenchUiScopeExt::info_modal_tagged_auto`].
 pub fn render_about_modal_if_active(scope: &mut UiScope<'_>) {
-    scope.info_modal_tagged(
-        ABOUT_MODAL_TAG.raw(),
-        &about_engine_descriptor(),
-        scope.screen_bounds(),
-    );
+    scope.info_modal_tagged_auto(ABOUT_MODAL_TAG.raw(), &about_engine_descriptor());
 }
 
 /// Constructs a strongly-typed [`MenuBarDescriptor`] representing the engine's application menu bar.
 #[must_use]
 pub fn build_workbench_menubar_descriptor(
-    params: &MenuBarParams,
+    view_panel_mask: u64,
+    can_undo: bool,
+    can_redo: bool,
+    is_editing: bool,
 ) -> MenuBarDescriptor<EngineUiAction> {
     attach_right_controls(
         MenuBarDescriptor::new()
@@ -134,11 +119,11 @@ pub fn build_workbench_menubar_descriptor(
                 28.0,
             ))
             .with_menu(file_menu_descriptor())
-            .with_menu(edit_menu_descriptor(params.can_undo, params.can_redo))
-            .with_menu(view_menu_descriptor(params.view_panel_mask))
-            .with_menu(window_menu_descriptor(params.view_panel_mask))
+            .with_menu(edit_menu_descriptor(can_undo, can_redo))
+            .with_menu(view_menu_descriptor(view_panel_mask))
+            .with_menu(window_menu_descriptor(view_panel_mask))
             .with_menu(help_menu_descriptor()),
-        params.is_editing,
+        is_editing,
     )
 }
 
@@ -293,13 +278,11 @@ mod tests {
 
         let clicked = build_top_menu_bar(
             &mut scope,
-            &MenuBarParams {
-                screen_width: 1920.0,
-                view_panel_mask,
-                can_undo: true,
-                can_redo: false,
-                is_editing: true,
-            },
+            1920.0,
+            view_panel_mask,
+            true,
+            false,
+            true,
             &mut action_bus,
         );
 
@@ -322,13 +305,11 @@ mod tests {
 
         let _ = build_top_menu_bar(
             &mut scope,
-            &MenuBarParams {
-                screen_width: 1920.0,
-                view_panel_mask,
-                can_undo: true,
-                can_redo: false,
-                is_editing: true,
-            },
+            1920.0,
+            view_panel_mask,
+            true,
+            false,
+            true,
             &mut action_bus,
         );
 
@@ -351,13 +332,11 @@ mod tests {
             let mut scope = UiScope::new(&mut tree, root);
             let _ = build_top_menu_bar(
                 &mut scope,
-                &MenuBarParams {
-                    screen_width: 1920.0,
-                    view_panel_mask,
-                    can_undo: true,
-                    can_redo: false,
-                    is_editing: true,
-                },
+                1920.0,
+                view_panel_mask,
+                true,
+                false,
+                true,
                 &mut action_bus,
             );
         }
@@ -439,13 +418,11 @@ mod tests {
 
         let clicked = build_top_menu_bar(
             &mut scope,
-            &MenuBarParams {
-                screen_width: 1920.0,
-                view_panel_mask,
-                can_undo: true,
-                can_redo: false,
-                is_editing: true,
-            },
+            1920.0,
+            view_panel_mask,
+            true,
+            false,
+            true,
             &mut action_bus,
         );
 
@@ -480,13 +457,11 @@ mod tests {
             let mut scope = UiScope::new(&mut tree, root);
             let _ = build_top_menu_bar(
                 &mut scope,
-                &MenuBarParams {
-                    screen_width: 1920.0,
-                    view_panel_mask,
-                    can_undo: true,
-                    can_redo: false,
-                    is_editing: true,
-                },
+                1920.0,
+                view_panel_mask,
+                true,
+                false,
+                true,
                 &mut action_bus,
             );
         }
@@ -518,13 +493,11 @@ mod tests {
             let mut scope = UiScope::new(&mut tree, root);
             let _ = build_top_menu_bar(
                 &mut scope,
-                &MenuBarParams {
-                    screen_width: 1920.0,
-                    view_panel_mask,
-                    can_undo: true,
-                    can_redo: false,
-                    is_editing: true,
-                },
+                1920.0,
+                view_panel_mask,
+                true,
+                false,
+                true,
                 &mut action_bus,
             );
         }

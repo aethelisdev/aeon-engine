@@ -43,19 +43,19 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 system::handle_toggle_module(ctx, module)
             }
             crate::ui::EngineUiAction::OpenPanel(panel) => {
-                ctx.ui.workbench.open_or_focus_panel(panel);
+                ctx.ui.host.open_or_focus_panel(panel);
             }
             crate::ui::EngineUiAction::TogglePanel(panel) => {
-                ctx.ui.workbench.toggle_panel(panel);
+                ctx.ui.host.toggle_panel(panel);
             }
             crate::ui::EngineUiAction::ResetLayout => {
                 ctx.ui
-                    .workbench
+                    .host
                     .reset_dock_state(crate::ui::panel_layout::create_default_dock_state());
             }
             crate::ui::EngineUiAction::OpenPreferences => {
                 ctx.ui
-                    .workbench
+                    .host
                     .open_or_focus_panel(crate::ui::PanelId::Preferences);
             }
             crate::ui::EngineUiAction::StartProjectExport(_) => {
@@ -63,6 +63,45 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             }
             crate::ui::EngineUiAction::SetUiScale(scale) => {
                 ctx.ui.ui_zoom_factor = scale.clamp(0.6, 2.0);
+            }
+            crate::ui::EngineUiAction::SetThemePreset(preset) => {
+                ctx.ui.apply_theme_preset(preset);
+            }
+            crate::ui::EngineUiAction::SetWireframe(enabled) => {
+                ctx.editor.wireframe_enabled = enabled;
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Viewport);
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Stats);
+            }
+            crate::ui::EngineUiAction::SetGridEnabled(enabled) => {
+                ctx.editor.grid_enabled = enabled;
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Viewport);
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Stats);
+            }
+            crate::ui::EngineUiAction::SetGizmoMode(mode) => {
+                ctx.editor.gizmo_mode = mode;
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Viewport);
+            }
+            crate::ui::EngineUiAction::ToggleGizmoSpace => {
+                ctx.editor.gizmo_space = ctx.editor.gizmo_space.toggle();
+                ctx.ui.host.tag_redraw(crate::ui::PanelId::Viewport);
+            }
+            crate::ui::EngineUiAction::PickAndAssignEntityTexture(ent) => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                    .pick_file()
+                    .map(|p| p.to_string_lossy().into_owned())
+                {
+                    components::handle_assign_texture(ctx, ent, path);
+                }
+            }
+            crate::ui::EngineUiAction::PickAndSetSubmeshTexture(model_id, idx) => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                    .pick_file()
+                    .map(|p| p.to_string_lossy().into_owned())
+                {
+                    components::handle_set_model_submesh_texture(ctx, model_id, idx, path);
+                }
             }
             crate::ui::EngineUiAction::GarbageCollect => system::handle_garbage_collect(ctx),
 
@@ -323,7 +362,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 scene_io::handle_instantiate_prefab(ctx, path)
             }
             crate::ui::EngineUiAction::Exit => {
-                ctx.ui.should_exit = true;
+                ctx.editor.should_exit = true;
             }
 
             // --- ASSET BROWSER FILE & DIRECTORY ACTIONS ---
@@ -333,22 +372,19 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                     ctx.ui.asset_browser.selected_asset = None;
                 }
                 ctx.ui
-                    .workbench
-                    .notifier
+                    .host
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::CreateSubfolder { parent, name } => {
                 let _ = crate::assets::file_ops::create_subfolder(&parent, &name);
                 ctx.ui
-                    .workbench
-                    .notifier
+                    .host
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::RenameAssetOrFolder { target, new_name } => {
                 let _ = crate::assets::file_ops::rename_asset_or_folder(&target, &new_name);
                 ctx.ui
-                    .workbench
-                    .notifier
+                    .host
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
 
@@ -360,6 +396,6 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
     // overlay as dirty so the subsequent frame unconditionally rebuilds the retained tree
     // with the freshly mutated data, even if the mouse cursor remains completely motionless.
     if had_actions {
-        ctx.ui.workbench.notifier.tag_all();
+        ctx.ui.host.invalidate_all();
     }
 }

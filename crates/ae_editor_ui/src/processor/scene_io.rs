@@ -263,8 +263,7 @@ pub fn handle_import_dropped_files(
     if imported_count > 0 {
         ctx.ui.asset_browser.cached_items.clear();
         ctx.ui
-            .workbench
-            .notifier
+            .host
             .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
     }
 
@@ -342,7 +341,7 @@ pub fn handle_open_load_prefab_dialog(ctx: &mut UiContext) {
 /// Handles triggering save scene file dialog.
 pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
-    ctx.ui.scene_dialog_receivers.push(rx);
+    ctx.editor.scene_dialog_receivers.push(rx);
     let _is_2d = ctx.editor.is_2d;
     std::thread::spawn(move || {
         if let Some(path) = rfd::FileDialog::new()
@@ -350,7 +349,7 @@ pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
             .set_file_name("world.aeworld")
             .save_file()
         {
-            let _ = tx.send(crate::ui::SceneDialogAction::SaveTo(path));
+            let _ = tx.send(ae_editor::editor_state::SceneDialogAction::SaveTo(path));
         }
     });
 }
@@ -358,13 +357,13 @@ pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
 /// Handles triggering load scene file dialog.
 pub fn handle_open_load_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
-    ctx.ui.scene_dialog_receivers.push(rx);
+    ctx.editor.scene_dialog_receivers.push(rx);
     std::thread::spawn(move || {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
             .pick_file()
         {
-            let _ = tx.send(crate::ui::SceneDialogAction::LoadFrom(path));
+            let _ = tx.send(ae_editor::editor_state::SceneDialogAction::LoadFrom(path));
         }
     });
 }
@@ -381,19 +380,17 @@ pub fn handle_load_scene(ctx: &mut UiContext) {
 
 /// Handles saving scene directly to specified path.
 pub fn handle_save_scene_to_path(ctx: &mut UiContext, path: std::path::PathBuf) {
-    ctx.ui.active_scene_path = path.to_string_lossy().to_string();
-    ctx.ui.pending_save_path = Some(path.clone());
-    ctx.ui.should_save_scene = true;
+    ctx.editor.pending_save_path = Some(path.clone());
+    ctx.editor.should_save_scene = true;
     ctx.editor.active_scene_path = Some(path.clone());
     log::info!("💾 Scene save request queued for path {:?}", path);
 }
 
 /// Handles loading scene directly from specified path.
 pub fn handle_load_scene_from_path(ctx: &mut UiContext, path: std::path::PathBuf) {
-    ctx.ui.active_scene_path = path.to_string_lossy().to_string();
-    ctx.ui.pending_load_path = Some(path.clone());
-    ctx.ui.should_load_scene = true;
-    ctx.ui.is_loading_assets = true;
+    ctx.editor.pending_load_path = Some(path.clone());
+    ctx.editor.should_load_scene = true;
+    ctx.editor.is_loading_assets = true;
     ctx.editor.active_scene_path = Some(path.clone());
     log::info!("📂 Scene load request queued for path {:?}", path);
 }
@@ -436,11 +433,7 @@ pub fn handle_instantiate_prefab(ctx: &mut UiContext, path: std::path::PathBuf) 
     match ae_editor::prefab::Prefab::load_from_file(&path) {
         Ok(prefab) => {
             let new_entity = prefab.instantiate(ctx.world, None);
-            ctx.editor.selected_entities.clear();
-            ctx.editor.selected_entities_set.clear();
-            ctx.editor.selected_entities.push(new_entity);
-            ctx.editor.selected_entities_set.insert(new_entity);
-            ctx.ui.selected_entity = Some(new_entity);
+            ctx.editor.select_single(Some(new_entity));
             log::info!("✨ Instantiated prefab from {:?}", path);
         }
         Err(e) => {

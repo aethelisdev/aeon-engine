@@ -37,24 +37,28 @@ fn test_architecture_guard_active() {
 #[test]
 fn test_workbench_panels_line_limit() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let guarded_dirs = [Path::new(manifest_dir).join("src/ui/workbench")];
+    let guarded_files = [
+        Path::new(manifest_dir).join("src/ui/editor_ui.rs"),
+        Path::new(manifest_dir).join("src/ui/panel_registry.rs"),
+        Path::new(manifest_dir).join("src/ui/panel_layout.rs"),
+        Path::new(manifest_dir).join("src/ui/icons.rs"),
+        Path::new(manifest_dir).join("src/ui/types.rs"),
+    ];
 
     let mut violated_files = Vec::new();
 
-    for dir in &guarded_dirs {
-        for file in collect_rs_files(dir) {
-            if let Ok(content) = fs::read_to_string(&file) {
-                let line_count = content.lines().count();
-                if line_count > MAX_PANEL_LINE_LIMIT {
-                    violated_files.push((file.display().to_string(), line_count));
-                }
+    for file in &guarded_files {
+        if let Ok(content) = fs::read_to_string(file) {
+            let line_count = content.lines().count();
+            if line_count > MAX_PANEL_LINE_LIMIT {
+                violated_files.push((file.display().to_string(), line_count));
             }
         }
     }
 
     assert!(
         violated_files.is_empty(),
-        "Architecture Guard Violation: The following editor UI / dispatcher files exceed {} lines limit:\n{:?}",
+        "Architecture Guard Violation: The following editor UI runtime files exceed {} lines limit:\n{:?}",
         MAX_PANEL_LINE_LIMIT,
         violated_files
     );
@@ -63,12 +67,19 @@ fn test_workbench_panels_line_limit() {
 #[test]
 fn test_workbench_no_raw_node_manipulation() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let guarded_dirs = [Path::new(manifest_dir).join("src/ui/workbench")];
+    let guarded_dirs = [Path::new(manifest_dir).join("src/ui")];
 
     let mut violations = Vec::new();
 
     for dir in &guarded_dirs {
         for file in collect_rs_files(dir) {
+            let file_name = file
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default();
+            if file_name.starts_with("tests") || file_name.ends_with("_tests.rs") {
+                continue;
+            }
             if let Ok(content) = fs::read_to_string(&file) {
                 for (line_idx, line) in content.lines().enumerate() {
                     if line.contains("set_computed_rect(") {
@@ -102,7 +113,7 @@ fn test_workbench_no_raw_node_manipulation() {
 #[test]
 fn test_workbench_no_targets_spaghetti() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let guarded_dirs = [Path::new(manifest_dir).join("src/ui/workbench")];
+    let guarded_dirs = [Path::new(manifest_dir).join("src/ui")];
 
     let mut violations = Vec::new();
 
@@ -125,6 +136,45 @@ fn test_workbench_no_targets_spaghetti() {
     assert!(
         violations.is_empty(),
         "Architecture Guard Violation: Detected forbidden targets struct:\n{:?}",
+        violations
+    );
+}
+
+#[test]
+fn test_workbench_directory_and_bridge_wrappers_eliminated() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let ui_dir = Path::new(manifest_dir).join("src/ui");
+    assert!(
+        !ui_dir.join("workbench").exists()
+            && !ui_dir.join("workbench.rs").exists()
+            && !ui_dir.join("editor_sync.rs").exists()
+            && !ui_dir.join("editor_actions.rs").exists()
+            && !ui_dir.join("frame_data.rs").exists()
+            && !ui_dir.join("panel_registry_tests.rs").exists(),
+        "Faz 12 Architecture Guard Failure: Removed transitional UI glue files reappeared."
+    );
+
+    let forbidden = [
+        "OverlayUpdateParams",
+        "IrisEditorOverlay",
+        "IrisPassParams",
+        "crate::ui::workbench",
+    ];
+    let mut violations = Vec::new();
+    for file in collect_rs_files(&ui_dir) {
+        if let Ok(content) = fs::read_to_string(&file) {
+            for (line_idx, line) in content.lines().enumerate() {
+                for &needle in &forbidden {
+                    if line.contains(needle) {
+                        violations.push((file.display().to_string(), line_idx + 1, needle));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "Faz 11 Architecture Guard Failure: Legacy bridge wrappers reappeared:\n{:#?}",
         violations
     );
 }
@@ -268,6 +318,114 @@ fn test_irisui_crates_io_purity_guard() {
     assert!(
         violations.is_empty(),
         "Architecture Guard Failure: Domain-specific concepts leaked into pure irisui library:\n{:#?}",
+        violations
+    );
+}
+
+fn contains_rust_let_keyword(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    let mut in_string = false;
+    let mut escape = false;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if in_string {
+            if escape {
+                escape = false;
+            } else if b == b'\\' {
+                escape = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        if b == b'"' {
+            in_string = true;
+            i += 1;
+            continue;
+        }
+        if b == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            break;
+        }
+        if bytes[i..].starts_with(b"let") {
+            let left_ok = i == 0 || !(bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+            let right_idx = i + 3;
+            let right_ok = right_idx >= bytes.len()
+                || !(bytes[right_idx].is_ascii_alphanumeric() || bytes[right_idx] == b'_');
+            if left_ok && right_ok {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+#[test]
+fn test_editor_ui_zero_non_test_let_statements() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let ui_dir = Path::new(manifest_dir).join("src/ui");
+    if !ui_dir.exists() {
+        return;
+    }
+
+    let mut violations = Vec::new();
+    for file in collect_rs_files(&ui_dir) {
+        let name = file
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if name.starts_with("tests") || name.ends_with("_tests.rs") {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&file) else {
+            continue;
+        };
+        let mut in_cfg_test = false;
+        let mut entered_block = false;
+        let mut brace_depth = 0usize;
+        for (line_idx, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("#[cfg(test)]") {
+                in_cfg_test = true;
+                entered_block = line.contains('{');
+                brace_depth = line
+                    .matches('{')
+                    .count()
+                    .saturating_sub(line.matches('}').count());
+                if (entered_block && brace_depth == 0) || (!entered_block && trimmed.ends_with(';'))
+                {
+                    in_cfg_test = false;
+                }
+                continue;
+            }
+            if in_cfg_test {
+                if line.contains('{') {
+                    entered_block = true;
+                }
+                brace_depth += line.matches('{').count();
+                brace_depth = brace_depth.saturating_sub(line.matches('}').count());
+                if (entered_block && brace_depth == 0) || (!entered_block && trimmed.ends_with(';'))
+                {
+                    in_cfg_test = false;
+                }
+                continue;
+            }
+            if contains_rust_let_keyword(line) {
+                violations.push((
+                    file.display().to_string(),
+                    line_idx + 1,
+                    trimmed.to_string(),
+                ));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Rule 1.6 Architecture Guard Violation: imperative `let` statements are forbidden in non-test crates/ae_editor_ui/src/ui/** code:\n{:#?}",
         violations
     );
 }

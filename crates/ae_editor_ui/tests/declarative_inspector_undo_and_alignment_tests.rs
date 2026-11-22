@@ -10,23 +10,10 @@
 
 use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, Velocity};
 use ae_editor_ui::ui::iris_bridge::inspector::{
-    DEFAULT_INSPECTOR_LABEL_WIDTH, InspectorPanelParams, build_inspector_panel,
+    DEFAULT_INSPECTOR_LABEL_WIDTH, build_inspector_panel,
 };
 use irisui::core::UiTree;
 use irisui::widgets::declarative::scope::UiScope;
-
-/// Constructs minimal mock parameters required to render the Inspector panel for tests.
-fn create_test_params<'a>(
-    world: &'a hecs::World,
-    selected: Option<hecs::Entity>,
-) -> InspectorPanelParams<'a> {
-    InspectorPanelParams {
-        panel_rect: irisui::core::Rect::new(0.0, 0.0, 320.0, 900.0),
-        world,
-        selected_entity: selected,
-        cursor_pos: irisui::core::Point::new(0.0, 0.0),
-    }
-}
 
 #[test]
 fn test_property_label_width_alignment_across_cards() {
@@ -51,10 +38,13 @@ fn test_property_label_width_alignment_across_cards() {
         Velocity::default(),
     ));
 
-    let params = create_test_params(&world, Some(entity));
-
     let mut name = String::new();
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut name);
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree, root),
+        &world,
+        Some(entity),
+        &mut name,
+    );
 
     // Verify canonical default label width constant is 105px
     assert_eq!(DEFAULT_INSPECTOR_LABEL_WIDTH, 105.0);
