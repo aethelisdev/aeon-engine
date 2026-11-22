@@ -36,6 +36,22 @@ pub fn layout_subtree(tree: &mut UiTree, root_id: WidgetId, bounds: Rect) {
         (bounds.height - pad.top - pad.bottom).max(0.0),
     );
     assign_children(tree, root_id, inner);
+    sync_scroll_viewports_after_assign(tree, root_id);
+}
+
+fn sync_scroll_viewports_after_assign(tree: &mut UiTree, parent_id: WidgetId) {
+    let is_vp = tree
+        .get(parent_id)
+        .is_some_and(|n| n.role == WidgetRole::ScrollAreaViewport);
+    if is_vp {
+        tree.sync_scroll_viewport_after_layout(parent_id);
+    }
+    let child_count = tree.get(parent_id).map_or(0, |n| n.children.len());
+    for i in 0..child_count {
+        if let Some(cid) = tree.get(parent_id).and_then(|n| n.children.get(i).copied()) {
+            sync_scroll_viewports_after_assign(tree, cid);
+        }
+    }
 }
 
 /// Recursively assigns `computed_rect` to all children of `parent_id` within `inner` bounds.
@@ -433,7 +449,11 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             };
             let child_h = tree.get(*child_id).and_then(|n| n.style.height).unwrap_or(
                 if align == AlignItems::Stretch {
-                    inner.height.max(row_h)
+                    if inner.height > 0.0 {
+                        inner.height
+                    } else {
+                        row_h
+                    }
                 } else {
                     row_h
                 },
@@ -463,6 +483,10 @@ pub fn measure_height_constrained(tree: &UiTree, node_id: WidgetId, max_width: O
     // Explicit height takes priority
     if let Some(h) = node.style.height {
         return h;
+    }
+
+    if node.role == WidgetRole::ScrollAreaViewport && node.style.min_height == Some(0.0) {
+        return 0.0;
     }
 
     // Leaf node: use line_height if it has text, taking text wrapping into account

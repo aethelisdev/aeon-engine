@@ -6,102 +6,18 @@
 //! Exposes fluent declarative [`UiScope`] methods for embedding hardware-clipped
 //! scrollable containers and $O(1)$ virtualized lists into the retainable UI tree.
 
+pub use super::scroll_area_options::{ScrollAreaConfig, ScrollAreaOptions};
+
 use super::core::UiScope;
 use crate::scroll_area::area::{ScrollAreaBuilder, ScrollAreaFrame};
 use crate::scroll_area::style::ScrollAreaStyle;
 use crate::scroll_area::types::{
-    ScrollAreaResponse, ScrollBarVisibility, VirtualScrollConfig, VirtualScrollResponse,
-    VirtualSlice,
+    ScrollAreaResponse, VirtualScrollConfig, VirtualScrollResponse, VirtualSlice,
 };
 use crate::scroll_area::virtual_list::VirtualList;
-use irisui_core::color::Color;
-use irisui_core::geometry::{Point, Rect};
+use irisui_core::geometry::Rect;
 use irisui_core::node::WidgetRole;
-use irisui_core::style::Style;
-
-/// Configuration options customizing a declarative scroll area container.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScrollAreaConfig {
-    /// Debug identifier assigned to the container node in the UI tree.
-    pub name: &'static str,
-    /// Current vertical scroll position in logical pixels.
-    pub scroll_y: f32,
-    /// Total virtual or measured height of all contained content in logical pixels.
-    pub content_height: f32,
-    /// Visual style parameters controlling scrollbar geometry, colors, and margins.
-    pub style: ScrollAreaStyle,
-    /// Visibility policy determining when the scrollbar indicator is rendered.
-    pub visibility: ScrollBarVisibility,
-    /// Optional background fill color applied to the viewport container node.
-    pub background: Option<Color>,
-    /// Optional cursor position in logical pixels for thumb hover evaluation.
-    pub cursor_pos: Option<Point>,
-    /// Whether the scrollbar thumb is actively undergoing dragging.
-    pub is_dragging: bool,
-}
-
-impl Default for ScrollAreaConfig {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            name: "ScrollArea",
-            scroll_y: 0.0,
-            content_height: 0.0,
-            style: ScrollAreaStyle::default(),
-            visibility: ScrollBarVisibility::Auto,
-            background: None,
-            cursor_pos: None,
-            is_dragging: false,
-        }
-    }
-}
-
-impl ScrollAreaConfig {
-    /// Creates a default scroll area configuration with the given content height and scroll offset.
-    #[inline]
-    pub fn new(content_height: f32, scroll_y: f32) -> Self {
-        Self {
-            content_height: content_height.max(0.0),
-            scroll_y: scroll_y.max(0.0),
-            ..Default::default()
-        }
-    }
-
-    /// Sets the debug and telemetry name for the container node.
-    #[inline]
-    pub const fn with_name(mut self, name: &'static str) -> Self {
-        self.name = name;
-        self
-    }
-
-    /// Sets an explicit background color for the viewport container.
-    #[inline]
-    pub const fn with_background(mut self, bg: Color) -> Self {
-        self.background = Some(bg);
-        self
-    }
-
-    /// Overrides the visual style of the scrollbar indicator.
-    #[inline]
-    pub const fn with_style(mut self, style: ScrollAreaStyle) -> Self {
-        self.style = style;
-        self
-    }
-
-    /// Sets the scrollbar visibility policy.
-    #[inline]
-    pub const fn with_visibility(mut self, visibility: ScrollBarVisibility) -> Self {
-        self.visibility = visibility;
-        self
-    }
-
-    /// Sets the active dragging flag for the scrollbar thumb.
-    #[inline]
-    pub const fn with_dragging(mut self, is_dragging: bool) -> Self {
-        self.is_dragging = is_dragging;
-        self
-    }
-}
+use irisui_core::style::{FlexDirection, Style};
 
 impl<'a> UiScope<'a> {
     /// Emits an autonomous declarative scroll container that clips its children,
@@ -172,107 +88,145 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let scroll_y = explicit_scroll_y.unwrap_or_else(|| {
-            if tag != 0 {
-                self.tree.scroll_offset(tag)
+        let mut opts = ScrollAreaOptions::new(name, tag);
+        opts.explicit_scroll_y = explicit_scroll_y;
+        opts.scrollbar_tags = scrollbar_tags;
+        self.scroll_area_configured(opts, f)
+    }
+
+    /// Emits an autonomous declarative scroll container customized via [`ScrollAreaOptions`],
+    /// measuring inner child heights automatically and rendering a vertical scrollbar on overflow.
+    pub fn scroll_area_configured<R, F>(
+        &mut self,
+        opts: ScrollAreaOptions,
+        f: F,
+    ) -> ScrollAreaResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if let Some(key) = opts.scroll_key {
+            self.tree.sync_scroll_key(opts.tag, key);
+        }
+        let scroll_y = opts.explicit_scroll_y.unwrap_or_else(|| {
+            if opts.tag != 0 {
+                self.tree.scroll_offset(opts.tag)
             } else {
                 0.0
             }
         });
 
-        let mut style = Style::new()
+        let avail_w = self
+            .resolve_remaining_axis_from_ancestors(true)
+            .filter(|&w| w > 10.0);
+        let vp_h = opts
+            .height
+            .unwrap_or_else(|| self.resolve_available_height(opts.tag));
+
+        let parent_is_row = self.tree.get(self.parent).is_some_and(|n| {
+            matches!(
+                n.style.flex_direction,
+                FlexDirection::Row | FlexDirection::RowReverse
+            )
+        });
+        let grow_along_parent = if parent_is_row {
+            opts.width.is_none()
+        } else {
+            opts.height.is_none()
+        };
+
+        let mut host_style = Style::new()
+            .flex_col()
+            .flex_shrink(1.0)
+            .min_width(0.0)
+            .min_height(0.0);
+        if grow_along_parent {
+            host_style = host_style.flex_grow(1.0);
+        }
+        if let Some(w) = opts.width {
+            host_style = host_style.width(w);
+        }
+        if let Some(h) = opts.height {
+            host_style = host_style.height(h);
+        }
+        if let Some(bg) = opts.background {
+            host_style = host_style.background(bg);
+        }
+
+        let host_id = self.tree.create_node();
+        if let Some(host) = self.tree.get_mut(host_id) {
+            host.set_name("ScrollAreaHost");
+            host.set_style(host_style);
+        }
+        let _ = self.tree.add_child(self.parent, host_id);
+
+        let mut vp_style = Style::new()
             .flex_col()
             .flex_grow(1.0)
-            .min_height(0.0)
             .flex_shrink(1.0)
-            .clip_children(true);
-        style.scroll_offset_y = scroll_y;
+            .min_width(0.0)
+            .min_height(0.0)
+            .clip_children(true)
+            .padding_insets(opts.padding)
+            .gap(opts.gap);
+        vp_style.scroll_offset_y = scroll_y;
 
         let vp_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(vp_id) {
-            node.set_name(name);
-            node.set_style(style);
+            node.set_name(opts.name);
+            node.set_style(vp_style);
             node.role = WidgetRole::ScrollAreaViewport;
-            node.tag = tag;
+            node.tag = opts.tag;
             node.interactive = true;
         }
-        let _ = self.tree.add_child(self.parent, vp_id);
+        let _ = self.tree.add_child(host_id, vp_id);
 
         let mut child_scope = self.child_scope(vp_id);
         let inner = f(&mut child_scope);
 
-        let vp_h = self.resolve_available_height(tag);
-        let content_h = crate::declarative::measure_content_height(self.tree, vp_id);
+        let width_hint = opts
+            .width
+            .or(avail_w)
+            .or_else(|| {
+                (opts.tag != 0)
+                    .then(|| {
+                        self.tree
+                            .viewport_size(opts.tag)
+                            .map(|s| s.width)
+                            .or_else(|| self.tree.tag_rect(opts.tag).map(|r| r.width))
+                    })
+                    .flatten()
+            })
+            .or_else(|| {
+                self.tree
+                    .get(self.parent)
+                    .map(|n| n.computed_rect.width)
+                    .filter(|&w| w > 0.0)
+            });
+        let content_h =
+            crate::declarative::measure_content_height_constrained(self.tree, vp_id, width_hint);
         let max_scroll = (content_h - vp_h).max(0.0);
-        let safe_scroll = if max_scroll > 0.0 {
-            scroll_y.clamp(0.0, max_scroll)
-        } else {
-            scroll_y
-        };
+        let safe_scroll = scroll_y.clamp(0.0, max_scroll);
 
-        if tag != 0 {
-            self.tree.set_max_scroll(tag, max_scroll);
+        if opts.tag != 0 {
+            self.tree.set_scroll_offset(opts.tag, safe_scroll);
+            self.tree.set_max_scroll(opts.tag, max_scroll);
         }
-
         if let Some(node) = self.tree.get_mut(vp_id) {
             node.content_size = irisui_core::geometry::Size::new(0.0, content_h);
             node.style.scroll_offset_y = safe_scroll;
         }
 
-        let effective_scrollbar_tags = scrollbar_tags.or_else(|| {
-            if tag != 0 {
-                Some((tag.wrapping_add(0x1000), tag.wrapping_add(0x2000)))
-            } else {
-                let derived = crate::declarative::types::hash_label(name);
-                Some((derived.wrapping_add(0x1000), derived.wrapping_add(0x2000)))
-            }
-        });
-
-        if let Some((track_tag, thumb_tag)) = effective_scrollbar_tags.filter(|_| max_scroll > 0.0)
-        {
-            let parent_rect = self
-                .tree
-                .get(self.parent)
-                .map(|n| n.computed_rect)
-                .filter(|r| r.height > 0.0)
-                .unwrap_or_else(|| {
-                    let vp_w = self.tree.viewport_size(tag).map_or(400.0, |s| s.width);
-                    Rect::new(0.0, 0.0, vp_w, vp_h)
-                });
-
-            let vp_rect = self
-                .tree
-                .get(vp_id)
-                .map(|n| n.computed_rect)
-                .filter(|r| r.height > 0.0)
-                .unwrap_or_else(|| {
-                    Rect::new(parent_rect.x, parent_rect.y, parent_rect.width, vp_h)
-                });
-
-            let scroll_style = ScrollAreaStyle::dark_default();
-            if let Some(geom) = crate::scroll_area::ScrollBarGeometry::compute_vertical(
-                vp_rect,
-                content_h,
-                safe_scroll,
-                &scroll_style,
-            ) {
-                let is_dragging = self
-                    .tree
-                    .event_state
-                    .pointer_capture
-                    .is_some_and(|cid| self.tree.get(cid).is_some_and(|n| n.tag == thumb_tag));
-                let cursor_pos = self.tree.event_state.last_pointer_pos;
-
-                self.scrollbar_vertical(
-                    geom,
-                    parent_rect,
-                    is_dragging,
-                    cursor_pos,
-                    track_tag,
-                    thumb_tag,
-                );
-            }
-        }
+        let origin = self.parent_screen_origin();
+        let est_w = width_hint.unwrap_or(400.0);
+        let fallback_rect = Rect::new(origin.x, origin.y, est_w, vp_h);
+        let mut host_scope = self.child_scope(host_id);
+        host_scope.emit_configured_scrollbar(
+            &opts,
+            fallback_rect,
+            content_h,
+            max_scroll,
+            safe_scroll,
+        );
 
         ScrollAreaResponse {
             inner,
@@ -283,59 +237,76 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    fn emit_configured_scrollbar(
+        &mut self,
+        opts: &ScrollAreaOptions,
+        vp_rect: Rect,
+        content_h: f32,
+        max_scroll: f32,
+        safe_scroll: f32,
+    ) {
+        if max_scroll <= 0.0 {
+            return;
+        }
+        let (track_tag, thumb_tag) = opts.scrollbar_tags.unwrap_or_else(|| {
+            let base = if opts.tag != 0 {
+                opts.tag
+            } else {
+                crate::declarative::types::hash_label(opts.name)
+            };
+            (base.wrapping_add(0x1000), base.wrapping_add(0x2000))
+        });
+
+        if let Some(geom) = crate::scroll_area::ScrollBarGeometry::compute_vertical(
+            vp_rect,
+            content_h,
+            safe_scroll,
+            &opts.scrollbar_style,
+        ) {
+            let is_dragging = self
+                .tree
+                .event_state
+                .pointer_capture
+                .is_some_and(|cid| self.tree.get(cid).is_some_and(|n| n.tag == thumb_tag));
+            let cursor_pos = opts.cursor_pos.or(self.tree.event_state.last_pointer_pos);
+            self.scrollbar_vertical(geom, vp_rect, is_dragging, cursor_pos, track_tag, thumb_tag);
+        }
+    }
+
     /// Autonomously resolves the available visible vertical viewport height in physical pixels.
     ///
     /// Evaluates:
-    /// 1. Preceding layout calculations cached in [`UiTree::viewport_sizes`].
-    /// 2. Active parent container bounding geometry (`computed_rect.height` or `style.height`) minus
-    ///    height consumed by preceding sibling nodes and gaps.
-    /// 3. Grandparent/ancestor bounding geometry.
-    /// 4. Fallback safe minimum height (400.0px).
+    /// 1. Active ancestor container bounding geometry (`computed_rect.height` or `style.height`) minus
+    ///    height consumed by siblings, padding, and gaps along the container chain.
+    /// 2. Preceding layout calculations cached in [`UiTree::viewport_sizes`] or [`UiTree::tag_rects`].
+    /// 3. Active screen bounds height or fallback safe minimum height (`400.0px`).
     pub fn resolve_available_height(&self, tag: u64) -> f32 {
-        let cached_h = if tag != 0 {
-            self.tree
+        if let Some(h) = self
+            .resolve_remaining_axis_from_ancestors(false)
+            .filter(|&h| h > 10.0)
+        {
+            return h.max(20.0);
+        }
+
+        if tag != 0
+            && let Some(h) = self
+                .tree
                 .viewport_size(tag)
                 .map(|s| s.height)
                 .filter(|&h| h > 10.0)
-        } else {
-            None
-        };
-        if let Some(h) = cached_h {
+                .or_else(|| {
+                    self.tree
+                        .tag_rect(tag)
+                        .map(|r| r.height)
+                        .filter(|&h| h > 10.0)
+                })
+        {
             return h;
         }
 
-        let mut current = Some(self.parent);
-        while let Some(curr_id) = current {
-            if let Some(node) = self.tree.get(curr_id) {
-                let node_h = if node.computed_rect.height > 10.0 {
-                    node.computed_rect.height
-                } else {
-                    node.style.height.unwrap_or(0.0)
-                };
-
-                if node_h > 10.0 {
-                    let mut consumed_h = 0.0_f32;
-                    for &cid in &node.children {
-                        if let Some(child) = self.tree.get(cid) {
-                            let ch = if let Some(h) = child.style.height {
-                                h
-                            } else if child.computed_rect.height > 0.0 {
-                                child.computed_rect.height
-                            } else {
-                                0.0
-                            };
-                            let margin = child.style.margin;
-                            consumed_h += ch + margin.top + margin.bottom;
-                        }
-                    }
-                    let gaps = node.style.gap * node.children.len().saturating_sub(1) as f32;
-                    let remaining = (node_h - consumed_h - gaps).max(20.0);
-                    return remaining;
-                }
-                current = node.parent;
-            } else {
-                break;
-            }
+        let screen_h = self.screen_bounds().height;
+        if screen_h > 10.0 {
+            return screen_h;
         }
 
         400.0
