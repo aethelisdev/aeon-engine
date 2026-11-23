@@ -19,7 +19,7 @@ use irisui::workbench::ActionBus;
 /// Emits the adaptive time ruler, keyframe markers, and interactive playhead scrubber via [`UiScope`].
 pub fn build_ruler_and_scrubber(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     player: &ae_animation::AnimationPlayer,
     duration: f32,
     cache: &mut TimelineClipCache,

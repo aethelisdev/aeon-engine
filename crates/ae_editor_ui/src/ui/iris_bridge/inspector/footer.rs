@@ -11,14 +11,14 @@ use irisui::prelude::*;
 /// Semantic tag for the `➕ Add Component` button in the Inspector footer.
 pub const TAG_INSPECTOR_ADD_COMPONENT: u64 = UiTag::from_str("ae.inspector.add_component").raw();
 
-/// Resolves the sanitized prefab file path for the specified entity from its ECS [`ae_core::ecs::Name`] component.
+/// Resolves the sanitized prefab file path for the specified entity from its ECS [`ae_plugin_api::Name`] component.
 ///
 /// Replaces non-alphanumeric characters (other than `_` and `-`) with `_` and falls back to `"prefab"`
 /// when the entity has no name or its sanitized name is empty.
 #[must_use]
 pub fn prefab_file_path_for_entity(
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> std::path::PathBuf {
     std::path::PathBuf::from(format!(
         "{}/{}.aeprefab",
@@ -28,12 +28,11 @@ pub fn prefab_file_path_for_entity(
             "assets/prefabs"
         },
         world
-            .get::<&ae_core::ecs::Name>(entity)
-            .ok()
-            .map(|n| {
+            .inspect::<ae_plugin_api::Name, _>(entity, |n| {
                 n.0.trim()
                     .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_")
             })
+            .ok()
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "prefab".to_string())
     ))
@@ -44,8 +43,8 @@ pub fn prefab_file_path_for_entity(
 /// button is clicked.
 pub fn build_inspector_footer(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> Option<EngineUiAction> {
     scope
         .dual_action_bar_auto(
@@ -82,8 +81,8 @@ mod tests {
     fn test_declarative_inspector_footer_layout_and_direct_prefab_action() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Name("Hero Guard".to_string()),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Name("Hero Guard".to_string()),));
         let panel_rect = Rect::new(0.0, 0.0, 320.0, 800.0);
         tree.set_root_bounds(panel_rect);
 

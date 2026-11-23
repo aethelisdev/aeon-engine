@@ -17,8 +17,8 @@ use irisui::prelude::*;
 
 #[test]
 fn test_light_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Light {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Light {
         position: [0.0, 5.0, 0.0],
         color: [1.0, 0.8, 0.6],
     },));
@@ -45,8 +45,8 @@ fn test_light_card_declarative_structure() {
 
 #[test]
 fn test_model_mesh_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::ModelId::default(),));
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::ModelId::default(),));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
 
@@ -69,8 +69,8 @@ fn test_model_mesh_card_declarative_structure() {
 
 #[test]
 fn test_lod_group_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::LodGroup {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::LodGroup {
         threshold_1: 15.0,
         threshold_2: 35.0,
         lod_1: None,
@@ -105,9 +105,9 @@ fn test_lod_group_card_declarative_structure() {
 
 #[test]
 fn test_parent_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let parent = world.spawn((ae_core::ecs::Name("RootSceneNode".to_string()),));
-    let child = world.spawn((ae_core::ecs::Parent(parent),));
+    let mut world = ae_ecs::World::new();
+    let parent = world.spawn((ae_plugin_api::Name("RootSceneNode".to_string()),));
+    let child = world.spawn((ae_plugin_api::Parent(parent),));
 
     let mut tree = UiTree::new();
     let root = WidgetId::default();
@@ -131,8 +131,8 @@ fn test_parent_card_declarative_structure() {
 
 #[test]
 fn test_shape_card_in_rendering_integration() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Shape::Sphere,));
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Shape::Sphere,));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
 
@@ -152,7 +152,7 @@ fn test_shape_card_in_rendering_integration() {
 
 #[test]
 fn test_rendering_and_hierarchy_cards_missing_components_safely_ignored() {
-    let world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.reserve_entity();
     let mut tree = UiTree::new();
     let root = WidgetId::default();

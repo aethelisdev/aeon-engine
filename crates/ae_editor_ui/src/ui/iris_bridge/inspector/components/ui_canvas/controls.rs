@@ -11,136 +11,144 @@
 
 use irisui::prelude::*;
 
-/// Maps [`ae_core::ecs::UiLayoutType`] enum variant to combo dropdown selection index.
+/// Maps [`ae_plugin_api::UiLayoutType`] enum variant to combo dropdown selection index.
 #[inline]
-const fn layout_type_to_index(layout_type: ae_core::ecs::UiLayoutType) -> usize {
+const fn layout_type_to_index(layout_type: ae_plugin_api::UiLayoutType) -> usize {
     match layout_type {
-        ae_core::ecs::UiLayoutType::Horizontal => 0,
-        ae_core::ecs::UiLayoutType::Vertical => 1,
-        ae_core::ecs::UiLayoutType::Grid => 2,
+        ae_plugin_api::UiLayoutType::Horizontal => 0,
+        ae_plugin_api::UiLayoutType::Vertical => 1,
+        ae_plugin_api::UiLayoutType::Grid => 2,
     }
 }
 
-/// Maps combo dropdown selection index back to [`ae_core::ecs::UiLayoutType`].
+/// Maps combo dropdown selection index back to [`ae_plugin_api::UiLayoutType`].
 #[inline]
-const fn index_to_layout_type(index: usize) -> ae_core::ecs::UiLayoutType {
+const fn index_to_layout_type(index: usize) -> ae_plugin_api::UiLayoutType {
     match index {
-        0 => ae_core::ecs::UiLayoutType::Horizontal,
-        1 => ae_core::ecs::UiLayoutType::Vertical,
-        _ => ae_core::ecs::UiLayoutType::Grid,
+        0 => ae_plugin_api::UiLayoutType::Horizontal,
+        1 => ae_plugin_api::UiLayoutType::Vertical,
+        _ => ae_plugin_api::UiLayoutType::Grid,
     }
 }
 
 /// Returns the static label prefix string for the layout properties readout.
 #[inline]
-const fn layout_props_prefix(layout_type: ae_core::ecs::UiLayoutType) -> &'static str {
+const fn layout_props_prefix(layout_type: ae_plugin_api::UiLayoutType) -> &'static str {
     match layout_type {
-        ae_core::ecs::UiLayoutType::Horizontal => "Type: Horizontal  |  Spacing: ",
-        ae_core::ecs::UiLayoutType::Vertical => "Type: Vertical  |  Spacing: ",
-        ae_core::ecs::UiLayoutType::Grid => "Type: Grid  |  Spacing: ",
+        ae_plugin_api::UiLayoutType::Horizontal => "Type: Horizontal  |  Spacing: ",
+        ae_plugin_api::UiLayoutType::Vertical => "Type: Vertical  |  Spacing: ",
+        ae_plugin_api::UiLayoutType::Grid => "Type: Grid  |  Spacing: ",
     }
 }
 
-/// Renders the declarative UI Slider component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative UI Slider component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Modifies slider min, max, and current value in-place with zero intermediate variable plumbing.
-pub fn draw_ui_slider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok_mut(
-        "UiSliderCard",
-        UiScope::comp_card_desc(
-            "UiSlider",
-            "UI Numeric Slider",
-            "🎚️",
-            Color::rgba(0.20, 0.85, 1.0, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::UiSlider>(entity),
-        |card, s| {
-            card.prop_f32("Min:", &mut s.min, -100_000.0..=100_000.0, 0.1);
-            card.prop_f32("Max:", &mut s.max, -100_000.0..=100_000.0, 0.1);
-            card.prop_f32("Value:", &mut s.value, s.min..=s.max.max(s.min), 0.05);
-        },
-    );
+pub fn draw_ui_slider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::UiSlider, _>(entity, |s| {
+            scope.card_panel("UiSliderCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "UiSlider",
+                    "UI Numeric Slider",
+                    "🎚️",
+                    Color::rgba(0.20, 0.85, 1.0, 1.0),
+                ));
+                card.prop_f32("Min:", &mut s.min, -100_000.0..=100_000.0, 0.1);
+                card.prop_f32("Max:", &mut s.max, -100_000.0..=100_000.0, 0.1);
+                card.prop_f32("Value:", &mut s.value, s.min..=s.max.max(s.min), 0.05);
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative UI Checkbox component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative UI Checkbox component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Modifies checkbox checked state in-place with zero intermediate variable plumbing.
-pub fn draw_ui_checkbox_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok_mut(
-        "UiCheckboxCard",
-        UiScope::comp_card_desc(
-            "UiCheckbox",
-            "UI Checkbox",
-            "☑️",
-            Color::rgba(0.20, 0.85, 1.0, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::UiCheckbox>(entity),
-        |card, c| {
-            card.prop_checkbox("Checked", &mut c.is_checked);
-        },
-    );
+pub fn draw_ui_checkbox_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<ae_plugin_api::UiCheckbox, _>(entity, |c| {
+            scope.card_panel("UiCheckboxCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "UiCheckbox",
+                    "UI Checkbox",
+                    "☑️",
+                    Color::rgba(0.20, 0.85, 1.0, 1.0),
+                ));
+                card.prop_checkbox("Checked", &mut c.is_checked);
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative UI Text Input component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative UI Text Input component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Modifies placeholder text in-place with zero intermediate variable plumbing.
-pub fn draw_ui_text_input_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok_mut(
-        "UiTextInputCard",
-        UiScope::comp_card_desc(
-            "UiTextInput",
-            "UI Text Input Field",
-            "📝",
-            Color::rgba(0.20, 0.85, 1.0, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::UiTextInput>(entity),
-        |card, input| {
-            card.prop_text("Placeholder", &mut input.placeholder);
-        },
-    );
+pub fn draw_ui_text_input_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<ae_plugin_api::UiTextInput, _>(entity, |input| {
+            scope.card_panel("UiTextInputCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "UiTextInput",
+                    "UI Text Input Field",
+                    "📝",
+                    Color::rgba(0.20, 0.85, 1.0, 1.0),
+                ));
+                card.prop_text("Placeholder", &mut input.placeholder);
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative UI Layout Group auto-layout container component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative UI Layout Group auto-layout container component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Modifies layout type and spacing in-place without heap allocations or intermediate plumbing.
 pub fn draw_ui_layout_group_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok_mut(
-        "UiLayoutGroupCard",
-        UiScope::comp_card_desc(
-            "UiLayoutGroup",
-            "UI Layout Group",
-            "🗂️",
-            Color::rgba(0.20, 0.85, 1.0, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::UiLayoutGroup>(entity),
-        |card, lg| {
-            card.label_number_desc(
-                "UiLayoutProps",
-                NumberLabelDescriptor::new(
-                    layout_props_prefix(lg.layout_type),
-                    lg.spacing as f64,
-                    " px",
-                )
-                .precision(1)
-                .color(card.theme().text_primary),
-            );
+    world
+        .mutate::<ae_plugin_api::UiLayoutGroup, _>(entity, |lg| {
+            scope.card_panel("UiLayoutGroupCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "UiLayoutGroup",
+                    "UI Layout Group",
+                    "🗂️",
+                    Color::rgba(0.20, 0.85, 1.0, 1.0),
+                ));
+                card.label_number_desc(
+                    "UiLayoutProps",
+                    NumberLabelDescriptor::new(
+                        layout_props_prefix(lg.layout_type),
+                        lg.spacing as f64,
+                        " px",
+                    )
+                    .precision(1)
+                    .color(card.theme().text_primary),
+                );
 
-            card.prop_combobox_mapped_styled(
-                "Layout Type:",
-                layout_type_to_index(lg.layout_type),
-                &["Horizontal", "Vertical", "Grid"],
-                ComboRowLayout::default(),
-                &mut lg.layout_type,
-                index_to_layout_type,
-            );
+                card.prop_combobox_mapped_styled(
+                    "Layout Type:",
+                    layout_type_to_index(lg.layout_type),
+                    &["Horizontal", "Vertical", "Grid"],
+                    ComboRowLayout::default(),
+                    &mut lg.layout_type,
+                    index_to_layout_type,
+                );
 
-            card.prop_f32("Spacing:", &mut lg.spacing, 0.0..=500.0, 0.5);
-        },
-    );
+                card.prop_f32("Spacing:", &mut lg.spacing, 0.0..=500.0, 0.5);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -149,8 +157,8 @@ mod tests {
 
     #[test]
     fn test_draw_ui_slider_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::UiSlider {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::UiSlider {
             value: 0.5,
             min: 0.0,
             max: 1.0,
@@ -179,8 +187,8 @@ mod tests {
 
     #[test]
     fn test_draw_ui_checkbox_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::UiCheckbox {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::UiCheckbox {
             is_checked: true,
             ..Default::default()
         },));
@@ -203,8 +211,8 @@ mod tests {
 
     #[test]
     fn test_draw_ui_text_input_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::UiTextInput {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::UiTextInput {
             placeholder: "Search...".to_string(),
             ..Default::default()
         },));
@@ -227,9 +235,9 @@ mod tests {
 
     #[test]
     fn test_draw_ui_layout_group_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::UiLayoutGroup {
-            layout_type: ae_core::ecs::UiLayoutType::Vertical,
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::UiLayoutGroup {
+            layout_type: ae_plugin_api::UiLayoutType::Vertical,
             spacing: 12.0,
             ..Default::default()
         },));
@@ -269,36 +277,36 @@ mod tests {
     #[test]
     fn test_layout_type_mappings() {
         assert_eq!(
-            layout_type_to_index(ae_core::ecs::UiLayoutType::Horizontal),
+            layout_type_to_index(ae_plugin_api::UiLayoutType::Horizontal),
             0
         );
         assert_eq!(
-            layout_type_to_index(ae_core::ecs::UiLayoutType::Vertical),
+            layout_type_to_index(ae_plugin_api::UiLayoutType::Vertical),
             1
         );
-        assert_eq!(layout_type_to_index(ae_core::ecs::UiLayoutType::Grid), 2);
+        assert_eq!(layout_type_to_index(ae_plugin_api::UiLayoutType::Grid), 2);
 
         assert_eq!(
             index_to_layout_type(0),
-            ae_core::ecs::UiLayoutType::Horizontal
+            ae_plugin_api::UiLayoutType::Horizontal
         );
         assert_eq!(
             index_to_layout_type(1),
-            ae_core::ecs::UiLayoutType::Vertical
+            ae_plugin_api::UiLayoutType::Vertical
         );
-        assert_eq!(index_to_layout_type(2), ae_core::ecs::UiLayoutType::Grid);
-        assert_eq!(index_to_layout_type(99), ae_core::ecs::UiLayoutType::Grid);
+        assert_eq!(index_to_layout_type(2), ae_plugin_api::UiLayoutType::Grid);
+        assert_eq!(index_to_layout_type(99), ae_plugin_api::UiLayoutType::Grid);
 
         assert_eq!(
-            layout_props_prefix(ae_core::ecs::UiLayoutType::Horizontal),
+            layout_props_prefix(ae_plugin_api::UiLayoutType::Horizontal),
             "Type: Horizontal  |  Spacing: "
         );
         assert_eq!(
-            layout_props_prefix(ae_core::ecs::UiLayoutType::Vertical),
+            layout_props_prefix(ae_plugin_api::UiLayoutType::Vertical),
             "Type: Vertical  |  Spacing: "
         );
         assert_eq!(
-            layout_props_prefix(ae_core::ecs::UiLayoutType::Grid),
+            layout_props_prefix(ae_plugin_api::UiLayoutType::Grid),
             "Type: Grid  |  Spacing: "
         );
     }

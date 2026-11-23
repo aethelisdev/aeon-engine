@@ -35,7 +35,7 @@ fn test_timeline_panel_build_missing_player() {
     let mut cache = TimelineClipCache::default();
     let mut bus = ActionBus::<EngineUiAction>::new();
 
-    let dummy_entity = hecs::World::new().spawn(());
+    let dummy_entity = ae_ecs::World::new().spawn(());
 
     let duration = build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
@@ -57,7 +57,7 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
     let mut cache = TimelineClipCache::default();
     let mut bus = ActionBus::<EngineUiAction>::new();
 
-    let dummy_entity = hecs::World::new().spawn(());
+    let dummy_entity = ae_ecs::World::new().spawn(());
 
     build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
@@ -111,7 +111,7 @@ fn test_timeline_panel_build_with_player_and_transport_click() {
     });
     player.current_time = 1.2;
 
-    let dummy_entity = hecs::World::new().spawn(());
+    let dummy_entity = ae_ecs::World::new().spawn(());
 
     let duration = build_timeline_panel(
         &mut UiScope::new(&mut tree, root),
@@ -187,7 +187,7 @@ fn test_timeline_empty_and_missing_cards_are_horizontally_centered_within_panel(
     let mut tree_missing = UiTree::new();
     let root_missing = PanelBuilder::new(&mut tree_missing).build();
     let _ = tree_missing.set_root(root_missing);
-    let dummy_entity = hecs::World::new().spawn(());
+    let dummy_entity = ae_ecs::World::new().spawn(());
 
     {
         let mut scope = UiScope::new(&mut tree_missing, root_missing);
@@ -219,7 +219,7 @@ fn test_timeline_live_playback_updates_in_place_without_tree_rebuild() {
     let mut state = TimelinePanelState::default();
     let mut bus = ActionBus::<EngineUiAction>::new();
 
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let mut clip = ae_animation::AnimationClip::new("Idle", 4.0);
     clip.channels.push(ae_animation::clip::Channel {
         joint_index: 1,
@@ -243,14 +243,17 @@ fn test_timeline_live_playback_updates_in_place_without_tree_rebuild() {
     // Initial full build (retained revision recorded declaratively via PanelBuilder)
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let player_ref = world.get::<&ae_animation::AnimationPlayer>(entity).unwrap();
-        let dur = build_timeline_panel(
-            &mut scope,
-            Some(entity),
-            Some(&player_ref),
-            &mut state.cache,
-            &mut bus,
-        );
+        let dur = world
+            .inspect::<ae_animation::AnimationPlayer, _>(entity, |player_ref| {
+                build_timeline_panel(
+                    &mut scope,
+                    Some(entity),
+                    Some(player_ref),
+                    &mut state.cache,
+                    &mut bus,
+                )
+            })
+            .unwrap();
         state.clip_duration = dur;
         scope.finish_layout(irisui::prelude::Rect::new(0.0, 0.0, 900.0, 300.0));
     }
@@ -261,37 +264,43 @@ fn test_timeline_live_playback_updates_in_place_without_tree_rebuild() {
 
     // Unchanged time -> Unchanged (zero work)
     {
-        let player_ref = world.get::<&ae_animation::AnimationPlayer>(entity).unwrap();
-        let mut scope = UiScope::new(&mut tree, root);
-        assert_eq!(
-            scope.sync_retained_revision(
-                TIMELINE_TAG_PANEL_ROOT,
-                types::timeline_structural_hash(Some(entity), Some(&player_ref)),
-                types::timeline_live_hash(Some(&player_ref)),
-            ),
-            irisui::prelude::RetainedRevisionStatus::Unchanged
-        );
+        world
+            .inspect::<ae_animation::AnimationPlayer, _>(entity, |player_ref| {
+                let mut scope = UiScope::new(&mut tree, root);
+                assert_eq!(
+                    scope.sync_retained_revision(
+                        TIMELINE_TAG_PANEL_ROOT,
+                        types::timeline_structural_hash(Some(entity), Some(player_ref)),
+                        types::timeline_live_hash(Some(player_ref)),
+                    ),
+                    irisui::prelude::RetainedRevisionStatus::Unchanged
+                );
+            })
+            .unwrap();
     }
 
     // Advance playback time -> updates readout + scrubber + lanes in place
     world
-        .get::<&mut ae_animation::AnimationPlayer>(entity)
+        .get_mut::<ae_animation::AnimationPlayer>(entity)
         .unwrap()
         .current_time = 2.0;
     {
-        let player_ref = world.get::<&ae_animation::AnimationPlayer>(entity).unwrap();
-        let mut scope = UiScope::new(&mut tree, root);
-        let status = scope.sync_retained_revision(
-            TIMELINE_TAG_PANEL_ROOT,
-            types::timeline_structural_hash(Some(entity), Some(&player_ref)),
-            types::timeline_live_hash(Some(&player_ref)),
-        );
-        assert_eq!(status, irisui::prelude::RetainedRevisionStatus::RefreshLive);
-        assert!(transport::update_time_readout_live(
-            &mut scope, 2.0, 4.0, 30.0
-        ));
-        assert!(ruler::refresh_scrubber_live(&mut scope, 4.0, 2.0));
-        assert!(lanes::refresh_lanes_playhead_live(&mut scope, 4.0, 2.0));
+        world
+            .inspect::<ae_animation::AnimationPlayer, _>(entity, |player_ref| {
+                let mut scope = UiScope::new(&mut tree, root);
+                let status = scope.sync_retained_revision(
+                    TIMELINE_TAG_PANEL_ROOT,
+                    types::timeline_structural_hash(Some(entity), Some(player_ref)),
+                    types::timeline_live_hash(Some(player_ref)),
+                );
+                assert_eq!(status, irisui::prelude::RetainedRevisionStatus::RefreshLive);
+                assert!(transport::update_time_readout_live(
+                    &mut scope, 2.0, 4.0, 30.0
+                ));
+                assert!(ruler::refresh_scrubber_live(&mut scope, 4.0, 2.0));
+                assert!(lanes::refresh_lanes_playhead_live(&mut scope, 4.0, 2.0));
+            })
+            .unwrap();
     }
 
     assert_eq!(
@@ -302,17 +311,20 @@ fn test_timeline_live_playback_updates_in_place_without_tree_rebuild() {
 
     // State transition (Playing -> Paused) triggers Rebuild
     world
-        .get::<&mut ae_animation::AnimationPlayer>(entity)
+        .get_mut::<ae_animation::AnimationPlayer>(entity)
         .unwrap()
         .state = ae_animation::AnimationState::Paused;
-    let player_ref = world.get::<&ae_animation::AnimationPlayer>(entity).unwrap();
-    let mut scope = UiScope::new(&mut tree, root);
-    assert_eq!(
-        scope.sync_retained_revision(
-            TIMELINE_TAG_PANEL_ROOT,
-            types::timeline_structural_hash(Some(entity), Some(&player_ref)),
-            types::timeline_live_hash(Some(&player_ref)),
-        ),
-        irisui::prelude::RetainedRevisionStatus::Rebuild
-    );
+    world
+        .inspect::<ae_animation::AnimationPlayer, _>(entity, |player_ref| {
+            let mut scope = UiScope::new(&mut tree, root);
+            assert_eq!(
+                scope.sync_retained_revision(
+                    TIMELINE_TAG_PANEL_ROOT,
+                    types::timeline_structural_hash(Some(entity), Some(player_ref)),
+                    types::timeline_live_hash(Some(player_ref)),
+                ),
+                irisui::prelude::RetainedRevisionStatus::Rebuild
+            );
+        })
+        .unwrap();
 }

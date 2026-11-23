@@ -16,53 +16,53 @@ const fn status_color(theme: Theme, state: ae_animation::AnimationState) -> Colo
     }
 }
 
-/// Renders the declarative Animation Player component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Animation Player component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates playback state, clip info, skeleton joints, speed scrubber, and looping toggle with zero intermediate variable plumbing.
 pub fn draw_animation_player_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "AnimationPlayerCard",
-        UiScope::comp_card_desc(
-            "AnimationPlayer",
-            "Animation Player",
-            "🎬",
-            Color::rgba(0.95, 0.45, 0.70, 1.0),
-        ),
-        world.get::<&mut ae_animation::AnimationPlayer>(entity),
-        |card, mut player| {
-            card.labeled_status(
-                "Status:",
-                player.state.label(),
-                status_color(card.theme(), player.state),
-            );
-            card.key_value("Clip", player.clip_name());
-            card.branch_ok(
-                world.get::<&ae_animation::Skeleton>(entity),
-                |card, skel| {
-                    card.key_value_number_named(
-                        "AnimSkeletonInfo",
-                        "Joints",
-                        skel.joints.len() as f64,
-                        0,
-                    );
-                    card.key_value_number("Duration (s)", player.clip_duration() as f64, 2);
-                },
-                |card, _| {
-                    card.label_desc_colored(
-                        "AnimSkeletonInfo",
-                        "ℹ Static 3D Mesh (No Armature found)",
-                        card.theme().warning,
-                    );
-                },
-            );
-            card.prop_f32("Speed:", &mut player.speed, 0.0..=10.0, 0.05);
-            card.prop_checkbox("Looping", &mut player.looping);
-        },
-    );
+    world
+        .mutate::<ae_animation::AnimationPlayer, _>(entity, |player| {
+            scope.card_panel("AnimationPlayerCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "AnimationPlayer",
+                    "Animation Player",
+                    "🎬",
+                    Color::rgba(0.95, 0.45, 0.70, 1.0),
+                ));
+                card.labeled_status(
+                    "Status:",
+                    player.state.label(),
+                    status_color(card.theme(), player.state),
+                );
+                card.key_value("Clip", player.clip_name());
+                card.branch_ok(
+                    world.inspect::<ae_animation::Skeleton, _>(entity, |skel| skel.joints.len()),
+                    |card, joint_count| {
+                        card.key_value_number_named(
+                            "AnimSkeletonInfo",
+                            "Joints",
+                            joint_count as f64,
+                            0,
+                        );
+                        card.key_value_number("Duration (s)", player.clip_duration() as f64, 2);
+                    },
+                    |card, _| {
+                        card.label_desc_colored(
+                            "AnimSkeletonInfo",
+                            "ℹ Static 3D Mesh (No Armature found)",
+                            card.theme().warning,
+                        );
+                    },
+                );
+                card.prop_f32("Speed:", &mut player.speed, 0.0..=10.0, 0.05);
+                card.prop_checkbox("Looping", &mut player.looping);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_animation_player_card_render_tag() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_animation::AnimationPlayer::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_draw_animation_player_card_standalone() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_animation::AnimationPlayer {
             state: ae_animation::AnimationState::Playing,
             speed: 1.5,
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_draw_animation_player_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();

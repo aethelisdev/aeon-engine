@@ -170,7 +170,7 @@ fn test_assets_panel_declarative_card_selection_action() {
     });
     assert_eq!(
         select_actions,
-        vec![AssetsPanelAction::SelectAsset(Some(test_item.path.clone()))],
+        vec![AssetsPanelAction::SelectAsset(Some(test_item.path))],
         "Asset card single-click must emit SelectAsset(Some(path))"
     );
 }
@@ -381,12 +381,10 @@ fn test_assets_panel_declarative_drag_and_drop_actions() {
 
     // 5. MouseUp over viewport area -> Release drag
     let drop_point = Point::new(card_center.x + 200.0, card_center.y + 100.0);
-    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+    let _ = tree.dispatch_event(&UiEvent::MouseUp {
         point: drop_point,
         button: MouseButton::Left,
     });
-    eprintln!("UP RES: {:?}", up_res);
-    eprintln!("UP EVENT STATE: {:?}", tree.event_state);
 
     // 6. Rebuild: must emit EndAssetDrag
     let mut release_actions = Vec::new();
@@ -399,7 +397,6 @@ fn test_assets_panel_declarative_drag_and_drop_actions() {
             &mut release_actions,
         );
     });
-    eprintln!("RELEASE ACTIONS: {:?}", release_actions);
     assert!(
         release_actions.contains(&AssetsPanelAction::EndAssetDrag),
         "Releasing drag must emit AssetsPanelAction::EndAssetDrag, got: {:?}",

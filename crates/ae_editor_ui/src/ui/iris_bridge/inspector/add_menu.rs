@@ -51,7 +51,7 @@ pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
         .find(|e| component_name_to_tag(e.component_name) == tag)
         .map(|e| e.component_name)
         .or_else(|| {
-            ae_core::registry::ComponentRegistry::global()
+            ae_plugin_api::engine_component_registry()
                 .handlers()
                 .iter()
                 .map(|h| h.type_name())
@@ -95,11 +95,11 @@ fn is_internal_or_specialized(type_name: &str) -> bool {
 /// Checks if a component category has at least one attachable component for the selected entity.
 fn category_has_available(
     cat: ComponentCategory,
-    world: &hecs::World,
-    entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    entity: Option<ae_ecs::Entity>,
 ) -> bool {
     if cat == ComponentCategory::CustomDynamic {
-        ae_core::registry::ComponentRegistry::global()
+        ae_plugin_api::engine_component_registry()
             .handlers()
             .iter()
             .any(|h| {
@@ -117,10 +117,10 @@ fn category_has_available(
 
 /// Constructs the child menu items for custom dynamic reflected components.
 fn get_custom_dynamic_child_items(
-    world: &hecs::World,
-    entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    entity: Option<ae_ecs::Entity>,
 ) -> Vec<CascadingMenuItem> {
-    ae_core::registry::ComponentRegistry::global()
+    ae_plugin_api::engine_component_registry()
         .handlers()
         .iter()
         .filter(|h| {
@@ -141,8 +141,8 @@ fn get_custom_dynamic_child_items(
 /// Constructs the child menu items for built-in or custom categories.
 fn get_category_child_items(
     cat: ComponentCategory,
-    world: &hecs::World,
-    entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    entity: Option<ae_ecs::Entity>,
 ) -> Vec<CascadingMenuItem> {
     if cat == ComponentCategory::CustomDynamic {
         get_custom_dynamic_child_items(world, entity)
@@ -168,8 +168,8 @@ fn get_category_child_items(
 /// Constructs the declarative cascading menu item hierarchy for `➕ Add Component`.
 #[must_use]
 pub fn get_add_component_menu_items(
-    world: &hecs::World,
-    entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    entity: Option<ae_ecs::Entity>,
 ) -> Vec<CascadingMenuItem> {
     ALL_COMPONENT_CATEGORIES
         .into_iter()
@@ -191,7 +191,7 @@ pub fn get_add_component_menu_items(
 fn render_submenu_children(
     sub_card: &mut UiScope<'_>,
     children: &[CascadingMenuItem],
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     children.iter().find_map(|child| {
         sub_card.dropdown_menu_item_autoclose(child).then_click(|| {
@@ -206,7 +206,7 @@ fn render_submenu_children(
 fn render_category_item(
     card: &mut UiScope<'_>,
     item: &CascadingMenuItem,
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     if !item.has_submenu() {
         card.dropdown_menu_item_autoclose(item);
@@ -234,7 +234,7 @@ fn render_category_item(
 fn render_category_items(
     card: &mut UiScope<'_>,
     menu_items: &[CascadingMenuItem],
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> Option<crate::ui::types::EngineUiAction> {
     menu_items
         .iter()
@@ -245,8 +245,8 @@ fn render_category_items(
 /// returning the outer bounding bounds and any triggered action.
 pub fn draw_add_component_menu(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> (Option<Rect>, Option<crate::ui::types::EngineUiAction>) {
     match get_add_component_menu_items(world, selected_entity) {
         items if !items.is_empty() => scope
@@ -272,7 +272,7 @@ mod tests {
     fn test_declarative_add_component_menu_structure() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let world = hecs::World::new();
+        let world = ae_ecs::World::new();
 
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
         tree.set_active_submenu(
@@ -331,7 +331,7 @@ mod tests {
     fn test_add_component_click_directly_emits_engine_ui_action() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         tree.open_popup(TAG_INSPECTOR_ADD_COMPONENT);
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_relational_hierarchy_excluded_from_add_menu() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
         let items = get_add_component_menu_items(&world, Some(entity));
 
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_autonomous_add_menu_without_inspector_registry() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         // 1. Initial items: all 31 components should be resolvable from their tags
@@ -431,7 +431,7 @@ mod tests {
                             name
                         );
                     } else {
-                        let has_dynamic = ae_core::registry::ComponentRegistry::global()
+                        let has_dynamic = ae_plugin_api::engine_component_registry()
                             .handlers()
                             .iter()
                             .any(|h| h.type_name() == name);

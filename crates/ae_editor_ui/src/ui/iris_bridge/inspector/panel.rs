@@ -35,19 +35,17 @@ impl InspectorPanelState {
 }
 
 #[inline]
-fn entity_display_name(world: &hecs::World, entity: hecs::Entity) -> String {
+fn entity_display_name(world: &ae_ecs::World, entity: ae_ecs::Entity) -> String {
     world
-        .get::<&ae_core::ecs::Name>(entity)
-        .ok()
-        .map(|n| n.0.clone())
-        .unwrap_or_else(|| format!("Entity ({:?})", entity))
+        .inspect::<ae_plugin_api::Name, _>(entity, |n| n.0.clone())
+        .unwrap_or_else(|_| format!("Entity ({:?})", entity))
 }
 
 /// Builds the complete Scene Inspector layout and returns any direct [`crate::ui::types::EngineUiAction`] emitted.
 pub fn build_inspector_panel(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
     inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
     match selected_entity.filter(|e| world.contains(*e)) {
@@ -62,8 +60,8 @@ pub fn build_inspector_panel(
 /// Renders the full inspected entity view combining header, scrollable cards, and footer controls.
 fn render_inspected_entity(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
     inspected_name: &mut String,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
@@ -97,8 +95,8 @@ fn render_inspected_entity(
 /// Renders all registered and primary component inspection cards in a declarative flex column.
 fn render_inspector_cards(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
-    world: &hecs::World,
+    entity: ae_ecs::Entity,
+    world: &ae_ecs::World,
 ) -> Option<crate::ui::types::EngineUiAction> {
     render_context_cards(scope, world, entity)
 }
@@ -106,8 +104,8 @@ fn render_inspector_cards(
 /// Evaluates primary cards followed by dynamic registry cards for the active rendering context.
 fn render_context_cards(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<crate::ui::types::EngineUiAction> {
     combine_card_actions(
         render_primary_cards(scope, world, entity),
@@ -129,10 +127,10 @@ pub fn combine_card_actions(
 /// Renders the primary transform or UI layout card followed by the appearance card.
 pub fn render_primary_cards(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<crate::ui::types::EngineUiAction> {
-    if world.get::<&ae_core::ecs::UiElement>(entity).is_ok() {
+    if world.has::<ae_plugin_api::UiElement>(entity) {
         ui_transform::build_ui_transform_card(scope, world, entity);
         header::component_delete_action(scope, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME)
     } else {
@@ -146,7 +144,7 @@ struct BuiltinComponentCard {
     /// Canonical component type name matching the card header action tag.
     name: &'static str,
     /// Pure rendering function pointer drawing the component card if present on entity.
-    draw: fn(&mut UiScope<'_>, &hecs::World, hecs::Entity),
+    draw: fn(&mut UiScope<'_>, &ae_ecs::World, ae_ecs::Entity),
 }
 
 /// Ordered pipeline of all built-in attachable ECS component inspector cards.
@@ -293,8 +291,8 @@ const BUILTIN_COMPONENT_CARDS: [BuiltinComponentCard; 31] = [
 /// triggered action while guaranteeing that remaining cards are rendered without early returns.
 pub fn render_registry_cards(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<crate::ui::types::EngineUiAction> {
     BUILTIN_COMPONENT_CARDS.iter().fold(None, |action, card| {
         (card.draw)(scope, world, entity);
@@ -421,10 +419,10 @@ mod tests {
     fn test_render_registry_cards_pure_pipeline_renders_and_detects_delete_action() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
-            ae_core::ecs::RigidBody::default(),
-            ae_core::ecs::Light::default(),
+            ae_plugin_api::RigidBody::default(),
+            ae_plugin_api::Light::default(),
         ));
 
         {

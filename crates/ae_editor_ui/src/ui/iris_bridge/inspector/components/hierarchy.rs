@@ -11,24 +11,23 @@ use irisui::prelude::*;
 /// Resolves the parent target entity's display name if present, without heap formatting or allocations.
 #[inline]
 #[must_use]
-pub fn parent_name(world: &hecs::World, entity: hecs::Entity) -> Option<String> {
+pub fn parent_name(world: &ae_ecs::World, entity: ae_ecs::Entity) -> Option<String> {
     world
-        .get::<&ae_core::ecs::Parent>(entity)
+        .get_copied::<ae_plugin_api::Parent>(entity)
         .ok()
         .and_then(|parent| {
             world
-                .get::<&ae_core::ecs::Name>(parent.0)
+                .inspect::<ae_plugin_api::Name, _>(parent.0, |n| n.0.clone())
                 .ok()
-                .map(|n| n.0.clone())
         })
 }
 
 /// Resolves the parent target entity's integer identifier if present, without heap formatting or allocations.
 #[inline]
 #[must_use]
-pub fn parent_entity_id(world: &hecs::World, entity: hecs::Entity) -> Option<u64> {
+pub fn parent_entity_id(world: &ae_ecs::World, entity: ae_ecs::Entity) -> Option<u64> {
     world
-        .get::<&ae_core::ecs::Parent>(entity)
+        .get_copied::<ae_plugin_api::Parent>(entity)
         .ok()
         .map(|parent| parent.0.to_bits().get())
 }
@@ -37,8 +36,8 @@ pub fn parent_entity_id(world: &hecs::World, entity: hecs::Entity) -> Option<u64
 /// directly when the `"❌ Unparent"` button is clicked.
 pub fn draw_parent_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<EngineUiAction> {
     scope
         .card_builder("Parent / Hierarchy")
@@ -71,13 +70,13 @@ pub fn draw_parent_card(
 /// Renders the Parent / Hierarchy card if `entity` participates in a parent or child relationship.
 pub fn draw_parent_card_if_present(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<EngineUiAction> {
     scope
         .when(
-            world.get::<&ae_core::ecs::Parent>(entity).is_ok()
-                || world.get::<&ae_core::ecs::Children>(entity).is_ok(),
+            world.has::<ae_plugin_api::Parent>(entity)
+                || world.has::<ae_plugin_api::Children>(entity),
             |s| draw_parent_card(s, world, entity),
         )
         .flatten()
@@ -89,9 +88,9 @@ mod tests {
 
     #[test]
     fn test_draw_parent_card_emits_unparent_entity_directly_on_click() {
-        let mut world = hecs::World::new();
-        let parent = world.spawn((ae_core::ecs::Name("RootSceneNode".to_string()),));
-        let child = world.spawn((ae_core::ecs::Parent(parent),));
+        let mut world = ae_ecs::World::new();
+        let parent = world.spawn((ae_plugin_api::Name("RootSceneNode".to_string()),));
+        let child = world.spawn((ae_plugin_api::Parent(parent),));
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
@@ -130,8 +129,8 @@ mod tests {
 
     #[test]
     fn test_draw_parent_card_root_entity_display() {
-        let mut world = hecs::World::new();
-        let root_ent = world.spawn((ae_core::ecs::Children(vec![]),));
+        let mut world = ae_ecs::World::new();
+        let root_ent = world.spawn((ae_plugin_api::Children(vec![]),));
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
@@ -162,8 +161,8 @@ mod tests {
 
     #[test]
     fn test_draw_parent_card_if_present_skips_orphan() {
-        let mut world = hecs::World::new();
-        let orphan = world.spawn((ae_core::ecs::Name("Orphan".to_string()),));
+        let mut world = ae_ecs::World::new();
+        let orphan = world.spawn((ae_plugin_api::Name("Orphan".to_string()),));
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");

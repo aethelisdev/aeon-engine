@@ -7,23 +7,27 @@
 
 use irisui::prelude::*;
 
-/// Renders the declarative Velocity component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Velocity component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates 3D linear velocity coordinate vector scrubbers (X, Y, Z) with zero intermediate variable plumbing.
-pub fn draw_velocity_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok_mut(
-        "VelocityCard",
-        UiScope::component_card_desc("Velocity", "📎", Color::rgba(0.22, 0.74, 0.98, 1.0)),
-        world.get::<&mut ae_core::ecs::Velocity>(entity),
-        |card, v| {
-            card.prop_vec3_xyz(
-                "Linear",
-                (&mut v.x, &mut v.y, &mut v.z),
-                0.05,
-                Some([0.0, 0.0, 0.0]),
-            );
-        },
-    );
+pub fn draw_velocity_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::Velocity, _>(entity, |v| {
+            scope.card_panel("VelocityCard", |card| {
+                card.card_header_desc(UiScope::component_card_desc(
+                    "Velocity",
+                    "📎",
+                    Color::rgba(0.22, 0.74, 0.98, 1.0),
+                ));
+                card.prop_vec3_xyz(
+                    "Linear",
+                    (&mut v.x, &mut v.y, &mut v.z),
+                    0.05,
+                    Some([0.0, 0.0, 0.0]),
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -32,8 +36,8 @@ mod tests {
 
     #[test]
     fn test_velocity_render_and_in_place_mutation() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Velocity {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Velocity {
             x: 1.0,
             y: 2.0,
             z: 3.0,
@@ -67,14 +71,14 @@ mod tests {
 
         // Test in-place mutation
         {
-            let mut v = world.get::<&mut ae_core::ecs::Velocity>(entity).unwrap();
+            let v = world.get_mut::<ae_plugin_api::Velocity>(entity).unwrap();
             v.x = 5.5;
             v.y = -4.2;
             v.z = 10.0;
         }
 
         {
-            let v = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            let v = world.get_copied::<ae_plugin_api::Velocity>(entity).unwrap();
             assert_eq!(v.x, 5.5);
             assert_eq!(v.y, -4.2);
             assert_eq!(v.z, 10.0);
@@ -83,8 +87,8 @@ mod tests {
 
     #[test]
     fn test_draw_velocity_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Velocity {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Velocity {
             x: 1.0,
             y: 2.0,
             z: 3.0,
@@ -115,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_draw_velocity_card_missing_component_safely_ignored() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

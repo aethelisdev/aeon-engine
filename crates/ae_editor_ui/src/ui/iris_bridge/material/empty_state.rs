@@ -49,7 +49,7 @@ pub fn build_no_entity_selected(scope: &mut UiScope<'_>) {
 /// Builds an empty-state placeholder card when the selected entity has no `ModelId` or `SpriteId`.
 pub fn build_no_renderable_geometry(
     scope: &mut UiScope<'_>,
-    entity: Option<hecs::Entity>,
+    entity: Option<ae_ecs::Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.container(

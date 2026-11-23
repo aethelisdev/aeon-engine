@@ -72,7 +72,7 @@ fn hierarchy_delete_button_style(has_selection: bool) -> Style {
 pub fn build_hierarchy_header(
     scope: &mut UiScope<'_>,
     search_input: &mut TextInputState,
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.container_named(

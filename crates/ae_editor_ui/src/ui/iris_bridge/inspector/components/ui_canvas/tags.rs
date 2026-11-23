@@ -10,84 +10,88 @@
 
 use irisui::prelude::*;
 
-/// Renders the declarative PlayerHealthBarTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative PlayerHealthBarTag HUD marker component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 pub fn draw_player_health_bar_tag_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "PlayerHealthBarTagCard",
-        UiScope::comp_card_desc(
-            "PlayerHealthBarTag",
-            "Health Bar Tag",
-            "❤️",
-            Color::rgba(0.95, 0.25, 0.35, 1.0),
-        ),
-        world.get::<&ae_core::ecs::PlayerHealthBarTag>(entity),
-        |card, _tag| {
-            card.label_styled_passive(
-                "HealthBarTagDesc",
-                "Links this UI progress bar to active player health events.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        },
-    );
+    world
+        .inspect::<ae_plugin_api::PlayerHealthBarTag, _>(entity, |_tag| {
+            scope.card_panel("PlayerHealthBarTagCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "PlayerHealthBarTag",
+                    "Health Bar Tag",
+                    "❤️",
+                    Color::rgba(0.95, 0.25, 0.35, 1.0),
+                ));
+                card.label_styled_passive(
+                    "HealthBarTagDesc",
+                    "Links this UI progress bar to active player health events.",
+                    10.5,
+                    card.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative ScoreDisplayTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative ScoreDisplayTag HUD marker component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 pub fn draw_score_display_tag_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "ScoreDisplayTagCard",
-        UiScope::comp_card_desc(
-            "ScoreDisplayTag",
-            "Score Display Tag",
-            "🏆",
-            Color::rgba(0.98, 0.80, 0.15, 1.0),
-        ),
-        world.get::<&ae_core::ecs::ScoreDisplayTag>(entity),
-        |card, _tag| {
-            card.label_styled_passive(
-                "ScoreDisplayTagDesc",
-                "Links this UI text to active player score events.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        },
-    );
+    world
+        .inspect::<ae_plugin_api::ScoreDisplayTag, _>(entity, |_tag| {
+            scope.card_panel("ScoreDisplayTagCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "ScoreDisplayTag",
+                    "Score Display Tag",
+                    "🏆",
+                    Color::rgba(0.98, 0.80, 0.15, 1.0),
+                ));
+                card.label_styled_passive(
+                    "ScoreDisplayTagDesc",
+                    "Links this UI text to active player score events.",
+                    10.5,
+                    card.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative ReticleTag HUD marker component card into [`UiScope`] if present on [`hecs::Entity`].
-pub fn draw_reticle_tag_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "ReticleTagCard",
-        UiScope::comp_card_desc(
-            "ReticleTag",
-            "Reticle Tag",
-            "🎯",
-            Color::rgba(0.20, 0.85, 1.0, 1.0),
-        ),
-        world.get::<&ae_core::ecs::ReticleTag>(entity),
-        |card, _tag| {
-            card.label_styled_passive(
-                "ReticleTagDesc",
-                "Marks this UI element as the primary crosshair reticle.",
-                10.5,
-                card.theme().text_muted,
-                TextAlign::Left,
-                Style::new().height(20.0),
-            );
-        },
-    );
+/// Renders the declarative ReticleTag HUD marker component card into [`UiScope`] if present on [`ae_ecs::Entity`].
+pub fn draw_reticle_tag_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .inspect::<ae_plugin_api::ReticleTag, _>(entity, |_tag| {
+            scope.card_panel("ReticleTagCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "ReticleTag",
+                    "Reticle Tag",
+                    "🎯",
+                    Color::rgba(0.20, 0.85, 1.0, 1.0),
+                ));
+                card.label_styled_passive(
+                    "ReticleTagDesc",
+                    "Marks this UI element as the primary crosshair reticle.",
+                    10.5,
+                    card.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -96,8 +100,8 @@ mod tests {
 
     #[test]
     fn test_draw_player_health_bar_tag_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::PlayerHealthBarTag,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::PlayerHealthBarTag,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 
@@ -118,8 +122,8 @@ mod tests {
 
     #[test]
     fn test_draw_score_display_tag_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::ScoreDisplayTag,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::ScoreDisplayTag,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 
@@ -140,8 +144,8 @@ mod tests {
 
     #[test]
     fn test_draw_reticle_tag_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::ReticleTag,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::ReticleTag,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 

@@ -27,8 +27,8 @@ pub const TAG_INSPECTOR_COLOR_PICKER_SV_BOX: u64 =
 pub const TAG_INSPECTOR_COLOR_PICKER_HUE_BAR: u64 =
     UiTag::from_str("ae.inspector.color_picker.hue_bar").raw();
 
-const fn to_ecs_color(color: Color) -> ae_core::ecs::Color {
-    ae_core::ecs::Color {
+const fn to_ecs_color(color: Color) -> ae_plugin_api::Color {
+    ae_plugin_api::Color {
         r: color.r,
         g: color.g,
         b: color.b,
@@ -57,12 +57,12 @@ pub fn inspector_color_picker_config() -> ColorPickerPopupConfig<'static> {
     )
 }
 
-/// Renders the floating 2D HSV Color Picker popup bound directly to `entity`'s [`ae_core::ecs::Color`]
+/// Renders the floating 2D HSV Color Picker popup bound directly to `entity`'s [`ae_plugin_api::Color`]
 /// component in-place when active in [`irisui::prelude::UiTree`], returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn draw_entity_color_picker_popup(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
-    color: &mut ae_core::ecs::Color,
+    entity: ae_ecs::Entity,
+    color: &mut ae_plugin_api::Color,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
         .scoped_color_picker_popup_rgba(
@@ -77,11 +77,11 @@ pub fn draw_entity_color_picker_popup(
         .unwrap_or((None, None))
 }
 
-/// Renders the floating 2D HSV Color Picker popup when no [`ae_core::ecs::Color`] component
+/// Renders the floating 2D HSV Color Picker popup when no [`ae_plugin_api::Color`] component
 /// is currently attached and the swatch popup tag is active, returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn draw_detached_color_picker_popup(
     scope: &mut UiScope<'_>,
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
     scope
         .scoped_color_picker_popup_detached(
@@ -99,21 +99,21 @@ pub fn draw_detached_color_picker_popup(
 }
 
 /// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity when active,
-/// mutating [`ae_core::ecs::Color`] live in-place and returning `(Option<Rect>, Option<EngineUiAction>)`.
+/// mutating [`ae_plugin_api::Color`] live in-place and returning `(Option<Rect>, Option<EngineUiAction>)`.
 pub fn build_color_picker_popup_with_action(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> (Option<Rect>, Option<EngineUiAction>) {
-    match selected_entity.and_then(|ent| {
-        world
-            .get::<&mut ae_core::ecs::Color>(ent)
-            .ok()
-            .map(|c| (ent, c))
-    }) {
-        Some((entity, mut color)) => draw_entity_color_picker_popup(scope, entity, &mut color),
-        None => draw_detached_color_picker_popup(scope, selected_entity),
-    }
+    selected_entity
+        .and_then(|ent| {
+            world
+                .mutate::<ae_plugin_api::Color, _>(ent, |color| {
+                    draw_entity_color_picker_popup(scope, ent, color)
+                })
+                .ok()
+        })
+        .unwrap_or_else(|| draw_detached_color_picker_popup(scope, selected_entity))
 }
 
 /// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity using declarative [`UiScope`].
@@ -121,8 +121,8 @@ pub fn build_color_picker_popup_with_action(
 /// Returns the screen-space bounding box of the constructed color picker popup, if active.
 pub fn build_color_picker_popup(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
 ) -> Option<Rect> {
     build_color_picker_popup_with_action(scope, world, selected_entity).0
 }
@@ -135,8 +135,8 @@ mod tests {
     fn test_declarative_color_picker_popup_structure() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Color {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Color {
             r: 1.0,
             g: 0.0,
             b: 0.0,

@@ -54,15 +54,15 @@ struct SubmeshSlotContext<'a> {
 /// Builds the 3D Model overview card and submesh material slot cards directly on [`UiScope`].
 pub fn build_submesh_view(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
-    world: &hecs::World,
+    entity: ae_ecs::Entity,
+    world: &ae_ecs::World,
     models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.when_some(
         world
-            .get::<&ae_core::ecs::ModelId>(entity)
+            .get_copied::<ae_plugin_api::ModelId>(entity)
             .ok()
             .and_then(|m| models.get(m.0).map(|model| (m.0, model))),
         |view, (model_handle, model)| {

@@ -9,7 +9,7 @@
 use irisui::prelude::*;
 
 /// Alias for a flattened hierarchy row owned by [`TreeModel`](irisui::prelude::TreeModel).
-pub type HierarchyRow = TreeRowEntry<hecs::Entity>;
+pub type HierarchyRow = TreeRowEntry<ae_ecs::Entity>;
 
 /// Active cascading submenu category within the Hierarchy `➕` Add Menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -16,53 +16,73 @@ use crate::ui::iris_bridge::icons::{
 
 /// Helper predicate checking if an entity has component `T`.
 #[inline]
-pub fn has_comp<T: hecs::Component>(world: &hecs::World, entity: hecs::Entity) -> bool {
-    world.get::<&T>(entity).is_ok()
+pub fn has_comp<T: ae_ecs::Component>(world: &ae_ecs::World, entity: ae_ecs::Entity) -> bool {
+    world.has::<T>(entity)
 }
 
 /// Generic zero-`let` constructor attaching default component `T` and marking transform dirty.
 #[inline]
-pub fn spawn_comp<T: hecs::Component + Default>(world: &mut hecs::World, entity: hecs::Entity) {
-    drop(world.insert(entity, (T::default(), ae_core::ecs::TransformDirty)));
+pub fn spawn_comp<T: ae_ecs::Component + Default>(
+    world: &mut ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .insert(entity, (T::default(), ae_plugin_api::TransformDirty))
+        .ok();
 }
 
 /// Generic zero-`let` destructor removing component `T` and marking transform dirty.
 #[inline]
-pub fn remove_comp<T: hecs::Component>(world: &mut hecs::World, entity: hecs::Entity) -> bool {
+pub fn remove_comp<T: ae_ecs::Component>(
+    world: &mut ae_ecs::World,
+    entity: ae_ecs::Entity,
+) -> bool {
     world
         .remove_one::<T>(entity)
         .is_ok()
-        .then(|| drop(world.insert_one(entity, ae_core::ecs::TransformDirty)))
+        .then(|| {
+            world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
+        })
         .is_some()
 }
 
 /// Zero-`let` constructor for RigidBody, ensuring paired Collider and TransformDirty attachments.
 #[inline]
-pub fn spawn_rigidbody(world: &mut hecs::World, entity: hecs::Entity) {
-    drop(world.insert_one(entity, ae_core::ecs::RigidBody::default()));
-    if world.get::<&ae_core::ecs::Collider>(entity).is_err() {
-        drop(world.insert_one(entity, ae_core::ecs::Collider::default()));
+pub fn spawn_rigidbody(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .insert_one(entity, ae_plugin_api::RigidBody::default())
+        .ok();
+    if !world.has::<ae_plugin_api::Collider>(entity) {
+        world
+            .insert_one(entity, ae_plugin_api::Collider::default())
+            .ok();
     }
-    drop(world.insert_one(entity, ae_core::ecs::TransformDirty));
+    world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
 }
 
 /// Zero-`let` constructor for Collider, ensuring paired RigidBody and TransformDirty attachments.
 #[inline]
-pub fn spawn_collider(world: &mut hecs::World, entity: hecs::Entity) {
-    drop(world.insert_one(entity, ae_core::ecs::Collider::default()));
-    if world.get::<&ae_core::ecs::RigidBody>(entity).is_err() {
-        drop(world.insert_one(entity, ae_core::ecs::RigidBody::default()));
+pub fn spawn_collider(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .insert_one(entity, ae_plugin_api::Collider::default())
+        .ok();
+    if !world.has::<ae_plugin_api::RigidBody>(entity) {
+        world
+            .insert_one(entity, ae_plugin_api::RigidBody::default())
+            .ok();
     }
-    drop(world.insert_one(entity, ae_core::ecs::TransformDirty));
+    world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
 }
 
 /// Zero-`let` constructor for AudioListener (which does not implement `Default`).
 #[inline]
-pub fn spawn_audio_listener(world: &mut hecs::World, entity: hecs::Entity) {
-    drop(world.insert(
-        entity,
-        (ae_audio::AudioListener, ae_core::ecs::TransformDirty),
-    ));
+pub fn spawn_audio_listener(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .insert(
+            entity,
+            (ae_audio::AudioListener, ae_plugin_api::TransformDirty),
+        )
+        .ok();
 }
 
 /// Static metadata entry for an attachable ECS component in the Add Component cascading menu.
@@ -82,11 +102,11 @@ pub struct ComponentMenuEntry {
     /// Optional GPU texture atlas UV coordinates.
     pub atlas_icon: Option<[f32; 4]>,
     /// Function pointer checking whether the entity already has this component attached.
-    pub has_component: fn(&hecs::World, hecs::Entity) -> bool,
+    pub has_component: fn(&ae_ecs::World, ae_ecs::Entity) -> bool,
     /// Function pointer instantiating and attaching the default component in `world`.
-    pub spawn_default: fn(&mut hecs::World, hecs::Entity),
+    pub spawn_default: fn(&mut ae_ecs::World, ae_ecs::Entity),
     /// Function pointer removing the component from `world`.
-    pub remove_component: fn(&mut hecs::World, hecs::Entity) -> bool,
+    pub remove_component: fn(&mut ae_ecs::World, ae_ecs::Entity) -> bool,
 }
 
 /// Canonical catalog of all built-in attachable ECS components in the Add Component menu.
@@ -100,9 +120,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Physics,
         icon: "⚙️",
         atlas_icon: Some(ICON_GEAR),
-        has_component: has_comp::<ae_core::ecs::RigidBody>,
+        has_component: has_comp::<ae_plugin_api::RigidBody>,
         spawn_default: spawn_rigidbody,
-        remove_component: remove_comp::<ae_core::ecs::RigidBody>,
+        remove_component: remove_comp::<ae_plugin_api::RigidBody>,
     },
     ComponentMenuEntry {
         component_name: "Collider",
@@ -110,9 +130,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Physics,
         icon: "📦",
         atlas_icon: Some(ICON_WIREFRAME),
-        has_component: has_comp::<ae_core::ecs::Collider>,
+        has_component: has_comp::<ae_plugin_api::Collider>,
         spawn_default: spawn_collider,
-        remove_component: remove_comp::<ae_core::ecs::Collider>,
+        remove_component: remove_comp::<ae_plugin_api::Collider>,
     },
     ComponentMenuEntry {
         component_name: "PhysicsMaterial",
@@ -120,9 +140,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Physics,
         icon: "🧪",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::PhysicsMaterial>,
-        spawn_default: spawn_comp::<ae_core::ecs::PhysicsMaterial>,
-        remove_component: remove_comp::<ae_core::ecs::PhysicsMaterial>,
+        has_component: has_comp::<ae_plugin_api::PhysicsMaterial>,
+        spawn_default: spawn_comp::<ae_plugin_api::PhysicsMaterial>,
+        remove_component: remove_comp::<ae_plugin_api::PhysicsMaterial>,
     },
     // 2. Character & Gameplay Components
     ComponentMenuEntry {
@@ -131,9 +151,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "🚶",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::CharacterController>,
-        spawn_default: spawn_comp::<ae_core::ecs::CharacterController>,
-        remove_component: remove_comp::<ae_core::ecs::CharacterController>,
+        has_component: has_comp::<ae_plugin_api::CharacterController>,
+        spawn_default: spawn_comp::<ae_plugin_api::CharacterController>,
+        remove_component: remove_comp::<ae_plugin_api::CharacterController>,
     },
     ComponentMenuEntry {
         component_name: "CharacterAction",
@@ -141,9 +161,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "💨",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::CharacterAction>,
-        spawn_default: spawn_comp::<ae_core::ecs::CharacterAction>,
-        remove_component: remove_comp::<ae_core::ecs::CharacterAction>,
+        has_component: has_comp::<ae_plugin_api::CharacterAction>,
+        spawn_default: spawn_comp::<ae_plugin_api::CharacterAction>,
+        remove_component: remove_comp::<ae_plugin_api::CharacterAction>,
     },
     ComponentMenuEntry {
         component_name: "PlayerTag",
@@ -151,9 +171,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "👤",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::PlayerTag>,
-        spawn_default: spawn_comp::<ae_core::ecs::PlayerTag>,
-        remove_component: remove_comp::<ae_core::ecs::PlayerTag>,
+        has_component: has_comp::<ae_plugin_api::PlayerTag>,
+        spawn_default: spawn_comp::<ae_plugin_api::PlayerTag>,
+        remove_component: remove_comp::<ae_plugin_api::PlayerTag>,
     },
     ComponentMenuEntry {
         component_name: "Velocity",
@@ -161,9 +181,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "⚡",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::Velocity>,
-        spawn_default: spawn_comp::<ae_core::ecs::Velocity>,
-        remove_component: remove_comp::<ae_core::ecs::Velocity>,
+        has_component: has_comp::<ae_plugin_api::Velocity>,
+        spawn_default: spawn_comp::<ae_plugin_api::Velocity>,
+        remove_component: remove_comp::<ae_plugin_api::Velocity>,
     },
     ComponentMenuEntry {
         component_name: "Rotator",
@@ -171,9 +191,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "🔄",
         atlas_icon: Some(ICON_ROTATE),
-        has_component: has_comp::<ae_core::ecs::Rotator>,
-        spawn_default: spawn_comp::<ae_core::ecs::Rotator>,
-        remove_component: remove_comp::<ae_core::ecs::Rotator>,
+        has_component: has_comp::<ae_plugin_api::Rotator>,
+        spawn_default: spawn_comp::<ae_plugin_api::Rotator>,
+        remove_component: remove_comp::<ae_plugin_api::Rotator>,
     },
     ComponentMenuEntry {
         component_name: "MovingPlatform",
@@ -181,9 +201,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "🚡",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::MovingPlatform>,
-        spawn_default: spawn_comp::<ae_core::ecs::MovingPlatform>,
-        remove_component: remove_comp::<ae_core::ecs::MovingPlatform>,
+        has_component: has_comp::<ae_plugin_api::MovingPlatform>,
+        spawn_default: spawn_comp::<ae_plugin_api::MovingPlatform>,
+        remove_component: remove_comp::<ae_plugin_api::MovingPlatform>,
     },
     ComponentMenuEntry {
         component_name: "TriggerZone",
@@ -191,9 +211,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "📡",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::TriggerZone>,
-        spawn_default: spawn_comp::<ae_core::ecs::TriggerZone>,
-        remove_component: remove_comp::<ae_core::ecs::TriggerZone>,
+        has_component: has_comp::<ae_plugin_api::TriggerZone>,
+        spawn_default: spawn_comp::<ae_plugin_api::TriggerZone>,
+        remove_component: remove_comp::<ae_plugin_api::TriggerZone>,
     },
     ComponentMenuEntry {
         component_name: "DestructibleTarget",
@@ -201,9 +221,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Gameplay,
         icon: "🎯",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::DestructibleTarget>,
-        spawn_default: spawn_comp::<ae_core::ecs::DestructibleTarget>,
-        remove_component: remove_comp::<ae_core::ecs::DestructibleTarget>,
+        has_component: has_comp::<ae_plugin_api::DestructibleTarget>,
+        spawn_default: spawn_comp::<ae_plugin_api::DestructibleTarget>,
+        remove_component: remove_comp::<ae_plugin_api::DestructibleTarget>,
     },
     // 3. Rendering, LOD & Illumination Components
     ComponentMenuEntry {
@@ -212,9 +232,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Rendering,
         icon: "💡",
         atlas_icon: Some(ICON_LIGHT),
-        has_component: has_comp::<ae_core::ecs::Light>,
-        spawn_default: spawn_comp::<ae_core::ecs::Light>,
-        remove_component: remove_comp::<ae_core::ecs::Light>,
+        has_component: has_comp::<ae_plugin_api::Light>,
+        spawn_default: spawn_comp::<ae_plugin_api::Light>,
+        remove_component: remove_comp::<ae_plugin_api::Light>,
     },
     ComponentMenuEntry {
         component_name: "ModelId",
@@ -222,9 +242,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Rendering,
         icon: "📦",
         atlas_icon: Some(ICON_CUBE),
-        has_component: has_comp::<ae_core::ecs::ModelId>,
-        spawn_default: spawn_comp::<ae_core::ecs::ModelId>,
-        remove_component: remove_comp::<ae_core::ecs::ModelId>,
+        has_component: has_comp::<ae_plugin_api::ModelId>,
+        spawn_default: spawn_comp::<ae_plugin_api::ModelId>,
+        remove_component: remove_comp::<ae_plugin_api::ModelId>,
     },
     ComponentMenuEntry {
         component_name: "Shape",
@@ -232,9 +252,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Rendering,
         icon: "🎲",
         atlas_icon: Some(ICON_CUBE),
-        has_component: has_comp::<ae_core::ecs::Shape>,
-        spawn_default: spawn_comp::<ae_core::ecs::Shape>,
-        remove_component: remove_comp::<ae_core::ecs::Shape>,
+        has_component: has_comp::<ae_plugin_api::Shape>,
+        spawn_default: spawn_comp::<ae_plugin_api::Shape>,
+        remove_component: remove_comp::<ae_plugin_api::Shape>,
     },
     ComponentMenuEntry {
         component_name: "LodGroup",
@@ -242,9 +262,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Rendering,
         icon: "👁️",
         atlas_icon: Some(ICON_EYE_OPEN),
-        has_component: has_comp::<ae_core::ecs::LodGroup>,
-        spawn_default: spawn_comp::<ae_core::ecs::LodGroup>,
-        remove_component: remove_comp::<ae_core::ecs::LodGroup>,
+        has_component: has_comp::<ae_plugin_api::LodGroup>,
+        spawn_default: spawn_comp::<ae_plugin_api::LodGroup>,
+        remove_component: remove_comp::<ae_plugin_api::LodGroup>,
     },
     // 4. Skeletal Animation Components
     ComponentMenuEntry {
@@ -285,9 +305,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "📐",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiElement>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiElement>,
-        remove_component: remove_comp::<ae_core::ecs::UiElement>,
+        has_component: has_comp::<ae_plugin_api::UiElement>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiElement>,
+        remove_component: remove_comp::<ae_plugin_api::UiElement>,
     },
     ComponentMenuEntry {
         component_name: "UiPanel",
@@ -295,9 +315,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🔲",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiPanel>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiPanel>,
-        remove_component: remove_comp::<ae_core::ecs::UiPanel>,
+        has_component: has_comp::<ae_plugin_api::UiPanel>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiPanel>,
+        remove_component: remove_comp::<ae_plugin_api::UiPanel>,
     },
     ComponentMenuEntry {
         component_name: "UiText",
@@ -305,9 +325,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🔤",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiText>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiText>,
-        remove_component: remove_comp::<ae_core::ecs::UiText>,
+        has_component: has_comp::<ae_plugin_api::UiText>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiText>,
+        remove_component: remove_comp::<ae_plugin_api::UiText>,
     },
     ComponentMenuEntry {
         component_name: "UiProgressBar",
@@ -315,9 +335,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "📊",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiProgressBar>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiProgressBar>,
-        remove_component: remove_comp::<ae_core::ecs::UiProgressBar>,
+        has_component: has_comp::<ae_plugin_api::UiProgressBar>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiProgressBar>,
+        remove_component: remove_comp::<ae_plugin_api::UiProgressBar>,
     },
     ComponentMenuEntry {
         component_name: "UiButton",
@@ -325,9 +345,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🔘",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiButton>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiButton>,
-        remove_component: remove_comp::<ae_core::ecs::UiButton>,
+        has_component: has_comp::<ae_plugin_api::UiButton>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiButton>,
+        remove_component: remove_comp::<ae_plugin_api::UiButton>,
     },
     ComponentMenuEntry {
         component_name: "UiImage",
@@ -335,9 +355,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🖼️",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiImage>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiImage>,
-        remove_component: remove_comp::<ae_core::ecs::UiImage>,
+        has_component: has_comp::<ae_plugin_api::UiImage>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiImage>,
+        remove_component: remove_comp::<ae_plugin_api::UiImage>,
     },
     ComponentMenuEntry {
         component_name: "UiSlider",
@@ -345,9 +365,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🎚️",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiSlider>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiSlider>,
-        remove_component: remove_comp::<ae_core::ecs::UiSlider>,
+        has_component: has_comp::<ae_plugin_api::UiSlider>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiSlider>,
+        remove_component: remove_comp::<ae_plugin_api::UiSlider>,
     },
     ComponentMenuEntry {
         component_name: "UiCheckbox",
@@ -355,9 +375,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "☑️",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiCheckbox>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiCheckbox>,
-        remove_component: remove_comp::<ae_core::ecs::UiCheckbox>,
+        has_component: has_comp::<ae_plugin_api::UiCheckbox>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiCheckbox>,
+        remove_component: remove_comp::<ae_plugin_api::UiCheckbox>,
     },
     ComponentMenuEntry {
         component_name: "UiTextInput",
@@ -365,9 +385,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "📝",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiTextInput>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiTextInput>,
-        remove_component: remove_comp::<ae_core::ecs::UiTextInput>,
+        has_component: has_comp::<ae_plugin_api::UiTextInput>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiTextInput>,
+        remove_component: remove_comp::<ae_plugin_api::UiTextInput>,
     },
     ComponentMenuEntry {
         component_name: "UiLayoutGroup",
@@ -375,9 +395,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🗂️",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::UiLayoutGroup>,
-        spawn_default: spawn_comp::<ae_core::ecs::UiLayoutGroup>,
-        remove_component: remove_comp::<ae_core::ecs::UiLayoutGroup>,
+        has_component: has_comp::<ae_plugin_api::UiLayoutGroup>,
+        spawn_default: spawn_comp::<ae_plugin_api::UiLayoutGroup>,
+        remove_component: remove_comp::<ae_plugin_api::UiLayoutGroup>,
     },
     ComponentMenuEntry {
         component_name: "PlayerHealthBarTag",
@@ -385,9 +405,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "❤️",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::PlayerHealthBarTag>,
-        spawn_default: spawn_comp::<ae_core::ecs::PlayerHealthBarTag>,
-        remove_component: remove_comp::<ae_core::ecs::PlayerHealthBarTag>,
+        has_component: has_comp::<ae_plugin_api::PlayerHealthBarTag>,
+        spawn_default: spawn_comp::<ae_plugin_api::PlayerHealthBarTag>,
+        remove_component: remove_comp::<ae_plugin_api::PlayerHealthBarTag>,
     },
     ComponentMenuEntry {
         component_name: "ScoreDisplayTag",
@@ -395,9 +415,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🏆",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::ScoreDisplayTag>,
-        spawn_default: spawn_comp::<ae_core::ecs::ScoreDisplayTag>,
-        remove_component: remove_comp::<ae_core::ecs::ScoreDisplayTag>,
+        has_component: has_comp::<ae_plugin_api::ScoreDisplayTag>,
+        spawn_default: spawn_comp::<ae_plugin_api::ScoreDisplayTag>,
+        remove_component: remove_comp::<ae_plugin_api::ScoreDisplayTag>,
     },
     ComponentMenuEntry {
         component_name: "ReticleTag",
@@ -405,9 +425,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::UiHud,
         icon: "🎯",
         atlas_icon: None,
-        has_component: has_comp::<ae_core::ecs::ReticleTag>,
-        spawn_default: spawn_comp::<ae_core::ecs::ReticleTag>,
-        remove_component: remove_comp::<ae_core::ecs::ReticleTag>,
+        has_component: has_comp::<ae_plugin_api::ReticleTag>,
+        spawn_default: spawn_comp::<ae_plugin_api::ReticleTag>,
+        remove_component: remove_comp::<ae_plugin_api::ReticleTag>,
     },
 ];
 
@@ -433,7 +453,7 @@ mod tests {
         );
 
         for entry in BUILTIN_COMPONENT_MENU_CATALOG {
-            let mut world = hecs::World::new();
+            let mut world = ae_ecs::World::new();
             let entity = world.spawn(());
 
             assert!(
@@ -451,7 +471,7 @@ mod tests {
             );
 
             assert!(
-                world.get::<&ae_core::ecs::TransformDirty>(entity).is_ok(),
+                world.has::<ae_plugin_api::TransformDirty>(entity),
                 "Component '{}' must flag TransformDirty upon attachment",
                 entry.component_name
             );
@@ -473,27 +493,27 @@ mod tests {
 
     #[test]
     fn test_rigidbody_and_collider_paired_spawning() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         spawn_rigidbody(&mut world, entity);
         assert!(
-            world.get::<&ae_core::ecs::RigidBody>(entity).is_ok(),
+            world.has::<ae_plugin_api::RigidBody>(entity),
             "RigidBody must be attached"
         );
         assert!(
-            world.get::<&ae_core::ecs::Collider>(entity).is_ok(),
+            world.has::<ae_plugin_api::Collider>(entity),
             "Paired default Collider must be attached when spawning RigidBody"
         );
 
         let entity2 = world.spawn(());
         spawn_collider(&mut world, entity2);
         assert!(
-            world.get::<&ae_core::ecs::Collider>(entity2).is_ok(),
+            world.has::<ae_plugin_api::Collider>(entity2),
             "Collider must be attached"
         );
         assert!(
-            world.get::<&ae_core::ecs::RigidBody>(entity2).is_ok(),
+            world.has::<ae_plugin_api::RigidBody>(entity2),
             "Paired default RigidBody must be attached when spawning Collider"
         );
     }

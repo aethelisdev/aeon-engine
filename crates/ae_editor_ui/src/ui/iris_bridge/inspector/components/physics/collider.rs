@@ -9,35 +9,35 @@
 
 use irisui::prelude::*;
 
-/// Maps a [`ae_core::ecs::ColliderShape`] to its corresponding zero-based combobox option index.
+/// Maps a [`ae_plugin_api::ColliderShape`] to its corresponding zero-based combobox option index.
 #[inline]
 #[must_use]
-pub const fn shape_to_index(shape: ae_core::ecs::ColliderShape) -> usize {
+pub const fn shape_to_index(shape: ae_plugin_api::ColliderShape) -> usize {
     match shape {
-        ae_core::ecs::ColliderShape::Capsule { .. } => 0,
-        ae_core::ecs::ColliderShape::Box { .. } => 1,
-        ae_core::ecs::ColliderShape::Sphere { .. } => 2,
-        ae_core::ecs::ColliderShape::Trimesh => 3,
-        ae_core::ecs::ColliderShape::ConvexHull => 4,
+        ae_plugin_api::ColliderShape::Capsule { .. } => 0,
+        ae_plugin_api::ColliderShape::Box { .. } => 1,
+        ae_plugin_api::ColliderShape::Sphere { .. } => 2,
+        ae_plugin_api::ColliderShape::Trimesh => 3,
+        ae_plugin_api::ColliderShape::ConvexHull => 4,
     }
 }
 
-/// Maps a zero-based combobox option index to its corresponding canonical default [`ae_core::ecs::ColliderShape`].
+/// Maps a zero-based combobox option index to its corresponding canonical default [`ae_plugin_api::ColliderShape`].
 #[inline]
 #[must_use]
-pub const fn index_to_shape(idx: usize) -> ae_core::ecs::ColliderShape {
+pub const fn index_to_shape(idx: usize) -> ae_plugin_api::ColliderShape {
     match idx {
-        0 => ae_core::ecs::ColliderShape::Capsule {
+        0 => ae_plugin_api::ColliderShape::Capsule {
             half_height: 0.50,
             radius: 0.40,
             center_y: 0.0,
         },
-        1 => ae_core::ecs::ColliderShape::Box {
+        1 => ae_plugin_api::ColliderShape::Box {
             half_extents: [0.50, 0.50, 0.50],
         },
-        2 => ae_core::ecs::ColliderShape::Sphere { radius: 0.50 },
-        3 => ae_core::ecs::ColliderShape::Trimesh,
-        _ => ae_core::ecs::ColliderShape::ConvexHull,
+        2 => ae_plugin_api::ColliderShape::Sphere { radius: 0.50 },
+        3 => ae_plugin_api::ColliderShape::Trimesh,
+        _ => ae_plugin_api::ColliderShape::ConvexHull,
     }
 }
 
@@ -83,55 +83,57 @@ fn draw_capsule_collider_fields(
     card.prop_f32("Center Y:", center_y, -10_000.0..=10_000.0, 0.05);
 }
 
-/// Renders the declarative Collider component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Collider component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates the entire component card hierarchy, header descriptor, two-way bound shape dropdown,
 /// dynamic shape dimension scrubbers, friction/restitution controls, and trigger sensor toggle.
-pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "ColliderCard",
-        CardHeaderDescriptor::new("Collider")
-            .icon("🛡")
-            .atlas_icon(crate::ui::iris_bridge::icons::ICON_WIREFRAME)
-            .color(Color::rgba(0.20, 0.88, 0.45, 1.0))
-            .action("×", UiScope::action_tag("Collider")),
-        world.get::<&mut ae_core::ecs::Collider>(entity),
-        |card, mut c| {
-            card.prop_combobox_mapped(
-                "Shape:",
-                shape_to_index(c.shape),
-                &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
-                &mut c.shape,
-                index_to_shape,
-            );
+pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::Collider, _>(entity, |c| {
+            scope.card_panel("ColliderCard", |card| {
+                card.card_header_desc(
+                    CardHeaderDescriptor::new("Collider")
+                        .icon("🛡")
+                        .atlas_icon(crate::ui::iris_bridge::icons::ICON_WIREFRAME)
+                        .color(Color::rgba(0.20, 0.88, 0.45, 1.0))
+                        .action("×", UiScope::action_tag("Collider")),
+                );
+                card.prop_combobox_mapped(
+                    "Shape:",
+                    shape_to_index(c.shape),
+                    &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
+                    &mut c.shape,
+                    index_to_shape,
+                );
 
-            match &mut c.shape {
-                ae_core::ecs::ColliderShape::Box { half_extents } => {
-                    draw_box_collider_fields(card, half_extents);
+                match &mut c.shape {
+                    ae_plugin_api::ColliderShape::Box { half_extents } => {
+                        draw_box_collider_fields(card, half_extents);
+                    }
+                    ae_plugin_api::ColliderShape::Sphere { radius } => {
+                        draw_sphere_collider_fields(card, radius);
+                    }
+                    ae_plugin_api::ColliderShape::Capsule {
+                        half_height,
+                        radius,
+                        center_y,
+                    } => {
+                        draw_capsule_collider_fields(card, half_height, radius, center_y);
+                    }
+                    ae_plugin_api::ColliderShape::Trimesh => {
+                        card.label("Trimesh (Auto from Mesh)");
+                    }
+                    ae_plugin_api::ColliderShape::ConvexHull => {
+                        card.label("Convex Hull (Auto from Mesh)");
+                    }
                 }
-                ae_core::ecs::ColliderShape::Sphere { radius } => {
-                    draw_sphere_collider_fields(card, radius);
-                }
-                ae_core::ecs::ColliderShape::Capsule {
-                    half_height,
-                    radius,
-                    center_y,
-                } => {
-                    draw_capsule_collider_fields(card, half_height, radius, center_y);
-                }
-                ae_core::ecs::ColliderShape::Trimesh => {
-                    card.label("Trimesh (Auto from Mesh)");
-                }
-                ae_core::ecs::ColliderShape::ConvexHull => {
-                    card.label("Convex Hull (Auto from Mesh)");
-                }
-            }
 
-            card.prop_f32("Friction:", &mut c.friction, 0.0..=2.0, 0.02);
-            card.prop_f32("Restitution:", &mut c.restitution, 0.0..=1.0, 0.02);
-            card.prop_checkbox("Is Sensor (Trigger)", &mut c.is_sensor);
-        },
-    );
+                card.prop_f32("Friction:", &mut c.friction, 0.0..=2.0, 0.02);
+                card.prop_f32("Restitution:", &mut c.restitution, 0.0..=1.0, 0.02);
+                card.prop_checkbox("Is Sensor (Trigger)", &mut c.is_sensor);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -143,9 +145,9 @@ mod tests {
     fn test_collider_declarative_scope_renders_wireframe_and_chevron() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [1.0, 2.0, 3.0],
             },
             friction: 0.5,
@@ -183,9 +185,9 @@ mod tests {
     fn test_collider_declarative_in_place_mutation_and_undo() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [1.0, 2.0, 3.0],
             },
             friction: 0.5,
@@ -198,10 +200,10 @@ mod tests {
 
         // Verify initial state
         {
-            let c = world.get::<&ae_core::ecs::Collider>(entity).unwrap();
+            let c = world.get_copied::<ae_plugin_api::Collider>(entity).unwrap();
             assert_eq!(
                 c.shape,
-                ae_core::ecs::ColliderShape::Box {
+                ae_plugin_api::ColliderShape::Box {
                     half_extents: [1.0, 2.0, 3.0]
                 }
             );
@@ -212,8 +214,8 @@ mod tests {
 
         // Test in-place mutation of fields
         {
-            let mut c = world.get::<&mut ae_core::ecs::Collider>(entity).unwrap();
-            if let ae_core::ecs::ColliderShape::Box {
+            let c = world.get_mut::<ae_plugin_api::Collider>(entity).unwrap();
+            if let ae_plugin_api::ColliderShape::Box {
                 ref mut half_extents,
             } = c.shape
             {
@@ -225,10 +227,10 @@ mod tests {
 
         // Verify mutation reflected in ECS world
         {
-            let c = world.get::<&ae_core::ecs::Collider>(entity).unwrap();
+            let c = world.get_copied::<ae_plugin_api::Collider>(entity).unwrap();
             assert_eq!(
                 c.shape,
-                ae_core::ecs::ColliderShape::Box {
+                ae_plugin_api::ColliderShape::Box {
                     half_extents: [4.5, 2.0, 3.0]
                 }
             );
@@ -240,7 +242,7 @@ mod tests {
     #[test]
     fn test_collider_shape_mapping_roundtrip() {
         assert_eq!(
-            shape_to_index(ae_core::ecs::ColliderShape::Capsule {
+            shape_to_index(ae_plugin_api::ColliderShape::Capsule {
                 half_height: 1.0,
                 radius: 0.5,
                 center_y: 0.0,
@@ -248,55 +250,55 @@ mod tests {
             0
         );
         assert_eq!(
-            shape_to_index(ae_core::ecs::ColliderShape::Box {
+            shape_to_index(ae_plugin_api::ColliderShape::Box {
                 half_extents: [1.0, 1.0, 1.0],
             }),
             1
         );
         assert_eq!(
-            shape_to_index(ae_core::ecs::ColliderShape::Sphere { radius: 1.0 }),
+            shape_to_index(ae_plugin_api::ColliderShape::Sphere { radius: 1.0 }),
             2
         );
-        assert_eq!(shape_to_index(ae_core::ecs::ColliderShape::Trimesh), 3);
-        assert_eq!(shape_to_index(ae_core::ecs::ColliderShape::ConvexHull), 4);
+        assert_eq!(shape_to_index(ae_plugin_api::ColliderShape::Trimesh), 3);
+        assert_eq!(shape_to_index(ae_plugin_api::ColliderShape::ConvexHull), 4);
 
         match index_to_shape(0) {
-            ae_core::ecs::ColliderShape::Capsule { .. } => {}
+            ae_plugin_api::ColliderShape::Capsule { .. } => {}
             _ => panic!("Expected Capsule"),
         }
         match index_to_shape(1) {
-            ae_core::ecs::ColliderShape::Box { .. } => {}
+            ae_plugin_api::ColliderShape::Box { .. } => {}
             _ => panic!("Expected Box"),
         }
         match index_to_shape(2) {
-            ae_core::ecs::ColliderShape::Sphere { .. } => {}
+            ae_plugin_api::ColliderShape::Sphere { .. } => {}
             _ => panic!("Expected Sphere"),
         }
-        assert_eq!(index_to_shape(3), ae_core::ecs::ColliderShape::Trimesh);
-        assert_eq!(index_to_shape(4), ae_core::ecs::ColliderShape::ConvexHull);
+        assert_eq!(index_to_shape(3), ae_plugin_api::ColliderShape::Trimesh);
+        assert_eq!(index_to_shape(4), ae_plugin_api::ColliderShape::ConvexHull);
     }
 
     #[test]
     fn test_draw_collider_card_all_shapes_render() {
         let shapes = [
-            ae_core::ecs::ColliderShape::Capsule {
+            ae_plugin_api::ColliderShape::Capsule {
                 half_height: 0.5,
                 radius: 0.4,
                 center_y: 0.0,
             },
-            ae_core::ecs::ColliderShape::Box {
+            ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
-            ae_core::ecs::ColliderShape::Sphere { radius: 0.5 },
-            ae_core::ecs::ColliderShape::Trimesh,
-            ae_core::ecs::ColliderShape::ConvexHull,
+            ae_plugin_api::ColliderShape::Sphere { radius: 0.5 },
+            ae_plugin_api::ColliderShape::Trimesh,
+            ae_plugin_api::ColliderShape::ConvexHull,
         ];
 
         for shape in shapes {
             let mut tree = UiTree::new();
             let root = tree.create_root().expect("Root node must exist");
-            let mut world = hecs::World::new();
-            let entity = world.spawn((ae_core::ecs::Collider {
+            let mut world = ae_ecs::World::new();
+            let entity = world.spawn((ae_plugin_api::Collider {
                 shape,
                 friction: 0.5,
                 restitution: 0.0,
@@ -315,9 +317,9 @@ mod tests {
 
     #[test]
     fn test_draw_collider_card_sensor_checkbox_click_toggle() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [1.0, 1.0, 1.0],
             },
             friction: 0.5,
@@ -334,7 +336,7 @@ mod tests {
         };
         assert!(
             !world
-                .get::<&ae_core::ecs::Collider>(entity)
+                .get_copied::<ae_plugin_api::Collider>(entity)
                 .unwrap()
                 .is_sensor
         );
@@ -347,7 +349,7 @@ mod tests {
         }
         assert!(
             world
-                .get::<&ae_core::ecs::Collider>(entity)
+                .get_copied::<ae_plugin_api::Collider>(entity)
                 .unwrap()
                 .is_sensor,
             "Click must set is_sensor=true in ECS"
@@ -361,7 +363,7 @@ mod tests {
         }
         assert!(
             world
-                .get::<&ae_core::ecs::Collider>(entity)
+                .get_copied::<ae_plugin_api::Collider>(entity)
                 .unwrap()
                 .is_sensor,
             "is_sensor must persist as true"
@@ -372,7 +374,7 @@ mod tests {
     fn test_draw_collider_card_missing_component_safely_ignored() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         let mut scope = UiScope::new(&mut tree, root);

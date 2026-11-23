@@ -3,7 +3,7 @@
 
 //! # Scene Hierarchy Tree Adapter & Declarative Row Renderer
 //!
-//! Connects ECS `hecs::World` entities to `irisui-widgets`'s swappable
+//! Connects ECS `ae_ecs::World` entities to `irisui-widgets`'s swappable
 //! [`TreeDataSource`] / [`TreeModel`] / [`UiScope::virtual_tree`] pipeline with
 //! zero consumer-side `HashMap` flattening, zero per-frame allocations, and zero `let` plumbing.
 
@@ -26,40 +26,43 @@ pub const HIERARCHY_ROW_GAP: f32 = 0.0;
 /// Total vertical stride for a single row including row gap (`24.0 px`).
 pub const HIERARCHY_ROW_STRIDE: f32 = HIERARCHY_ROW_HEIGHT + HIERARCHY_ROW_GAP;
 
-/// Swappable [`TreeDataSource`] adapter projecting an ECS [`hecs::World`] scene graph
+/// Swappable [`TreeDataSource`] adapter projecting an ECS [`ae_ecs::World`] scene graph
 /// into Iris UI's generic cached [`TreeModel`].
-pub struct SceneHierarchySource<'a>(pub &'a hecs::World);
+pub struct SceneHierarchySource<'a>(pub &'a ae_ecs::World);
 
 impl TreeDataSource for SceneHierarchySource<'_> {
-    type Id = hecs::Entity;
+    type Id = ae_ecs::Entity;
 
     fn node_key(&self, id: Self::Id) -> u64 {
         id.to_bits().get()
     }
 
     fn id_from_key(&self, key: u64) -> Option<Self::Id> {
-        hecs::Entity::from_bits(key)
+        ae_ecs::Entity::from_bits(key)
     }
 
     fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
         collector.reserve(self.0.len() as usize);
         for ent_ref in self.0.iter() {
-            if ent_ref.get::<&ae_core::ui::PauseMenuUiTag>().is_some() {
+            if ent_ref.has::<ae_core::ui::PauseMenuUiTag>() {
                 continue;
             }
             collector.push_node(
                 ent_ref.entity(),
                 ent_ref
-                    .get::<&ae_core::ecs::Parent>()
+                    .get_copied::<ae_plugin_api::Parent>()
                     .and_then(|p| self.0.contains(p.0).then_some(p.0)),
             );
         }
     }
 
     fn search_text(&self, id: Self::Id, out: &mut String) {
-        match self.0.get::<&ae_core::ecs::Name>(id) {
-            Ok(name) => out.push_str(&name.0),
-            Err(_) => _ = write!(out, "entity {id:?}"),
+        if self
+            .0
+            .inspect::<ae_plugin_api::Name, _>(id, |name| out.push_str(&name.0))
+            .is_err()
+        {
+            _ = write!(out, "entity {id:?}");
         }
     }
 }
@@ -128,27 +131,31 @@ fn accent_or_slate(is_selected: bool) -> Color {
     }
 }
 
-fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: bool) -> EntityIcon {
+fn resolve_entity_icon(
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+    is_selected: bool,
+) -> EntityIcon {
     world.entity(entity).ok().map_or_else(
         || folder_icon(is_selected),
         |ent_ref| resolve_component_icon(&ent_ref, is_selected),
     )
 }
 
-fn resolve_component_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
+fn resolve_component_icon(ent_ref: &ae_ecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
     ent_ref
-        .get::<&ae_core::ecs::Light>()
-        .map(|light| EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected)))
-        .or_else(|| {
-            (ent_ref.get::<&ae_audio::AudioListener>().is_some()
-                || ent_ref.get::<&ae_core::camera::Camera>().is_some())
-            .then(|| EntityIcon::Texture(ICON_CAMERA, accent_or_slate(is_selected)))
+        .inspect::<ae_plugin_api::Light, _>(|light| {
+            EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected))
         })
         .or_else(|| {
-            ent_ref.get::<&ae_core::ecs::Shape>().map(|shape| {
+            (ent_ref.has::<ae_audio::AudioListener>() || ent_ref.has::<ae_core::camera::Camera>())
+                .then(|| EntityIcon::Texture(ICON_CAMERA, accent_or_slate(is_selected)))
+        })
+        .or_else(|| {
+            ent_ref.get_copied::<ae_plugin_api::Shape>().map(|shape| {
                 EntityIcon::Texture(
-                    match *shape {
-                        ae_core::ecs::Shape::Sphere => ICON_SPHERE,
+                    match shape {
+                        ae_plugin_api::Shape::Sphere => ICON_SPHERE,
                         _ => ICON_CUBE,
                     },
                     selection_accent(is_selected),
@@ -157,53 +164,53 @@ fn resolve_component_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool) -> E
         })
         .or_else(|| {
             ent_ref
-                .get::<&ae_core::ecs::ModelId>()
-                .map(|_| EntityIcon::Texture(ICON_CUBE, selection_accent(is_selected)))
+                .has::<ae_plugin_api::ModelId>()
+                .then(|| EntityIcon::Texture(ICON_CUBE, selection_accent(is_selected)))
         })
         .or_else(|| {
             ent_ref
-                .get::<&ae_audio::AudioSource>()
-                .map(|_| EntityIcon::Texture(ICON_AUDIO, accent_or_slate(is_selected)))
+                .has::<ae_audio::AudioSource>()
+                .then(|| EntityIcon::Texture(ICON_AUDIO, accent_or_slate(is_selected)))
         })
         .unwrap_or_else(|| resolve_glyph_or_folder_icon(ent_ref, is_selected))
 }
 
-fn resolve_glyph_or_folder_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
-    if ent_ref.get::<&ae_core::ecs::UiPanel>().is_some() {
+fn resolve_glyph_or_folder_icon(ent_ref: &ae_ecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
+    if ent_ref.has::<ae_plugin_api::UiPanel>() {
         EntityIcon::Text("🔲")
-    } else if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::PlayerHealthBarTag>() {
         EntityIcon::Text("❤️")
-    } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::ScoreDisplayTag>() {
         EntityIcon::Text("⭐")
-    } else if ent_ref.get::<&ae_core::ecs::ReticleTag>().is_some()
-        || ent_ref.get::<&ae_core::ecs::DestructibleTarget>().is_some()
+    } else if ent_ref.has::<ae_plugin_api::ReticleTag>()
+        || ent_ref.has::<ae_plugin_api::DestructibleTarget>()
     {
         EntityIcon::Text("🎯")
-    } else if ent_ref.get::<&ae_core::ecs::UiProgressBar>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiProgressBar>() {
         EntityIcon::Text("📊")
-    } else if ent_ref.get::<&ae_core::ecs::UiButton>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiButton>() {
         EntityIcon::Text("🔘")
-    } else if ent_ref.get::<&ae_core::ecs::UiText>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiText>() {
         EntityIcon::Text("🔤")
-    } else if ent_ref.get::<&ae_core::ecs::UiImage>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiImage>() {
         EntityIcon::Text("🖼️")
-    } else if ent_ref.get::<&ae_core::ecs::UiSlider>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiSlider>() {
         EntityIcon::Text("🎚️")
-    } else if ent_ref.get::<&ae_core::ecs::UiCheckbox>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiCheckbox>() {
         EntityIcon::Text("☑️")
-    } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::UiTextInput>() {
         EntityIcon::Text("📝")
-    } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::PlayerTag>() {
         EntityIcon::Text("🎮")
-    } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::Rotator>() {
         EntityIcon::Text("🔄")
-    } else if ent_ref.get::<&ae_core::ecs::MovingPlatform>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::MovingPlatform>() {
         EntityIcon::Text("🚡")
-    } else if ent_ref.get::<&ae_core::ecs::TriggerZone>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::TriggerZone>() {
         EntityIcon::Text("⚡")
-    } else if ent_ref.get::<&ae_core::ecs::CharacterAction>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::CharacterAction>() {
         EntityIcon::Text("🔫")
-    } else if ent_ref.get::<&ae_core::ecs::SpriteId>().is_some() {
+    } else if ent_ref.has::<ae_plugin_api::SpriteId>() {
         EntityIcon::Text("🖼")
     } else {
         folder_icon(is_selected)
@@ -211,8 +218,8 @@ fn resolve_glyph_or_folder_icon(ent_ref: &hecs::EntityRef<'_>, is_selected: bool
 }
 
 fn hierarchy_virtual_tree_config(
-    selected_entity: Option<hecs::Entity>,
-) -> VirtualTreeConfig<hecs::Entity> {
+    selected_entity: Option<ae_ecs::Entity>,
+) -> VirtualTreeConfig<ae_ecs::Entity> {
     VirtualTreeConfig::new(
         "HierarchyRowsViewport",
         "HierarchyEntityRow",
@@ -258,10 +265,10 @@ fn hierarchy_virtual_tree_config(
 /// Returns the total unfiltered entity row count rendered by the retained tree cache.
 pub fn build_hierarchy_rows(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
+    world: &ae_ecs::World,
     revision: u64,
     search_query: &str,
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) -> usize {
     scope
@@ -286,7 +293,7 @@ pub fn build_hierarchy_rows(
 
 fn render_row_context_menu(
     menu: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     menu.context_menu_item_with_icon("🗑", "Delete Entity", None)
@@ -302,8 +309,8 @@ fn render_row_context_menu(
 
 fn render_hierarchy_row_contents(
     row_s: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
     master_idx: usize,
     is_selected: bool,
     action_bus: &mut ActionBus<EngineUiAction>,
@@ -317,17 +324,14 @@ fn render_hierarchy_row_contents(
         row_s,
         world,
         entity,
-        row_text_color(
-            is_selected,
-            world.get::<&ae_core::ecs::Hidden>(entity).is_err(),
-        ),
+        row_text_color(is_selected, !world.has::<ae_plugin_api::Hidden>(entity)),
     );
     render_eye_button(
         row_s,
         entity,
         master_idx,
         is_selected,
-        world.get::<&ae_core::ecs::Hidden>(entity).is_err(),
+        !world.has::<ae_plugin_api::Hidden>(entity),
         action_bus,
     );
 }
@@ -358,8 +362,8 @@ fn render_entity_icon(row_s: &mut UiScope<'_>, icon: EntityIcon, is_selected: bo
 
 fn render_entity_label(
     row_s: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
     text_color: Color,
 ) {
     row_s.container(
@@ -367,18 +371,23 @@ fn render_entity_label(
             .flex_row()
             .flex_grow(1.0)
             .align_items(AlignItems::Center),
-        |nc| match world.get::<&ae_core::ecs::Name>(entity) {
-            Ok(name_comp) => nc.colored_label(text_color, name_comp.0.as_str()),
-            Err(_) => nc.text_colored_fmt::<32, _>(text_color, |buf| {
-                _ = write!(buf, "Entity {entity:?}");
-            }),
+        |nc| {
+            world
+                .inspect::<ae_plugin_api::Name, _>(entity, |name_comp| {
+                    nc.colored_label(text_color, name_comp.0.as_str());
+                })
+                .unwrap_or_else(|_| {
+                    nc.text_colored_fmt::<32, _>(text_color, |buf| {
+                        _ = write!(buf, "Entity {entity:?}");
+                    });
+                });
         },
     );
 }
 
 fn render_eye_button(
     row_s: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     master_idx: usize,
     is_selected: bool,
     is_visible: bool,
@@ -424,15 +433,15 @@ mod tests {
 
     #[test]
     fn test_hierarchy_tree_depth_and_expansion_invariants() {
-        let mut world = hecs::World::new();
-        let parent = world.spawn((ae_core::ecs::Name("Root_Parent".into()),));
+        let mut world = ae_ecs::World::new();
+        let parent = world.spawn((ae_plugin_api::Name("Root_Parent".into()),));
         let child_1 = world.spawn((
-            ae_core::ecs::Name("Child_1".into()),
-            ae_core::ecs::Parent(parent),
+            ae_plugin_api::Name("Child_1".into()),
+            ae_plugin_api::Parent(parent),
         ));
         let _grandchild = world.spawn((
-            ae_core::ecs::Name("Grandchild".into()),
-            ae_core::ecs::Parent(child_1),
+            ae_plugin_api::Name("Grandchild".into()),
+            ae_plugin_api::Parent(child_1),
         ));
 
         let src = SceneHierarchySource(&world);
@@ -462,25 +471,25 @@ mod tests {
 
     #[test]
     fn test_hierarchy_ui_element_and_3d_entity_icon_width_uniformity() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let e_3d = world.spawn((
-            ae_core::ecs::Name("Ground Plane".into()),
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Name("Ground Plane".into()),
+            ae_plugin_api::Shape::Cube,
         ));
         let e_ui_text = world.spawn((
-            ae_core::ecs::Name("UI Text".into()),
-            ae_core::ecs::UiElement::default(),
-            ae_core::ecs::UiText::new("Sample Text", 16.0),
+            ae_plugin_api::Name("UI Text".into()),
+            ae_plugin_api::UiElement::default(),
+            ae_plugin_api::UiText::new("Sample Text", 16.0),
         ));
         let e_ui_btn = world.spawn((
-            ae_core::ecs::Name("UI Button".into()),
-            ae_core::ecs::UiElement::default(),
-            ae_core::ecs::UiButton::default(),
+            ae_plugin_api::Name("UI Button".into()),
+            ae_plugin_api::UiElement::default(),
+            ae_plugin_api::UiButton::default(),
         ));
         let e_ui_pnl = world.spawn((
-            ae_core::ecs::Name("UI Panel".into()),
-            ae_core::ecs::UiElement::default(),
-            ae_core::ecs::UiPanel::default(),
+            ae_plugin_api::Name("UI Panel".into()),
+            ae_plugin_api::UiElement::default(),
+            ae_plugin_api::UiPanel::default(),
         ));
 
         let mut tree = UiTree::new();
@@ -518,10 +527,10 @@ mod tests {
 
     #[test]
     fn test_hierarchy_zebra_striping_row_backgrounds() {
-        let mut world = hecs::World::new();
-        let e0 = world.spawn((ae_core::ecs::Name("Entity 0".into()),));
-        let e1 = world.spawn((ae_core::ecs::Name("Entity 1".into()),));
-        let e2 = world.spawn((ae_core::ecs::Name("Entity 2".into()),));
+        let mut world = ae_ecs::World::new();
+        let e0 = world.spawn((ae_plugin_api::Name("Entity 0".into()),));
+        let e1 = world.spawn((ae_plugin_api::Name("Entity 1".into()),));
+        let e2 = world.spawn((ae_plugin_api::Name("Entity 2".into()),));
 
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation must succeed");

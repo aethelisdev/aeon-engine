@@ -150,7 +150,7 @@ fn test_unified_workbench_dialog_host_delete_and_rename_modals_render() {
     host.open_confirm_danger(
         "Delete Asset",
         "Are you sure you want to permanently delete 'character.gltf'?",
-        EngineUiAction::DeleteAssetOrFolder(target.clone()),
+        EngineUiAction::DeleteAssetOrFolder(target),
     );
     assert!(host.is_active());
 

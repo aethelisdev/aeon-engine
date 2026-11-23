@@ -13,13 +13,13 @@ pub const MATERIAL_HEADER_HEIGHT: f32 = 32.0;
 
 #[inline]
 fn entity_geometry_badge(
-    world: &hecs::World,
-    entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    entity: Option<ae_ecs::Entity>,
 ) -> Option<(&'static str, [f32; 4], Color)> {
     entity.and_then(|ent| {
-        if world.get::<&ae_core::ecs::ModelId>(ent).is_ok() {
+        if world.has::<ae_plugin_api::ModelId>(ent) {
             Some(("3D Model", ICON_CUBE, Color::rgba(0.0, 0.80, 0.95, 1.0)))
-        } else if world.get::<&ae_core::ecs::SpriteId>(ent).is_ok() {
+        } else if world.has::<ae_plugin_api::SpriteId>(ent) {
             Some(("2D Sprite", ICON_WORLD, Color::rgba(0.30, 0.85, 0.45, 1.0)))
         } else {
             None
@@ -30,8 +30,8 @@ fn entity_geometry_badge(
 /// Constructs the header bar with title and active geometry mode indicator directly on [`UiScope`].
 pub fn build_material_header(
     scope: &mut UiScope<'_>,
-    entity: Option<hecs::Entity>,
-    world: &hecs::World,
+    entity: Option<ae_ecs::Entity>,
+    world: &ae_ecs::World,
 ) -> f32 {
     scope.container(
         Style::new()

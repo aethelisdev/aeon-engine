@@ -79,7 +79,7 @@ fn build_test_view(
         .or_else(|| tree.create_root().ok())
         .expect("Root creation must succeed");
     let mut bus = ActionBus::new();
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let editor_state = EditorState::default();
     let telemetry = EditorTelemetrySnapshot::default();
     let mut asset_browser = AssetBrowserState::default();
@@ -530,7 +530,7 @@ fn test_preferences_build_view_uses_outer_panel_rect_for_content_area() {
         resp.response.id
     };
 
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let gfx = GraphicsSettings::default();
     let snap = SnapSettings::default();
     let cfg = EditorConfig::default();

@@ -5,13 +5,14 @@ edition = "2024"
 description = "Aeon Engine - Editor native Iris UI panels, docking, and overlays"
 
 [dependencies]
-hecs = "0.11.0"
+ae_ecs = { workspace = true }
 log = "0.4.33"
 rfd = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 postcard = { workspace = true }
 ae_core = { path = "../ae_core" }
+ae_plugin_api = { path = "../ae_plugin_api" }
 ae_world = { workspace = true }
 ae_export = { workspace = true }
 ae_editor = { path = "../ae_editor" }
@@ -32,5 +33,5 @@ cgmath = "0.18"
 irisui = { workspace = true }
 irisui-winit = { workspace = true }
 
-[lints.clippy]
-disallowed_methods = "warn"
+[lints]
+workspace = true

@@ -144,11 +144,11 @@ mod tests {
     use crate::ui::iris_bridge::viewport_hud::types::{
         TAG_SNAP_GRID_DROPDOWN, TAG_VIEWPORT_CAMERA_MODE, with_test_frame_data,
     };
+    use ae_ecs::World;
     use ae_editor::editor_state::EditorState;
     use ae_editor::gizmo::GizmoMode;
     use ae_editor::snapping::SnapSettings;
     use ae_renderer::camera::{Camera, ProjectionMode};
-    use hecs::World;
     use irisui::prelude::*;
     use irisui::workbench::ActionBus;
 

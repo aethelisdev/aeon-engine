@@ -7,7 +7,7 @@
 //! and industry-standard 2D Screen Transform vs 3D Transform isolation.
 
 use super::*;
-use ae_core::ecs::{
+use ae_plugin_api::{
     Name, Position, Rotation, Scale, UiAnchor, UiButton, UiElement, UiPanel, UiText,
     UiTextAlignment,
 };
@@ -17,7 +17,7 @@ use irisui::prelude::*;
 fn test_inspector_empty_selection_renders_placeholder() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
 
     build_inspector_panel(
         &mut UiScope::new(&mut tree, root),
@@ -36,7 +36,7 @@ fn test_inspector_empty_selection_renders_placeholder() {
 fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
 
     let entity = world.spawn((
         Name("3D Cube".to_string()),
@@ -66,7 +66,7 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
 fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
 
     let entity = world.spawn((
         Name("3D Cube".to_string()),
@@ -125,7 +125,7 @@ fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
 fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
 
     let entity = world.spawn((
         Name("Title Text".to_string()),
@@ -225,7 +225,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
 fn test_inspector_entity_isolation_invariant() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let ent_a = world.spawn((
         Name("Dynamic Cube".to_string()),
         Position {
@@ -256,7 +256,7 @@ fn test_inspector_entity_isolation_invariant() {
 fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let ent = world.spawn((
         Name("Dynamic Cube".to_string()),
         Position::default(),
@@ -280,7 +280,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     assert_eq!(rot_y_text, Some("Y: 0.0".to_string()));
 
     // 2. Modified State: Change Rotation component to 55.0 degrees Y
-    if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
+    if let Ok(r) = world.get_mut::<Rotation>(ent) {
         let q = irisui::prelude::euler_deg_to_quat_xyzw(0.0, 55.0, 0.0);
         *r = Rotation {
             x: q[0],
@@ -306,7 +306,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     assert_eq!(rot_y_text2, Some("Y: 55.0".to_string()));
 
     // 3. Undo State: Revert Rotation component back to identity
-    if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
+    if let Ok(r) = world.get_mut::<Rotation>(ent) {
         *r = Rotation::default();
     }
     let mut tree3 = UiTree::new();
@@ -355,30 +355,30 @@ fn test_inspector_entity_rename_all_selected_lifecycle() {
 fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
 
     let entity = world.spawn((
         Name("Dynamic Cube".to_string()),
         Position::new(0.0, 5.0, 0.0),
         Rotation::identity(),
         Scale::one(),
-        ae_core::ecs::Color::new(0.4, 0.6, 0.8, 1.0),
-        ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        ae_plugin_api::Color::new(0.4, 0.6, 0.8, 1.0),
+        ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Dynamic,
             mass: 1.0,
             gravity_scale: 1.0,
         },
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::PlayerTag,
-        ae_core::ecs::Velocity::default(),
-        ae_core::ecs::Shape::Cube,
+        ae_plugin_api::PlayerTag,
+        ae_plugin_api::Velocity::default(),
+        ae_plugin_api::Shape::Cube,
     ));
 
     {

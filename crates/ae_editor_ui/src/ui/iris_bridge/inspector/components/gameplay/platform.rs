@@ -7,28 +7,28 @@
 
 use irisui::prelude::*;
 
-/// Renders the declarative Moving Platform component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Moving Platform component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates speed scrubber and target waypoint position 3D vector with zero intermediate variable plumbing.
 pub fn draw_moving_platform_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "MovingPlatformCard",
-        UiScope::comp_card_desc(
-            "MovingPlatform",
-            "Moving Platform",
-            "🚡",
-            Color::rgba(0.70, 0.50, 1.0, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::MovingPlatform>(entity),
-        |card, mut plat| {
-            card.prop_f32("Speed (m/s):", &mut plat.speed, 0.0..=100.0, 0.1);
-            card.prop_vec3("Target Pos:", &mut plat.target_position, 0.1, None);
-        },
-    );
+    world
+        .mutate::<ae_plugin_api::MovingPlatform, _>(entity, |plat| {
+            scope.card_panel("MovingPlatformCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "MovingPlatform",
+                    "Moving Platform",
+                    "🚡",
+                    Color::rgba(0.70, 0.50, 1.0, 1.0),
+                ));
+                card.prop_f32("Speed (m/s):", &mut plat.speed, 0.0..=100.0, 0.1);
+                card.prop_vec3("Target Pos:", &mut plat.target_position, 0.1, None);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -37,8 +37,8 @@ mod tests {
 
     #[test]
     fn test_moving_platform_render_tag() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::MovingPlatform::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::MovingPlatform::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
 
@@ -56,8 +56,8 @@ mod tests {
 
     #[test]
     fn test_draw_moving_platform_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::MovingPlatform::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::MovingPlatform::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn test_draw_moving_platform_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

@@ -7,22 +7,22 @@ use cgmath::SquareMatrix;
 /// Helper function to retrieve the world-space transformation matrix for an entity.
 ///
 /// Prioritizes `GlobalTransform` component, falling back to local transform decomposition.
-pub fn get_world_matrix(world: &hecs::World, entity: hecs::Entity) -> cgmath::Matrix4<f32> {
-    if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
+pub fn get_world_matrix(world: &ae_ecs::World, entity: ae_ecs::Entity) -> cgmath::Matrix4<f32> {
+    if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(entity) {
         gt.0
     } else {
         let pos = world
-            .get::<&ae_core::ecs::Position>(entity)
+            .get_copied::<ae_plugin_api::Position>(entity)
             .ok()
             .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
             .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
         let rot = world
-            .get::<&ae_core::ecs::Rotation>(entity)
+            .get_copied::<ae_plugin_api::Rotation>(entity)
             .ok()
             .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
             .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
         let scale = world
-            .get::<&ae_core::ecs::Scale>(entity)
+            .get_copied::<ae_plugin_api::Scale>(entity)
             .ok()
             .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
             .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
@@ -39,13 +39,13 @@ pub fn get_world_matrix(world: &hecs::World, entity: hecs::Entity) -> cgmath::Ma
 pub fn decompose_matrix(
     mat: cgmath::Matrix4<f32>,
 ) -> (
-    ae_core::ecs::Position,
-    ae_core::ecs::Rotation,
-    ae_core::ecs::Scale,
+    ae_plugin_api::Position,
+    ae_plugin_api::Rotation,
+    ae_plugin_api::Scale,
 ) {
     use cgmath::{InnerSpace, Matrix3, Quaternion, Vector3};
 
-    let pos = ae_core::ecs::Position {
+    let pos = ae_plugin_api::Position {
         x: mat.w.x,
         y: mat.w.y,
         z: mat.w.z,
@@ -65,7 +65,7 @@ pub fn decompose_matrix(
         scale_x = -scale_x;
     }
 
-    let scale = ae_core::ecs::Scale {
+    let scale = ae_plugin_api::Scale {
         x: scale_x,
         y: scale_y,
         z: scale_z,
@@ -83,7 +83,7 @@ pub fn decompose_matrix(
         Quaternion::new(1.0, 0.0, 0.0, 0.0)
     };
 
-    let rot = ae_core::ecs::Rotation {
+    let rot = ae_plugin_api::Rotation {
         x: q_norm.v.x,
         y: q_norm.v.y,
         z: q_norm.v.z,
@@ -94,9 +94,9 @@ pub fn decompose_matrix(
 }
 
 /// Handles parenting an entity while preserving its exact world-space position and scale ("Keep World Transform").
-pub fn handle_parent_entity(ctx: &mut UiContext, child: hecs::Entity, parent: hecs::Entity) {
+pub fn handle_parent_entity(ctx: &mut UiContext, child: ae_ecs::Entity, parent: ae_ecs::Entity) {
     // 1. Synchronize hierarchy global transforms before calculating relative offsets
-    ae_core::ecs::update_hierarchy_transforms(ctx.world);
+    ae_core::transform::update_hierarchy_transforms(ctx.world);
 
     // 2. Read world matrices of child and target parent
     let child_world = get_world_matrix(ctx.world, child);
@@ -112,55 +112,54 @@ pub fn handle_parent_entity(ctx: &mut UiContext, child: hecs::Entity, parent: he
         let _ = ctx.world.insert_one(child, new_scale);
     }
 
-    let old_parent_opt = if let Ok(old_parent_ref) = ctx.world.get::<&ae_core::ecs::Parent>(child) {
-        Some(old_parent_ref.0)
-    } else {
-        None
-    };
+    let old_parent_opt = ctx
+        .world
+        .get_copied::<ae_plugin_api::Parent>(child)
+        .ok()
+        .map(|p| p.0);
 
     if let Some(old_parent) = old_parent_opt {
         let mut remove_parent_children = false;
-        let mut remove_parent_gt = false;
 
-        if let Ok(mut old_children) = ctx.world.get::<&mut ae_core::ecs::Children>(old_parent) {
+        if let Ok(old_children) = ctx.world.get_mut::<ae_plugin_api::Children>(old_parent) {
             old_children.0.retain(|&e| e != child);
             if old_children.0.is_empty() {
                 remove_parent_children = true;
-                if ctx.world.get::<&ae_core::ecs::Parent>(old_parent).is_err() {
-                    remove_parent_gt = true;
-                }
             }
         }
 
+        let remove_parent_gt =
+            remove_parent_children && !ctx.world.has::<ae_plugin_api::Parent>(old_parent);
+
         if remove_parent_children {
-            let _ = ctx.world.remove_one::<ae_core::ecs::Children>(old_parent);
+            let _ = ctx.world.remove_one::<ae_plugin_api::Children>(old_parent);
         }
         if remove_parent_gt {
             let _ = ctx
                 .world
-                .remove_one::<ae_core::ecs::GlobalTransform>(old_parent);
+                .remove_one::<ae_plugin_api::GlobalTransform>(old_parent);
         }
     }
 
-    let _ = ctx.world.insert_one(child, ae_core::ecs::Parent(parent));
-    if let Ok(mut children) = ctx.world.get::<&mut ae_core::ecs::Children>(parent) {
+    let _ = ctx.world.insert_one(child, ae_plugin_api::Parent(parent));
+    if let Ok(children) = ctx.world.get_mut::<ae_plugin_api::Children>(parent) {
         if !children.0.contains(&child) {
             children.0.push(child);
         }
     } else {
         let _ = ctx
             .world
-            .insert_one(parent, ae_core::ecs::Children(vec![child]));
+            .insert_one(parent, ae_plugin_api::Children(vec![child]));
     }
-    ae_core::ecs::update_hierarchy_transforms(ctx.world);
-    let _ = ctx.world.insert_one(child, ae_core::ecs::TransformDirty);
-    let _ = ctx.world.insert_one(parent, ae_core::ecs::TransformDirty);
+    ae_core::transform::update_hierarchy_transforms(ctx.world);
+    let _ = ctx.world.insert_one(child, ae_plugin_api::TransformDirty);
+    let _ = ctx.world.insert_one(parent, ae_plugin_api::TransformDirty);
 }
 
 /// Handles unparenting an entity while preserving its exact world-space position and scale ("Keep World Transform").
-pub fn handle_unparent_entity(ctx: &mut UiContext, child: hecs::Entity) {
+pub fn handle_unparent_entity(ctx: &mut UiContext, child: ae_ecs::Entity) {
     // 1. Synchronize hierarchy global transforms before unparenting
-    ae_core::ecs::update_hierarchy_transforms(ctx.world);
+    ae_core::transform::update_hierarchy_transforms(ctx.world);
 
     // 2. Read world matrix and assign as unparented root local transform ("Keep World Transform")
     let child_world = get_world_matrix(ctx.world, child);
@@ -170,36 +169,35 @@ pub fn handle_unparent_entity(ctx: &mut UiContext, child: hecs::Entity) {
     let _ = ctx.world.insert_one(child, new_rot);
     let _ = ctx.world.insert_one(child, new_scale);
 
-    let old_parent_opt = if let Ok(old_parent_ref) = ctx.world.get::<&ae_core::ecs::Parent>(child) {
-        Some(old_parent_ref.0)
-    } else {
-        None
-    };
+    let old_parent_opt = ctx
+        .world
+        .get_copied::<ae_plugin_api::Parent>(child)
+        .ok()
+        .map(|p| p.0);
 
     if let Some(old_parent) = old_parent_opt {
         let mut remove_parent_children = false;
-        let mut remove_parent_gt = false;
 
-        if let Ok(mut old_children) = ctx.world.get::<&mut ae_core::ecs::Children>(old_parent) {
+        if let Ok(old_children) = ctx.world.get_mut::<ae_plugin_api::Children>(old_parent) {
             old_children.0.retain(|&e| e != child);
             if old_children.0.is_empty() {
                 remove_parent_children = true;
-                if ctx.world.get::<&ae_core::ecs::Parent>(old_parent).is_err() {
-                    remove_parent_gt = true;
-                }
             }
         }
 
+        let remove_parent_gt =
+            remove_parent_children && !ctx.world.has::<ae_plugin_api::Parent>(old_parent);
+
         if remove_parent_children {
-            let _ = ctx.world.remove_one::<ae_core::ecs::Children>(old_parent);
+            let _ = ctx.world.remove_one::<ae_plugin_api::Children>(old_parent);
         }
         if remove_parent_gt {
             let _ = ctx
                 .world
-                .remove_one::<ae_core::ecs::GlobalTransform>(old_parent);
+                .remove_one::<ae_plugin_api::GlobalTransform>(old_parent);
         }
     }
-    let _ = ctx.world.remove_one::<ae_core::ecs::Parent>(child);
-    ae_core::ecs::update_hierarchy_transforms(ctx.world);
-    let _ = ctx.world.insert_one(child, ae_core::ecs::TransformDirty);
+    let _ = ctx.world.remove_one::<ae_plugin_api::Parent>(child);
+    ae_core::transform::update_hierarchy_transforms(ctx.world);
+    let _ = ctx.world.insert_one(child, ae_plugin_api::TransformDirty);
 }

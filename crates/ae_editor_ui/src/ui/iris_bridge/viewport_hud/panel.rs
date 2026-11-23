@@ -141,11 +141,11 @@ mod tests {
         TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
         TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE,
     };
+    use ae_ecs::World;
     use ae_editor::editor_state::EditorState;
     use ae_editor::gizmo::GizmoMode;
     use ae_editor::snapping::SnapSettings;
     use ae_renderer::camera::{Camera, ProjectionMode};
-    use hecs::World;
 
     fn make_test_camera() -> Camera {
         Camera {
@@ -234,8 +234,8 @@ mod tests {
         let snapping = SnapSettings::default();
         let mut world = World::new();
         let _player = world.spawn((
-            ae_core::ecs::PlayerTag,
-            ae_core::ecs::CharacterAction::default(),
+            ae_plugin_api::PlayerTag,
+            ae_plugin_api::CharacterAction::default(),
         ));
         let _pause = world.spawn((ae_core::ui::PauseMenuUiTag,));
         let editor_state = EditorState::default();

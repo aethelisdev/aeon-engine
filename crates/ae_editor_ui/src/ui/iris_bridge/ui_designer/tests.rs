@@ -11,7 +11,7 @@ use super::types::{
 use super::*;
 use crate::ui::panel_layout::PanelId;
 use crate::ui::types::EngineUiAction;
-use ae_core::ecs::{UiAnchor, UiButton, UiElement};
+use ae_plugin_api::{UiAnchor, UiButton, UiElement};
 use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
@@ -20,7 +20,7 @@ use irisui::workbench::ActionBus;
 fn test_ui_designer_panel_build() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let mut state = UiDesignerState::default();
     let panel_rect = Rect::new(50.0, 50.0, 800.0, 600.0);
 
@@ -72,7 +72,7 @@ fn test_ui_designer_panel_build() {
 fn test_ui_designer_canvas_projection_and_click_selection() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
 
     let ent = world.spawn((
         UiElement {
@@ -135,7 +135,7 @@ fn test_ui_designer_canvas_projection_and_click_selection() {
 fn test_ui_designer_element_drag_emits_modify_component() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let ent = world.spawn((UiElement {
         anchor: UiAnchor::TopLeft,
         offset: [240.0, 160.0],
@@ -220,7 +220,7 @@ fn test_ui_designer_element_drag_emits_modify_component() {
 fn test_ui_designer_toolbar_tags_and_direct_mutations() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let mut state = UiDesignerState::default();
     let panel_rect = Rect::new(0.0, 0.0, 1200.0, 800.0);
     let mut designer = UiDesignerPanelState::default();
@@ -303,7 +303,7 @@ fn test_ui_designer_toolbar_tags_and_direct_mutations() {
 fn test_ui_designer_element_click_not_occluded_and_add_popup_anchored() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let ent = world.spawn((
         UiElement {
             anchor: UiAnchor::TopLeft,
@@ -314,7 +314,7 @@ fn test_ui_designer_element_click_not_occluded_and_add_popup_anchored() {
             z_index: 10,
             alpha: 1.0,
         },
-        ae_core::ecs::UiProgressBar {
+        ae_plugin_api::UiProgressBar {
             min: 0.0,
             max: 100.0,
             value: 100.0,

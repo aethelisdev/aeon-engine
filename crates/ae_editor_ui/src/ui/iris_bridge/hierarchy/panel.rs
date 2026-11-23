@@ -35,9 +35,9 @@ impl HierarchyPanelState {
 /// Builds the complete Scene Hierarchy panel tree purely using declarative [`UiScope`].
 pub fn build_hierarchy_panel(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
+    world: &ae_ecs::World,
     revision: u64,
-    selected_entity: Option<hecs::Entity>,
+    selected_entity: Option<ae_ecs::Entity>,
     is_2d: bool,
     state: &mut HierarchyPanelState,
     action_bus: &mut ActionBus<EngineUiAction>,

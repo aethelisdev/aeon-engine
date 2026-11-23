@@ -61,7 +61,7 @@ fn test_hierarchy_add_menu_cascading_click_emits_directly_to_action_bus() {
     assert_eq!(drained.len(), 1);
     assert!(matches!(
         drained[0],
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cube)
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Cube)
     ));
     assert!(
         !tree.is_popup_tag_active(HIERARCHY_TAG_ADD_BUTTON.raw()),

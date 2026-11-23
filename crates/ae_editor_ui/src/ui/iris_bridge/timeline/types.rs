@@ -131,7 +131,7 @@ fn push_deduped_markers(markers: &mut Vec<ScrubberMarker>, times: impl IntoItera
 
 /// Emits a serialized `AnimationPlayer` component update onto [`ActionBus`] after applying `mutate`.
 pub(crate) fn emit_player_mutation(
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     player: &ae_animation::AnimationPlayer,
     action_bus: &mut ActionBus<EngineUiAction>,
     mutate: impl FnOnce(&mut ae_animation::AnimationPlayer),
@@ -140,7 +140,7 @@ pub(crate) fn emit_player_mutation(
 }
 
 fn emit_cloned_player_mutation(
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     mut updated: ae_animation::AnimationPlayer,
     action_bus: &mut ActionBus<EngineUiAction>,
     mutate: impl FnOnce(&mut ae_animation::AnimationPlayer),
@@ -162,7 +162,7 @@ const fn mix_fnv1a(acc: u64, val: u64) -> u64 {
 /// transport/clip metadata for [`irisui::widgets::panel::PanelBuilder::retained_revision`] and
 /// [`irisui::workbench::WorkbenchPanelContext::sync_live_revision`].
 pub(crate) fn timeline_structural_hash(
-    entity: Option<hecs::Entity>,
+    entity: Option<ae_ecs::Entity>,
     player: Option<&ae_animation::AnimationPlayer>,
 ) -> u64 {
     player.map_or(
@@ -245,7 +245,7 @@ pub struct TimelinePanelState {
     /// Deduplicated keyframe marker cache for the active animation clip.
     pub cache: TimelineClipCache,
     /// Selected entity handle cached for timeline interactions.
-    pub selected_entity: Option<hecs::Entity>,
+    pub selected_entity: Option<ae_ecs::Entity>,
     /// Duration of the currently active animation clip in seconds.
     pub clip_duration: f32,
 }

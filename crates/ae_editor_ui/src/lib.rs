@@ -15,13 +15,14 @@ pub use processor::UiContext;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::*;
+    use ae_core::transform::update_hierarchy_transforms;
+    use ae_plugin_api::*;
     use cgmath::SquareMatrix;
 
     /// Tests that ParentEntity preserves exact world-space position and scale ("Keep World Transform").
     #[test]
     fn test_keep_world_transform_parenting() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
 
         // Spawn scaled parent (Zemin)
         let parent = world.spawn((
@@ -86,13 +87,13 @@ mod tests {
 
         // Verify child's new local scale compensated for parent's 50x scale
         let local_scale = world
-            .get::<&Scale>(child)
+            .get_copied::<Scale>(child)
             .expect("child scale should exist");
         assert!((local_scale.x - 0.02).abs() < 0.001);
 
         // Verify child's world position remains EXACTLY at (10, 5, 10)
         let child_gt = world
-            .get::<&GlobalTransform>(child)
+            .get_copied::<GlobalTransform>(child)
             .expect("child global transform should exist");
         assert!((child_gt.0.w.x - 10.0).abs() < 0.001);
         assert!((child_gt.0.w.y - 5.0).abs() < 0.001);
@@ -102,7 +103,7 @@ mod tests {
     /// Tests that CommitComponentModify pushes an undo command and undoes/redoes correctly.
     #[test]
     fn test_commit_component_modify_undo_redo() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Position::new(0.0, 0.0, 0.0),
             Velocity {
@@ -147,7 +148,7 @@ mod tests {
         // Verify current value
         assert_eq!(
             world
-                .get::<&Velocity>(entity)
+                .get_copied::<Velocity>(entity)
                 .expect("velocity component should exist")
                 .x,
             10.0
@@ -157,7 +158,7 @@ mod tests {
         ae_editor::history::undo(&mut editor, &mut world);
         {
             let v1 = world
-                .get::<&Velocity>(entity)
+                .get_copied::<Velocity>(entity)
                 .expect("velocity component should exist after undo");
             assert_eq!(v1.x, 1.0);
             assert_eq!(v1.y, 2.0);
@@ -168,7 +169,7 @@ mod tests {
         ae_editor::history::redo(&mut editor, &mut world);
         {
             let v2 = world
-                .get::<&Velocity>(entity)
+                .get_copied::<Velocity>(entity)
                 .expect("velocity component should exist after redo");
             assert_eq!(v2.x, 10.0);
             assert_eq!(v2.y, 20.0);

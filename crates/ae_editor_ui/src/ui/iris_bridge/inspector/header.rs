@@ -65,7 +65,7 @@ pub fn build_entity_header(
 /// Eliminates intermediate imperative variable plumbing and directly generates the engine UI action.
 pub fn build_entity_header_modify<F>(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     old_name: &str,
     name: &mut String,
     _panel_w: f32,
@@ -90,7 +90,7 @@ where
 /// Eliminates intermediate imperative variable plumbing and directly generates the engine UI action.
 pub fn build_entity_header_modify_action(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     old_name: &str,
     name: &mut String,
     _panel_w: f32,
@@ -104,7 +104,7 @@ pub fn build_entity_header_modify_action(
 #[inline]
 pub fn component_delete_action(
     scope: &UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     component_name: &'static str,
 ) -> Option<EngineUiAction> {
     scope.map_action_clicked(component_name, || {
@@ -149,7 +149,7 @@ mod tests {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
         let mut name = "New Cube".to_string();
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         let mut emitted_action = None;
@@ -195,7 +195,7 @@ mod tests {
             "CardActionButton must exist"
         );
 
-        let entity = hecs::Entity::DANGLING;
+        let entity = ae_ecs::Entity::DANGLING;
         {
             let scope = UiScope::new(&mut tree, root);
             assert!(component_delete_action(&scope, entity, "TestComponent").is_none());

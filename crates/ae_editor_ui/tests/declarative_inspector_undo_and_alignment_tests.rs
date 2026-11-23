@@ -8,10 +8,10 @@
 //! 105px column boundary, and verifies that manual numeric input submissions and pointer
 //! dragging gestures accurately generate Undo/Redo commands with genuine pre-edit snapshots.
 
-use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, Velocity};
 use ae_editor_ui::ui::iris_bridge::inspector::{
     DEFAULT_INSPECTOR_LABEL_WIDTH, build_inspector_panel,
 };
+use ae_plugin_api::{Name, Position, RigidBody, Rotation, Scale, Velocity};
 use irisui::core::UiTree;
 use irisui::widgets::declarative::scope::UiScope;
 
@@ -20,15 +20,15 @@ fn test_property_label_width_alignment_across_cards() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node");
 
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         Name("Dynamic Cube".to_string()),
         Position::default(),
         Rotation::default(),
         Scale::default(),
         RigidBody::default(),
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
@@ -87,7 +87,7 @@ fn test_velocity_and_rigidbody_declarative_binding_and_undo() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node");
 
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         RigidBody::default(),
         Velocity {
@@ -131,7 +131,7 @@ fn test_velocity_and_rigidbody_active_borrow_drag_no_panic() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node");
 
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         RigidBody::default(),
         Velocity {
@@ -152,7 +152,7 @@ fn test_velocity_and_rigidbody_active_borrow_drag_no_panic() {
     draw_rigidbody_card(&mut scope, &world, entity);
 
     // Verify values exist in the world without crash
-    let v = world.get::<&Velocity>(entity).unwrap();
+    let v = world.get_copied::<Velocity>(entity).unwrap();
     assert_eq!(v.y, 2.0);
     assert_eq!(v.z, 3.0);
 }

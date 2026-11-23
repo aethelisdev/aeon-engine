@@ -25,30 +25,34 @@ fn trigger_status_color(theme: Theme, is_triggered: bool) -> Color {
     }
 }
 
-/// Renders the declarative Trigger Zone component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Trigger Zone component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates speed scrubber, target position 3D vector, and proximity status pill with zero intermediate variable plumbing.
-pub fn draw_trigger_zone_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "TriggerZoneCard",
-        UiScope::comp_card_desc(
-            "TriggerZone",
-            "Trigger Zone",
-            "⚡",
-            Color::rgba(0.98, 0.80, 0.15, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::TriggerZone>(entity),
-        |card, mut zone| {
-            card.prop_f32("Speed (m/s):", &mut zone.speed, 0.0..=100.0, 0.1);
-            card.prop_vec3("Target Pos:", &mut zone.target_position, 0.1, None);
-            card.status_pill(
-                "TriggerStatusPill",
-                "TriggerStatusLbl",
-                trigger_status_text(zone.is_triggered),
-                trigger_status_color(card.theme(), zone.is_triggered),
-            );
-        },
-    );
+pub fn draw_trigger_zone_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<ae_plugin_api::TriggerZone, _>(entity, |zone| {
+            scope.card_panel("TriggerZoneCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "TriggerZone",
+                    "Trigger Zone",
+                    "⚡",
+                    Color::rgba(0.98, 0.80, 0.15, 1.0),
+                ));
+                card.prop_f32("Speed (m/s):", &mut zone.speed, 0.0..=100.0, 0.1);
+                card.prop_vec3("Target Pos:", &mut zone.target_position, 0.1, None);
+                card.status_pill(
+                    "TriggerStatusPill",
+                    "TriggerStatusLbl",
+                    trigger_status_text(zone.is_triggered),
+                    trigger_status_color(card.theme(), zone.is_triggered),
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -57,8 +61,8 @@ mod tests {
 
     #[test]
     fn test_trigger_zone_render_tag() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::TriggerZone::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::TriggerZone::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
 
@@ -76,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_draw_trigger_zone_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::TriggerZone::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::TriggerZone::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
@@ -100,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_draw_trigger_zone_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

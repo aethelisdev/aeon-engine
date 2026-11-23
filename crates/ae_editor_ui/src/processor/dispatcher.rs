@@ -9,7 +9,7 @@ use super::{components, scene_io, spawning, system, transform};
 /// This prevents circular dependencies between crates.
 pub struct UiContext<'a> {
     pub mode: &'a mut ae_core::modules::EngineMode,
-    pub world: &'a mut hecs::World,
+    pub world: &'a mut ae_ecs::World,
     pub editor: &'a mut ae_editor::editor_state::EditorState,
     pub ui: &'a mut crate::ui::EngineUi,
     pub asset_manager: &'a mut ae_renderer::asset::AssetManager,
@@ -232,23 +232,21 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 if old != color {
                     let old_light = ctx
                         .world
-                        .get::<&ae_core::ecs::Light>(ent)
-                        .map(|l| ae_core::ecs::Light {
+                        .get_copied::<ae_plugin_api::Light>(ent)
+                        .map(|l| ae_plugin_api::Light {
                             position: l.position,
                             color: old,
                         })
-                        .unwrap_or(ae_core::ecs::Light {
+                        .unwrap_or(ae_plugin_api::Light {
                             position: [0.0, 0.0, 0.0],
                             color: old,
                         });
-                    let new_light = ctx
-                        .world
-                        .get::<&ae_core::ecs::Light>(ent)
-                        .map(|l| *l)
-                        .unwrap_or(ae_core::ecs::Light {
+                    let new_light = ctx.world.get_copied::<ae_plugin_api::Light>(ent).unwrap_or(
+                        ae_plugin_api::Light {
                             position: [0.0, 0.0, 0.0],
                             color,
-                        });
+                        },
+                    );
                     ae_editor::history::push_undo(
                         ctx.editor,
                         ae_editor::undo_redo::Command::Modify(

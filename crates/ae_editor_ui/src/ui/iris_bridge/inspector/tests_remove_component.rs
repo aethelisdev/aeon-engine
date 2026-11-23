@@ -10,12 +10,12 @@
 
 use super::*;
 use crate::ui::types::EngineUiAction;
-use ae_core::ecs::{Name, Position, RigidBody, Rotation, Scale, UiElement};
+use ae_plugin_api::{Name, Position, RigidBody, Rotation, Scale, UiElement};
 use irisui::prelude::*;
 
 fn click_delete_and_rebuild(
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
     component_name: &str,
 ) -> Option<EngineUiAction> {
     let mut tree = UiTree::new();
@@ -61,7 +61,7 @@ fn click_delete_and_rebuild(
 
 #[test]
 fn test_registry_card_delete_click_emits_remove_component_directly() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         Name("Body".to_string()),
         Position::new(0.0, 0.0, 0.0),
@@ -80,7 +80,7 @@ fn test_registry_card_delete_click_emits_remove_component_directly() {
 
 #[test]
 fn test_ui_transform_card_delete_click_emits_remove_component_directly() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Name("Hud".to_string()), UiElement::default()));
 
     let action = click_delete_and_rebuild(&world, entity, ui_transform::UI_ELEMENT_COMPONENT_NAME);

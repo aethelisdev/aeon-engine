@@ -18,9 +18,9 @@ use irisui::prelude::*;
 
 #[test]
 fn test_ui_transform_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiElement {
-        anchor: ae_core::ecs::UiAnchor::Center,
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiElement {
+        anchor: ae_plugin_api::UiAnchor::Center,
         offset: [15.0, 25.0],
         size: [120.0, 45.0],
         pivot: [0.5, 0.5],
@@ -62,8 +62,8 @@ fn test_ui_transform_card_declarative_structure() {
 
 #[test]
 fn test_ui_panel_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiPanel {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiPanel {
         border_width: 2.0,
         corner_radius: 6.0,
         ..Default::default()
@@ -83,19 +83,22 @@ fn test_ui_panel_card_declarative_structure() {
 
     // Direct in-place mutation verification
     {
-        let mut p = world.get::<&mut ae_core::ecs::UiPanel>(entity).unwrap();
+        let p = world.get_mut::<ae_plugin_api::UiPanel>(entity).unwrap();
         p.border_width = 5.0;
         p.corner_radius = 8.0;
     }
-    let panel = world.get::<&ae_core::ecs::UiPanel>(entity).unwrap();
-    assert_eq!(panel.border_width, 5.0);
-    assert_eq!(panel.corner_radius, 8.0);
+    world
+        .inspect::<ae_plugin_api::UiPanel, _>(entity, |panel| {
+            assert_eq!(panel.border_width, 5.0);
+            assert_eq!(panel.corner_radius, 8.0);
+        })
+        .unwrap();
 }
 
 #[test]
 fn test_ui_text_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiText {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiText {
         text: "Hello Aeon".to_string(),
         font_size: 16.0,
         alignment: ae_core::ui::UiTextAlignment::Center,
@@ -125,8 +128,8 @@ fn test_ui_text_card_declarative_structure() {
 
 #[test]
 fn test_ui_progress_bar_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiProgressBar {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiProgressBar {
         value: 65.0,
         min: 0.0,
         max: 100.0,
@@ -147,19 +150,22 @@ fn test_ui_progress_bar_card_declarative_structure() {
 
     // In-place mutation verification
     {
-        let mut pb = world
-            .get::<&mut ae_core::ecs::UiProgressBar>(entity)
+        let pb = world
+            .get_mut::<ae_plugin_api::UiProgressBar>(entity)
             .unwrap();
         pb.value = 75.0;
     }
-    let bar = world.get::<&ae_core::ecs::UiProgressBar>(entity).unwrap();
-    assert_eq!(bar.value, 75.0);
+    world
+        .inspect::<ae_plugin_api::UiProgressBar, _>(entity, |bar| {
+            assert_eq!(bar.value, 75.0);
+        })
+        .unwrap();
 }
 
 #[test]
 fn test_ui_button_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiButton {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiButton {
         is_enabled: true,
         ..Default::default()
     },));
@@ -185,8 +191,8 @@ fn test_ui_button_card_declarative_structure() {
 
 #[test]
 fn test_ui_image_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::UiImage {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::UiImage {
         slice_mode: ae_core::ui::UiSliceMode::Stretch,
         ..Default::default()
     },));
@@ -206,20 +212,20 @@ fn test_ui_image_card_declarative_structure() {
 
 #[test]
 fn test_ui_controls_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
-        ae_core::ecs::UiSlider {
+        ae_plugin_api::UiSlider {
             value: 0.5,
             min: 0.0,
             max: 1.0,
             ..Default::default()
         },
-        ae_core::ecs::UiCheckbox {
+        ae_plugin_api::UiCheckbox {
             is_checked: true,
             label: "TestOption".to_string(),
             ..Default::default()
         },
-        ae_core::ecs::UiTextInput {
+        ae_plugin_api::UiTextInput {
             placeholder: "Input...".to_string(),
             ..Default::default()
         },
@@ -267,11 +273,11 @@ fn test_ui_controls_declarative_structure() {
 
 #[test]
 fn test_ui_hud_tags_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
-        ae_core::ecs::PlayerHealthBarTag,
-        ae_core::ecs::ScoreDisplayTag,
-        ae_core::ecs::ReticleTag,
+        ae_plugin_api::PlayerHealthBarTag,
+        ae_plugin_api::ScoreDisplayTag,
+        ae_plugin_api::ReticleTag,
     ));
 
     let mut tree = UiTree::new();
@@ -308,10 +314,10 @@ fn test_ui_hud_tags_declarative_structure() {
 
 #[test]
 fn test_ui_element_and_layout_group_cards_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
-        ae_core::ecs::UiElement {
-            anchor: ae_core::ecs::UiAnchor::Center,
+        ae_plugin_api::UiElement {
+            anchor: ae_plugin_api::UiAnchor::Center,
             offset: [10.0, 20.0],
             size: [100.0, 50.0],
             pivot: [0.5, 0.5],
@@ -319,8 +325,8 @@ fn test_ui_element_and_layout_group_cards_declarative_structure() {
             alpha: 1.0,
             visible: true,
         },
-        ae_core::ecs::UiLayoutGroup {
-            layout_type: ae_core::ecs::UiLayoutType::Vertical,
+        ae_plugin_api::UiLayoutGroup {
+            layout_type: ae_plugin_api::UiLayoutType::Vertical,
             spacing: 8.0,
             ..Default::default()
         },
@@ -349,20 +355,23 @@ fn test_ui_element_and_layout_group_cards_declarative_structure() {
 
     // Direct in-place mutation verification
     {
-        let mut g = world
-            .get::<&mut ae_core::ecs::UiLayoutGroup>(entity)
+        let g = world
+            .get_mut::<ae_plugin_api::UiLayoutGroup>(entity)
             .unwrap();
         g.spacing = 16.0;
-        g.layout_type = ae_core::ecs::UiLayoutType::Horizontal;
+        g.layout_type = ae_plugin_api::UiLayoutType::Horizontal;
     }
-    let layout = world.get::<&ae_core::ecs::UiLayoutGroup>(entity).unwrap();
-    assert_eq!(layout.spacing, 16.0);
-    assert_eq!(layout.layout_type, ae_core::ecs::UiLayoutType::Horizontal);
+    world
+        .inspect::<ae_plugin_api::UiLayoutGroup, _>(entity, |layout| {
+            assert_eq!(layout.spacing, 16.0);
+            assert_eq!(layout.layout_type, ae_plugin_api::UiLayoutType::Horizontal);
+        })
+        .unwrap();
 }
 
 #[test]
 fn test_ui_canvas_cards_missing_components_safely_ignored() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let empty_entity = world.spawn(());
     let mut tree = UiTree::new();
     let root = WidgetId::default();

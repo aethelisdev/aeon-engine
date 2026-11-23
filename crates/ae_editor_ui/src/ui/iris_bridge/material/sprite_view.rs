@@ -14,12 +14,12 @@ use std::fmt::Write;
 
 #[inline]
 fn resolve_sprite_texture<'a>(
-    world: &'a hecs::World,
-    entity: hecs::Entity,
+    world: &'a ae_ecs::World,
+    entity: ae_ecs::Entity,
     textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
 ) -> Option<&'a ae_renderer::render::TextureAsset> {
     world
-        .get::<&ae_core::ecs::SpriteId>(entity)
+        .get_copied::<ae_plugin_api::SpriteId>(entity)
         .ok()
         .and_then(|s| textures.get(s.0))
 }
@@ -44,8 +44,8 @@ fn mip_count(width: u32, height: u32) -> u32 {
 /// Builds the 2D Sprite material, texture inspector, and sampler setting cards directly on [`UiScope`].
 pub fn build_sprite_view(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
-    world: &hecs::World,
+    entity: ae_ecs::Entity,
+    world: &ae_ecs::World,
     textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
@@ -106,26 +106,29 @@ pub fn build_sprite_view(
     });
 
     scope.card("Object Base Color", None, None, |card| {
-        card.when_ok(world.get::<&ae_core::ecs::Color>(entity), |c, color_ref| {
-            c.row(|row| {
-                row.label("Color Swatch:");
-                row.color_swatch(
-                    Color::rgba(color_ref.r, color_ref.g, color_ref.b, color_ref.a),
-                    36.0,
-                    20.0,
-                );
-                row.text_colored_fmt::<16, _>(Color::rgba(0.85, 0.88, 0.92, 1.0), |buf| {
-                    _ = write!(
-                        buf,
-                        "#{:02X}{:02X}{:02X}",
-                        (color_ref.r * 255.0).clamp(0.0, 255.0) as u8,
-                        (color_ref.g * 255.0).clamp(0.0, 255.0) as u8,
-                        (color_ref.b * 255.0).clamp(0.0, 255.0) as u8,
+        card.when_ok(
+            world.get_copied::<ae_plugin_api::Color>(entity),
+            |c, color_ref| {
+                c.row(|row| {
+                    row.label("Color Swatch:");
+                    row.color_swatch(
+                        Color::rgba(color_ref.r, color_ref.g, color_ref.b, color_ref.a),
+                        36.0,
+                        20.0,
                     );
+                    row.text_colored_fmt::<16, _>(Color::rgba(0.85, 0.88, 0.92, 1.0), |buf| {
+                        _ = write!(
+                            buf,
+                            "#{:02X}{:02X}{:02X}",
+                            (color_ref.r * 255.0).clamp(0.0, 255.0) as u8,
+                            (color_ref.g * 255.0).clamp(0.0, 255.0) as u8,
+                            (color_ref.b * 255.0).clamp(0.0, 255.0) as u8,
+                        );
+                    });
                 });
-            });
-        });
-        card.when(world.get::<&ae_core::ecs::Color>(entity).is_err(), |c| {
+            },
+        );
+        card.when(!world.has::<ae_plugin_api::Color>(entity), |c| {
             c.button_with_icon_styled_tagged(
                 ICON_PLUS,
                 Color::rgba(0.0, 0.85, 1.0, 0.95),

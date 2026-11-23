@@ -35,7 +35,7 @@ pub enum EngineUiAction {
     GarbageCollect,
 
     // --- HIERARCHY ACTIONS ---
-    SpawnShape(ae_core::ecs::Shape),
+    SpawnShape(ae_plugin_api::Shape),
     SpawnDefaultSprite,
     SpawnPlayerSprite,
     SpawnEmpty2D,
@@ -44,9 +44,9 @@ pub enum EngineUiAction {
     StressTest(usize),
     AaaOpenWorldTest,
     Explode,
-    ParentEntity(hecs::Entity, hecs::Entity),
-    UnparentEntity(hecs::Entity),
-    ToggleVisibility(hecs::Entity),
+    ParentEntity(ae_ecs::Entity, ae_ecs::Entity),
+    UnparentEntity(ae_ecs::Entity),
+    ToggleVisibility(ae_ecs::Entity),
 
     // --- UI/EDITOR STATE ACTIONS ---
     OpenPanel(crate::ui::panel_layout::PanelId),
@@ -59,7 +59,7 @@ pub enum EngineUiAction {
     SetUiScale(f32),
     /// Updates the workspace color elevation theme preset cleanly via the workbench action bus.
     SetThemePreset(crate::ui::iris_bridge::theme::ThemePreset),
-    SelectEntity(Option<hecs::Entity>),
+    SelectEntity(Option<ae_ecs::Entity>),
     SetWireframe(bool),
     SetGridEnabled(bool),
     SetGizmoMode(ae_editor::gizmo::GizmoMode),
@@ -74,19 +74,27 @@ pub enum EngineUiAction {
     },
 
     // --- INSPECTOR MODIFICATION ACTIONS ---
-    ModifyName(hecs::Entity, String, String), // (Entity, OldName, NewName)
-    LiveUpdatePosition(hecs::Entity, ae_core::ecs::Position),
-    ModifyPosition(hecs::Entity, ae_core::ecs::Position, ae_core::ecs::Position),
-    LiveUpdateRotation(hecs::Entity, ae_core::ecs::Rotation),
-    ModifyRotation(hecs::Entity, ae_core::ecs::Rotation, ae_core::ecs::Rotation),
-    LiveUpdateScale(hecs::Entity, ae_core::ecs::Scale),
-    ModifyScale(hecs::Entity, ae_core::ecs::Scale, ae_core::ecs::Scale),
-    ModifyColor(hecs::Entity, ae_core::ecs::Color, ae_core::ecs::Color),
-    ModifyLightColor(hecs::Entity, [f32; 3], [f32; 3]),
-    AssignTextureToEntity(hecs::Entity, String),
-    RemoveTextureFromEntity(hecs::Entity),
+    ModifyName(ae_ecs::Entity, String, String), // (Entity, OldName, NewName)
+    LiveUpdatePosition(ae_ecs::Entity, ae_plugin_api::Position),
+    ModifyPosition(
+        ae_ecs::Entity,
+        ae_plugin_api::Position,
+        ae_plugin_api::Position,
+    ),
+    LiveUpdateRotation(ae_ecs::Entity, ae_plugin_api::Rotation),
+    ModifyRotation(
+        ae_ecs::Entity,
+        ae_plugin_api::Rotation,
+        ae_plugin_api::Rotation,
+    ),
+    LiveUpdateScale(ae_ecs::Entity, ae_plugin_api::Scale),
+    ModifyScale(ae_ecs::Entity, ae_plugin_api::Scale, ae_plugin_api::Scale),
+    ModifyColor(ae_ecs::Entity, ae_plugin_api::Color, ae_plugin_api::Color),
+    ModifyLightColor(ae_ecs::Entity, [f32; 3], [f32; 3]),
+    AssignTextureToEntity(ae_ecs::Entity, String),
+    RemoveTextureFromEntity(ae_ecs::Entity),
     /// Opens the OS file dialog to pick and assign a texture to a 2D sprite entity.
-    PickAndAssignEntityTexture(hecs::Entity),
+    PickAndAssignEntityTexture(ae_ecs::Entity),
     SetModelSubmeshAlphaMode(
         ae_renderer::asset::AssetHandle,
         usize,
@@ -97,10 +105,10 @@ pub enum EngineUiAction {
     PickAndSetSubmeshTexture(ae_renderer::asset::AssetHandle, usize),
 
     // --- DYNAMIC COMPONENT ACTIONS (Generic ComponentRegistry Pattern) ---
-    AddComponent(hecs::Entity, &'static str),
-    RemoveComponent(hecs::Entity, &'static str),
-    ModifyComponent(hecs::Entity, &'static str, Vec<u8>),
-    CommitComponentModify(hecs::Entity, &'static str, Vec<u8>, Vec<u8>),
+    AddComponent(ae_ecs::Entity, &'static str),
+    RemoveComponent(ae_ecs::Entity, &'static str),
+    ModifyComponent(ae_ecs::Entity, &'static str, Vec<u8>),
+    CommitComponentModify(ae_ecs::Entity, &'static str, Vec<u8>, Vec<u8>),
 
     // --- SCENE/SYSTEM ACTIONS ---
     OpenModelDialog,
@@ -110,7 +118,7 @@ pub enum EngineUiAction {
     LoadScene,
     SaveSceneToPath(std::path::PathBuf),
     LoadSceneFromPath(std::path::PathBuf),
-    SaveEntityAsPrefab(hecs::Entity, std::path::PathBuf),
+    SaveEntityAsPrefab(ae_ecs::Entity, std::path::PathBuf),
     OpenLoadPrefabDialog,
     InstantiatePrefab(std::path::PathBuf),
     Undo,
@@ -148,8 +156,8 @@ pub enum EngineUiAction {
     Exit,
     /// Toggle the enable/disable state of a core engine module.
     ToggleModule(ae_core::modules::EngineModule),
-    ModifyLodThresholds(hecs::Entity, f32, f32),
-    ModifyLodModel(hecs::Entity, u8, Option<ae_renderer::asset::AssetHandle>),
+    ModifyLodThresholds(ae_ecs::Entity, f32, f32),
+    ModifyLodModel(ae_ecs::Entity, u8, Option<ae_renderer::asset::AssetHandle>),
     SpawnPhase1TestSandbox,
     /// Launches standalone project export using the configured request parameters.
     StartProjectExport(ae_export::ExportRequest),
@@ -229,7 +237,7 @@ impl ExportDialogState {
 impl EngineUiAction {
     /// Creates a generic component modification action by serializing `component` data to binary `postcard` bytes.
     pub fn modify_component<T: serde::Serialize>(
-        entity: hecs::Entity,
+        entity: ae_ecs::Entity,
         type_name: &'static str,
         component: &T,
     ) -> Self {
@@ -313,7 +321,7 @@ pub struct EditorUiRenderParams<'a> {
     /// Measured engine frames per second for status/telemetry readouts.
     pub fps: f32,
     /// Authoritative ECS world containing all entities and components.
-    pub world: &'a hecs::World,
+    pub world: &'a ae_ecs::World,
     /// Active engine execution mode (`Edit`, `Play`, `Pause`).
     pub mode: &'a ae_core::modules::EngineMode,
     /// Current command undo stack slice for menu enablement.
@@ -361,7 +369,7 @@ pub struct EditorFrameData<'frame> {
     /// Active camera parameters for HUD and drop raycasting.
     pub camera: &'frame ae_renderer::camera::Camera,
     /// Authoritative ECS world.
-    pub world: &'frame hecs::World,
+    pub world: &'frame ae_ecs::World,
     /// Authoritative editor state (selection, gizmo, wireframe, grid, revision).
     pub editor_state: &'frame ae_editor::editor_state::EditorState,
     /// Read-only graphics settings reference for the active frame.

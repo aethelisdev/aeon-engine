@@ -158,21 +158,21 @@ pub fn handle_garbage_collect(ctx: &mut UiContext) {
 
     for (_ent, model_id) in ctx
         .world
-        .query::<(hecs::Entity, &ae_core::ecs::ModelId)>()
+        .query::<(ae_ecs::Entity, &ae_plugin_api::ModelId)>()
         .iter()
     {
         used_models.insert(model_id.0);
     }
     for (_ent, sprite_id) in ctx
         .world
-        .query::<(hecs::Entity, &ae_core::ecs::SpriteId)>()
+        .query::<(ae_ecs::Entity, &ae_plugin_api::SpriteId)>()
         .iter()
     {
         used_textures.insert(sprite_id.0);
     }
     for (_ent, lod) in ctx
         .world
-        .query::<(hecs::Entity, &ae_core::ecs::LodGroup)>()
+        .query::<(ae_ecs::Entity, &ae_plugin_api::LodGroup)>()
         .iter()
     {
         used_models.insert(lod.lod_0);

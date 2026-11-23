@@ -10,53 +10,55 @@
 use crate::ui::iris_bridge::icons::ICON_GEAR;
 use irisui::prelude::*;
 
-/// Maps a [`ae_core::ecs::RigidBodyType`] variant to its zero-based combobox option index.
+/// Maps a [`ae_plugin_api::RigidBodyType`] variant to its zero-based combobox option index.
 #[inline]
 #[must_use]
-pub const fn body_type_to_index(bt: ae_core::ecs::RigidBodyType) -> usize {
+pub const fn body_type_to_index(bt: ae_plugin_api::RigidBodyType) -> usize {
     match bt {
-        ae_core::ecs::RigidBodyType::Dynamic => 0,
-        ae_core::ecs::RigidBodyType::Kinematic => 1,
-        ae_core::ecs::RigidBodyType::Static => 2,
+        ae_plugin_api::RigidBodyType::Dynamic => 0,
+        ae_plugin_api::RigidBodyType::Kinematic => 1,
+        ae_plugin_api::RigidBodyType::Static => 2,
     }
 }
 
-/// Maps a zero-based combobox option index to its corresponding [`ae_core::ecs::RigidBodyType`] variant.
+/// Maps a zero-based combobox option index to its corresponding [`ae_plugin_api::RigidBodyType`] variant.
 #[inline]
 #[must_use]
-pub const fn index_to_body_type(idx: usize) -> ae_core::ecs::RigidBodyType {
+pub const fn index_to_body_type(idx: usize) -> ae_plugin_api::RigidBodyType {
     match idx {
-        0 => ae_core::ecs::RigidBodyType::Dynamic,
-        1 => ae_core::ecs::RigidBodyType::Kinematic,
-        _ => ae_core::ecs::RigidBodyType::Static,
+        0 => ae_plugin_api::RigidBodyType::Dynamic,
+        1 => ae_plugin_api::RigidBodyType::Kinematic,
+        _ => ae_plugin_api::RigidBodyType::Static,
     }
 }
 
-/// Renders the declarative RigidBody component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative RigidBody component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates the entire component card hierarchy, header descriptor, two-way bound body type dropdown,
 /// and mass/gravity numeric scrubbers with zero intermediate variable plumbing.
-pub fn draw_rigidbody_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "RigidBodyCard",
-        CardHeaderDescriptor::new("RigidBody")
-            .icon("⚙")
-            .atlas_icon(ICON_GEAR)
-            .color(Color::rgba(0.22, 0.74, 0.98, 1.0))
-            .action("×", UiScope::action_tag("RigidBody")),
-        world.get::<&mut ae_core::ecs::RigidBody>(entity),
-        |card, mut rb| {
-            card.prop_combobox_mapped(
-                "Type:",
-                body_type_to_index(rb.body_type),
-                &["Dynamic", "Kinematic", "Static"],
-                &mut rb.body_type,
-                index_to_body_type,
-            );
-            card.prop_f32("Mass:", &mut rb.mass, 0.001..=100_000.0, 0.1);
-            card.prop_f32("Gravity:", &mut rb.gravity_scale, -100.0..=100.0, 0.1);
-        },
-    );
+pub fn draw_rigidbody_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::RigidBody, _>(entity, |rb| {
+            scope.card_panel("RigidBodyCard", |card| {
+                card.card_header_desc(
+                    CardHeaderDescriptor::new("RigidBody")
+                        .icon("⚙")
+                        .atlas_icon(ICON_GEAR)
+                        .color(Color::rgba(0.22, 0.74, 0.98, 1.0))
+                        .action("×", UiScope::action_tag("RigidBody")),
+                );
+                card.prop_combobox_mapped(
+                    "Type:",
+                    body_type_to_index(rb.body_type),
+                    &["Dynamic", "Kinematic", "Static"],
+                    &mut rb.body_type,
+                    index_to_body_type,
+                );
+                card.prop_f32("Mass:", &mut rb.mass, 0.001..=100_000.0, 0.1);
+                card.prop_f32("Gravity:", &mut rb.gravity_scale, -100.0..=100.0, 0.1);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -67,9 +69,9 @@ mod tests {
     fn test_rigidbody_declarative_scope_renders_gear_icon_and_chevron() {
         let mut tree = UiTree::new();
         let root = WidgetId::default();
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Dynamic,
             mass: 2.5,
             gravity_scale: 1.0,
         },));
@@ -99,8 +101,8 @@ mod tests {
     fn test_rigidbody_combobox_renders_chevron_up_when_open() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::RigidBody::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::RigidBody::default(),));
 
         // First pass: render once to get the tag of the ComboPill
         {
@@ -133,51 +135,53 @@ mod tests {
 
     #[test]
     fn test_rigidbody_declarative_in_place_mutation_and_undo_snapshot() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Dynamic,
             mass: 2.5,
             gravity_scale: 1.0,
         },));
 
-        if let Ok(mut rb) = world.get::<&mut ae_core::ecs::RigidBody>(entity) {
+        if let Ok(rb) = world.get_mut::<ae_plugin_api::RigidBody>(entity) {
             rb.mass = 5.0;
             rb.gravity_scale = 2.0;
-            rb.body_type = ae_core::ecs::RigidBodyType::Static;
+            rb.body_type = ae_plugin_api::RigidBodyType::Static;
         }
 
         // Verify mutations in world
-        let rb = world.get::<&ae_core::ecs::RigidBody>(entity).unwrap();
+        let rb = world
+            .get_copied::<ae_plugin_api::RigidBody>(entity)
+            .unwrap();
         assert_eq!(rb.mass, 5.0);
         assert_eq!(rb.gravity_scale, 2.0);
-        assert_eq!(rb.body_type, ae_core::ecs::RigidBodyType::Static);
+        assert_eq!(rb.body_type, ae_plugin_api::RigidBodyType::Static);
     }
 
     #[test]
     fn test_rigidbody_body_type_mapping_roundtrip() {
-        assert_eq!(body_type_to_index(ae_core::ecs::RigidBodyType::Dynamic), 0);
+        assert_eq!(body_type_to_index(ae_plugin_api::RigidBodyType::Dynamic), 0);
         assert_eq!(
-            body_type_to_index(ae_core::ecs::RigidBodyType::Kinematic),
+            body_type_to_index(ae_plugin_api::RigidBodyType::Kinematic),
             1
         );
-        assert_eq!(body_type_to_index(ae_core::ecs::RigidBodyType::Static), 2);
+        assert_eq!(body_type_to_index(ae_plugin_api::RigidBodyType::Static), 2);
 
-        assert_eq!(index_to_body_type(0), ae_core::ecs::RigidBodyType::Dynamic);
+        assert_eq!(index_to_body_type(0), ae_plugin_api::RigidBodyType::Dynamic);
         assert_eq!(
             index_to_body_type(1),
-            ae_core::ecs::RigidBodyType::Kinematic
+            ae_plugin_api::RigidBodyType::Kinematic
         );
-        assert_eq!(index_to_body_type(2), ae_core::ecs::RigidBodyType::Static);
-        assert_eq!(index_to_body_type(99), ae_core::ecs::RigidBodyType::Static);
+        assert_eq!(index_to_body_type(2), ae_plugin_api::RigidBodyType::Static);
+        assert_eq!(index_to_body_type(99), ae_plugin_api::RigidBodyType::Static);
     }
 
     #[test]
     fn test_draw_rigidbody_card_renders_mass_and_gravity_labels() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Kinematic,
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Kinematic,
             mass: 12.0,
             gravity_scale: 0.5,
         },));
@@ -218,7 +222,7 @@ mod tests {
     fn test_draw_rigidbody_card_missing_component_safely_ignored() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node must exist");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
 
         let mut scope = UiScope::new(&mut tree, root);

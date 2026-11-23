@@ -13,7 +13,7 @@ use super::types::{
     make_row_tag,
 };
 use crate::ui::types::EngineUiAction;
-use hecs::World;
+use ae_ecs::World;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
@@ -150,7 +150,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
 #[test]
 fn test_hierarchy_row_context_menu_via_tree_ssot_and_action_bus() {
     let mut world = World::new();
-    let entity = world.spawn((ae_core::ecs::Name("TestEntity".into()),));
+    let entity = world.spawn((ae_plugin_api::Name("TestEntity".into()),));
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
@@ -215,8 +215,8 @@ fn test_hierarchy_row_context_menu_via_tree_ssot_and_action_bus() {
 fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
     use crate::ui::iris_bridge::icons::{ICON_EYE_CLOSED, ICON_EYE_OPEN};
 
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Name("TestEntity".into()),));
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Name("TestEntity".into()),));
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
@@ -253,7 +253,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
     assert_eq!(eye_uv_opt, Some(ICON_EYE_OPEN));
     assert_eq!(eye_tag_opt, Some(make_eye_tag(0)));
 
-    let _ = world.insert_one(entity, ae_core::ecs::Hidden);
+    let _ = world.insert_one(entity, ae_plugin_api::Hidden);
 
     let mut new_tree = UiTree::new();
     let new_root = new_tree.create_root().expect("Root node must be created");
@@ -279,9 +279,9 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
 
 #[test]
 fn test_hierarchy_panel_declarative_scope_build() {
-    let mut world = hecs::World::new();
-    let _e1 = world.spawn((ae_core::ecs::Name("Entity Alpha".into()),));
-    let _e2 = world.spawn((ae_core::ecs::Name("Entity Beta".into()),));
+    let mut world = ae_ecs::World::new();
+    let _e1 = world.spawn((ae_plugin_api::Name("Entity Alpha".into()),));
+    let _e2 = world.spawn((ae_plugin_api::Name("Entity Beta".into()),));
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node must be created");
@@ -334,9 +334,9 @@ fn test_hierarchy_panel_declarative_scope_build() {
 
 #[test]
 fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     for i in 0..1000 {
-        let _ = world.spawn((ae_core::ecs::Name(format!("Entity_{i}")),));
+        let _ = world.spawn((ae_plugin_api::Name(format!("Entity_{i}")),));
     }
 
     let mut tree = UiTree::new();
@@ -372,8 +372,8 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
 
 #[test]
 fn test_hierarchy_header_and_row_hover_styling() {
-    let mut world = hecs::World::new();
-    let _ent = world.spawn((ae_core::ecs::Name("TestEntity".to_string()),));
+    let mut world = ae_ecs::World::new();
+    let _ent = world.spawn((ae_plugin_api::Name("TestEntity".to_string()),));
 
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");

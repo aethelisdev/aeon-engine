@@ -57,7 +57,7 @@ pub const fn make_add_item_tag(idx: usize) -> u64 {
 /// Encodes an ECS entity handle into a stable 64-bit semantic element tag.
 #[inline]
 #[must_use]
-pub const fn encode_element_tag(entity: hecs::Entity) -> u64 {
+pub const fn encode_element_tag(entity: ae_ecs::Entity) -> u64 {
     UI_DESIGNER_TAG_ELEMENT_BASE
         .indexed(entity.to_bits().get())
         .raw()

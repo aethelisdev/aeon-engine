@@ -25,64 +25,72 @@ fn grounded_color(theme: Theme, is_grounded: bool) -> Color {
     }
 }
 
-/// Renders the declarative Kinematic Character Controller component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Kinematic Character Controller component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates numeric dimension scrubbers (Height, Radius, Center Y, Max Slope Angle, Step Height)
 /// and grounded status indicator with zero intermediate variable plumbing.
 pub fn draw_character_controller_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "CharacterControllerCard",
-        UiScope::comp_card_desc(
-            "CharacterController",
-            "Kinematic Character Controller",
-            "🚶",
-            Color::rgba(0.96, 0.30, 0.65, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::CharacterController>(entity),
-        |card, mut c| {
-            card.prop_f32("Height:", &mut c.height, 0.05..=1_000.0, 0.05);
-            card.prop_f32("Radius:", &mut c.radius, 0.01..=500.0, 0.02);
-            card.prop_f32("Center Y:", &mut c.center_y, -1_000.0..=1_000.0, 0.05);
-            card.prop_f32(
-                "Max Slope Angle:",
-                &mut c.max_slope_climb_angle,
-                0.0..=89.9,
-                0.5,
-            );
-            card.prop_f32("Step Height:", &mut c.step_height, 0.0..=100.0, 0.02);
-            card.status_pill(
-                "GroundedStatusPill",
-                "GroundedStatusText",
-                grounded_label(c.is_grounded),
-                grounded_color(card.theme(), c.is_grounded),
-            );
-        },
-    );
+    world
+        .mutate::<ae_plugin_api::CharacterController, _>(entity, |c| {
+            scope.card_panel("CharacterControllerCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "CharacterController",
+                    "Kinematic Character Controller",
+                    "🚶",
+                    Color::rgba(0.96, 0.30, 0.65, 1.0),
+                ));
+                card.prop_f32("Height:", &mut c.height, 0.05..=1_000.0, 0.05);
+                card.prop_f32("Radius:", &mut c.radius, 0.01..=500.0, 0.02);
+                card.prop_f32("Center Y:", &mut c.center_y, -1_000.0..=1_000.0, 0.05);
+                card.prop_f32(
+                    "Max Slope Angle:",
+                    &mut c.max_slope_climb_angle,
+                    0.0..=89.9,
+                    0.5,
+                );
+                card.prop_f32("Step Height:", &mut c.step_height, 0.0..=100.0, 0.02);
+                card.status_pill(
+                    "GroundedStatusPill",
+                    "GroundedStatusText",
+                    grounded_label(c.is_grounded),
+                    grounded_color(card.theme(), c.is_grounded),
+                );
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative PlayerTag component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative PlayerTag component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Indicates active player designation for gameplay logic and camera tracking.
-pub fn draw_player_tag_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "PlayerTagCard",
-        UiScope::component_card_desc("PlayerTag", "🎮", Color::rgba(0.96, 0.62, 0.15, 1.0)),
-        world.get::<&ae_core::ecs::PlayerTag>(entity),
-        |card, _tag| {
-            card.label_desc(
-                "PlayerTagDesc",
-                "Designates this entity as the active Player target",
-            );
-            card.label_desc(
-                "PlayerTagDescSub",
-                "for gameplay logic and camera tracking.",
-            );
-        },
-    );
+pub fn draw_player_tag_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .inspect::<ae_plugin_api::PlayerTag, _>(entity, |_tag| {
+            scope.card_panel("PlayerTagCard", |card| {
+                card.card_header_desc(UiScope::component_card_desc(
+                    "PlayerTag",
+                    "🎮",
+                    Color::rgba(0.96, 0.62, 0.15, 1.0),
+                ));
+                card.label_desc(
+                    "PlayerTagDesc",
+                    "Designates this entity as the active Player target",
+                );
+                card.label_desc(
+                    "PlayerTagDescSub",
+                    "for gameplay logic and camera tracking.",
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -91,8 +99,8 @@ mod tests {
 
     #[test]
     fn test_player_tag_declarative_render() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::PlayerTag,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::PlayerTag,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 
@@ -108,8 +116,8 @@ mod tests {
 
     #[test]
     fn test_draw_player_tag_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::PlayerTag,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::PlayerTag,));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
@@ -132,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_draw_player_tag_card_missing_component_safely_ignored() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
@@ -148,8 +156,8 @@ mod tests {
 
     #[test]
     fn test_character_controller_declarative_render_and_grounded_status() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::CharacterController {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::CharacterController {
             height: 2.0,
             radius: 0.5,
             center_y: 0.1,
@@ -180,7 +188,7 @@ mod tests {
         // Verify initial state
         {
             let c = world
-                .get::<&ae_core::ecs::CharacterController>(entity)
+                .get_copied::<ae_plugin_api::CharacterController>(entity)
                 .unwrap();
             assert_eq!(c.height, 2.0);
             assert_eq!(c.radius, 0.5);
@@ -192,8 +200,8 @@ mod tests {
 
         // Test in-place mutation of fields
         {
-            let mut c = world
-                .get::<&mut ae_core::ecs::CharacterController>(entity)
+            let c = world
+                .get_mut::<ae_plugin_api::CharacterController>(entity)
                 .unwrap();
             c.height = 1.75;
             c.radius = 0.35;
@@ -206,7 +214,7 @@ mod tests {
         // Verify mutation reflected in ECS world
         {
             let c = world
-                .get::<&ae_core::ecs::CharacterController>(entity)
+                .get_copied::<ae_plugin_api::CharacterController>(entity)
                 .unwrap();
             assert_eq!(c.height, 1.75);
             assert_eq!(c.radius, 0.35);
@@ -219,8 +227,8 @@ mod tests {
 
     #[test]
     fn test_draw_character_controller_card_in_air_state() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::CharacterController {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::CharacterController {
             height: 1.80,
             radius: 0.40,
             center_y: 0.0,
@@ -250,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_draw_character_controller_card_missing_component_safely_ignored() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

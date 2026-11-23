@@ -8,7 +8,7 @@
 //! and 2D HSV Color Pickers.
 
 use super::*;
-use ae_core::ecs::Position;
+use ae_plugin_api::Position;
 use irisui::prelude::*;
 
 #[test]
@@ -16,7 +16,7 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     use irisui::widgets::declarative::hash_label;
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Position::default(),));
 
     // Build Add Component button anchor via declarative UiScope directly in tree
@@ -98,7 +98,7 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
 fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Position::default(),));
 
     // Build Swatch trigger anchor via declarative UiScope directly in tree
@@ -185,7 +185,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
 fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Position::default(),));
 
     let mut name = String::new();
@@ -239,8 +239,8 @@ fn test_clicking_appearance_color_swatch_does_not_double_toggle() {
 fn test_color_picker_drag_and_undo_restoration() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let mut world = hecs::World::new();
-    let initial_color = ae_core::ecs::Color {
+    let mut world = ae_ecs::World::new();
+    let initial_color = ae_plugin_api::Color {
         r: 0.1,
         g: 0.2,
         b: 0.3,
@@ -303,7 +303,7 @@ fn test_color_picker_drag_and_undo_restoration() {
         {
             ui_actions.push(act);
         }
-        let cur = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        let cur = world.get_copied::<ae_plugin_api::Color>(entity).unwrap();
         assert_ne!(
             cur, initial_color,
             "Entity color in world must update live during drag"
@@ -336,7 +336,7 @@ fn test_color_picker_drag_and_undo_restoration() {
         "Drag release must emit exactly one atomic ModifyColor action"
     );
 
-    let final_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+    let final_color = world.get_copied::<ae_plugin_api::Color>(entity).unwrap();
     if let crate::ui::EngineUiAction::ModifyColor(ent, old_c, new_c) = ui_actions[0] {
         assert_eq!(ent, entity);
         assert_eq!(old_c, initial_color);
@@ -348,7 +348,7 @@ fn test_color_picker_drag_and_undo_restoration() {
             ae_editor::undo_redo::Property::Color(old_c, new_c),
         );
         undo_cmd.undo(&mut world);
-        let restored_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        let restored_color = world.get_copied::<ae_plugin_api::Color>(entity).unwrap();
         assert_eq!(
             restored_color, initial_color,
             "Undo must restore the exact pre-edit color"
@@ -363,7 +363,7 @@ fn test_color_picker_drag_and_undo_restoration() {
 fn test_color_picker_popup_close_button_interaction() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
 
     tree.open_popup(appearance_color_swatch_tag());
     {
@@ -412,7 +412,7 @@ fn test_color_picker_popup_close_button_interaction() {
 fn test_inspector_cascading_add_component_menu_outside_click() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Position::default(),));
 
     // 1. Create Add Component button anchor in tree
@@ -486,7 +486,7 @@ fn test_inspector_cascading_add_component_menu_outside_click() {
 fn test_inspector_color_picker_popup_outside_click() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root");
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((Position::default(),));
 
     let swatch_tag = super::appearance::appearance_color_swatch_tag();
@@ -560,15 +560,15 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
         WorkbenchPanelRegistry,
     };
 
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
-        ae_core::ecs::Name("Cube".to_string()),
-        ae_core::ecs::Position::default(),
-        ae_core::ecs::Rotation::default(),
-        ae_core::ecs::Scale::default(),
-        ae_core::ecs::RigidBody::default(),
-        ae_core::ecs::Collider::default(),
-        ae_core::ecs::Velocity::default(),
+        ae_plugin_api::Name("Cube".to_string()),
+        ae_plugin_api::Position::default(),
+        ae_plugin_api::Rotation::default(),
+        ae_plugin_api::Scale::default(),
+        ae_plugin_api::RigidBody::default(),
+        ae_plugin_api::Collider::default(),
+        ae_plugin_api::Velocity::default(),
     ));
 
     let dock = crate::ui::panel_layout::create_default_dock_state();
@@ -584,8 +584,8 @@ fn test_inspector_real_panel_popups_open_on_right_side() {
     let mut name = String::new();
 
     struct Ctx<'a> {
-        world: &'a hecs::World,
-        entity: hecs::Entity,
+        world: &'a ae_ecs::World,
+        entity: ae_ecs::Entity,
         name: &'a mut String,
     }
 

@@ -24,7 +24,7 @@ pub const MATERIAL_TAG_SCROLLBAR_THUMB: u64 = UiTag::from_str("material.scrollba
 #[derive(Debug, Default, Clone)]
 pub struct MaterialPanelState {
     /// Selected entity handle cached for scroll offset resets across entity switches.
-    pub selected_entity: Option<hecs::Entity>,
+    pub selected_entity: Option<ae_ecs::Entity>,
     /// Active model asset handle inspected, if any.
     pub active_model: Option<ae_renderer::asset::AssetHandle>,
 }

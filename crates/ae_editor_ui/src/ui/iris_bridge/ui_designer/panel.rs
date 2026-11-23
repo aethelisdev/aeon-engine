@@ -36,8 +36,8 @@ impl UiDesignerPanelState {
 /// Assembles the complete 2D Visual UI Designer panel tree in native Iris UI.
 pub fn build_ui_designer_panel(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
     state: &mut UiDesignerState,
     designer: &mut UiDesignerPanelState,
     action_bus: &mut ActionBus<EngineUiAction>,

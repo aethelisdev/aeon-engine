@@ -24,20 +24,31 @@ impl TimelinePanelState {
     /// Draws the Animation Timeline Studio panel directly using typed timeline state and workbench context.
     pub(crate) fn draw_panel(&mut self, scope: &mut UiScope<'_>, ctx: &mut EditorPanelContext<'_>) {
         self.selected_entity = ctx.data.editor_state.primary_selected();
-        self.clip_duration = build_timeline_panel(
-            scope,
-            self.selected_entity,
-            self.selected_entity
-                .and_then(|ent| {
-                    ctx.data
-                        .world
-                        .get::<&ae_animation::AnimationPlayer>(ent)
-                        .ok()
-                })
-                .as_deref(),
-            &mut self.cache,
-            ctx.action_bus,
-        );
+        self.clip_duration = self
+            .selected_entity
+            .and_then(|ent| {
+                ctx.data
+                    .world
+                    .inspect::<ae_animation::AnimationPlayer, _>(ent, |player| {
+                        build_timeline_panel(
+                            scope,
+                            Some(ent),
+                            Some(player),
+                            &mut self.cache,
+                            ctx.action_bus,
+                        )
+                    })
+                    .ok()
+            })
+            .unwrap_or_else(|| {
+                build_timeline_panel(
+                    scope,
+                    self.selected_entity,
+                    None,
+                    &mut self.cache,
+                    ctx.action_bus,
+                )
+            });
     }
 
     /// Streams 60 FPS playhead, scrubber, and time readout updates in place during `InPlaceRefresh`
@@ -47,28 +58,32 @@ impl TimelinePanelState {
         scope: &mut UiScope<'_>,
         ctx: &mut EditorPanelContext<'_>,
     ) {
-        refresh_timeline_with_player(
-            scope,
-            ctx,
-            ctx.data.editor_state.primary_selected(),
-            ctx.data
-                .editor_state
-                .primary_selected()
-                .and_then(|ent| {
-                    ctx.data
-                        .world
-                        .get::<&ae_animation::AnimationPlayer>(ent)
-                        .ok()
-                })
-                .as_deref(),
-        );
+        ctx.data
+            .editor_state
+            .primary_selected()
+            .and_then(|ent| {
+                ctx.data
+                    .world
+                    .inspect::<ae_animation::AnimationPlayer, _>(ent, |player| {
+                        refresh_timeline_with_player(scope, ctx, Some(ent), Some(player));
+                    })
+                    .ok()
+            })
+            .unwrap_or_else(|| {
+                refresh_timeline_with_player(
+                    scope,
+                    ctx,
+                    ctx.data.editor_state.primary_selected(),
+                    None,
+                );
+            });
     }
 }
 
 fn refresh_timeline_with_player(
     scope: &mut UiScope<'_>,
     ctx: &mut EditorPanelContext<'_>,
-    entity: Option<hecs::Entity>,
+    entity: Option<ae_ecs::Entity>,
     player: Option<&ae_animation::AnimationPlayer>,
 ) {
     ctx.sync_live_revision(
@@ -102,7 +117,7 @@ fn refresh_player_widgets(scope: &mut UiScope<'_>, current_time: f32, duration: 
 /// Returns the resolved clip duration in seconds.
 pub fn build_timeline_panel(
     scope: &mut UiScope<'_>,
-    entity: Option<hecs::Entity>,
+    entity: Option<ae_ecs::Entity>,
     animation_player: Option<&ae_animation::AnimationPlayer>,
     cache: &mut TimelineClipCache,
     action_bus: &mut ActionBus<EngineUiAction>,
@@ -139,7 +154,7 @@ pub fn build_timeline_panel(
 
 fn build_active_timeline(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     player: &ae_animation::AnimationPlayer,
     duration: f32,
     cache: &mut TimelineClipCache,
@@ -186,7 +201,7 @@ fn render_empty_placeholder_themed(scope: &mut UiScope<'_>, theme: Theme) {
 /// Renders a flex-centered prompt card with an action button to attach an `AnimationPlayer`.
 fn render_missing_player_card(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     render_missing_player_card_themed(scope, entity, action_bus, scope.theme());
@@ -194,7 +209,7 @@ fn render_missing_player_card(
 
 fn render_missing_player_card_themed(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     action_bus: &mut ActionBus<EngineUiAction>,
     theme: Theme,
 ) {

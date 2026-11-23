@@ -46,7 +46,7 @@ const READOUT_TEXT: Color = Color::rgba(0.0, 0.88, 1.0, 1.0);
 /// Builds the playback transport controls toolbar at the top of the animation timeline panel.
 pub fn build_transport_toolbar(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     player: &ae_animation::AnimationPlayer,
     duration: f32,
     action_bus: &mut ActionBus<EngineUiAction>,
@@ -320,7 +320,7 @@ mod tests {
         let mut tree = UiTree::new();
         let root = PanelBuilder::new(&mut tree).build();
         let _ = tree.set_root(root);
-        let entity = hecs::World::new().spawn(());
+        let entity = ae_ecs::World::new().spawn(());
         let player = ae_animation::AnimationPlayer {
             current_clip: Some(ae_animation::AnimationClip::new("RunCycle", 2.0)),
             ..Default::default()

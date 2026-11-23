@@ -22,67 +22,71 @@ pub fn apply_picked_audio_path(audio: &mut ae_audio::AudioSource, path: String) 
     audio.is_playing = true;
 }
 
-/// Renders the declarative Audio Source component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Audio Source component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates asset file slot, volume/pitch scrubbers, and spatial/looping/play-on-start checkboxes with zero intermediate variable plumbing.
-pub fn draw_audio_source_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "AudioSourceCard",
-        UiScope::comp_card_desc(
-            "AudioSource",
-            "Audio Source",
-            "🔊",
-            Color::rgba(0.22, 0.74, 0.97, 1.0),
-        ),
-        world.get::<&mut ae_audio::AudioSource>(entity),
-        |card, mut audio| {
-            card.asset_slot_row(
-                AssetSlotConfig::untagged("Sound:", &audio.sound_path, "Select sound...")
-                    .with_play_state(audio.is_playing)
-                    .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
-            )
-            .on_pick(|| {
-                pick_audio_file_path()
-                    .into_iter()
-                    .for_each(|path| apply_picked_audio_path(&mut audio, path));
-            })
-            .on_play_toggle(|| {
-                audio.is_playing = !audio.is_playing;
-            });
+pub fn draw_audio_source_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<ae_audio::AudioSource, _>(entity, |audio| {
+            scope.card_panel("AudioSourceCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "AudioSource",
+                    "Audio Source",
+                    "🔊",
+                    Color::rgba(0.22, 0.74, 0.97, 1.0),
+                ));
+                card.asset_slot_row(
+                    AssetSlotConfig::untagged("Sound:", &audio.sound_path, "Select sound...")
+                        .with_play_state(audio.is_playing)
+                        .with_icon(crate::ui::iris_bridge::icons::ICON_FOLDER),
+                )
+                .on_pick(|| {
+                    pick_audio_file_path()
+                        .into_iter()
+                        .for_each(|path| apply_picked_audio_path(audio, path));
+                })
+                .on_play_toggle(|| {
+                    audio.is_playing = !audio.is_playing;
+                });
 
-            card.prop_f32("Volume:", &mut audio.volume, 0.0..=1.0, 0.02);
-            card.prop_f32("Pitch:", &mut audio.pitch, 0.1..=10.0, 0.05);
-            card.prop_checkbox("Spatial 3D Audio", &mut audio.is_spatial);
-            card.prop_checkbox("Looping", &mut audio.looping);
-            card.prop_checkbox("Play on Start", &mut audio.play_on_start);
-        },
-    );
+                card.prop_f32("Volume:", &mut audio.volume, 0.0..=1.0, 0.02);
+                card.prop_f32("Pitch:", &mut audio.pitch, 0.1..=10.0, 0.05);
+                card.prop_checkbox("Spatial 3D Audio", &mut audio.is_spatial);
+                card.prop_checkbox("Looping", &mut audio.looping);
+                card.prop_checkbox("Play on Start", &mut audio.play_on_start);
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative Audio Listener component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Audio Listener component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Displays the 3D spatial microphone status with zero intermediate variable plumbing.
 pub fn draw_audio_listener_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "AudioListenerCard",
-        UiScope::comp_card_desc(
-            "AudioListener",
-            "Audio Listener",
-            "👂",
-            Color::rgba(0.65, 0.55, 0.98, 1.0),
-        ),
-        world.get::<&ae_audio::AudioListener>(entity),
-        |card, _listener| {
-            card.label_desc(
-                "AudioListenerDesc",
-                "Active 3D spatial microphone & ear for scene audio.",
-            );
-        },
-    );
+    world
+        .inspect::<ae_audio::AudioListener, _>(entity, |_listener| {
+            scope.card_panel("AudioListenerCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "AudioListener",
+                    "Audio Listener",
+                    "👂",
+                    Color::rgba(0.65, 0.55, 0.98, 1.0),
+                ));
+                card.label_desc(
+                    "AudioListenerDesc",
+                    "Active 3D spatial microphone & ear for scene audio.",
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -91,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_audio_source_render_and_in_place_mutation() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_audio::AudioSource {
             sound_path: "assets/audio/test.wav".to_string(),
             volume: 0.85,
@@ -157,28 +161,28 @@ mod tests {
         }
         assert!(
             world
-                .get::<&ae_audio::AudioSource>(entity)
-                .unwrap()
-                .is_playing,
+                .inspect::<ae_audio::AudioSource, _>(entity, |a| a.is_playing)
+                .unwrap(),
             "Clicking AudioPlayToggleBtn must toggle is_playing in-place to true"
         );
 
         // Test in-place audio file path selection and undo snapshotting
         {
-            let mut a = world.get::<&mut ae_audio::AudioSource>(entity).unwrap();
-            apply_picked_audio_path(&mut a, "assets/audio/new_hit.ogg".to_string());
+            let a = world.get_mut::<ae_audio::AudioSource>(entity).unwrap();
+            apply_picked_audio_path(a, "assets/audio/new_hit.ogg".to_string());
         }
 
-        {
-            let a = world.get::<&ae_audio::AudioSource>(entity).unwrap();
-            assert_eq!(a.sound_path, "assets/audio/new_hit.ogg");
-            assert!(a.is_playing);
-        }
+        world
+            .inspect::<ae_audio::AudioSource, _>(entity, |a| {
+                assert_eq!(a.sound_path, "assets/audio/new_hit.ogg");
+                assert!(a.is_playing);
+            })
+            .unwrap();
     }
 
     #[test]
     fn test_audio_listener_declarative_render() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_audio::AudioListener,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -195,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_draw_audio_source_card_standalone() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_audio::AudioSource::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -228,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_draw_audio_source_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -246,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_draw_audio_listener_card_standalone() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_audio::AudioListener,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -268,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_draw_audio_listener_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();

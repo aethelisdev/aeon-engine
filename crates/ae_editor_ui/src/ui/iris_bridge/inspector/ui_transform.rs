@@ -12,7 +12,7 @@
 //! - Alpha (opacity scalar scrubber)
 //! - Visibility toggle checkbox
 
-use ae_core::ecs::{UiAnchor, UiElement};
+use ae_plugin_api::{UiAnchor, UiElement};
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::ComboRowLayout;
 
@@ -51,7 +51,7 @@ pub fn index_to_anchor(idx: usize) -> UiAnchor {
     }
 }
 
-/// Canonical component identifier of the 2D screen transform card (`ae_core::ecs::UiElement`).
+/// Canonical component identifier of the 2D screen transform card (`ae_plugin_api::UiElement`).
 ///
 /// Shared by the card header (delete button tag derivation through
 /// [`UiScope::action_tag`]) and by the Inspector panel, which maps a click
@@ -109,10 +109,16 @@ pub fn draw_ui_transform_card(scope: &mut UiScope<'_>, u: &mut UiElement) {
 }
 
 /// Builds the `📐 2D Screen Transform` card inside the declarative [`UiScope`].
-pub fn build_ui_transform_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.when_ok(world.get::<&mut UiElement>(entity), |card, mut u| {
-        draw_ui_transform_card(card, &mut u);
-    });
+pub fn build_ui_transform_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<UiElement, _>(entity, |u| {
+            draw_ui_transform_card(scope, u);
+        })
+        .ok();
 }
 
 #[cfg(test)]

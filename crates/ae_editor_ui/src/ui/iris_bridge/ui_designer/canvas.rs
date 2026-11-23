@@ -13,8 +13,8 @@ use super::types::{
 };
 use crate::ui::panel_layout::PanelId;
 use crate::ui::types::EngineUiAction;
-use ae_core::ecs::{UiAnchor, UiElement};
 use ae_core::ui::{UiDrawCommand, UiLayoutResolver, UiTextAlignment};
+use ae_plugin_api::{UiAnchor, UiElement};
 use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
@@ -56,7 +56,7 @@ struct DragEmitCtx<'a> {
 
 /// Translates an active drag gesture on `elem` into an ECS [`EngineUiAction::modify_component`] mutation.
 fn apply_element_drag(
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     elem: &UiElement,
     total_virtual_delta: Point,
     virtual_size: Size,
@@ -98,7 +98,7 @@ fn apply_element_drag(
 /// Helper building the configured [`PanZoomBoxSpec`] for `elem` cleanly without local `let` bindings.
 fn build_element_box_spec(
     elem: &UiElement,
-    ent: hecs::Entity,
+    ent: ae_ecs::Entity,
     virtual_size: Size,
     is_selected: bool,
     show_anchor_guides: bool,
@@ -182,12 +182,12 @@ fn emit_draw_command(pz: &mut PanZoomScope<'_, '_>, cmd: &UiDrawCommand) {
 /// Emits interactive hitboxes, drag handlers, selection outlines, and anchor guides for all visible [`UiElement`]s.
 fn emit_canvas_elements(
     pz: &mut PanZoomScope<'_, '_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
     show_anchor_guides: bool,
     ctx: &mut DragEmitCtx<'_>,
 ) {
-    for (ent, elem) in world.query::<(hecs::Entity, &UiElement)>().iter() {
+    for (ent, elem) in world.query::<(ae_ecs::Entity, &UiElement)>().iter() {
         if !elem.visible {
             continue;
         }
@@ -228,8 +228,8 @@ fn emit_canvas_elements(
 /// canvas surface, element hierarchy projection, and interactive drag/selection handlers.
 pub fn build_designer_canvas(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    selected_entity: Option<hecs::Entity>,
+    world: &ae_ecs::World,
+    selected_entity: Option<ae_ecs::Entity>,
     state: &mut UiDesignerState,
     action_bus: &mut ActionBus<EngineUiAction>,
     notifier: &mut DeferredNotifier<PanelId>,

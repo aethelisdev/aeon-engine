@@ -18,7 +18,7 @@ pub fn handle_spawn_model_at(
     pos: [f32; 3],
 ) {
     let mut base_name = "Model".to_string();
-    let mut bbox = ae_core::ecs::BoundingBox {
+    let mut bbox = ae_plugin_api::BoundingBox {
         min: [-0.5; 3],
         max: [0.5; 3],
     };
@@ -37,7 +37,7 @@ pub fn handle_spawn_model_at(
         } else {
             raw_stem.into_owned()
         };
-        bbox = ae_core::ecs::BoundingBox {
+        bbox = ae_plugin_api::BoundingBox {
             min: m.min,
             max: m.max,
         };
@@ -46,21 +46,21 @@ pub fn handle_spawn_model_at(
     let auto_scale = ae_assets::compute_model_auto_scale(bbox.min, bbox.max);
 
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name(base_name.clone()),
-        ae_core::ecs::ModelId(mid),
-        ae_core::ecs::Position {
+        ae_plugin_api::Name(base_name.clone()),
+        ae_plugin_api::ModelId(mid),
+        ae_plugin_api::Position {
             x: pos[0],
             y: pos[1],
             z: pos[2],
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: auto_scale,
             y: auto_scale,
             z: auto_scale,
         },
         bbox,
-        ae_core::ecs::Velocity {
+        ae_plugin_api::Velocity {
             x: 0.0,
             y: 0.0,
             z: 0.0,
@@ -71,7 +71,7 @@ pub fn handle_spawn_model_at(
         if let Some(tex) = m.default_texture {
             let _ = ctx
                 .world
-                .insert_one(new_entity, ae_core::ecs::SpriteId(tex));
+                .insert_one(new_entity, ae_plugin_api::SpriteId(tex));
         }
         if let Some(ref skel) = m.skeleton {
             let _ = ctx.world.insert_one(new_entity, skel.clone());
@@ -83,7 +83,7 @@ pub fn handle_spawn_model_at(
         }
     }
     log::info!(
-        "[SPAWN] hecs::World::spawn succeeded! Entity={:?}, Name='{}', ModelId={:?}, Pos={:?}",
+        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, Name='{}', ModelId={:?}, Pos={:?}",
         new_entity,
         base_name,
         mid,
@@ -120,27 +120,27 @@ pub fn handle_spawn_sprite_at(
     }
 
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name(base_name.clone()),
-        ae_core::ecs::SpriteId(tid),
-        ae_core::ecs::Position {
+        ae_plugin_api::Name(base_name.clone()),
+        ae_plugin_api::SpriteId(tid),
+        ae_plugin_api::Position {
             x: pos[0],
             y: pos[1],
             z: pos[2],
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: 1.0,
             y: 1.0,
             z: 1.0,
         },
-        ae_core::ecs::Velocity {
+        ae_plugin_api::Velocity {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
     ));
     log::info!(
-        "[SPAWN] hecs::World::spawn succeeded! Entity={:?}, Name='{}', SpriteId={:?}, Pos={:?}",
+        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, Name='{}', SpriteId={:?}, Pos={:?}",
         new_entity,
         base_name,
         tid,
@@ -208,9 +208,8 @@ pub fn handle_spawn_model_path_at(
             Ok(())
         }
         Err(e) => {
-            let err_msg = e.to_string();
-            log::error!("Failed to load 3D model from '{}': {}", path_str, err_msg);
-            Err(err_msg)
+            log::error!("Failed to load 3D model from '{}': {}", path_str, e);
+            Err(e)
         }
     }
 }
@@ -231,51 +230,51 @@ pub fn handle_spawn_sprite_path_at(ctx: &mut UiContext, path: std::path::PathBuf
 }
 
 /// Handles spawning a parametric 3D primitive shape entity.
-pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_core::ecs::Shape) {
+pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_plugin_api::Shape) {
     let final_name = match shape {
-        ae_core::ecs::Shape::Cube => "New Cube",
-        ae_core::ecs::Shape::Triangle => "New Triangle",
-        ae_core::ecs::Shape::Sphere => "New Sphere",
-        ae_core::ecs::Shape::Cylinder => "New Cylinder",
-        ae_core::ecs::Shape::Capsule => "New Capsule",
-        ae_core::ecs::Shape::Torus => "New Torus",
+        ae_plugin_api::Shape::Cube => "New Cube",
+        ae_plugin_api::Shape::Triangle => "New Triangle",
+        ae_plugin_api::Shape::Sphere => "New Sphere",
+        ae_plugin_api::Shape::Cylinder => "New Cylinder",
+        ae_plugin_api::Shape::Capsule => "New Capsule",
+        ae_plugin_api::Shape::Torus => "New Torus",
     }
     .to_string();
 
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name(final_name),
+        ae_plugin_api::Name(final_name),
         shape,
-        ae_core::ecs::Position {
+        ae_plugin_api::Position {
             x: 0.0,
             y: 3.0,
             z: 0.0,
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: 1.0,
             y: 1.0,
             z: 1.0,
         },
-        ae_core::ecs::Color::soft_blue(),
-        ae_core::ecs::Velocity {
+        ae_plugin_api::Color::soft_blue(),
+        ae_plugin_api::Velocity {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
-        ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Dynamic,
             mass: 1.0,
             gravity_scale: 1.0,
         },
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::TransformDirty,
+        ae_plugin_api::TransformDirty,
     ));
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
     ae_editor::history::push_undo(
@@ -287,7 +286,7 @@ pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_core::ecs::Shape) {
 }
 
 /// Handles selecting an entity in the editor hierarchy or viewport.
-pub fn handle_select_entity(ctx: &mut UiContext, entity_opt: Option<hecs::Entity>) {
+pub fn handle_select_entity(ctx: &mut UiContext, entity_opt: Option<ae_ecs::Entity>) {
     ctx.editor.select_single(entity_opt);
 }
 
@@ -317,20 +316,20 @@ pub fn handle_stress_test(ctx: &mut UiContext, count: usize) {
     };
 
     for i in 0..count {
-        let name = ae_core::ecs::Name(format!("Cube_{}", i));
-        let pos = ae_core::ecs::Position {
+        let name = ae_plugin_api::Name(format!("Cube_{}", i));
+        let pos = ae_plugin_api::Position {
             x: next_rand(-bounds, bounds),
             y: next_rand(0.5, bounds / 2.0),
             z: next_rand(-bounds, bounds),
         };
-        let rot = ae_core::ecs::Rotation::identity();
-        let scale = ae_core::ecs::Scale {
+        let rot = ae_plugin_api::Rotation::identity();
+        let scale = ae_plugin_api::Scale {
             x: 1.0,
             y: 1.0,
             z: 1.0,
         };
-        let shape = ae_core::ecs::Shape::Cube;
-        let color = ae_core::ecs::Color {
+        let shape = ae_plugin_api::Shape::Cube;
+        let color = ae_plugin_api::Color {
             r: next_rand(0.2, 1.0),
             g: next_rand(0.2, 1.0),
             b: next_rand(0.2, 1.0),
@@ -339,7 +338,7 @@ pub fn handle_stress_test(ctx: &mut UiContext, count: usize) {
         batch.push((name, pos, rot, scale, shape, color));
     }
 
-    ctx.world.spawn_batch(batch);
+    let _ = ctx.world.spawn_batch(batch).count();
     log::info!("🚀 Spawned stress test batch of {} entities!", count);
 }
 
@@ -350,41 +349,41 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
 
     // 1. Static Ground Platform (50m x 1m x 50m)
     ctx.world.spawn((
-        ae_core::ecs::Name("Static Ground Plane".to_string()),
-        ae_core::ecs::Position::new(0.0, 0.0, 0.0),
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale::new(50.0, 1.0, 50.0),
-        ae_core::ecs::Shape::Cube,
-        ae_core::ecs::Color::dark_gray(),
-        ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Static,
+        ae_plugin_api::Name("Static Ground Plane".to_string()),
+        ae_plugin_api::Position::new(0.0, 0.0, 0.0),
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale::new(50.0, 1.0, 50.0),
+        ae_plugin_api::Shape::Cube,
+        ae_plugin_api::Color::dark_gray(),
+        ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Static,
             mass: 0.0,
             gravity_scale: 0.0,
         },
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Stone, 0.7, 0.0),
+        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Stone, 0.7, 0.0),
     ));
 
     // 2. Player Character with KCC & CharacterAction (Raycast Weapon Shooting)
     let player_ent = ctx.world.spawn((
-        ae_core::ecs::Name("Player Character".to_string()),
-        ae_core::ecs::Position::new(0.0, 2.0, 8.0),
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale::one(),
-        ae_core::ecs::Shape::Capsule,
-        ae_core::ecs::Color::soft_blue(),
-        ae_core::ecs::CharacterController::default(),
-        ae_core::ecs::PlayerTag,
-        ae_core::ecs::Velocity::zero(),
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Capsule {
+        ae_plugin_api::Name("Player Character".to_string()),
+        ae_plugin_api::Position::new(0.0, 2.0, 8.0),
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale::one(),
+        ae_plugin_api::Shape::Capsule,
+        ae_plugin_api::Color::soft_blue(),
+        ae_plugin_api::CharacterController::default(),
+        ae_plugin_api::PlayerTag,
+        ae_plugin_api::Velocity::zero(),
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Capsule {
                 half_height: 0.5,
                 radius: 0.4,
                 center_y: 0.0,
@@ -393,8 +392,8 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Flesh, 0.7, 0.0),
-        ae_core::ecs::CharacterAction::new(),
+        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Flesh, 0.7, 0.0),
+        ae_plugin_api::CharacterAction::new(),
     ));
 
     // 3. Destructible Target Dummies (Shooting Range)
@@ -406,69 +405,69 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
 
     for (name, pos) in target_positions {
         ctx.world.spawn((
-            ae_core::ecs::Name(name.to_string()),
-            ae_core::ecs::Position::new(pos[0], pos[1], pos[2]),
-            ae_core::ecs::Rotation::identity(),
-            ae_core::ecs::Scale::new(1.2, 1.2, 1.2),
-            ae_core::ecs::Shape::Sphere,
-            ae_core::ecs::Color::red(),
-            ae_core::ecs::RigidBody {
-                body_type: ae_core::ecs::RigidBodyType::Static,
+            ae_plugin_api::Name(name.to_string()),
+            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
+            ae_plugin_api::Rotation::identity(),
+            ae_plugin_api::Scale::new(1.2, 1.2, 1.2),
+            ae_plugin_api::Shape::Sphere,
+            ae_plugin_api::Color::red(),
+            ae_plugin_api::RigidBody {
+                body_type: ae_plugin_api::RigidBodyType::Static,
                 mass: 0.0,
                 gravity_scale: 0.0,
             },
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Sphere { radius: 0.6 },
+            ae_plugin_api::Collider {
+                shape: ae_plugin_api::ColliderShape::Sphere { radius: 0.6 },
                 friction: 0.5,
                 restitution: 0.2,
                 is_sensor: false,
             },
-            ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Flesh, 0.5, 0.2),
-            ae_core::ecs::DestructibleTarget::new(100.0),
+            ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Flesh, 0.5, 0.2),
+            ae_plugin_api::DestructibleTarget::new(100.0),
         ));
     }
 
     // 4. Proximity Sensor & Sliding Door
     ctx.world.spawn((
-        ae_core::ecs::Name("Proximity Sensor Zone".to_string()),
-        ae_core::ecs::Position::new(10.0, 0.55, -4.0),
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale::new(4.0, 0.1, 4.0),
-        ae_core::ecs::Shape::Cube,
-        ae_core::ecs::Color::green(),
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Name("Proximity Sensor Zone".to_string()),
+        ae_plugin_api::Position::new(10.0, 0.55, -4.0),
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale::new(4.0, 0.1, 4.0),
+        ae_plugin_api::Shape::Cube,
+        ae_plugin_api::Color::green(),
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 10.0, 0.5],
             },
             friction: 0.0,
             restitution: 0.0,
             is_sensor: true,
         },
-        ae_core::ecs::TriggerZone::new(),
+        ae_plugin_api::TriggerZone::new(),
     ));
 
     ctx.world.spawn((
-        ae_core::ecs::Name("Sliding Door".to_string()),
-        ae_core::ecs::Position::new(10.0, 2.0, -7.0),
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale::new(3.5, 3.0, 0.4),
-        ae_core::ecs::Shape::Cube,
-        ae_core::ecs::Color::soft_blue(),
-        ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Kinematic,
+        ae_plugin_api::Name("Sliding Door".to_string()),
+        ae_plugin_api::Position::new(10.0, 2.0, -7.0),
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale::new(3.5, 3.0, 0.4),
+        ae_plugin_api::Shape::Cube,
+        ae_plugin_api::Color::soft_blue(),
+        ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Kinematic,
             mass: 0.0,
             gravity_scale: 0.0,
         },
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Metal, 0.7, 0.0),
-        ae_core::ecs::TriggerZone {
+        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Metal, 0.7, 0.0),
+        ae_plugin_api::TriggerZone {
             is_triggered: false,
             speed: 5.0,
             axis: [0.0, 1.0, 0.0],
@@ -485,67 +484,67 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             [-8.0, 1.5, 2.0],
             [1.0, 0.0, 0.0],
             3.5,
-            ae_core::ecs::Color::new(1.0, 0.85, 0.1, 1.0), // Gold
+            ae_plugin_api::Color::new(1.0, 0.85, 0.1, 1.0), // Gold
         ),
         (
             "Rotating Crystal Beta (Y-Yaw)",
             [-8.0, 1.5, -3.0],
             [0.0, 1.0, 0.0],
             4.0,
-            ae_core::ecs::Color::new(0.1, 0.85, 1.0, 1.0), // Neon Cyan
+            ae_plugin_api::Color::new(0.1, 0.85, 1.0, 1.0), // Neon Cyan
         ),
         (
             "Rotating Crystal Gamma (Z-Roll)",
             [-8.0, 1.5, -8.0],
             [0.0, 0.0, 1.0],
             3.0,
-            ae_core::ecs::Color::new(1.0, 0.2, 0.85, 1.0), // Hot Magenta
+            ae_plugin_api::Color::new(1.0, 0.2, 0.85, 1.0), // Hot Magenta
         ),
     ];
 
     for (name, pos, axis, speed, color) in crystal_configs {
         ctx.world.spawn((
-            ae_core::ecs::Name(name.to_string()),
-            ae_core::ecs::Position::new(pos[0], pos[1], pos[2]),
-            ae_core::ecs::Rotation::identity(),
-            ae_core::ecs::Scale::new(1.4, 0.35, 0.7),
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Name(name.to_string()),
+            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
+            ae_plugin_api::Rotation::identity(),
+            ae_plugin_api::Scale::new(1.4, 0.35, 0.7),
+            ae_plugin_api::Shape::Cube,
             color,
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Box {
+            ae_plugin_api::Collider {
+                shape: ae_plugin_api::ColliderShape::Box {
                     half_extents: [0.5, 0.5, 0.5],
                 },
                 friction: 0.0,
                 restitution: 0.0,
                 is_sensor: true,
             },
-            ae_core::ecs::Rotator::new(speed, axis),
+            ae_plugin_api::Rotator::new(speed, axis),
         ));
     }
 
     // 6. Moving Waypoint Elevator (Vertical Passenger Elevator)
     ctx.world.spawn((
-        ae_core::ecs::Name("Moving Waypoint Elevator".to_string()),
-        ae_core::ecs::Position::new(-15.0, 0.8, 4.0),
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale::new(4.0, 0.4, 4.0),
-        ae_core::ecs::Shape::Cube,
-        ae_core::ecs::Color::new(0.8, 0.4, 0.9, 1.0),
-        ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Kinematic,
+        ae_plugin_api::Name("Moving Waypoint Elevator".to_string()),
+        ae_plugin_api::Position::new(-15.0, 0.8, 4.0),
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale::new(4.0, 0.4, 4.0),
+        ae_plugin_api::Shape::Cube,
+        ae_plugin_api::Color::new(0.8, 0.4, 0.9, 1.0),
+        ae_plugin_api::RigidBody {
+            body_type: ae_plugin_api::RigidBodyType::Kinematic,
             mass: 0.0,
             gravity_scale: 0.0,
         },
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.9,
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Metal, 0.9, 0.0),
-        ae_core::ecs::MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
+        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Metal, 0.9, 0.0),
+        ae_plugin_api::MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
     ));
 
     // 7. Dynamic Bouncing Hazard Cubes
@@ -553,32 +552,32 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
         (
             "Bouncing Cube Alpha",
             [5.0, 5.0, 3.0],
-            ae_core::ecs::SurfaceType::Rubber,
+            ae_plugin_api::SurfaceType::Rubber,
         ),
         (
             "Bouncing Cube Beta",
             [7.0, 8.0, 4.0],
-            ae_core::ecs::SurfaceType::Wood,
+            ae_plugin_api::SurfaceType::Wood,
         ),
     ];
 
     for (name, pos, surface) in hazard_positions {
-        let mat = ae_core::ecs::PhysicsMaterial::from_preset(surface);
+        let mat = ae_plugin_api::PhysicsMaterial::from_preset(surface);
         ctx.world.spawn((
-            ae_core::ecs::Name(name.to_string()),
-            ae_core::ecs::Position::new(pos[0], pos[1], pos[2]),
-            ae_core::ecs::Rotation::identity(),
-            ae_core::ecs::Scale::new(1.0, 1.0, 1.0),
-            ae_core::ecs::Shape::Cube,
-            ae_core::ecs::Color::new(1.0, 0.5, 0.1, 1.0),
-            ae_core::ecs::Velocity::zero(),
-            ae_core::ecs::RigidBody {
-                body_type: ae_core::ecs::RigidBodyType::Dynamic,
+            ae_plugin_api::Name(name.to_string()),
+            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
+            ae_plugin_api::Rotation::identity(),
+            ae_plugin_api::Scale::new(1.0, 1.0, 1.0),
+            ae_plugin_api::Shape::Cube,
+            ae_plugin_api::Color::new(1.0, 0.5, 0.1, 1.0),
+            ae_plugin_api::Velocity::zero(),
+            ae_plugin_api::RigidBody {
+                body_type: ae_plugin_api::RigidBodyType::Dynamic,
                 mass: 2.0,
                 gravity_scale: 1.0,
             },
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Box {
+            ae_plugin_api::Collider {
+                shape: ae_plugin_api::ColliderShape::Box {
                     half_extents: [0.5, 0.5, 0.5],
                 },
                 friction: mat.friction,
@@ -604,14 +603,14 @@ pub fn handle_spawn_ui_element(ctx: &mut UiContext, ui_type: crate::ui::UiElemen
 /// Spawns a standard 2D Sprite entity at the origin and registers it in undo/redo history.
 pub fn handle_spawn_default_sprite(ctx: &mut UiContext) {
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name("New Sprite".to_string()),
-        ae_core::ecs::Position {
+        ae_plugin_api::Name("New Sprite".to_string()),
+        ae_plugin_api::Position {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: 2.0,
             y: 2.0,
             z: 1.0,
@@ -636,15 +635,15 @@ pub fn handle_spawn_default_sprite(ctx: &mut UiContext) {
 /// Spawns a 2D Player Sprite entity with `PlayerTag` component at the origin.
 pub fn handle_spawn_player_sprite(ctx: &mut UiContext) {
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name("Player Sprite".to_string()),
-        ae_core::ecs::PlayerTag,
-        ae_core::ecs::Position {
+        ae_plugin_api::Name("Player Sprite".to_string()),
+        ae_plugin_api::PlayerTag,
+        ae_plugin_api::Position {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: 2.0,
             y: 2.0,
             z: 1.0,
@@ -669,14 +668,14 @@ pub fn handle_spawn_player_sprite(ctx: &mut UiContext) {
 /// Spawns an empty 2D entity with spatial transform components at the origin.
 pub fn handle_spawn_empty_2d(ctx: &mut UiContext) {
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name("Empty 2D Object".to_string()),
-        ae_core::ecs::Position {
+        ae_plugin_api::Name("Empty 2D Object".to_string()),
+        ae_plugin_api::Position {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
-        ae_core::ecs::Rotation::identity(),
-        ae_core::ecs::Scale {
+        ae_plugin_api::Rotation::identity(),
+        ae_plugin_api::Scale {
             x: 1.0,
             y: 1.0,
             z: 1.0,

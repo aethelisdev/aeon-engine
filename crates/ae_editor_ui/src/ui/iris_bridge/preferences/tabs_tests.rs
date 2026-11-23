@@ -36,7 +36,7 @@ fn build_tab_harness(
 ) -> f32 {
     let root = tree.create_root().expect("Root creation must succeed");
     let enabled_modules = HashSet::new();
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let editor_state = EditorState::default();
     let telemetry = EditorTelemetrySnapshot::default();
     let mut asset_browser = AssetBrowserState::default();

@@ -10,7 +10,7 @@
 use super::types::{TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME};
 use crate::ui::types::EngineUiAction;
 use ae_core::modules::EngineMode;
-use hecs::{Entity, World};
+use ae_ecs::{Entity, World};
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
 use irisui::workbench::ActionBus;
@@ -28,26 +28,26 @@ fn world_is_paused(world: &World) -> bool {
 fn world_has_character_action(world: &World, selected_entity: Option<Entity>) -> bool {
     selected_entity
         .filter(|&sel| {
-            world.get::<&ae_core::ecs::PlayerTag>(sel).is_ok()
-                || world.get::<&ae_core::ecs::CharacterController>(sel).is_ok()
+            world.has::<ae_plugin_api::PlayerTag>(sel)
+                || world.has::<ae_plugin_api::CharacterController>(sel)
         })
         .map_or_else(
             || {
                 world
-                    .query::<(&ae_core::ecs::PlayerTag, &ae_core::ecs::CharacterAction)>()
+                    .query::<(&ae_plugin_api::PlayerTag, &ae_plugin_api::CharacterAction)>()
                     .iter()
                     .next()
                     .is_some()
                     || world
                         .query::<(
-                            &ae_core::ecs::CharacterController,
-                            &ae_core::ecs::CharacterAction,
+                            &ae_plugin_api::CharacterController,
+                            &ae_plugin_api::CharacterAction,
                         )>()
                         .iter()
                         .next()
                         .is_some()
             },
-            |sel| world.get::<&ae_core::ecs::CharacterAction>(sel).is_ok(),
+            |sel| world.has::<ae_plugin_api::CharacterAction>(sel),
         )
 }
 
@@ -174,7 +174,7 @@ fn draw_crosshair_primitives(canvas: &mut ImmediateCanvas<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hecs::World;
+    use ae_ecs::World;
 
     fn collect_node_names(tree: &UiTree, current: WidgetId, names: &mut Vec<String>) {
         if let Some(node) = tree.get(current) {
@@ -191,8 +191,8 @@ mod tests {
     fn test_play_hud_normal_mode_renders_reticle_and_controls() {
         let mut world = World::new();
         let _player = world.spawn((
-            ae_core::ecs::PlayerTag,
-            ae_core::ecs::CharacterAction::default(),
+            ae_plugin_api::PlayerTag,
+            ae_plugin_api::CharacterAction::default(),
         ));
 
         let mut tree = UiTree::new();
@@ -245,8 +245,8 @@ mod tests {
     fn test_play_hud_paused_mode_suppresses_reticle_and_emits_pause_actions() {
         let mut world = World::new();
         let _player = world.spawn((
-            ae_core::ecs::PlayerTag,
-            ae_core::ecs::CharacterAction::default(),
+            ae_plugin_api::PlayerTag,
+            ae_plugin_api::CharacterAction::default(),
         ));
         let _pause_tag = world.spawn((ae_core::ui::PauseMenuUiTag,));
 

@@ -9,7 +9,7 @@
 
 use super::types::{HIERARCHY_TAG_VIEWPORT, HierarchyPanelState, make_foldout_tag, make_row_tag};
 use crate::ui::types::EngineUiAction;
-use hecs::World;
+use ae_ecs::World;
 use irisui::prelude::*;
 use irisui::widgets::tree_view::{TreeItemInfo, handle_tree_arrow_navigation};
 use irisui::workbench::ActionBus;
@@ -20,14 +20,14 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
     let root_id = tree.create_root().expect("Root node must be created");
 
     let mut world = World::new();
-    let parent_ent = world.spawn((ae_core::ecs::Name("Parent_Tower".to_string()),));
+    let parent_ent = world.spawn((ae_plugin_api::Name("Parent_Tower".to_string()),));
     let _child_a = world.spawn((
-        ae_core::ecs::Name("Child_A".to_string()),
-        ae_core::ecs::Parent(parent_ent),
+        ae_plugin_api::Name("Child_A".to_string()),
+        ae_plugin_api::Parent(parent_ent),
     ));
     let _child_b = world.spawn((
-        ae_core::ecs::Name("Child_B".to_string()),
-        ae_core::ecs::Parent(parent_ent),
+        ae_plugin_api::Name("Child_B".to_string()),
+        ae_plugin_api::Parent(parent_ent),
     ));
 
     let mut state = HierarchyPanelState::default();
@@ -143,9 +143,9 @@ fn test_hierarchy_tree_multi_selection_ctrl_and_shift() {
     let mut world = World::new();
     let mut bus = ActionBus::new();
 
-    let ent1 = world.spawn((ae_core::ecs::Name("Entity_1".into()),));
-    let ent2 = world.spawn((ae_core::ecs::Name("Entity_2".into()),));
-    let ent3 = world.spawn((ae_core::ecs::Name("Entity_3".into()),));
+    let ent1 = world.spawn((ae_plugin_api::Name("Entity_1".into()),));
+    let ent2 = world.spawn((ae_plugin_api::Name("Entity_2".into()),));
+    let ent3 = world.spawn((ae_plugin_api::Name("Entity_3".into()),));
 
     tree.event_state.frame_clicked_tag = Some(make_row_tag(0));
     super::panel::build_hierarchy_panel(
@@ -232,8 +232,8 @@ fn test_hierarchy_keyboard_arrow_navigation() {
     let mut tree_state = TreeState::expanded_by_default();
     let mut world = World::new();
 
-    let ent1 = world.spawn((ae_core::ecs::Name("Entity_1".into()),));
-    let ent2 = world.spawn((ae_core::ecs::Name("Entity_2".into()),));
+    let ent1 = world.spawn((ae_plugin_api::Name("Entity_1".into()),));
+    let ent2 = world.spawn((ae_plugin_api::Name("Entity_2".into()),));
 
     let tree_items = vec![
         TreeItemInfo::new(ent1, 0, false),
@@ -261,8 +261,8 @@ fn test_hierarchy_declarative_row_selection_dispatch() {
     let root = tree.create_root().expect("Root creation must succeed");
 
     let mut world = World::new();
-    let ent1 = world.spawn((ae_core::ecs::Name("Entity_A".into()),));
-    let ent2 = world.spawn((ae_core::ecs::Name("Entity_B".into()),));
+    let ent1 = world.spawn((ae_plugin_api::Name("Entity_A".into()),));
+    let ent2 = world.spawn((ae_plugin_api::Name("Entity_B".into()),));
     let mut bus = ActionBus::new();
 
     tree.set_root_bounds(Rect::new(0.0, 0.0, 300.0, 400.0));
@@ -317,7 +317,7 @@ fn test_hierarchy_10k_entities_virtual_scroll() {
 
     let mut world = World::new();
     for i in 0..10_000 {
-        world.spawn((ae_core::ecs::Name(format!("Cube_{}", i)),));
+        world.spawn((ae_plugin_api::Name(format!("Cube_{}", i)),));
     }
 
     let mut state = HierarchyPanelState::default();

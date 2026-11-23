@@ -25,36 +25,36 @@ fn health_color(theme: Theme, health: f32, max_health: f32) -> Color {
     }
 }
 
-/// Renders the declarative Destructible Target component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Destructible Target component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates interactive health scrubbers and a visual progress health bar with zero intermediate variable plumbing.
 pub fn draw_destructible_target_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "DestructibleTargetCard",
-        UiScope::comp_card_desc(
-            "DestructibleTarget",
-            "Destructible Target",
-            "🎯",
-            Color::rgba(0.95, 0.35, 0.35, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::DestructibleTarget>(entity),
-        |card, mut target| {
-            card.prop_f32("Health:", &mut target.health, 0.0..=100_000.0, 1.0);
-            card.prop_f32("Max Health:", &mut target.max_health, 1.0..=100_000.0, 1.0);
-            card.progress_bar_named(
-                "HealthBarTrack",
-                "HealthBarFill",
-                244.0,
-                10.0,
-                health_fraction(target.health, target.max_health),
-                health_color(card.theme(), target.health, target.max_health),
-            );
-        },
-    );
+    world
+        .mutate::<ae_plugin_api::DestructibleTarget, _>(entity, |target| {
+            scope.card_panel("DestructibleTargetCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "DestructibleTarget",
+                    "Destructible Target",
+                    "🎯",
+                    Color::rgba(0.95, 0.35, 0.35, 1.0),
+                ));
+                card.prop_f32("Health:", &mut target.health, 0.0..=100_000.0, 1.0);
+                card.prop_f32("Max Health:", &mut target.max_health, 1.0..=100_000.0, 1.0);
+                card.progress_bar_named(
+                    "HealthBarTrack",
+                    "HealthBarFill",
+                    244.0,
+                    10.0,
+                    health_fraction(target.health, target.max_health),
+                    health_color(card.theme(), target.health, target.max_health),
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -63,8 +63,8 @@ mod tests {
 
     #[test]
     fn test_destructible_target_render_tag() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::DestructibleTarget::new(100.0),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::DestructibleTarget::new(100.0),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
 
@@ -88,8 +88,8 @@ mod tests {
 
     #[test]
     fn test_draw_destructible_target_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::DestructibleTarget::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::DestructibleTarget::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_draw_destructible_target_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

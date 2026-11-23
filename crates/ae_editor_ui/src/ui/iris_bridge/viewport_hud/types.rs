@@ -225,7 +225,7 @@ pub(super) fn with_test_frame_data<R>(
     camera: &Camera,
     editor_state: &ae_editor::editor_state::EditorState,
     snapping_settings: &ae_editor::snapping::SnapSettings,
-    world: &hecs::World,
+    world: &ae_ecs::World,
     f: impl FnOnce(&crate::ui::types::EditorFrameData<'_>) -> R,
 ) -> R {
     use crate::ui::types::{EditorFrameData, EditorTelemetrySnapshot, ExportDialogState};

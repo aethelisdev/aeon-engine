@@ -35,8 +35,8 @@ fn material_root_tag(label: &str) -> u64 {
 fn render_material_host(
     tree: &mut UiTree,
     panel_rect: Rect,
-    entity: Option<hecs::Entity>,
-    world: &hecs::World,
+    entity: Option<ae_ecs::Entity>,
+    world: &ae_ecs::World,
     (textures, models): (
         &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
         &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
@@ -74,7 +74,7 @@ fn render_material_host(
 fn test_material_panel_build_empty_state() {
     let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
     let panel_rect = Rect::new(100.0, 100.0, 300.0, 400.0);
@@ -99,7 +99,7 @@ fn test_material_panel_build_empty_state() {
 #[test]
 fn test_material_panel_build_no_geometry() {
     let mut tree = UiTree::new();
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let ent = world.spawn(("TestEntity",));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
@@ -126,11 +126,11 @@ fn test_material_panel_build_no_geometry() {
 #[test]
 fn test_material_panel_build_sprite_view() {
     let mut tree = UiTree::new();
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
-        ae_core::ecs::SpriteId(sprite_h),
-        ae_core::ecs::Color::new(1.0, 0.5, 0.2, 1.0),
+        ae_plugin_api::SpriteId(sprite_h),
+        ae_plugin_api::Color::new(1.0, 0.5, 0.2, 1.0),
     ));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
@@ -180,7 +180,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         tree.get(root).unwrap().children[0]
     };
 
-    let world = hecs::World::new();
+    let world = ae_ecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
 
@@ -211,11 +211,11 @@ fn test_material_panel_does_not_mutate_parent_rect() {
 #[test]
 fn test_material_panel_scroll_offset_and_empty_centering() {
     let mut tree = UiTree::new();
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
-        ae_core::ecs::SpriteId(sprite_h),
-        ae_core::ecs::Color::new(1.0, 0.5, 0.2, 1.0),
+        ae_plugin_api::SpriteId(sprite_h),
+        ae_plugin_api::Color::new(1.0, 0.5, 0.2, 1.0),
     ));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
@@ -283,11 +283,11 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
 #[test]
 fn test_material_panel_declarative_actions_dispatch() {
     let mut tree = UiTree::new();
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
     let ent = world.spawn((
-        ae_core::ecs::SpriteId(sprite_h),
-        ae_core::ecs::Color::new(1.0, 0.5, 0.2, 1.0),
+        ae_plugin_api::SpriteId(sprite_h),
+        ae_plugin_api::Color::new(1.0, 0.5, 0.2, 1.0),
     ));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
@@ -344,9 +344,9 @@ fn test_material_panel_declarative_actions_dispatch() {
 #[test]
 fn test_material_add_color_tint_and_scope_seed_isolation() {
     let mut tree = UiTree::new();
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let sprite_h = ae_renderer::asset::AssetHandle::default();
-    let ent = world.spawn((ae_core::ecs::SpriteId(sprite_h),));
+    let ent = world.spawn((ae_plugin_api::SpriteId(sprite_h),));
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
 

@@ -52,14 +52,13 @@ pub const fn appearance_palette_swatch_tag(idx: usize) -> u64 {
     TAG_APPEARANCE_PALETTE.indexed(idx as u64).raw()
 }
 
-/// Extracts the current [`ae_core::ecs::Color`] of an entity, or returns the canonical fallback.
+/// Extracts the current [`ae_plugin_api::Color`] of an entity, or returns the canonical fallback.
 #[inline]
 #[must_use]
-pub fn entity_color(world: &hecs::World, entity: hecs::Entity) -> ae_core::ecs::Color {
+pub fn entity_color(world: &ae_ecs::World, entity: ae_ecs::Entity) -> ae_plugin_api::Color {
     world
-        .get::<&ae_core::ecs::Color>(entity)
-        .map(|c| *c)
-        .unwrap_or(ae_core::ecs::Color {
+        .get_copied::<ae_plugin_api::Color>(entity)
+        .unwrap_or(ae_plugin_api::Color {
             r: 0.60,
             g: 0.75,
             b: 0.95,
@@ -67,18 +66,18 @@ pub fn entity_color(world: &hecs::World, entity: hecs::Entity) -> ae_core::ecs::
         })
 }
 
-/// Converts an [`ae_core::ecs::Color`] into an Iris UI [`Color`].
+/// Converts an [`ae_plugin_api::Color`] into an Iris UI [`Color`].
 #[inline]
 #[must_use]
-pub const fn to_iris_color(c: ae_core::ecs::Color) -> Color {
+pub const fn to_iris_color(c: ae_plugin_api::Color) -> Color {
     Color::rgba(c.r, c.g, c.b, c.a)
 }
 
-/// Converts an Iris UI [`Color`] into an [`ae_core::ecs::Color`].
+/// Converts an Iris UI [`Color`] into an [`ae_plugin_api::Color`].
 #[inline]
 #[must_use]
-pub const fn to_ecs_color(c: Color) -> ae_core::ecs::Color {
-    ae_core::ecs::Color {
+pub const fn to_ecs_color(c: Color) -> ae_plugin_api::Color {
+    ae_plugin_api::Color {
         r: c.r,
         g: c.g,
         b: c.b,
@@ -89,8 +88,8 @@ pub const fn to_ecs_color(c: Color) -> ae_core::ecs::Color {
 /// Renders the `🎨 Appearance` card declaratively and maps any committed color change to [`EngineUiAction::ModifyColor`].
 pub fn render_appearance_card(
     scope: &mut UiScope<'_>,
-    current_col: ae_core::ecs::Color,
-    entity: hecs::Entity,
+    current_col: ae_plugin_api::Color,
+    entity: ae_ecs::Entity,
 ) -> Option<EngineUiAction> {
     scope
         .color_palette_card_tree_scoped(
@@ -110,18 +109,18 @@ pub fn render_appearance_card(
 /// Standardizes card rendering alongside other Inspector standalone cards (`draw_transform_card`, `draw_ui_transform_card`).
 pub fn draw_appearance_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<EngineUiAction> {
     render_appearance_card(scope, entity_color(world, entity), entity)
 }
 
 /// Renders an in-place declarative property row using [`UiScope::prop_color_rgba`]
-/// directly bound to an [`ae_core::ecs::Color`] component without heap allocations.
+/// directly bound to an [`ae_plugin_api::Color`] component without heap allocations.
 pub fn draw_color_property(
     scope: &mut UiScope<'_>,
     label: &str,
-    color: &mut ae_core::ecs::Color,
+    color: &mut ae_plugin_api::Color,
 ) -> PropertyColorResponse {
     scope.prop_color_rgba(
         label,
@@ -136,8 +135,8 @@ pub fn draw_color_property(
 /// `let` plumbing or manual pixel coordinate manipulations.
 pub fn build_appearance_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) -> Option<EngineUiAction> {
     draw_appearance_card(scope, world, entity)
 }
@@ -161,8 +160,8 @@ mod tests {
     #[test]
     fn test_declarative_appearance_card_structure_and_layout() {
         let mut tree = UiTree::new();
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Color {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Color {
             r: 0.2,
             g: 0.4,
             b: 0.8,
@@ -228,8 +227,8 @@ mod tests {
     #[test]
     fn test_appearance_card_hex_commit_produces_modify_color() {
         let mut tree = UiTree::new();
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Color {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Color {
             r: 0.1,
             g: 0.2,
             b: 0.3,
@@ -261,7 +260,7 @@ mod tests {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
         let mut scope = UiScope::new(&mut tree, root);
-        let mut color = ae_core::ecs::Color {
+        let mut color = ae_plugin_api::Color {
             r: 0.5,
             g: 0.6,
             b: 0.7,
@@ -280,8 +279,8 @@ mod tests {
     #[test]
     fn test_draw_appearance_card_standalone() {
         let mut tree = UiTree::new();
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Color {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Color {
             r: 0.2,
             g: 0.4,
             b: 0.8,

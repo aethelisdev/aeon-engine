@@ -27,7 +27,7 @@ impl MaterialPanelState {
         self.selected_entity = ctx.data.editor_state.primary_selected();
         self.active_model = self
             .selected_entity
-            .and_then(|e| ctx.data.world.get::<&ae_core::ecs::ModelId>(e).ok())
+            .and_then(|e| ctx.data.world.get_copied::<ae_plugin_api::ModelId>(e).ok())
             .map(|m| m.0);
 
         build_material_panel(
@@ -44,21 +44,17 @@ impl MaterialPanelState {
 #[derive(Clone, Copy)]
 enum MaterialSurfaceKind {
     NoSelection,
-    Model(hecs::Entity),
-    Sprite(hecs::Entity),
+    Model(ae_ecs::Entity),
+    Sprite(ae_ecs::Entity),
     UnsupportedGeometry,
 }
 
 impl MaterialSurfaceKind {
-    fn resolve(world: &hecs::World, entity: Option<hecs::Entity>) -> Self {
+    fn resolve(world: &ae_ecs::World, entity: Option<ae_ecs::Entity>) -> Self {
         match entity {
             None => Self::NoSelection,
-            Some(entity) if world.get::<&ae_core::ecs::ModelId>(entity).is_ok() => {
-                Self::Model(entity)
-            }
-            Some(entity) if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() => {
-                Self::Sprite(entity)
-            }
+            Some(entity) if world.has::<ae_plugin_api::ModelId>(entity) => Self::Model(entity),
+            Some(entity) if world.has::<ae_plugin_api::SpriteId>(entity) => Self::Sprite(entity),
             Some(_) => Self::UnsupportedGeometry,
         }
     }
@@ -67,8 +63,8 @@ impl MaterialSurfaceKind {
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
 pub fn build_material_panel(
     scope: &mut UiScope<'_>,
-    entity: Option<hecs::Entity>,
-    world: &hecs::World,
+    entity: Option<ae_ecs::Entity>,
+    world: &ae_ecs::World,
     textures: &AssetStorage<TextureAsset>,
     models: &AssetStorage<ModelAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
@@ -79,8 +75,8 @@ pub fn build_material_panel(
 
 fn build_material_body(
     scope: &mut UiScope<'_>,
-    entity: Option<hecs::Entity>,
-    world: &hecs::World,
+    entity: Option<ae_ecs::Entity>,
+    world: &ae_ecs::World,
     textures: &AssetStorage<TextureAsset>,
     models: &AssetStorage<ModelAsset>,
     action_bus: &mut ActionBus<EngineUiAction>,
@@ -111,7 +107,7 @@ fn build_material_body(
 
 fn render_material_viewport(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     f: impl FnOnce(&mut UiScope<'_>),
 ) {
     ScrollAreaView::new("MaterialViewport")

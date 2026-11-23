@@ -8,32 +8,43 @@
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_LIGHT};
 use irisui::prelude::*;
 
-/// Renders the declarative Light component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Light component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates position offset and RGB illumination color scrubbers with zero intermediate variable plumbing.
-pub fn draw_light_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "LightCard",
-        UiScope::comp_card_desc("Light", "Light", "💡", Color::rgba(0.98, 0.80, 0.20, 1.0))
-            .atlas_icon(ICON_LIGHT),
-        world.get::<&mut ae_core::ecs::Light>(entity),
-        |card, mut light| {
-            card.prop_f32(
-                "Light Offset Y:",
-                &mut light.position[1],
-                -1_000.0..=1_000.0,
-                0.05,
-            );
-            card.prop_f32("Color R:", &mut light.color[0], 0.0..=1.0, 0.01);
-            card.prop_f32("Color G:", &mut light.color[1], 0.0..=1.0, 0.01);
-        },
-    );
+pub fn draw_light_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::Light, _>(entity, |light| {
+            scope.card_panel("LightCard", |card| {
+                card.card_header_desc(
+                    UiScope::comp_card_desc(
+                        "Light",
+                        "Light",
+                        "💡",
+                        Color::rgba(0.98, 0.80, 0.20, 1.0),
+                    )
+                    .atlas_icon(ICON_LIGHT),
+                );
+                card.prop_f32(
+                    "Light Offset Y:",
+                    &mut light.position[1],
+                    -1_000.0..=1_000.0,
+                    0.05,
+                );
+                card.prop_f32("Color R:", &mut light.color[0], 0.0..=1.0, 0.01);
+                card.prop_f32("Color G:", &mut light.color[1], 0.0..=1.0, 0.01);
+            });
+        })
+        .ok();
 }
 
-/// Renders the declarative 3D Model / Mesh component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative 3D Model / Mesh component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Displays the active mesh asset handle with zero intermediate variable plumbing.
-pub fn draw_model_mesh_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
+pub fn draw_model_mesh_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
     scope.card_panel_desc_when_ok(
         "ModelMeshCard",
         UiScope::comp_card_desc(
@@ -43,67 +54,69 @@ pub fn draw_model_mesh_card(scope: &mut UiScope<'_>, world: &hecs::World, entity
             Color::rgba(0.38, 0.65, 0.98, 1.0),
         )
         .atlas_icon(crate::ui::iris_bridge::icons::ICON_CUBE),
-        world.get::<&ae_core::ecs::ModelId>(entity),
+        world.get_copied::<ae_plugin_api::ModelId>(entity),
         |card, model| {
             card.label_desc("ModelAssetInfo", format!("Asset Handle: {:?}", model.0));
         },
     );
 }
 
-/// Converts a [`ae_core::ecs::Shape`] enum variant to its combobox option index.
+/// Converts a [`ae_plugin_api::Shape`] enum variant to its combobox option index.
 #[inline]
 #[must_use]
-pub const fn shape_to_index(shape: ae_core::ecs::Shape) -> usize {
+pub const fn shape_to_index(shape: ae_plugin_api::Shape) -> usize {
     match shape {
-        ae_core::ecs::Shape::Cube => 0,
-        ae_core::ecs::Shape::Sphere => 1,
-        ae_core::ecs::Shape::Cylinder => 2,
-        ae_core::ecs::Shape::Capsule => 3,
-        ae_core::ecs::Shape::Torus => 4,
-        ae_core::ecs::Shape::Triangle => 5,
+        ae_plugin_api::Shape::Cube => 0,
+        ae_plugin_api::Shape::Sphere => 1,
+        ae_plugin_api::Shape::Cylinder => 2,
+        ae_plugin_api::Shape::Capsule => 3,
+        ae_plugin_api::Shape::Torus => 4,
+        ae_plugin_api::Shape::Triangle => 5,
     }
 }
 
-/// Converts a combobox option index back to its corresponding [`ae_core::ecs::Shape`] enum variant.
+/// Converts a combobox option index back to its corresponding [`ae_plugin_api::Shape`] enum variant.
 #[inline]
 #[must_use]
-pub const fn index_to_shape(index: usize) -> ae_core::ecs::Shape {
+pub const fn index_to_shape(index: usize) -> ae_plugin_api::Shape {
     match index {
-        0 => ae_core::ecs::Shape::Cube,
-        1 => ae_core::ecs::Shape::Sphere,
-        2 => ae_core::ecs::Shape::Cylinder,
-        3 => ae_core::ecs::Shape::Capsule,
-        4 => ae_core::ecs::Shape::Torus,
-        5 => ae_core::ecs::Shape::Triangle,
-        _ => ae_core::ecs::Shape::Cube,
+        0 => ae_plugin_api::Shape::Cube,
+        1 => ae_plugin_api::Shape::Sphere,
+        2 => ae_plugin_api::Shape::Cylinder,
+        3 => ae_plugin_api::Shape::Capsule,
+        4 => ae_plugin_api::Shape::Torus,
+        5 => ae_plugin_api::Shape::Triangle,
+        _ => ae_plugin_api::Shape::Cube,
     }
 }
 
-/// Renders the declarative procedural Shape component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative procedural Shape component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates geometry selection dropdown with zero intermediate variable plumbing.
-pub fn draw_shape_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "ShapeCard",
-        UiScope::comp_card_desc(
-            "Shape",
-            "Procedural 3D Shape",
-            "🌐",
-            Color::rgba(0.20, 0.85, 0.60, 1.0),
-        )
-        .atlas_icon(ICON_CUBE),
-        world.get::<&mut ae_core::ecs::Shape>(entity),
-        |card, mut s| {
-            card.prop_combobox_mapped_styled(
-                "Geometry:",
-                shape_to_index(*s),
-                &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
-                ComboRowLayout::new(65.0, 96.0),
-                &mut *s,
-                index_to_shape,
-            );
-        },
-    );
+pub fn draw_shape_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::Shape, _>(entity, |s| {
+            scope.card_panel("ShapeCard", |card| {
+                card.card_header_desc(
+                    UiScope::comp_card_desc(
+                        "Shape",
+                        "Procedural 3D Shape",
+                        "🌐",
+                        Color::rgba(0.20, 0.85, 0.60, 1.0),
+                    )
+                    .atlas_icon(ICON_CUBE),
+                );
+                card.prop_combobox_mapped_styled(
+                    "Geometry:",
+                    shape_to_index(*s),
+                    &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
+                    ComboRowLayout::new(65.0, 96.0),
+                    s,
+                    index_to_shape,
+                );
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -112,8 +125,8 @@ mod tests {
 
     #[test]
     fn test_light_render_and_in_place_mutation() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Light {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Light {
             position: [0.0, 5.0, 0.0],
             color: [1.0, 0.8, 0.6],
         },));
@@ -140,14 +153,14 @@ mod tests {
 
         // Test in-place mutation
         {
-            let mut l = world.get::<&mut ae_core::ecs::Light>(entity).unwrap();
+            let l = world.get_mut::<ae_plugin_api::Light>(entity).unwrap();
             l.position[1] = 8.5;
             l.color[0] = 0.5;
             l.color[1] = 0.4;
         }
 
         {
-            let l = world.get::<&ae_core::ecs::Light>(entity).unwrap();
+            let l = world.get_copied::<ae_plugin_api::Light>(entity).unwrap();
             assert_eq!(l.position[1], 8.5);
             assert_eq!(l.color[0], 0.5);
             assert_eq!(l.color[1], 0.4);
@@ -156,8 +169,8 @@ mod tests {
 
     #[test]
     fn test_draw_light_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Light::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Light::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut scope = UiScope::new(&mut tree, root);
@@ -181,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_draw_light_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -199,8 +212,8 @@ mod tests {
 
     #[test]
     fn test_draw_model_mesh_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::ModelId::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::ModelId::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut scope = UiScope::new(&mut tree, root);
@@ -221,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_draw_model_mesh_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -239,8 +252,8 @@ mod tests {
 
     #[test]
     fn test_draw_shape_card_standalone() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Shape::Cube,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut scope = UiScope::new(&mut tree, root);
@@ -261,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_draw_shape_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = WidgetId::default();
@@ -280,12 +293,12 @@ mod tests {
     #[test]
     fn test_shape_index_conversion_roundtrip() {
         let shapes = [
-            ae_core::ecs::Shape::Cube,
-            ae_core::ecs::Shape::Sphere,
-            ae_core::ecs::Shape::Cylinder,
-            ae_core::ecs::Shape::Capsule,
-            ae_core::ecs::Shape::Torus,
-            ae_core::ecs::Shape::Triangle,
+            ae_plugin_api::Shape::Cube,
+            ae_plugin_api::Shape::Sphere,
+            ae_plugin_api::Shape::Cylinder,
+            ae_plugin_api::Shape::Capsule,
+            ae_plugin_api::Shape::Torus,
+            ae_plugin_api::Shape::Triangle,
         ];
         for s in shapes {
             assert_eq!(index_to_shape(shape_to_index(s)), s);
@@ -294,8 +307,8 @@ mod tests {
 
     #[test]
     fn test_shape_declarative_render() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Shape::Cube,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 
@@ -332,8 +345,8 @@ mod tests {
 
     #[test]
     fn test_shape_combobox_renders_chevron_up_when_open() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Shape::Cube,));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
 
@@ -368,17 +381,17 @@ mod tests {
 
     #[test]
     fn test_shape_declarative_in_place_mutation_and_undo_snapshot() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Shape::Cube,));
 
         {
-            let mut s = world.get::<&mut ae_core::ecs::Shape>(entity).unwrap();
-            *s = ae_core::ecs::Shape::Sphere;
+            let s = world.get_mut::<ae_plugin_api::Shape>(entity).unwrap();
+            *s = ae_plugin_api::Shape::Sphere;
         }
 
-        {
-            let s = world.get::<&ae_core::ecs::Shape>(entity).unwrap();
-            assert_eq!(*s, ae_core::ecs::Shape::Sphere);
-        }
+        assert_eq!(
+            world.get_copied::<ae_plugin_api::Shape>(entity).unwrap(),
+            ae_plugin_api::Shape::Sphere
+        );
     }
 }

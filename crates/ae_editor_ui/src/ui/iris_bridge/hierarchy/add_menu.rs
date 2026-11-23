@@ -112,32 +112,32 @@ const ADD_MENU_3D_OBJECTS: &[CascadingMenuEntry<'static, EngineUiAction>] = &[
     CascadingMenuEntry::item_with_icon(
         "Cube",
         UiIcon::Atlas(ICON_CUBE),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cube),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Cube),
     ),
     CascadingMenuEntry::item_with_icon(
         "Sphere",
         UiIcon::Atlas(ICON_SPHERE),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Sphere),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Sphere),
     ),
     CascadingMenuEntry::item_with_icon(
         "Cylinder",
         UiIcon::Glyph("🧪"),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Cylinder),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Cylinder),
     ),
     CascadingMenuEntry::item_with_icon(
         "Capsule",
         UiIcon::Glyph("💊"),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Capsule),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Capsule),
     ),
     CascadingMenuEntry::item_with_icon(
         "Torus",
         UiIcon::Glyph("🍩"),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Torus),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Torus),
     ),
     CascadingMenuEntry::item_with_icon(
         "Triangle",
         UiIcon::Glyph("📐"),
-        EngineUiAction::SpawnShape(ae_core::ecs::Shape::Triangle),
+        EngineUiAction::SpawnShape(ae_plugin_api::Shape::Triangle),
     ),
 ];
 

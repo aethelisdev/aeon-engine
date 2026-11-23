@@ -23,8 +23,8 @@ use irisui::prelude::*;
 
 #[test]
 fn test_player_tag_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::PlayerTag,));
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::PlayerTag,));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
 
@@ -47,8 +47,8 @@ fn test_player_tag_card_declarative_structure() {
 
 #[test]
 fn test_velocity_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Velocity {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Velocity {
         x: 1.5,
         y: -2.0,
         z: 3.25,
@@ -82,8 +82,8 @@ fn test_velocity_card_declarative_structure() {
 
 #[test]
 fn test_shape_card_declarative_structure_and_chevron() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Shape::Cube,));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
 
@@ -129,8 +129,8 @@ fn test_shape_card_declarative_structure_and_chevron() {
 
 #[test]
 fn test_character_controller_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::CharacterController {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::CharacterController {
         height: 1.80,
         radius: 0.40,
         center_y: 0.0,
@@ -169,29 +169,29 @@ fn test_character_controller_card_declarative_structure() {
 
 #[test]
 fn test_gameplay_cards_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
-        ae_core::ecs::CharacterAction {
+        ae_plugin_api::CharacterAction {
             speed: 50.0,
             cooldown: 0.20,
-            ..ae_core::ecs::CharacterAction::new()
+            ..ae_plugin_api::CharacterAction::new()
         },
-        ae_core::ecs::Rotator {
+        ae_plugin_api::Rotator {
             speed: 1.5,
             axis: [0.0, 1.0, 0.0],
         },
-        ae_core::ecs::MovingPlatform {
+        ae_plugin_api::MovingPlatform {
             speed: 2.5,
             target_position: [0.0, 5.0, 0.0],
             ..Default::default()
         },
-        ae_core::ecs::TriggerZone {
+        ae_plugin_api::TriggerZone {
             speed: 3.0,
             target_position: [0.0, 4.0, 0.0],
             is_triggered: false,
             ..Default::default()
         },
-        ae_core::ecs::DestructibleTarget::new(100.0),
+        ae_plugin_api::DestructibleTarget::new(100.0),
     ));
 
     // CharacterAction
@@ -275,7 +275,7 @@ fn test_gameplay_cards_declarative_structure() {
 
 #[test]
 fn test_animation_and_ui_layout_cards_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         ae_animation::AnimationPlayer {
             state: ae_animation::AnimationState::Playing,
@@ -283,8 +283,8 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
             looping: true,
             ..Default::default()
         },
-        ae_core::ecs::UiLayoutGroup {
-            layout_type: ae_core::ecs::UiLayoutType::Vertical,
+        ae_plugin_api::UiLayoutGroup {
+            layout_type: ae_plugin_api::UiLayoutType::Vertical,
             spacing: 8.0,
             ..Default::default()
         },
@@ -320,11 +320,11 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
 
 #[test]
 fn test_physics_material_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::PhysicsMaterial {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::PhysicsMaterial {
         friction: 0.75,
         restitution: 0.25,
-        surface_type: ae_core::ecs::SurfaceType::Wood,
+        surface_type: ae_plugin_api::SurfaceType::Wood,
     },));
     let mut tree = UiTree::new();
     let root = WidgetId::default();
@@ -359,7 +359,7 @@ fn test_physics_material_card_declarative_structure() {
 
 #[test]
 fn test_audio_cards_declarative_structure() {
-    let mut world = hecs::World::new();
+    let mut world = ae_ecs::World::new();
     let entity = world.spawn((
         ae_audio::AudioSource {
             sound_path: "assets/audio/explosion.wav".to_string(),
@@ -438,10 +438,10 @@ fn test_audio_cards_declarative_structure() {
 
 #[test]
 fn test_rigidbody_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::RigidBody {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::RigidBody {
         mass: 5.0,
-        body_type: ae_core::ecs::RigidBodyType::Dynamic,
+        body_type: ae_plugin_api::RigidBodyType::Dynamic,
         gravity_scale: 1.0,
     },));
     let mut tree = UiTree::new();
@@ -472,9 +472,9 @@ fn test_rigidbody_card_declarative_structure() {
 
 #[test]
 fn test_collider_card_declarative_structure() {
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Collider {
-        shape: ae_core::ecs::ColliderShape::Box {
+    let mut world = ae_ecs::World::new();
+    let entity = world.spawn((ae_plugin_api::Collider {
+        shape: ae_plugin_api::ColliderShape::Box {
             half_extents: [1.0, 2.0, 3.0],
         },
         friction: 0.5,

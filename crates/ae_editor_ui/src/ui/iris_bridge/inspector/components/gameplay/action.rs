@@ -7,28 +7,28 @@
 
 use irisui::prelude::*;
 
-/// Renders the declarative Character Action component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Character Action component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates speed/range and cooldown numeric scrubbers with zero intermediate variable plumbing.
 pub fn draw_character_action_card(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
-    entity: hecs::Entity,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
 ) {
-    scope.card_panel_desc_when_ok(
-        "CharacterActionCard",
-        UiScope::comp_card_desc(
-            "CharacterAction",
-            "CharacterAction",
-            "💨",
-            Color::rgba(0.68, 0.40, 0.96, 1.0),
-        ),
-        world.get::<&mut ae_core::ecs::CharacterAction>(entity),
-        |card, mut a| {
-            card.prop_f32("Speed / Range:", &mut a.speed, 0.0..=10_000.0, 0.5);
-            card.prop_f32("Cooldown:", &mut a.cooldown, 0.0..=3_600.0, 0.05);
-        },
-    );
+    world
+        .mutate::<ae_plugin_api::CharacterAction, _>(entity, |a| {
+            scope.card_panel("CharacterActionCard", |card| {
+                card.card_header_desc(UiScope::comp_card_desc(
+                    "CharacterAction",
+                    "CharacterAction",
+                    "💨",
+                    Color::rgba(0.68, 0.40, 0.96, 1.0),
+                ));
+                card.prop_f32("Speed / Range:", &mut a.speed, 0.0..=10_000.0, 0.5);
+                card.prop_f32("Cooldown:", &mut a.cooldown, 0.0..=3_600.0, 0.05);
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -37,8 +37,8 @@ mod tests {
 
     #[test]
     fn test_character_action_render_and_in_place_mutation() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::CharacterAction::new(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::CharacterAction::new(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
 
@@ -62,15 +62,17 @@ mod tests {
 
         // Test in-place mutation
         {
-            let mut a = world
-                .get::<&mut ae_core::ecs::CharacterAction>(entity)
+            let a = world
+                .get_mut::<ae_plugin_api::CharacterAction>(entity)
                 .unwrap();
             a.speed = 120.0;
             a.cooldown = 1.5;
         }
 
         {
-            let a = world.get::<&ae_core::ecs::CharacterAction>(entity).unwrap();
+            let a = world
+                .get_copied::<ae_plugin_api::CharacterAction>(entity)
+                .unwrap();
             assert_eq!(a.speed, 120.0);
             assert_eq!(a.cooldown, 1.5);
         }
@@ -78,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_draw_character_action_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::CharacterAction::default(),));
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::CharacterAction::default(),));
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
         let mut scope = UiScope::new(&mut tree, root);
@@ -102,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_draw_character_action_card_missing_component_safely_ignored() {
-        let world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.reserve_entity();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");

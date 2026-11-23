@@ -12,9 +12,9 @@ use irisui::prelude::*;
 /// without intermediate `let` variables or heap allocations.
 pub fn draw_transform_card(
     scope: &mut UiScope<'_>,
-    pos: &mut ae_core::ecs::Position,
-    rot: &mut ae_core::ecs::Rotation,
-    scale: &mut ae_core::ecs::Scale,
+    pos: &mut ae_plugin_api::Position,
+    rot: &mut ae_plugin_api::Rotation,
+    scale: &mut ae_plugin_api::Scale,
 ) {
     scope.card_named("TransformCard", "📐 Transform", |card| {
         card.prop_vec3_xyz(
@@ -45,28 +45,37 @@ pub fn draw_transform_card(
 /// Encapsulates the entire Transform inspector interface within a pure declarative [`UiScope`]
 /// container hierarchy, managing flex layout, hover states, caret blinking, and Select-All highlight
 /// capsules without manual coordinate arithmetic or imperative target buffers.
-pub fn build_transform_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.when_ok3(
-        world.get::<&mut ae_core::ecs::Position>(entity),
-        world.get::<&mut ae_core::ecs::Rotation>(entity),
-        world.get::<&mut ae_core::ecs::Scale>(entity),
-        |card, mut p, mut r, mut s| {
-            draw_transform_card(card, &mut p, &mut r, &mut s);
-        },
-    );
+pub fn build_transform_card(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) {
+    world
+        .mutate::<ae_plugin_api::Position, _>(entity, |p| {
+            world
+                .mutate::<ae_plugin_api::Rotation, _>(entity, |r| {
+                    world
+                        .mutate::<ae_plugin_api::Scale, _>(entity, |s| {
+                            draw_transform_card(scope, p, r, s);
+                        })
+                        .ok();
+                })
+                .ok();
+        })
+        .ok();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::{Name, Position, Rotation, Scale};
+    use ae_plugin_api::{Name, Position, Rotation, Scale};
     use irisui::widgets::declarative::{property_vec3_axis_tag, property_vec3_reset_tag};
 
     #[test]
     fn test_declarative_transform_card_structure() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Name("TestTransformEntity".to_string()),
             Position::new(1.0, 2.0, 3.0),
@@ -116,7 +125,7 @@ mod tests {
     fn test_declarative_transform_left_aligned_across_resizes() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Name("AlignEntity".to_string()),
             Position::new(1.0, 2.0, 3.0),
@@ -175,7 +184,7 @@ mod tests {
     fn test_transform_card_rotation_euler_displays_angles_past_90_degrees() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
 
         let q = irisui::prelude::euler_deg_to_quat_xyzw(-34.0, 120.0, 0.0);
         let entity = world.spawn((
@@ -209,7 +218,7 @@ mod tests {
     fn test_transform_card_tags_encoded_correctly() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Name("TagEntity".to_string()),
             Position::new(1.0, 2.0, 3.0),

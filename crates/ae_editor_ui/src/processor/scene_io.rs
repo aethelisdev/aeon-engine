@@ -257,7 +257,7 @@ pub fn handle_load_scene_from_path(ctx: &mut UiContext, path: std::path::PathBuf
 /// Handles saving an entity as a prefab asset to specified path.
 pub fn handle_save_entity_as_prefab(
     ctx: &mut UiContext,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     path: std::path::PathBuf,
 ) {
     if let Some(parent) = path.parent()

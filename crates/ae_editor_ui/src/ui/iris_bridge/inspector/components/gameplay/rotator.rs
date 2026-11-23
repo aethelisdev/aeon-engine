@@ -7,22 +7,24 @@
 
 use irisui::prelude::*;
 
-/// Renders the declarative Rotator component card into [`UiScope`] if present on [`hecs::Entity`].
+/// Renders the declarative Rotator component card into [`UiScope`] if present on [`ae_ecs::Entity`].
 ///
 /// Encapsulates continuous rotation speed and 3D rotational axis vector scrubbers with zero intermediate variable plumbing.
-pub fn draw_rotator_card(scope: &mut UiScope<'_>, world: &hecs::World, entity: hecs::Entity) {
-    scope.card_panel_desc_when_ok(
-        "RotatorCard",
-        CardHeaderDescriptor::new("Rotator (Continuous Spin)")
-            .icon("🔄")
-            .color(Color::rgba(0.35, 0.85, 0.90, 1.0))
-            .action("×", UiScope::action_tag("Rotator")),
-        world.get::<&mut ae_core::ecs::Rotator>(entity),
-        |card, mut r| {
-            card.prop_f32("Speed (rad/s):", &mut r.speed, -100.0..=100.0, 0.05);
-            card.prop_vec3("Axis:", &mut r.axis, 0.05, Some([0.0, 1.0, 0.0]));
-        },
-    );
+pub fn draw_rotator_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    world
+        .mutate::<ae_plugin_api::Rotator, _>(entity, |r| {
+            scope.card_panel("RotatorCard", |card| {
+                card.card_header_desc(
+                    CardHeaderDescriptor::new("Rotator (Continuous Spin)")
+                        .icon("🔄")
+                        .color(Color::rgba(0.35, 0.85, 0.90, 1.0))
+                        .action("×", UiScope::action_tag("Rotator")),
+                );
+                card.prop_f32("Speed (rad/s):", &mut r.speed, -100.0..=100.0, 0.05);
+                card.prop_vec3("Axis:", &mut r.axis, 0.05, Some([0.0, 1.0, 0.0]));
+            });
+        })
+        .ok();
 }
 
 #[cfg(test)]
@@ -31,8 +33,8 @@ mod tests {
 
     #[test]
     fn test_rotator_render_and_in_place_mutation() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Rotator {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Rotator {
             speed: 1.5,
             axis: [0.0, 1.0, 0.0],
         },));
@@ -59,13 +61,13 @@ mod tests {
 
         // Test in-place mutation
         {
-            let mut r = world.get::<&mut ae_core::ecs::Rotator>(entity).unwrap();
+            let r = world.get_mut::<ae_plugin_api::Rotator>(entity).unwrap();
             r.speed = 2.5;
             r.axis = [1.0, 0.0, 0.0];
         }
 
         {
-            let r = world.get::<&ae_core::ecs::Rotator>(entity).unwrap();
+            let r = world.get_copied::<ae_plugin_api::Rotator>(entity).unwrap();
             assert_eq!(r.speed, 2.5);
             assert_eq!(r.axis, [1.0, 0.0, 0.0]);
         }
@@ -73,8 +75,8 @@ mod tests {
 
     #[test]
     fn test_draw_rotator_card_direct_structure() {
-        let mut world = hecs::World::new();
-        let entity = world.spawn((ae_core::ecs::Rotator {
+        let mut world = ae_ecs::World::new();
+        let entity = world.spawn((ae_plugin_api::Rotator {
             speed: 1.5,
             axis: [0.0, 1.0, 0.0],
         },));
@@ -104,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_draw_rotator_card_missing_component_safely_ignored() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn(());
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
