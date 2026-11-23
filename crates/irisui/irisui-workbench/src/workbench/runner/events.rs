@@ -423,10 +423,13 @@ where
             return outcome;
         }
 
-        // 3. Ingest dropped files directly into outcome
+        // 3. Ingest dropped files directly into outcome unless occluded by an active workbench modal
         if let UiEvent::FileDropped { paths, point } = event
             && !paths.is_empty()
         {
+            if self.dialog_host.is_active() {
+                return self.make_outcome(true, None);
+            }
             let mut outcome = self.make_outcome(true, None);
             if let Some(builder) = &self.file_drop_action {
                 outcome.actions.push(builder(paths.clone(), *point));

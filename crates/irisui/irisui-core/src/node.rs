@@ -73,6 +73,8 @@ pub enum WidgetRole {
     ScrollAreaViewport,
     /// Interactive 2D pan-and-zoom viewport container capturing wheel zoom and middle-drag panning.
     PanZoomViewport,
+    /// Dedicated container accepting operating system external file drag-and-drop gestures.
+    DropTarget,
     /// Vertical or horizontal scrollbar track background line.
     ScrollBarTrack,
     /// Draggable vertical or horizontal scrollbar thumb handle indicator.
@@ -178,6 +180,7 @@ impl WidgetRole {
             | WidgetRole::TextInputCaret
             | WidgetRole::ScrollAreaViewport
             | WidgetRole::PanZoomViewport
+            | WidgetRole::DropTarget
             | WidgetRole::ScrollBarTrack
             | WidgetRole::ScrollBarThumb
             | WidgetRole::ColorPickerArea => UiLayer::Content,
@@ -228,6 +231,7 @@ impl WidgetRole {
                 | WidgetRole::ColorSwatch
                 | WidgetRole::ColorPickerArea
                 | WidgetRole::PanZoomViewport
+                | WidgetRole::DropTarget
                 | WidgetRole::DockTab
                 | WidgetRole::DockSplitterHorizontal
                 | WidgetRole::DockSplitterVertical

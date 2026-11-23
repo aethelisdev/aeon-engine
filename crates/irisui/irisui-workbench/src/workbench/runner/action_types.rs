@@ -10,7 +10,8 @@ use irisui_core::geometry::Point;
 use std::path::PathBuf;
 
 /// Type alias for external file drag-and-drop action handler closure.
-pub type FileDropActionBuilder<Action> = Box<dyn Fn(Vec<PathBuf>, Point) -> Action + Send + Sync>;
+pub type FileDropActionBuilder<Action> =
+    Box<dyn Fn(Vec<PathBuf>, Option<Point>) -> Action + Send + Sync>;
 
 /// Type alias for UI zoom alteration action handler closure.
 pub type ZoomActionBuilder<Action> = Box<dyn Fn(f32) -> Action + Send + Sync>;

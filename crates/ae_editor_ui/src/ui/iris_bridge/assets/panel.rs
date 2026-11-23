@@ -467,7 +467,7 @@ fn handle_modal_fs_or_drag_action(
         AssetsPanelAction::ImportDroppedFiles(paths) => {
             ctx.action_bus.emit(EngineUiAction::ImportDroppedFiles {
                 paths,
-                screen_pos: None,
+                target: crate::ui::types::DroppedFileTarget::AssetLibrary,
             });
         }
         AssetsPanelAction::StartAssetDrag(payload) => handle_start_asset_drag(ctx, &payload),

@@ -197,7 +197,7 @@ impl<'a> UiScope<'a> {
             .hovered_file
             .as_ref()
             .is_some_and(|(_, pt)| {
-                prev_rect.contains_point(*pt)
+                pt.is_some_and(|pos| prev_rect.contains_point(pos))
                     || self
                         .tree
                         .event_state
@@ -213,7 +213,7 @@ impl<'a> UiScope<'a> {
             node.set_tag(tag);
             node.set_style(style);
             node.interactive = true;
-            node.role = WidgetRole::Default;
+            node.role = WidgetRole::DropTarget;
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
@@ -235,8 +235,9 @@ impl<'a> UiScope<'a> {
                 || (tag != 0 && target_tag == tag)
                 || target_id
                     .is_some_and(|tid| self.tree.is_direct_interaction_ancestor(tid, node_id))
-                || response.rect.contains_point(pt)
-                || prev_rect.contains_point(pt);
+                || pt.is_some_and(|pos| {
+                    response.rect.contains_point(pos) || prev_rect.contains_point(pos)
+                });
 
             if matched { Some(paths.clone()) } else { None }
         } else {

@@ -146,7 +146,7 @@ impl<'a> UiScope<'a> {
             .hovered_file
             .as_ref()
             .is_some_and(|(_, pt)| {
-                rect.contains_point(*pt)
+                pt.is_some_and(|pos| rect.contains_point(pos))
                     || self.tree.event_state.hovered == Some(id)
                     || (tag != 0
                         && self
@@ -168,7 +168,7 @@ impl<'a> UiScope<'a> {
             .frame_dropped_files
             .as_ref()
             .is_some_and(|(target_id, target_tag, _, pt)| {
-                rect.contains_point(*pt)
+                pt.is_some_and(|pos| rect.contains_point(pos))
                     || *target_id == Some(id)
                     || (tag != 0 && *target_tag == tag)
                     || target_id

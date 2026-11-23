@@ -225,14 +225,12 @@ impl ApplicationHandler for AeApp {
                     };
                     let target_duration = std::time::Duration::from_secs_f32(1.0 / target_fps);
 
-                    // If an external file drag/drop interaction is active, bypass sleep pacing
-                    // to immediately service X11 XDnD status queries and avoid compositor cursor stalls
-                    let is_dnd_active = engine.ui.is_file_drop_hovered();
-
-                    // Measure elapsed time since the previous frame
-                    let elapsed = self.last_frame_time.elapsed();
-                    if elapsed < target_duration && !is_dnd_active {
-                        spin_sleep::sleep(target_duration - elapsed);
+                    // Enforce frame pacing unconditionally (including during OS file drag hover)
+                    // so ControlFlow::Poll never spins uncapped when hovering files over the window
+                    if let Some(remaining) =
+                        compute_frame_pacing_sleep(self.last_frame_time.elapsed(), target_duration)
+                    {
+                        spin_sleep::sleep(remaining);
                     }
 
                     // New frame cycle begins exactly at this point (after sleep)
@@ -394,5 +392,51 @@ fn main() {
     let mut app = AeApp::new(cli_args);
     if let Err(err) = event_loop.run_app(&mut app) {
         log::error!("[AeonEngine] Event loop terminated with error: {err}");
+    }
+}
+
+/// Computes the remaining frame pacing sleep duration for a capped frame rate limit.
+///
+/// Returns `Some(target_duration - elapsed)` whenever `elapsed < target_duration` and
+/// `target_duration` is positive, ensuring capped 60/120 FPS modes do not unlock and
+/// spin under continuous polling loops.
+#[must_use]
+fn compute_frame_pacing_sleep(
+    elapsed: std::time::Duration,
+    target_duration: std::time::Duration,
+) -> Option<std::time::Duration> {
+    if !target_duration.is_zero() && elapsed < target_duration {
+        Some(target_duration - elapsed)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod frame_pacing_tests {
+    use super::compute_frame_pacing_sleep;
+    use std::time::Duration;
+
+    #[test]
+    fn test_compute_frame_pacing_sleep_returns_remaining_budget_for_120_fps() {
+        let target_120 = Duration::from_secs_f32(1.0 / 120.0);
+        let elapsed = Duration::from_millis(2);
+        let remaining = compute_frame_pacing_sleep(elapsed, target_120)
+            .expect("120 FPS budget with 2ms elapsed must sleep for remaining frame budget");
+        assert_eq!(remaining, target_120 - elapsed);
+    }
+
+    #[test]
+    fn test_compute_frame_pacing_sleep_rejects_expired_and_zero_budgets() {
+        let target_120 = Duration::from_secs_f32(1.0 / 120.0);
+        assert_eq!(compute_frame_pacing_sleep(target_120, target_120), None);
+        assert_eq!(
+            compute_frame_pacing_sleep(Duration::from_millis(16), target_120),
+            None
+        );
+        assert_eq!(
+            compute_frame_pacing_sleep(Duration::from_millis(1), Duration::ZERO),
+            None
+        );
     }
 }

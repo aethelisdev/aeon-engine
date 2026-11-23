@@ -529,9 +529,9 @@ impl UiTree {
     #[must_use]
     pub fn frame_dropped_files(
         &self,
-    ) -> Option<(&[std::path::PathBuf], Point, Option<FileDropTarget>)> {
+    ) -> Option<(&[std::path::PathBuf], Option<Point>, Option<FileDropTarget>)> {
         let (_, _, paths, point) = self.event_state.frame_dropped_files.as_ref()?;
-        let target = self.resolve_file_drop_target(*point);
+        let target = point.and_then(|pt| self.resolve_file_drop_target(pt));
         Some((paths.as_slice(), *point, target))
     }
 
@@ -541,9 +541,11 @@ impl UiTree {
     /// # Returns
     /// An optional tuple `(hovered_path, hover_point, target_metadata)` if a file is hovering.
     #[must_use]
-    pub fn hovered_file(&self) -> Option<(&std::path::Path, Point, Option<FileDropTarget>)> {
+    pub fn hovered_file(
+        &self,
+    ) -> Option<(&std::path::Path, Option<Point>, Option<FileDropTarget>)> {
         let (path, point) = self.event_state.hovered_file.as_ref()?;
-        let target = self.resolve_file_drop_target(*point);
+        let target = point.and_then(|pt| self.resolve_file_drop_target(pt));
         Some((path.as_path(), *point, target))
     }
 }

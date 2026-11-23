@@ -20,23 +20,83 @@ pub fn handle_open_model_dialog(ctx: &mut UiContext) {
     });
 }
 
+/// Resolves whether an incoming file drop targets the 3D viewport and computes the world spawn position.
+///
+/// - [`crate::ui::types::DroppedFileTarget::AssetLibrary`] returns `None` (library import only).
+/// - [`crate::ui::types::DroppedFileTarget::Workspace(Some(pos))`] spawns only when `viewport_rect`
+///   is non-collapsed (`> 20.0` logical px on each axis) and contains `pos`.
+/// - [`crate::ui::types::DroppedFileTarget::Workspace(None)`] (OS compositor drop omitting pointer
+///   coordinates) projects from the center of a non-collapsed `viewport_rect`.
+#[must_use]
+pub fn resolve_viewport_drop_world_pos(
+    target: crate::ui::types::DroppedFileTarget,
+    viewport_rect: irisui::prelude::Rect,
+    camera: &ae_renderer::camera::Camera,
+) -> Option<[f32; 3]> {
+    if !viewport_rect.width.is_finite()
+        || !viewport_rect.height.is_finite()
+        || !viewport_rect.x.is_finite()
+        || !viewport_rect.y.is_finite()
+        || viewport_rect.width <= 20.0
+        || viewport_rect.height <= 20.0
+    {
+        return None;
+    }
+
+    let screen_pos = match target {
+        crate::ui::types::DroppedFileTarget::AssetLibrary => return None,
+        crate::ui::types::DroppedFileTarget::Workspace(Some(pos)) => {
+            if !pos[0].is_finite()
+                || !pos[1].is_finite()
+                || !viewport_rect.contains_point(irisui::prelude::Point::new(pos[0], pos[1]))
+            {
+                return None;
+            }
+            pos
+        }
+        crate::ui::types::DroppedFileTarget::Workspace(None) => [
+            viewport_rect.x + viewport_rect.width * 0.5,
+            viewport_rect.y + viewport_rect.height * 0.5,
+        ],
+    };
+
+    Some(
+        ae_editor::picking::compute_ground_intersection(
+            screen_pos,
+            [
+                viewport_rect.x,
+                viewport_rect.y,
+                viewport_rect.width,
+                viewport_rect.height,
+            ],
+            &camera.build_view_projection_matrix(),
+        )
+        .unwrap_or_else(|| {
+            ae_editor::picking::compute_camera_ground_fallback(
+                [camera.position.x, camera.position.y, camera.position.z],
+                [camera.target.x, camera.target.y, camera.target.z],
+                3.0,
+            )
+        }),
+    )
+}
+
 /// Handles ingesting dropped external files into the asset pipeline.
 ///
 /// Follows industry-standard DCC / game engine conventions:
-/// - If dropped onto the 3D Viewport: copies the asset (and glTF external dependencies)
-///   to the project directory, computes ground plane raycast intersection from the cursor,
-///   and spawns the entity directly at the pointed world position.
-/// - If dropped onto the Asset Browser: imports the asset into the active folder
+/// - If dropped onto the 3D Viewport (or unpositioned workspace drop when viewport is open):
+///   copies the asset (and glTF external dependencies) to the project directory, computes ground
+///   plane raycast intersection (with forward camera fallback), and spawns the entity directly.
+/// - If dropped onto the Asset Browser (`AssetLibrary`): imports the asset into the active folder
 ///   and refreshes the content browser without dirtying the 3D scene.
 pub fn handle_import_dropped_files(
     ctx: &mut UiContext,
     paths: Vec<std::path::PathBuf>,
-    screen_pos: Option<[f32; 2]>,
+    target: crate::ui::types::DroppedFileTarget,
 ) {
     let viewport_rect = ctx.ui.last_viewport_rect;
-    let is_over_viewport = screen_pos.is_some_and(|pos| {
-        viewport_rect.contains_point(irisui::prelude::Point::new(pos[0], pos[1]))
-    });
+    let world_spawn_pos = resolve_viewport_drop_world_pos(target, viewport_rect, ctx.camera);
+    let is_over_viewport = world_spawn_pos.is_some();
 
     let current_folder = ctx.ui.asset_browser.current_folder.clone();
     let target_dir = if is_over_viewport && current_folder == std::path::Path::new("assets") {
@@ -68,24 +128,7 @@ pub fn handle_import_dropped_files(
             .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
     }
 
-    if is_over_viewport {
-        // Industry Standard Viewport Drop: raycast to ground plane at mouse cursor
-        let world_pos = if let Some(pos) = screen_pos {
-            ae_editor::picking::compute_ground_intersection(
-                pos,
-                [
-                    viewport_rect.x,
-                    viewport_rect.y,
-                    viewport_rect.width,
-                    viewport_rect.height,
-                ],
-                &ctx.camera.build_view_projection_matrix(),
-            )
-            .unwrap_or([0.0, 0.0, 0.0])
-        } else {
-            [0.0, 0.0, 0.0]
-        };
-
+    if let Some(world_pos) = world_spawn_pos {
         for path in imported_paths {
             let ext = path
                 .extension()
@@ -95,14 +138,20 @@ pub fn handle_import_dropped_files(
 
             match ext.as_str() {
                 "gltf" | "glb" => {
-                    super::spawning::handle_spawn_model_path_at(ctx, path.clone(), world_pos);
-                    ctx.ui.set_status_message(
-                        format!(
-                            "Spawned 3D model at ({:.1}, {:.1}, {:.1})",
-                            world_pos[0], world_pos[1], world_pos[2]
+                    match super::spawning::handle_spawn_model_path_at(ctx, path.clone(), world_pos)
+                    {
+                        Ok(()) => ctx.ui.set_status_message(
+                            format!(
+                                "Spawned 3D model at ({:.1}, {:.1}, {:.1})",
+                                world_pos[0], world_pos[1], world_pos[2]
+                            ),
+                            irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
                         ),
-                        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
-                    );
+                        Err(err) => ctx.ui.set_status_message(
+                            format!("Failed to load 3D model: {err}"),
+                            irisui::prelude::Color::RED,
+                        ),
+                    }
                 }
                 "png" | "jpg" | "jpeg" => {
                     super::spawning::handle_spawn_sprite_path_at(ctx, path.clone(), world_pos);
@@ -249,5 +298,93 @@ pub fn handle_instantiate_prefab(ctx: &mut UiContext, path: std::path::PathBuf) 
         Err(e) => {
             log::error!("Failed to instantiate prefab from {:?}: {}", path, e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_viewport_drop_world_pos;
+    use crate::ui::types::DroppedFileTarget;
+    use ae_renderer::camera::{Camera, ProjectionMode};
+    use cgmath::{Deg, Point3, Rad};
+    use irisui::prelude::Rect;
+
+    fn test_camera() -> Camera {
+        Camera {
+            position: Point3::new(0.0, 5.0, 5.0),
+            yaw: Rad::from(Deg(-90.0)),
+            pitch: Rad::from(Deg(-45.0)),
+            aspect: 900.0 / 600.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: Point3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    fn test_resolve_viewport_drop_world_pos_accepts_positioned_and_unpositioned_workspace_drops() {
+        let camera = test_camera();
+        let viewport = Rect::new(300.0, 60.0, 900.0, 600.0);
+
+        // 1. Positioned workspace drop inside viewport center projects cleanly to ground plane (y = 0)
+        let center_pos = resolve_viewport_drop_world_pos(
+            DroppedFileTarget::Workspace(Some([750.0, 360.0])),
+            viewport,
+            &camera,
+        )
+        .expect("Workspace drop inside viewport must resolve a spawn position");
+        assert!(center_pos[0].abs() < 1e-3);
+        assert!(center_pos[1].abs() < 1e-3);
+        assert!(center_pos[2].abs() < 1e-3);
+
+        // 2. Unpositioned OS drop (compositor omitted CursorMoved) resolves identically at viewport center
+        let unpositioned_pos =
+            resolve_viewport_drop_world_pos(DroppedFileTarget::Workspace(None), viewport, &camera)
+                .expect("Unpositioned workspace drop must fall back to viewport center");
+        assert!((unpositioned_pos[0] - center_pos[0]).abs() < 1e-3);
+        assert!((unpositioned_pos[1] - center_pos[1]).abs() < 1e-3);
+        assert!((unpositioned_pos[2] - center_pos[2]).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_resolve_viewport_drop_world_pos_rejects_library_and_malformed_viewports() {
+        let camera = test_camera();
+        let viewport = Rect::new(300.0, 60.0, 900.0, 600.0);
+
+        // Explicit AssetLibrary drops never spawn into the 3D scene
+        assert_eq!(
+            resolve_viewport_drop_world_pos(DroppedFileTarget::AssetLibrary, viewport, &camera),
+            None
+        );
+        // Workspace drop outside viewport rect does not spawn
+        assert_eq!(
+            resolve_viewport_drop_world_pos(
+                DroppedFileTarget::Workspace(Some([50.0, 50.0])),
+                viewport,
+                &camera,
+            ),
+            None
+        );
+        // Collapsed 0x0 viewport safely rejects even unpositioned drops
+        assert_eq!(
+            resolve_viewport_drop_world_pos(
+                DroppedFileTarget::Workspace(None),
+                Rect::ZERO,
+                &camera
+            ),
+            None
+        );
+        // NaN screen coordinates are safely rejected
+        assert_eq!(
+            resolve_viewport_drop_world_pos(
+                DroppedFileTarget::Workspace(Some([f32::NAN, 360.0])),
+                viewport,
+                &camera,
+            ),
+            None
+        );
     }
 }

@@ -282,7 +282,7 @@ fn test_os_file_drag_and_drop_events() {
         winit_to_ui_event(&hover_ev, p, 1.0),
         Some(UiEvent::FileHovered {
             path: sample_path.clone(),
-            point: p,
+            point: Some(p),
         })
     );
 
@@ -291,7 +291,7 @@ fn test_os_file_drag_and_drop_events() {
         winit_to_ui_event(&drop_ev, p, 1.0),
         Some(UiEvent::FileDropped {
             paths: vec![sample_path.clone()],
-            point: p,
+            point: Some(p),
         })
     );
 
@@ -315,7 +315,7 @@ fn test_os_file_drag_and_drop_events() {
         state_hover,
         Some(UiEvent::FileHovered {
             path: sample_path.clone(),
-            point: Point::new(200.0, 150.0),
+            point: Some(Point::new(200.0, 150.0)),
         })
     );
 
@@ -324,14 +324,14 @@ fn test_os_file_drag_and_drop_events() {
         state_drop,
         Some(UiEvent::FileDropped {
             paths: vec![sample_path],
-            point: Point::new(200.0, 150.0),
+            point: Some(Point::new(200.0, 150.0)),
         })
     );
 
     let state_cancel = state.on_window_event(&cancel_ev);
     assert_eq!(state_cancel, Some(UiEvent::FileCancelled));
 
-    // 3. CursorLeft retention test: cursor departs, but last known position is preserved for file drops
+    // 3. CursorLeft isolation test: stale exit coordinates must NOT be fabricated for external OS drops
     let left_ev = WindowEvent::CursorLeft {
         device_id: DeviceId::dummy(),
     };
@@ -347,7 +347,7 @@ fn test_os_file_drag_and_drop_events() {
         drop_after_left,
         Some(UiEvent::FileDropped {
             paths: vec![PathBuf::from("/assets/textures/albedo.png")],
-            point: Point::new(200.0, 150.0),
+            point: None,
         })
     );
 }

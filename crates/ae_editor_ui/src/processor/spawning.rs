@@ -43,6 +43,8 @@ pub fn handle_spawn_model_at(
         };
     }
 
+    let auto_scale = ae_assets::compute_model_auto_scale(bbox.min, bbox.max);
+
     let new_entity = ctx.world.spawn((
         ae_core::ecs::Name(base_name.clone()),
         ae_core::ecs::ModelId(mid),
@@ -53,9 +55,9 @@ pub fn handle_spawn_model_at(
         },
         ae_core::ecs::Rotation::identity(),
         ae_core::ecs::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
+            x: auto_scale,
+            y: auto_scale,
+            z: auto_scale,
         },
         bbox,
         ae_core::ecs::Velocity {
@@ -157,7 +159,13 @@ pub fn handle_spawn_sprite_at(
 ///
 /// Resolves cached model handles if already uploaded, or dynamically parses the GLTF/GLB file,
 /// uploads vertex and index buffers to GPU memory, and spawns the entity at the target coordinates.
-pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {
+/// Returns `Err(message)` if model parsing fails so callers can surface errors rather than reporting
+/// a false spawn confirmation.
+pub fn handle_spawn_model_path_at(
+    ctx: &mut UiContext,
+    path: std::path::PathBuf,
+    pos: [f32; 3],
+) -> Result<(), String> {
     let path_str = path.to_string_lossy().to_string();
     let raw_stem = path
         .file_stem()
@@ -182,7 +190,7 @@ pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf,
 
     if let Some(handle) = existing_handle {
         handle_spawn_model_at(ctx, handle, pos);
-        return;
+        return Ok(());
     }
 
     // Dynamically parse and upload model to GPU
@@ -197,9 +205,12 @@ pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf,
                 path_str,
                 pos
             );
+            Ok(())
         }
         Err(e) => {
-            log::error!("Failed to load 3D model from '{}': {}", path_str, e);
+            let err_msg = e.to_string();
+            log::error!("Failed to load 3D model from '{}': {}", path_str, err_msg);
+            Err(err_msg)
         }
     }
 }

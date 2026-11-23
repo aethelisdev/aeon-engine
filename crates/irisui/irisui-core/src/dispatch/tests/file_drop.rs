@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use crate::event::UiEvent;
 use crate::geometry::{Point, Rect};
+use crate::node::WidgetRole;
 use crate::tree::UiTree;
 
 #[test]
@@ -20,44 +21,77 @@ fn test_dispatch_os_file_events() {
         node.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
     }
 
+    let drop_zone = tree.create_node();
+    {
+        let node = tree.get_mut(drop_zone).unwrap();
+        node.visible = true;
+        node.interactive = true;
+        node.role = WidgetRole::DropTarget;
+        node.computed_rect = Rect::new(50.0, 50.0, 150.0, 150.0);
+    }
+    tree.add_child(root, drop_zone).unwrap();
+
     let file_path = PathBuf::from("/project/assets/mesh.gltf");
     let hover_pt = Point::new(100.0, 100.0);
 
-    // 1. FileHovered updates hover state to root widget
+    // 1. FileHovered updates hover state to drop_zone widget
     let hover_res = tree.dispatch_event(&UiEvent::FileHovered {
         path: file_path.clone(),
-        point: hover_pt,
+        point: Some(hover_pt),
     });
-    assert_eq!(hover_res.target, Some(root));
-    assert_eq!(tree.event_state.hovered, Some(root));
+    assert_eq!(hover_res.target, Some(drop_zone));
+    assert_eq!(tree.event_state.hovered, Some(drop_zone));
     assert_eq!(
         tree.event_state.hovered_file,
-        Some((file_path.clone(), hover_pt))
+        Some((file_path.clone(), Some(hover_pt)))
     );
 
     // Consecutive FileHovered with same path updates point in-place without reallocating
     let hover_pt2 = Point::new(120.0, 140.0);
     tree.dispatch_event(&UiEvent::FileHovered {
         path: file_path.clone(),
-        point: hover_pt2,
+        point: Some(hover_pt2),
     });
     assert_eq!(
         tree.event_state.hovered_file,
-        Some((file_path.clone(), hover_pt2))
+        Some((file_path.clone(), Some(hover_pt2)))
     );
 
-    // 2. FileDropped onto root widget is consumed
+    // 2. FileDropped onto DropTarget widget is consumed
     let drop_res = tree.dispatch_event(&UiEvent::FileDropped {
         paths: vec![file_path.clone()],
-        point: hover_pt,
+        point: Some(hover_pt),
     });
     assert!(drop_res.consumed);
-    assert_eq!(drop_res.target, Some(root));
+    assert_eq!(drop_res.target, Some(drop_zone));
+
+    // FileDropped over non-DropTarget interactive root remains unconsumed so host falls through
+    let non_drop_res = tree.dispatch_event(&UiEvent::FileDropped {
+        paths: vec![file_path.clone()],
+        point: Some(Point::new(350.0, 350.0)),
+    });
+    assert!(!non_drop_res.consumed);
+    assert_eq!(non_drop_res.target, Some(root));
+
+    // Negative / fault-injection: NaN coordinates and unpositioned None must safely remain unconsumed
+    let nan_res = tree.dispatch_event(&UiEvent::FileDropped {
+        paths: vec![file_path.clone()],
+        point: Some(Point::new(f32::NAN, 100.0)),
+    });
+    assert!(!nan_res.consumed);
+    assert_eq!(nan_res.target, None);
+
+    let none_res = tree.dispatch_event(&UiEvent::FileDropped {
+        paths: vec![file_path.clone()],
+        point: None,
+    });
+    assert!(!none_res.consumed);
+    assert_eq!(none_res.target, None);
 
     // Dropped outside is unconsumed
     let outside_res = tree.dispatch_event(&UiEvent::FileDropped {
         paths: vec![file_path],
-        point: Point::new(600.0, 600.0),
+        point: Some(Point::new(600.0, 600.0)),
     });
     assert!(!outside_res.consumed);
     assert_eq!(outside_res.target, None);
@@ -79,22 +113,25 @@ fn test_file_drag_drop_coordinate_resolution_and_helpers() {
 
     let hover_ev = UiEvent::FileHovered {
         path: path.clone(),
-        point: pt,
+        point: Some(pt),
     };
     assert_eq!(hover_ev.pointer_position(), Some(pt));
     assert!(hover_ev.is_file_drag_event());
-    assert_eq!(hover_ev.file_hover_payload(), Some((path.as_path(), pt)));
+    assert_eq!(
+        hover_ev.file_hover_payload(),
+        Some((path.as_path(), Some(pt)))
+    );
     assert_eq!(hover_ev.file_drop_payload(), None);
 
     let drop_ev = UiEvent::FileDropped {
         paths: vec![path.clone()],
-        point: pt,
+        point: Some(pt),
     };
     assert_eq!(drop_ev.pointer_position(), Some(pt));
     assert!(drop_ev.is_file_drag_event());
     assert_eq!(
         drop_ev.file_drop_payload(),
-        Some((vec![path.clone()].as_slice(), pt))
+        Some((vec![path.clone()].as_slice(), Some(pt)))
     );
 
     let cancel_ev = UiEvent::FileCancelled;
@@ -124,7 +161,7 @@ fn test_file_drag_drop_coordinate_resolution_and_helpers() {
     tree.dispatch_event(&hover_ev);
     let (h_path, h_pt, h_target) = tree.hovered_file().unwrap();
     assert_eq!(h_path, path.as_path());
-    assert_eq!(h_pt, pt);
+    assert_eq!(h_pt, Some(pt));
     assert_eq!(h_target.unwrap().widget_id, panel);
 
     // Dispatch drop event & query frame_dropped_files
@@ -132,6 +169,6 @@ fn test_file_drag_drop_coordinate_resolution_and_helpers() {
     assert!(tree.hovered_file().is_none());
     let (d_paths, d_pt, d_target) = tree.frame_dropped_files().unwrap();
     assert_eq!(d_paths, &[path]);
-    assert_eq!(d_pt, pt);
+    assert_eq!(d_pt, Some(pt));
     assert_eq!(d_target.unwrap().widget_id, panel);
 }

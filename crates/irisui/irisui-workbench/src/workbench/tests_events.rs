@@ -153,7 +153,7 @@ fn test_workbench_handle_event_covers_all_ui_event_variants() {
     // 7. FileHovered, 8. FileCancelled, 9. FileDropped
     let hover_ev = UiEvent::FileHovered {
         path: PathBuf::from("assets/hero.glb"),
-        point: Point::new(500.0, 360.0),
+        point: Some(Point::new(500.0, 360.0)),
     };
     let hover_out = wb.handle_event(&mut win, &hover_ev);
     assert_eq!(hover_out.cursor_pos, Some(Point::new(500.0, 360.0)));
@@ -163,7 +163,7 @@ fn test_workbench_handle_event_covers_all_ui_event_variants() {
 
     let drop_ev = UiEvent::FileDropped {
         paths: vec![PathBuf::from("assets/hero.glb")],
-        point: Point::new(500.0, 360.0),
+        point: Some(Point::new(500.0, 360.0)),
     };
     let drop_out = wb.handle_event(&mut win, &drop_ev);
     assert!(drop_out.consumed);
@@ -172,7 +172,7 @@ fn test_workbench_handle_event_covers_all_ui_event_variants() {
         drop_out.dropped_files,
         Some((
             vec![PathBuf::from("assets/hero.glb")],
-            Point::new(500.0, 360.0)
+            Some(Point::new(500.0, 360.0))
         ))
     );
     assert_eq!(
@@ -255,7 +255,7 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
     // FileHovered -> FileCancelled sets needs_redraw / layout_changed when clearing active hover
     let hover_ev = UiEvent::FileHovered {
         path: PathBuf::from("scene.json"),
-        point: Point::new(100.0, 150.0),
+        point: Some(Point::new(100.0, 150.0)),
     };
     let _ = wb.handle_event(&mut win, &hover_ev);
     let cancel_out = wb.handle_event(&mut win, &UiEvent::FileCancelled);
@@ -264,16 +264,76 @@ fn test_handle_event_with_tree_suppresses_global_shortcuts_during_text_focus() {
         "FileCancelled clearing hovered_file must mark layout_changed for redraw"
     );
 
-    // FileDropped over interactive widget preserves outcome.dropped_files even when tree consumes
+    // FileDropped over non-DropTarget interactive widget must NOT swallow file_drop_action
     let drop_ev = UiEvent::FileDropped {
         paths: vec![PathBuf::from("mesh.glb")],
-        point: Point::new(40.0, 70.0),
+        point: Some(Point::new(40.0, 70.0)),
     };
     let drop_out = wb.handle_event(&mut win, &drop_ev);
     assert!(drop_out.consumed);
     assert_eq!(
+        drop_out.actions,
+        vec![TestAction::Dropped(vec![PathBuf::from("mesh.glb")])],
+        "Non-DropTarget interactive widget must not swallow Workbench::file_drop_action"
+    );
+    assert_eq!(
         drop_out.dropped_files,
-        Some((vec![PathBuf::from("mesh.glb")], Point::new(40.0, 70.0)))
+        Some((
+            vec![PathBuf::from("mesh.glb")],
+            Some(Point::new(40.0, 70.0))
+        ))
+    );
+
+    // Unpositioned OS drop (point: None) must still trigger file_drop_action cleanly
+    let unpositioned_drop = UiEvent::FileDropped {
+        paths: vec![PathBuf::from("character.gltf")],
+        point: None,
+    };
+    let unpos_out = wb.handle_event(&mut win, &unpositioned_drop);
+    assert!(unpos_out.consumed);
+    assert_eq!(
+        unpos_out.actions,
+        vec![TestAction::Dropped(vec![PathBuf::from("character.gltf")])],
+    );
+    assert_eq!(
+        unpos_out.dropped_files,
+        Some((vec![PathBuf::from("character.gltf")], None))
+    );
+
+    // Negative / blocking case: active modal dialog suppresses host file_drop_action
+    wb.dialog_host.open_confirm(
+        "Discard?",
+        "Changes will be lost.",
+        TestAction::OpenPreferences,
+    );
+    let blocked_out = wb.handle_event(&mut win, &unpositioned_drop);
+    assert!(blocked_out.consumed);
+    assert!(
+        blocked_out.actions.is_empty(),
+        "Active workbench modal dialog must block host file drops"
+    );
+    wb.dialog_host.close();
+
+    // Explicit WidgetRole::DropTarget owns the drop and suppresses duplicate host file_drop_action
+    let dz = wb.tree.create_node();
+    if let Some(node) = wb.tree.get_mut(dz) {
+        node.visible = true;
+        node.interactive = true;
+        node.role = irisui_core::node::WidgetRole::DropTarget;
+        node.computed_rect = Rect::new(300.0, 300.0, 200.0, 200.0);
+    }
+    if let Some(root_id) = wb.tree.root() {
+        let _ = wb.tree.add_child(root_id, dz);
+    }
+    let dz_drop = UiEvent::FileDropped {
+        paths: vec![PathBuf::from("albedo.png")],
+        point: Some(Point::new(350.0, 350.0)),
+    };
+    let dz_out = wb.handle_event(&mut win, &dz_drop);
+    assert!(dz_out.consumed);
+    assert!(
+        dz_out.actions.is_empty(),
+        "Explicit WidgetRole::DropTarget must own drops without triggering host file_drop_action"
     );
 }
 

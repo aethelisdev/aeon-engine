@@ -1,5 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+/// Destination target context for operating system files dropped onto the editor window.
+///
+/// Separates explicit library-only Asset Browser drops from host workspace/viewport drops so
+/// OS drops lacking live pointer coordinates (`None`) still route cleanly to the active 3D viewport
+/// instead of silently collapsing to asset-library-only ingestion.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DroppedFileTarget {
+    /// File dropped into the editor workspace with optional logical window cursor coordinates.
+    Workspace(Option<[f32; 2]>),
+    /// File dropped directly onto the Asset Browser drop target (import into library only).
+    AssetLibrary,
+}
+
 /// Command enum representing all possible UI-driven actions.
 ///
 /// Each variant is dispatched from UI panels (Inspector, Hierarchy, Menu)
@@ -107,8 +120,8 @@ pub enum EngineUiAction {
     ImportDroppedFiles {
         /// Absolute or relative file system paths to the dropped assets.
         paths: Vec<std::path::PathBuf>,
-        /// Logical screen cursor coordinates where the drop occurred, or `None` if unpositioned.
-        screen_pos: Option<[f32; 2]>,
+        /// Destination target context distinguishing workspace/viewport drops from asset library drops.
+        target: DroppedFileTarget,
     },
     /// Deletes a file or directory from the host file system.
     DeleteAssetOrFolder(std::path::PathBuf),

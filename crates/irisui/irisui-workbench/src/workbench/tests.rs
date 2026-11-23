@@ -212,7 +212,7 @@ fn test_workbench_file_dropped_interception() {
 
     let drop_event = UiEvent::FileDropped {
         paths: vec![std::path::PathBuf::from("/models/character.gltf")],
-        point: Point::new(400.0, 300.0),
+        point: Some(Point::new(400.0, 300.0)),
     };
 
     let outcome = wb.handle_event(&mut win, &drop_event);
@@ -222,7 +222,7 @@ fn test_workbench_file_dropped_interception() {
         outcome.dropped_files,
         Some((
             vec![std::path::PathBuf::from("/models/character.gltf")],
-            Point::new(400.0, 300.0)
+            Some(Point::new(400.0, 300.0))
         ))
     );
 }
@@ -385,7 +385,7 @@ fn test_workbench_handle_event_with_content_and_action_hooks() {
     // 2. File drop triggers configured file_drop_action
     let drop_ev = UiEvent::FileDropped {
         paths: vec![std::path::PathBuf::from("/test/asset.png")],
-        point: Point::new(100.0, 100.0),
+        point: Some(Point::new(100.0, 100.0)),
     };
     let outcome_drop = wb.handle_event_with_content(&mut win, &drop_ev, &mut dock_state, |_| {
         (false, None, vec![])
@@ -548,7 +548,7 @@ fn test_pointer_state_event_tracking() {
 
     let file_hover = UiEvent::FileHovered {
         path: std::path::PathBuf::from("/test.txt"),
-        point: Point::new(220.0, 320.0),
+        point: Some(Point::new(220.0, 320.0)),
     };
     state.update_from_event(&file_hover);
     assert_eq!(state.position(), Some(Point::new(220.0, 320.0)));
@@ -905,7 +905,7 @@ fn test_workbench_sync_domain_panels_and_file_drop_query() {
         crate::descriptors::WorkbenchDescriptor::new("Test", DockState::new(dock_tree)),
     );
     assert!(!wb.is_file_drop_hovered());
-    wb.tree.event_state.hovered_file = Some((std::path::PathBuf::from("asset.glb"), Point::ZERO));
+    wb.tree.event_state.hovered_file = Some((std::path::PathBuf::from("asset.glb"), None));
     assert!(wb.is_file_drop_hovered());
 
     let mut registry: ScopedPanelRegistry<TwoTab, TestScope> = ScopedPanelRegistry::new();

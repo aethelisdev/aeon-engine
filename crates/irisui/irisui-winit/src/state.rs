@@ -195,15 +195,15 @@ impl WinitState {
                     .unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
-            WindowEvent::HoveredFile(_)
-            | WindowEvent::DroppedFile(_)
-            | WindowEvent::HoveredFileCancelled => {
-                let p = self
-                    .cursor_pos
-                    .or(self.last_valid_cursor_pos)
-                    .unwrap_or(Point::new(0.0, 0.0));
-                winit_to_ui_event(event, p, self.scale_factor)
-            }
+            WindowEvent::HoveredFile(path) => Some(UiEvent::FileHovered {
+                path: path.clone(),
+                point: self.cursor_pos,
+            }),
+            WindowEvent::DroppedFile(path) => Some(UiEvent::FileDropped {
+                paths: vec![path.clone()],
+                point: self.cursor_pos,
+            }),
+            WindowEvent::HoveredFileCancelled => Some(UiEvent::FileCancelled),
             _ => None,
         }
     }

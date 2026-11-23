@@ -111,7 +111,12 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 spawning::handle_spawn_model_at(ctx, mid, pos)
             }
             crate::ui::EngineUiAction::SpawnModelPathAt(path, pos) => {
-                spawning::handle_spawn_model_path_at(ctx, path, pos)
+                if let Err(err) = spawning::handle_spawn_model_path_at(ctx, path, pos) {
+                    ctx.ui.set_status_message(
+                        format!("Failed to load 3D model: {err}"),
+                        irisui::prelude::Color::RED,
+                    );
+                }
             }
             crate::ui::EngineUiAction::SpawnSprite(tid) => spawning::handle_spawn_sprite(ctx, tid),
             crate::ui::EngineUiAction::SpawnSpriteAt(tid, pos) => {
@@ -335,8 +340,8 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
 
             // --- SCENE & PREFAB I/O ACTIONS ---
             crate::ui::EngineUiAction::OpenModelDialog => scene_io::handle_open_model_dialog(ctx),
-            crate::ui::EngineUiAction::ImportDroppedFiles { paths, screen_pos } => {
-                scene_io::handle_import_dropped_files(ctx, paths, screen_pos)
+            crate::ui::EngineUiAction::ImportDroppedFiles { paths, target } => {
+                scene_io::handle_import_dropped_files(ctx, paths, target)
             }
             crate::ui::EngineUiAction::OpenLoadPrefabDialog => {
                 scene_io::handle_open_load_prefab_dialog(ctx)

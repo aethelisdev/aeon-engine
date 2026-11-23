@@ -137,7 +137,7 @@ pub(crate) fn build_editor_workbench_host(
             .with_non_ui_tab(PanelId::Viewport)
             .with_file_drop_action(|paths, pt| EngineUiAction::ImportDroppedFiles {
                 paths,
-                screen_pos: Some([pt.x, pt.y]),
+                target: crate::ui::types::DroppedFileTarget::Workspace(pt.map(|p| [p.x, p.y])),
             })
             .with_zoom_action(EngineUiAction::SetUiScale)
             .with_preferences_panel(PanelId::Preferences)

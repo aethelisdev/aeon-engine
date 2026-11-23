@@ -231,7 +231,7 @@ where
     #[must_use]
     pub fn with_file_drop_action<F>(mut self, builder: F) -> Self
     where
-        F: Fn(Vec<PathBuf>, Point) -> Action + 'static + Send + Sync,
+        F: Fn(Vec<PathBuf>, Option<Point>) -> Action + 'static + Send + Sync,
     {
         self.file_drop_action = Some(Box::new(builder));
         self

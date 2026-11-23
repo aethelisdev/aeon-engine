@@ -578,7 +578,7 @@ fn test_assets_content_drop_target_emits_import_action() {
     let content_pt = Point::new(content_rect.x + 50.0, content_rect.y + 50.0);
     let test_file = PathBuf::from("/home/user/downloads/tree.gltf");
     let hover_res = tree.dispatch_event(&UiEvent::FileHovered {
-        point: content_pt,
+        point: Some(content_pt),
         path: test_file.clone(),
     });
     assert!(
@@ -587,13 +587,13 @@ fn test_assets_content_drop_target_emits_import_action() {
     );
     assert_eq!(
         tree.event_state.hovered_file,
-        Some((test_file.clone(), content_pt)),
+        Some((test_file.clone(), Some(content_pt))),
         "Hovered file must be recorded in event state"
     );
 
     // 3. Dispatch FileDropped over the content viewport
     let drop_res = tree.dispatch_event(&UiEvent::FileDropped {
-        point: content_pt,
+        point: Some(content_pt),
         paths: vec![test_file.clone()],
     });
     assert!(

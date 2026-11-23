@@ -80,6 +80,14 @@ pub struct ActiveTextEditSession {
     pub allow_undo_shortcuts: bool,
 }
 
+/// Per-frame OS file drop payload: `(target_id, target_tag, paths, optional_point)`.
+pub type FrameDroppedFiles = (
+    Option<WidgetId>,
+    u64,
+    Vec<std::path::PathBuf>,
+    Option<Point>,
+);
+
 /// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
 ///
 /// Maintained across frames to orchestrate pointer capture during drags,
@@ -176,9 +184,9 @@ pub struct EventState {
     /// Active or pending tooltip state tracking hover duration and anchor coordinates.
     pub active_tooltip: Option<TooltipState>,
     /// Active OS file being hovered over the window, if any: `(path, point)`.
-    pub hovered_file: Option<(std::path::PathBuf, Point)>,
+    pub hovered_file: Option<(std::path::PathBuf, Option<Point>)>,
     /// OS files dropped onto a target widget during the current dispatch cycle: `(target_id, target_tag, paths, point)`.
-    pub frame_dropped_files: Option<(Option<WidgetId>, u64, Vec<std::path::PathBuf>, Point)>,
+    pub frame_dropped_files: Option<FrameDroppedFiles>,
     /// Retained continuous Euler angle representation `(tag, [rx, ry, rz])` for quaternion-bound rotation widgets,
     /// preventing gimbal-lock pitch wrapping past +/-90 degrees across consecutive frames.
     pub cached_euler: Option<(u64, [f32; 3])>,

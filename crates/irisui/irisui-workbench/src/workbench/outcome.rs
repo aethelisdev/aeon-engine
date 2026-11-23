@@ -39,7 +39,10 @@ pub struct WorkbenchOutcome<Action, TabId = ()> {
     pub actions: Vec<Action>,
 
     /// Dropped files intercepted during a native drag-and-drop file ingest event.
-    pub dropped_files: Option<(Vec<std::path::PathBuf>, irisui_core::geometry::Point)>,
+    pub dropped_files: Option<(
+        Vec<std::path::PathBuf>,
+        Option<irisui_core::geometry::Point>,
+    )>,
 
     /// UI zoom scale factor update requested via keyboard shortcuts (e.g. Ctrl +/-/0).
     pub zoom_changed: Option<f32>,

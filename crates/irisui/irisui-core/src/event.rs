@@ -166,19 +166,19 @@ pub enum UiEvent {
     },
     /// Operating system IME input composition or commit.
     Ime(ImeEvent),
-    /// A file is hovered over the window at a specific coordinate.
+    /// A file is hovered over the window, with optional screen coordinates when supplied by the compositor.
     FileHovered {
         /// File system path of the file being hovered over the window.
         path: PathBuf,
-        /// Screen coordinate where the hover occurred in logical pixels.
-        point: Point,
+        /// Screen coordinate in logical pixels, or `None` when the OS drag source omits live cursor coordinates.
+        point: Option<Point>,
     },
-    /// One or more files were dropped onto the window at a specific coordinate.
+    /// One or more files were dropped onto the window, with optional screen coordinates when supplied by the compositor.
     FileDropped {
         /// File system paths of the dropped files.
         paths: Vec<PathBuf>,
-        /// Screen coordinate where the files were dropped in logical pixels.
-        point: Point,
+        /// Screen coordinate in logical pixels, or `None` when the OS drop occurred without a tracked pointer location.
+        point: Option<Point>,
     },
     /// An in-progress file drag/drop operation was cancelled or exited the window.
     FileCancelled,
@@ -187,8 +187,8 @@ pub enum UiEvent {
 impl UiEvent {
     /// Extracts the physical or logical screen coordinate of the pointer cursor for events carrying spatial data.
     ///
-    /// Returns `Some(point)` for `MouseMove`, `MouseDown`, `MouseUp`, `MouseScroll`, `FileHovered`, and `FileDropped`.
-    /// Returns `None` for keyboard, IME, and window-level cancellation events.
+    /// Returns `Some(point)` for `MouseMove`, `MouseDown`, `MouseUp`, `MouseScroll`, and positioned file drag events.
+    /// Returns `None` for keyboard, IME, cancellation, and unpositioned OS file drag events.
     #[must_use]
     #[inline]
     pub const fn pointer_position(&self) -> Option<Point> {
@@ -196,9 +196,8 @@ impl UiEvent {
             Self::MouseMove { point }
             | Self::MouseDown { point, .. }
             | Self::MouseUp { point, .. }
-            | Self::MouseScroll { point, .. }
-            | Self::FileHovered { point, .. }
-            | Self::FileDropped { point, .. } => Some(*point),
+            | Self::MouseScroll { point, .. } => Some(*point),
+            Self::FileHovered { point, .. } | Self::FileDropped { point, .. } => *point,
             Self::KeyboardInput { .. }
             | Self::ModifiersChanged { .. }
             | Self::Ime(_)
@@ -218,20 +217,20 @@ impl UiEvent {
         )
     }
 
-    /// Extracts the slice of dropped file system paths and drop coordinates if this is a [`Self::FileDropped`] event.
+    /// Extracts the slice of dropped file system paths and optional drop coordinates if this is a [`Self::FileDropped`] event.
     #[must_use]
     #[inline]
-    pub fn file_drop_payload(&self) -> Option<(&[PathBuf], Point)> {
+    pub fn file_drop_payload(&self) -> Option<(&[PathBuf], Option<Point>)> {
         match self {
             Self::FileDropped { paths, point } => Some((paths.as_slice(), *point)),
             _ => None,
         }
     }
 
-    /// Extracts the hovered file path and hover coordinates if this is a [`Self::FileHovered`] event.
+    /// Extracts the hovered file path and optional hover coordinates if this is a [`Self::FileHovered`] event.
     #[must_use]
     #[inline]
-    pub fn file_hover_payload(&self) -> Option<(&std::path::Path, Point)> {
+    pub fn file_hover_payload(&self) -> Option<(&std::path::Path, Option<Point>)> {
         match self {
             Self::FileHovered { path, point } => Some((path.as_path(), *point)),
             _ => None,

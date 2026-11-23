@@ -60,7 +60,7 @@ fn test_drop_target_hover_detection() {
     // 2. Dispatch FileHovered inside bounds (100.0, 100.0)
     let hover_inside = UiEvent::FileHovered {
         path: PathBuf::from("/models/character.gltf"),
-        point: Point::new(100.0, 100.0),
+        point: Some(Point::new(100.0, 100.0)),
     };
     tree.dispatch_event(&hover_inside);
 
@@ -80,7 +80,7 @@ fn test_drop_target_hover_detection() {
     // 3. Dispatch FileHovered outside bounds (450.0, 450.0)
     let hover_outside = UiEvent::FileHovered {
         path: PathBuf::from("/models/character.gltf"),
-        point: Point::new(450.0, 450.0),
+        point: Some(Point::new(450.0, 450.0)),
     };
     tree.dispatch_event(&hover_outside);
 
@@ -140,7 +140,7 @@ fn test_drop_target_on_drop_inside_triggers_callback() {
     ];
     let drop_event = UiEvent::FileDropped {
         paths: test_paths,
-        point: Point::new(150.0, 100.0),
+        point: Some(Point::new(150.0, 100.0)),
     };
     let dispatch_res = tree.dispatch_event(&drop_event);
     assert!(
@@ -205,7 +205,7 @@ fn test_drop_target_on_drop_outside_does_not_trigger_callback() {
     // 2. Dispatch FileDropped event OUTSIDE DropBox (600.0, 400.0)
     let drop_event = UiEvent::FileDropped {
         paths: vec![PathBuf::from("/project/assets/sky.png")],
-        point: Point::new(600.0, 400.0),
+        point: Some(Point::new(600.0, 400.0)),
     };
     tree.dispatch_event(&drop_event);
 
@@ -264,7 +264,7 @@ fn test_drop_target_nested_child_hit_bubbles_to_target() {
     // 2. Drop file directly on the inner child
     let drop_event = UiEvent::FileDropped {
         paths: vec![PathBuf::from("/models/hero.fbx")],
-        point: Point::new(50.0, 50.0),
+        point: Some(Point::new(50.0, 50.0)),
     };
     tree.dispatch_event(&drop_event);
 
