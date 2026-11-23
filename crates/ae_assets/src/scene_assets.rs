@@ -6,7 +6,7 @@
 //! Collects unique asset dependencies (`SceneAssetBinding`) from decoded world records
 //! and parses GLTF geometry and RGBA texture payloads in parallel across `rayon` threads.
 
-use ae_core::ecs::EntityGuid;
+use ae_plugin_api::EntityGuid;
 use ae_renderer::asset::{ParsedModelData, is_safe_path};
 use ae_renderer::render::resources::{parse_gltf_file, parse_texture_file};
 use ae_world::{

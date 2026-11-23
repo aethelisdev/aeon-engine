@@ -8,8 +8,12 @@ license = "MPL-2.0"
 
 [dependencies]
 ae_core = { path = "../../ae_core" }
+ae_plugin_api = { path = "../../ae_plugin_api" }
+ae_ecs = { workspace = true }
 ae_texture = { path = "../../ae_texture" }
 cgmath = "0.18"
 glam = { workspace = true }
-hecs = "0.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
+
+[lints]
+workspace = true

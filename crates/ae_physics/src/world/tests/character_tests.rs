@@ -6,12 +6,12 @@
 #[cfg(test)]
 mod tests {
     use super::super::super::*;
-    use ae_core::ecs::{
+    use ae_ecs::World;
+    use ae_plugin_api::{
         CharacterController, Collider, ColliderShape, Position, RigidBody, RigidBodyType, Rotation,
         Scale, Velocity,
     };
     use glam::Vec3;
-    use hecs::World;
 
     #[test]
     fn test_character_controller_movement() {
@@ -172,22 +172,22 @@ mod tests {
             "Character should be grounded on top of ground box"
         );
 
-        let initial_y = world.get::<&Position>(player).unwrap().y;
+        let initial_y = world.get_copied::<Position>(player).unwrap().y;
 
         // Perform multi-frame jump simulation
         let dt = 0.016f32;
         let mut vert_vel = 9.0f32;
 
-        if let Ok(mut vel) = world.get::<&mut Velocity>(player) {
+        if let Ok(vel) = world.get_mut::<Velocity>(player) {
             vel.y = vert_vel;
         }
 
         for _step in 0..10 {
-            if let Ok(vel) = world.get::<&Velocity>(player) {
+            if let Ok(vel) = world.get_copied::<Velocity>(player) {
                 vert_vel = vel.y;
             }
             vert_vel -= 20.0 * dt;
-            if let Ok(mut vel) = world.get::<&mut Velocity>(player) {
+            if let Ok(vel) = world.get_mut::<Velocity>(player) {
                 vel.y = vert_vel;
             }
 
@@ -201,14 +201,14 @@ mod tests {
             physics.step(&mut world, |_| None, dt, &mut event_bus);
 
             // Verify Velocity was not wiped to 0 by sync_physics_to_ecs
-            let vel_after_step = world.get::<&Velocity>(player).unwrap().y;
+            let vel_after_step = world.get_copied::<Velocity>(player).unwrap().y;
             assert!(
                 (vel_after_step - vert_vel).abs() < 1e-3,
                 "ECS Velocity must be preserved across physics steps for Kinematic bodies"
             );
         }
 
-        let final_y = world.get::<&Position>(player).unwrap().y;
+        let final_y = world.get_copied::<Position>(player).unwrap().y;
         assert!(
             final_y > initial_y + 1.0,
             "Character should jump over 1.0m high in 10 frames, actual height gained: {}",
@@ -275,10 +275,13 @@ mod tests {
 
         for step_idx in 0..60 {
             let is_grounded = world
-                .get::<&CharacterController>(player)
+                .get_copied::<CharacterController>(player)
                 .map(|c| c.is_grounded)
                 .unwrap_or(false);
-            let mut vert_vel = world.get::<&Velocity>(player).map(|v| v.y).unwrap_or(0.0);
+            let mut vert_vel = world
+                .get_copied::<Velocity>(player)
+                .map(|v| v.y)
+                .unwrap_or(0.0);
 
             if is_grounded {
                 vert_vel = 0.0;
@@ -289,7 +292,7 @@ mod tests {
                 vert_vel -= 20.0 * dt;
             }
 
-            if let Ok(mut vel) = world.get::<&mut Velocity>(player) {
+            if let Ok(vel) = world.get_mut::<Velocity>(player) {
                 vel.y = vert_vel;
             }
 
@@ -297,7 +300,7 @@ mod tests {
                 physics.move_character(&mut world, player, Vec3::new(0.0, vert_vel * dt, 0.0), dt);
             physics.step(&mut world, |_| None, dt, &mut event_bus);
 
-            let pos_y = world.get::<&Position>(player).unwrap().y;
+            let pos_y = world.get_copied::<Position>(player).unwrap().y;
             assert!(
                 pos_y >= 0.48,
                 "Frame {}: Character position y={} fell below ground surface (min expected 0.48)",
@@ -400,7 +403,7 @@ mod tests {
             physics.step(&mut world, |_| None, dt, &mut event_bus);
         }
 
-        let pos_z = world.get::<&Position>(player).unwrap().z;
+        let pos_z = world.get_copied::<Position>(player).unwrap().z;
         // Player radius is 0.4, wall front face is at z = 4.5. Player z must stop at ~4.1 (z <= 4.15) and NEVER enter wall (z > 4.5)
         assert!(
             pos_z <= 4.15,
@@ -512,7 +515,7 @@ mod tests {
             physics.step(&mut world, |_| None, 0.016, &mut event_bus);
         }
 
-        let cube_y = world.get::<&Position>(cube).unwrap().y;
+        let cube_y = world.get_copied::<Position>(cube).unwrap().y;
         assert!(
             cube_y >= 0.0,
             "Dynamic cube must remain resting on ground even when CharacterController is moving, got y = {}",
@@ -588,7 +591,7 @@ mod tests {
             physics.move_character(&mut world, player, Vec3::new(0.0, -0.5, 0.0), 0.016);
         }
 
-        let player_y = world.get::<&Position>(player).unwrap().y;
+        let player_y = world.get_copied::<Position>(player).unwrap().y;
         assert!(
             player_y < 0.0,
             "CharacterController must fall through trigger sensor ground (is_sensor=true), got y = {}",
@@ -600,7 +603,7 @@ mod tests {
     #[test]
     fn test_character_controller_own_trigger_sensor_pass_through() {
         let mut physics = PhysicsWorld::new();
-        let mut world = hecs::World::new();
+        let mut world = World::new();
 
         // Solid static wall at x = 2.0
         world.spawn((
@@ -674,7 +677,7 @@ mod tests {
             physics.move_character(&mut world, player, Vec3::new(0.1, 0.0, 0.0), 0.016);
         }
 
-        let player_x = world.get::<&Position>(player).unwrap().x;
+        let player_x = world.get_copied::<Position>(player).unwrap().x;
         assert!(
             player_x > 2.0,
             "Ghost CharacterController (is_sensor=true) must pass through solid wall, got x = {}",
@@ -757,7 +760,7 @@ mod tests {
         // Perform zero-displacement move_character to trigger contact depenetration
         physics.move_character(&mut world, player, Vec3::ZERO, 0.016);
 
-        let ejected_x = world.get::<&Position>(player).unwrap().x;
+        let ejected_x = world.get_copied::<Position>(player).unwrap().x;
         // Wall front face is at x = 1.5. Player radius is 0.4.
         // Depenetration must eject character to the LEFT (x <= 1.10), NOT deeper right (x > 1.4).
         assert!(
@@ -785,7 +788,7 @@ mod tests {
                 y: 1.0,
                 z: 1.0,
             },
-            ae_core::ecs::PlayerTag,
+            ae_plugin_api::PlayerTag,
         ));
 
         let mut event_bus = ae_core::events::DynamicEventBus::new();
@@ -796,7 +799,7 @@ mod tests {
         assert_eq!(kcc_count, 0);
 
         // Position of tag-only entity remains unchanged
-        let pos = world.get::<&Position>(tag_only_entity).unwrap();
+        let pos = world.get_copied::<Position>(tag_only_entity).unwrap();
         assert_eq!(pos.x, 10.0);
         assert_eq!(pos.y, 5.0);
         assert_eq!(pos.z, 10.0);

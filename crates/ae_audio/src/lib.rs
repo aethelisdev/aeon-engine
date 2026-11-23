@@ -64,11 +64,11 @@ mod tests {
 
     #[test]
     fn test_audio_module_isolation_toggle_resume() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let mut audio_manager = AudioManager::new();
 
         let ent = world.spawn((
-            ae_core::ecs::Position {
+            ae_plugin_api::Position {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,

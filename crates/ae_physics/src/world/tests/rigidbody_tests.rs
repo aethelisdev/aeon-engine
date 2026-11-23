@@ -6,10 +6,10 @@
 #[cfg(test)]
 mod tests {
     use super::super::super::*;
-    use ae_core::ecs::{
+    use ae_ecs::World;
+    use ae_plugin_api::{
         Collider, ColliderShape, Position, RigidBody, RigidBodyType, Rotation, Scale, Velocity,
     };
-    use hecs::World;
 
     #[test]
     fn test_physics_gravity_falling() {
@@ -53,7 +53,7 @@ mod tests {
         }
 
         // Verify the entity fell down (y < 10.0)
-        let pos = world.get::<&Position>(entity).unwrap();
+        let pos = world.get_copied::<Position>(entity).unwrap();
         assert!(
             pos.y < 10.0,
             "Entity should have fallen under gravity, got y = {}",
@@ -138,7 +138,7 @@ mod tests {
             physics.step(&mut world, |_| None, 0.016, &mut event_bus);
         }
 
-        let cube_pos = world.get::<&Position>(cube).unwrap();
+        let cube_pos = world.get_copied::<Position>(cube).unwrap();
         // Cube should land on top of the ground platform surface (y >= 0.8) and NOT fall through to y < 0
         assert!(
             cube_pos.y >= 0.8,
@@ -165,7 +165,7 @@ mod tests {
                 y: 1.0,
                 z: 50.0,
             },
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Shape::Cube,
             RigidBody {
                 body_type: RigidBodyType::Static,
                 mass: 1.0,
@@ -211,7 +211,7 @@ mod tests {
             physics.step(&mut world, |_| None, 0.016, &mut event_bus);
         }
 
-        let c1_y = world.get::<&Position>(cube1).unwrap().y;
+        let c1_y = world.get_copied::<Position>(cube1).unwrap().y;
         assert!(
             c1_y >= 0.8,
             "Dynamic cube at x=15 should land on 50m ground plane, but got y = {}",
@@ -219,11 +219,11 @@ mod tests {
         );
 
         // 3. Now scale ground further to 100m in editor
-        if let Ok(mut scale) = world.get::<&mut Scale>(ground) {
+        if let Ok(scale) = world.get_mut::<Scale>(ground) {
             scale.x = 100.0;
             scale.z = 100.0;
         }
-        let _ = world.insert_one(ground, ae_core::ecs::TransformDirty);
+        let _ = world.insert_one(ground, ae_plugin_api::TransformDirty);
 
         // 4. Spawn another dynamic cube at x = 35.0, y = 5.0
         let cube2 = world.spawn((
@@ -262,7 +262,7 @@ mod tests {
             physics.step(&mut world, |_| None, 0.016, &mut event_bus);
         }
 
-        let c2_y = world.get::<&Position>(cube2).unwrap().y;
+        let c2_y = world.get_copied::<Position>(cube2).unwrap().y;
         assert!(
             c2_y >= 0.8,
             "Dynamic cube at x=35 should land on updated 100m ground plane, but got y = {}",
@@ -289,7 +289,7 @@ mod tests {
                 y: 1.0,
                 z: 20.0,
             },
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Shape::Cube,
             RigidBody {
                 body_type: RigidBodyType::Static,
                 mass: 1.0,
@@ -326,7 +326,7 @@ mod tests {
                 y: 0.0,
                 z: 0.0,
             },
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Shape::Cube,
             RigidBody {
                 body_type: RigidBodyType::Dynamic,
                 mass: 1.0,
@@ -353,7 +353,7 @@ mod tests {
             physics.step(&mut world, |_| None, 0.016, &mut event_bus);
         }
 
-        let cube_y = world.get::<&Position>(cube).unwrap().y;
+        let cube_y = world.get_copied::<Position>(cube).unwrap().y;
         assert!(
             cube_y >= 0.8,
             "Dynamic cube should land on static ground plane at y >= 0.8, but got y = {}",
@@ -379,7 +379,7 @@ mod tests {
                 y: 5.0,
                 z: 5.0,
             },
-            ae_core::ecs::Shape::Cube,
+            ae_plugin_api::Shape::Cube,
         ));
 
         let mut event_bus = ae_core::events::DynamicEventBus::new();
@@ -436,14 +436,14 @@ mod tests {
 
         // Total mass = collider mass (~1.0) + additional_mass (2.0) = ~3.0 kg
         // Impulse 10.0 => Expected delta velocity = ~3.33 m/s
-        let vel = world.get::<&Velocity>(entity).unwrap();
+        let vel = world.get_copied::<Velocity>(entity).unwrap();
         assert!(
             vel.x > 3.0,
             "Velocity along X must be preserved around ~3.3 m/s, but got {}",
             vel.x
         );
 
-        let pos = world.get::<&Position>(entity).unwrap();
+        let pos = world.get_copied::<Position>(entity).unwrap();
         assert!(
             pos.x > 0.2,
             "Dynamic body position must advance along X axis, but got {}",
@@ -500,7 +500,7 @@ mod tests {
 
         // Stepping physics must clamp this velocity to MAX_LINEAR_SPEED (500.0)
         physics.step(&mut world, |_| None, 0.016, &mut event_bus);
-        let vel_y = world.get::<&Velocity>(entity).unwrap().y;
+        let vel_y = world.get_copied::<Velocity>(entity).unwrap().y;
         assert!(
             vel_y <= 500.1,
             "Velocity Y must be clamped to 500.0, but got {}",
@@ -508,7 +508,7 @@ mod tests {
         );
 
         // 2. Now simulate user changing Scale in Inspector (Scale Z -> 9.0)
-        if let Ok(mut scale) = world.get::<&mut Scale>(entity) {
+        if let Ok(scale) = world.get_mut::<Scale>(entity) {
             scale.z = 9.0;
         }
         // When syncing ECS, the collider is rebuilt and residual velocity MUST be zeroed out

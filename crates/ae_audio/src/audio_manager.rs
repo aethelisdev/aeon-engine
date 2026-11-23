@@ -3,7 +3,8 @@
 
 use crate::components::{AudioListener, AudioSource};
 use crate::spatial::SpatialAudioMath;
-use ae_core::ecs::Position;
+use ae_ecs::{Entity, World};
+use ae_plugin_api::Position;
 use ae_world::{COOKED_AUDIO_MAGIC, CookedAudio, VfsProvider};
 use glam::Vec3;
 use rodio::Source;
@@ -19,7 +20,7 @@ use std::sync::Arc;
 pub struct AudioManager {
     _stream: Option<rodio::OutputStream>,
     stream_handle: Option<rodio::OutputStreamHandle>,
-    sinks: HashMap<hecs::Entity, (rodio::Sink, String)>,
+    sinks: HashMap<Entity, (rodio::Sink, String)>,
     vfs: Option<Arc<dyn VfsProvider>>,
     master_volume: f32,
     is_muted: bool,
@@ -122,7 +123,7 @@ impl AudioManager {
 
     /// Triggers sound playback for a specific entity's `AudioSource`, reading via the attached
     /// [`VfsProvider`] when present or falling back to workspace filesystem bytes.
-    pub fn play_sound(&mut self, entity: hecs::Entity, source: &AudioSource) -> bool {
+    pub fn play_sound(&mut self, entity: Entity, source: &AudioSource) -> bool {
         if self.is_muted || source.sound_path.trim().is_empty() {
             return false;
         }
@@ -139,7 +140,7 @@ impl AudioManager {
     /// Triggers sound playback for `entity` by reading `source.sound_path` directly from `vfs`.
     pub fn play_sound_from_vfs(
         &mut self,
-        entity: hecs::Entity,
+        entity: Entity,
         source: &AudioSource,
         vfs: &dyn VfsProvider,
     ) -> bool {
@@ -159,7 +160,7 @@ impl AudioManager {
     /// Triggers sound playback directly from an in-memory encoded or [`CookedAudio`] byte buffer.
     pub fn play_sound_from_bytes(
         &mut self,
-        entity: hecs::Entity,
+        entity: Entity,
         source: &AudioSource,
         bytes: Vec<u8>,
     ) -> bool {
@@ -217,7 +218,7 @@ impl AudioManager {
     }
 
     /// Stops sound playback for a specific entity's `AudioSource`.
-    pub fn stop_sound(&mut self, entity: hecs::Entity) {
+    pub fn stop_sound(&mut self, entity: Entity) {
         if let Some((sink, _)) = self.sinks.remove(&entity) {
             sink.stop();
         }
@@ -230,7 +231,7 @@ impl AudioManager {
     /// Bypasses all processing if `is_audio_enabled` is `false` (Module Isolation).
     pub fn update(
         &mut self,
-        world: &hecs::World,
+        world: &World,
         fallback_listener_pos: Vec3,
         fallback_listener_right: Vec3,
         is_audio_enabled: bool,
@@ -255,7 +256,7 @@ impl AudioManager {
         let mut listener_right = fallback_listener_right;
 
         if let Some((_ent, pos, _listener)) = world
-            .query::<(hecs::Entity, &Position, &AudioListener)>()
+            .query::<(Entity, &Position, &AudioListener)>()
             .iter()
             .next()
         {
@@ -265,22 +266,20 @@ impl AudioManager {
 
         // 2. Remove stopped/finished sinks OR sinks whose AudioSource component was removed or stopped
         self.sinks.retain(|entity, (sink, _)| {
-            let is_active = if let Ok(source) = world.get::<&AudioSource>(*entity) {
-                !sink.empty() && source.is_playing
-            } else {
-                false
-            };
+            let is_active = world
+                .inspect::<AudioSource, bool>(*entity, |source| !sink.empty() && source.is_playing)
+                .unwrap_or(false);
             if !is_active {
                 sink.stop();
-                if let Ok(mut src) = world.get::<&mut AudioSource>(*entity) {
+                let _ = world.mutate::<AudioSource, ()>(*entity, |src| {
                     src.is_playing = false;
-                }
+                });
             }
             is_active
         });
 
         // 3. Process AudioSource entities (without hard Position dependency)
-        for (entity, source) in world.query::<(hecs::Entity, &mut AudioSource)>().iter() {
+        for (entity, source) in world.query::<(Entity, &mut AudioSource)>().iter() {
             // Check if active sink sound_path has changed
             if let Some((_, active_path)) = self.sinks.get(&entity)
                 && active_path != &source.sound_path
@@ -302,7 +301,7 @@ impl AudioManager {
                 && let Some((sink, _)) = self.sinks.get(&entity)
             {
                 if source.is_spatial
-                    && let Ok(pos) = world.get::<&Position>(entity)
+                    && let Ok(pos) = world.get_copied::<Position>(entity)
                 {
                     let emitter_pos = Vec3::new(pos.x, pos.y, pos.z);
                     let attenuation = SpatialAudioMath::compute_distance_attenuation(

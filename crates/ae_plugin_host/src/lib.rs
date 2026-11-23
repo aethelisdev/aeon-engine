@@ -292,7 +292,7 @@ impl PluginManager {
     /// Called each frame by the engine. Checks for hot reload and calls plugin updates.
     pub fn tick(
         &mut self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         resources: &mut Resources,
         event_bus: &mut DynamicEventBus,
         delta_time: f32,

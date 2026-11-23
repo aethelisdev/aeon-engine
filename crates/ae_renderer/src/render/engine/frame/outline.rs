@@ -13,7 +13,7 @@ impl RenderState {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
-        selected_prims: &[(ae_core::ecs::Shape, Instance)],
+        selected_prims: &[(ae_plugin_api::Shape, Instance)],
         selected_models: &[(crate::asset::AssetHandle, Instance)],
         asset_manager: &crate::asset::AssetManager,
     ) {
@@ -62,36 +62,36 @@ impl RenderState {
                     mask_pass.set_vertex_buffer(1, single_inst_buf.slice(..));
 
                     match shape {
-                        ae_core::ecs::Shape::Cube => {
+                        ae_plugin_api::Shape::Cube => {
                             mask_pass
                                 .set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
                             mask_pass.draw(0..36, 0..1);
                         }
-                        ae_core::ecs::Shape::Sphere => {
+                        ae_plugin_api::Shape::Sphere => {
                             mask_pass
                                 .set_vertex_buffer(0, self.geometry.sphere_vertex_buffer.slice(..));
                             mask_pass.draw(0..self.geometry.sphere_num_vertices, 0..1);
                         }
-                        ae_core::ecs::Shape::Cylinder => {
+                        ae_plugin_api::Shape::Cylinder => {
                             mask_pass.set_vertex_buffer(
                                 0,
                                 self.geometry.cylinder_vertex_buffer.slice(..),
                             );
                             mask_pass.draw(0..self.geometry.cylinder_num_vertices, 0..1);
                         }
-                        ae_core::ecs::Shape::Capsule => {
+                        ae_plugin_api::Shape::Capsule => {
                             mask_pass.set_vertex_buffer(
                                 0,
                                 self.geometry.capsule_vertex_buffer.slice(..),
                             );
                             mask_pass.draw(0..self.geometry.capsule_num_vertices, 0..1);
                         }
-                        ae_core::ecs::Shape::Torus => {
+                        ae_plugin_api::Shape::Torus => {
                             mask_pass
                                 .set_vertex_buffer(0, self.geometry.torus_vertex_buffer.slice(..));
                             mask_pass.draw(0..self.geometry.torus_num_vertices, 0..1);
                         }
-                        ae_core::ecs::Shape::Triangle => {
+                        ae_plugin_api::Shape::Triangle => {
                             mask_pass.set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
                             mask_pass.draw(0..self.geometry.triangle_num_vertices, 0..1);
                         }

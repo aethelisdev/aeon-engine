@@ -8,6 +8,11 @@ description = "Aeon Engine - Example hot-reloadable gameplay plugin"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+ae_ecs = { workspace = true }
 ae_plugin_api = { path = "../ae_plugin_api" }
-hecs = "0.11.0"
+
+[lints.clippy]
+disallowed_types = "deny"
+disallowed_methods = "deny"
+allow_attributes = "deny"
 

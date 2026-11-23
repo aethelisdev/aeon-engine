@@ -243,23 +243,23 @@ impl AssetManager {
         (models_bytes, textures_bytes)
     }
 
-    /// Scans the ECS `hecs::World` for all active `ModelId` and `SpriteId` components,
+    /// Scans the ECS [`ae_ecs::World`] for all active `ModelId` and `SpriteId` components,
     /// and unloads any loaded models and textures that are no longer referenced.
     ///
     /// This sweeps both `models` and `textures` storages, automatically releasing their
     /// CPU memory and GPU/VRAM resources, and cleans up the path-to-handle lookup maps.
-    pub fn unload_unused_assets(&mut self, world: &hecs::World) {
+    pub fn unload_unused_assets(&mut self, world: &ae_ecs::World) {
         use std::collections::HashSet;
 
         // Collect all referenced model handles in the active ECS entities.
         let mut referenced_models = HashSet::new();
-        for model_id in world.query::<&ae_core::ecs::ModelId>().iter() {
+        for model_id in world.query::<&ae_plugin_api::ModelId>().iter() {
             referenced_models.insert(model_id.0);
         }
 
         // Collect all referenced texture handles in the active ECS entities.
         let mut referenced_textures = HashSet::new();
-        for sprite_id in world.query::<&ae_core::ecs::SpriteId>().iter() {
+        for sprite_id in world.query::<&ae_plugin_api::SpriteId>().iter() {
             referenced_textures.insert(sprite_id.0);
         }
 

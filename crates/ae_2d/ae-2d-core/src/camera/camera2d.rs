@@ -2,9 +2,9 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use ae_core::camera::OrthographicProjection;
+use ae_ecs::Entity;
 use cgmath::{Deg, Matrix4, Vector3};
 use glam::Vec2;
-use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
 /// 2D Camera component providing 2D world-to-screen projection, zoom, and smooth target tracking.

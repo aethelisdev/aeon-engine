@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+use ae_ecs::{Entity, World};
 /// AE Physics — ECS to Rapier3D synchronization module.
-use ae_core::ecs::{
+use ae_plugin_api::{
     AssetHandle, CharacterController, Collider, ColliderShape, ModelId, Position, RigidBody,
     RigidBodyType, Rotation, Scale, Shape, TransformDirty, Velocity,
 };
 use glam::Vec3;
-use hecs::{Entity, World};
 use rapier3d::prelude::*;
 
 use super::PhysicsWorld;
@@ -25,9 +25,9 @@ impl PhysicsWorld {
         // 1. Remove deleted entities from simulation
         self.scratch_to_remove.clear();
         for &entity in self.entity_to_body.keys() {
-            let is_active = world.get::<&RigidBody>(entity).is_ok()
-                || world.get::<&Collider>(entity).is_ok()
-                || world.get::<&CharacterController>(entity).is_ok();
+            let is_active = world.has::<RigidBody>(entity)
+                || world.has::<Collider>(entity)
+                || world.has::<CharacterController>(entity);
             if !world.contains(entity) || !is_active {
                 self.scratch_to_remove.push(entity);
             }
@@ -56,9 +56,9 @@ impl PhysicsWorld {
             .query::<(
                 Entity,
                 (
-                    Option<&ae_core::ecs::RigidBody>,
-                    Option<&ae_core::ecs::Collider>,
-                    Option<&ae_core::ecs::CharacterController>,
+                    Option<&ae_plugin_api::RigidBody>,
+                    Option<&ae_plugin_api::Collider>,
+                    Option<&ae_plugin_api::CharacterController>,
                 ),
             )>()
             .iter()
@@ -72,37 +72,34 @@ impl PhysicsWorld {
         for i in 0..self.scratch_active_entities.len() {
             let (entity, rb_comp, col_comp) = self.scratch_active_entities[i];
             let (world_pos, world_rot, scale_comp) =
-                if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
+                if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(entity) {
                     let (trans, rot, scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
                     (trans, rot, [scale.x, scale.y, scale.z])
                 } else {
                     use ae_core::math::conversions::ToGlam;
                     let pos_comp = world
-                        .get::<&Position>(entity)
+                        .get_copied::<Position>(entity)
                         .map(|p| p.to_glam())
                         .unwrap_or(glam::Vec3::ZERO);
                     let rot_comp = world
-                        .get::<&Rotation>(entity)
+                        .get_copied::<Rotation>(entity)
                         .map(|r| r.to_glam())
                         .unwrap_or(glam::Quat::IDENTITY);
                     let scale_comp = world
-                        .get::<&Scale>(entity)
+                        .get_copied::<Scale>(entity)
                         .map(|s| [s.x, s.y, s.z])
                         .unwrap_or([1.0, 1.0, 1.0]);
                     (pos_comp, rot_comp, scale_comp)
                 };
 
-            let vel_comp = world
-                .get::<&Velocity>(entity)
-                .map(|v| *v)
-                .unwrap_or(Velocity {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                });
-            let is_dirty = world.get::<&TransformDirty>(entity).is_ok();
+            let vel_comp = world.get_copied::<Velocity>(entity).unwrap_or(Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            });
+            let is_dirty = world.has::<TransformDirty>(entity);
 
-            let is_kcc = world.get::<&CharacterController>(entity).is_ok();
+            let is_kcc = world.has::<CharacterController>(entity);
             let pose = Pose::from_parts(world_pos, world_rot);
 
             if let Some(&handle) = self.entity_to_body.get(&entity) {
@@ -164,15 +161,16 @@ impl PhysicsWorld {
                     }
 
                     let target_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
-                    let (target_friction, target_restitution) =
-                        if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
-                            (mat.friction, mat.restitution)
-                        } else {
-                            (
-                                col_comp.map(|c| c.friction).unwrap_or(0.7),
-                                col_comp.map(|c| c.restitution).unwrap_or(0.0),
-                            )
-                        };
+                    let (target_friction, target_restitution) = if let Ok(mat) =
+                        world.get_copied::<ae_plugin_api::PhysicsMaterial>(entity)
+                    {
+                        (mat.friction, mat.restitution)
+                    } else {
+                        (
+                            col_comp.map(|c| c.friction).unwrap_or(0.7),
+                            col_comp.map(|c| c.restitution).unwrap_or(0.0),
+                        )
+                    };
 
                     let mut needs_rebuild = body.colliders().is_empty();
 
@@ -214,8 +212,8 @@ impl PhysicsWorld {
                                                 Some(rapier3d::prelude::ShapeType::ConvexPolyhedron)
                                             }
                                         }
-                                    } else if let Ok(shape) = world.get::<&Shape>(entity) {
-                                        match *shape {
+                                    } else if let Ok(shape) = world.get_copied::<Shape>(entity) {
+                                        match shape {
                                             Shape::Sphere => {
                                                 Some(rapier3d::prelude::ShapeType::Ball)
                                             }
@@ -224,7 +222,7 @@ impl PhysicsWorld {
                                             }
                                             _ => Some(rapier3d::prelude::ShapeType::Cuboid),
                                         }
-                                    } else if world.get::<&ModelId>(entity).is_ok() {
+                                    } else if world.has::<ModelId>(entity) {
                                         if matches!(
                                             rb_comp.map(|r| r.body_type),
                                             Some(RigidBodyType::Dynamic)
@@ -345,7 +343,7 @@ impl PhysicsWorld {
                         ) {
                             Some(cb)
                         } else if is_kcc {
-                            if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
+                            if let Ok(ctrl) = world.get_copied::<CharacterController>(entity) {
                                 let capsule_half_height = ctrl.capsule_half_height();
                                 Some(
                                     ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
@@ -389,7 +387,7 @@ impl PhysicsWorld {
                     }
                 }
             } else {
-                let is_kcc = world.get::<&CharacterController>(entity).is_ok();
+                let is_kcc = world.has::<CharacterController>(entity);
                 let mut builder = if is_kcc {
                     RigidBodyBuilder::kinematic_position_based()
                 } else {
@@ -434,7 +432,7 @@ impl PhysicsWorld {
                 ) {
                     Some(cb)
                 } else if is_kcc {
-                    if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
+                    if let Ok(ctrl) = world.get_copied::<CharacterController>(entity) {
                         let capsule_half_height = ctrl.capsule_half_height();
                         Some(
                             ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
@@ -493,8 +491,8 @@ impl PhysicsWorld {
                 world,
                 get_mesh_data,
             ))
-        } else if let Ok(shape) = world.get::<&Shape>(entity) {
-            let fallback_col = match *shape {
+        } else if let Ok(shape) = world.get_copied::<Shape>(entity) {
+            let fallback_col = match shape {
                 Shape::Cube => Collider {
                     shape: ColliderShape::Box {
                         half_extents: [0.5, 0.5, 0.5],
@@ -535,7 +533,7 @@ impl PhysicsWorld {
                 world,
                 get_mesh_data,
             ))
-        } else if world.get::<&ModelId>(entity).is_ok() {
+        } else if world.has::<ModelId>(entity) {
             let fallback_shape =
                 if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic)) {
                     ColliderShape::ConvexHull
@@ -591,7 +589,7 @@ impl PhysicsWorld {
                 center_y,
             } => {
                 let s_xz = sx.max(sz);
-                let offset_y = if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
+                let offset_y = if let Ok(ctrl) = world.get_copied::<CharacterController>(entity) {
                     ctrl.center_y
                 } else {
                     center_y
@@ -603,7 +601,7 @@ impl PhysicsWorld {
                 .translation(Vec3::new(0.0, offset_y * sy, 0.0))
             }
             ColliderShape::Trimesh => {
-                if let Ok(model_id) = world.get::<&ModelId>(entity) {
+                if let Ok(model_id) = world.get_copied::<ModelId>(entity) {
                     if let Some((vertices, indices)) = get_mesh_data(model_id.0) {
                         let triangles: Vec<[u32; 3]> = indices.as_chunks::<3>().0.to_vec();
                         let rapier_vertices: Vec<Vec3> = vertices
@@ -637,7 +635,7 @@ impl PhysicsWorld {
                 }
             }
             ColliderShape::ConvexHull => {
-                if let Ok(model_id) = world.get::<&ModelId>(entity) {
+                if let Ok(model_id) = world.get_copied::<ModelId>(entity) {
                     if let Some((vertices, _)) = get_mesh_data(model_id.0) {
                         let rapier_vertices: Vec<Vec3> = vertices
                             .iter()
@@ -667,7 +665,7 @@ impl PhysicsWorld {
         };
 
         let (friction, restitution) =
-            if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
+            if let Ok(mat) = world.get_copied::<ae_plugin_api::PhysicsMaterial>(entity) {
                 (mat.friction, mat.restitution)
             } else {
                 (col.friction, col.restitution)

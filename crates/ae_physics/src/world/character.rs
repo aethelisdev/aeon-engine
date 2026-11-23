@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use glam::Vec3;
 /// AE Physics — Kinematic Character Controller (KCC) module.
-use hecs::{Entity, World};
+use ae_ecs::{Entity, World};
+use glam::Vec3;
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
 use rapier3d::math::Pose;
 use rapier3d::prelude::*;
 
-use ae_core::ecs::{CharacterController, Position};
+use ae_plugin_api::{CharacterController, Position};
 
 use super::PhysicsWorld;
 
@@ -22,8 +22,8 @@ impl PhysicsWorld {
         desired_translation: Vec3,
         delta_time: f32,
     ) -> bool {
-        let controller = match world.get::<&CharacterController>(entity) {
-            Ok(c) => *c,
+        let controller = match world.get_copied::<CharacterController>(entity) {
+            Ok(c) => c,
             Err(_) => return false,
         };
 
@@ -60,14 +60,11 @@ impl PhysicsWorld {
             )
         };
 
-        let mut pos_comp = world
-            .get::<&Position>(entity)
-            .map(|p| *p)
-            .unwrap_or(Position {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            });
+        let mut pos_comp = world.get_copied::<Position>(entity).unwrap_or(Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
         let mut character_pos =
             Pose::from_translation(Vec3::new(pos_comp.x, pos_comp.y + center_y, pos_comp.z));
 
@@ -111,7 +108,7 @@ impl PhysicsWorld {
         );
 
         let is_character_sensor = world
-            .get::<&ae_core::ecs::Collider>(entity)
+            .get_copied::<ae_plugin_api::Collider>(entity)
             .map(|c| c.is_sensor)
             .unwrap_or(false);
 
@@ -167,7 +164,7 @@ impl PhysicsWorld {
             pos_comp.x = fixed_pos.x;
             pos_comp.y = fixed_pos.y - center_y;
             pos_comp.z = fixed_pos.z;
-            if let Ok(mut pos) = world.get::<&mut Position>(entity) {
+            if let Ok(pos) = world.get_mut::<Position>(entity) {
                 pos.x = pos_comp.x;
                 pos.y = pos_comp.y;
                 pos.z = pos_comp.z;
@@ -200,7 +197,7 @@ impl PhysicsWorld {
         let new_z = pos_comp.z + final_translation.z;
 
         // Update position in ECS
-        if let Ok(mut pos) = world.get::<&mut Position>(entity) {
+        if let Ok(pos) = world.get_mut::<Position>(entity) {
             pos.x = new_x;
             pos.y = new_y;
             pos.z = new_z;
@@ -215,10 +212,10 @@ impl PhysicsWorld {
             )));
         }
 
-        let _ = world.insert_one(entity, ae_core::ecs::TransformDirty);
+        let _ = world.insert_one(entity, ae_plugin_api::TransformDirty);
 
         // Update character controller grounded status
-        if let Ok(mut ctrl) = world.get::<&mut ae_core::ecs::CharacterController>(entity) {
+        if let Ok(ctrl) = world.get_mut::<ae_plugin_api::CharacterController>(entity) {
             ctrl.is_grounded = is_grounded;
         }
 

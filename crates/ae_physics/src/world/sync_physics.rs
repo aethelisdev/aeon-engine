@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use ae_core::ecs::{CharacterController, Position, Rotation, Velocity};
 /// AE Physics — Rapier3D to ECS synchronization module.
-use hecs::World;
+use ae_ecs::World;
+use ae_plugin_api::{CharacterController, Position, Rotation, Velocity};
 
 use super::PhysicsWorld;
 
@@ -21,16 +21,16 @@ impl PhysicsWorld {
                 if !body.is_dynamic() || body.is_sleeping() {
                     continue;
                 }
-                let is_kcc = world.get::<&CharacterController>(entity).is_ok();
+                let is_kcc = world.has::<CharacterController>(entity);
                 if !is_kcc {
                     let pose = body.position();
                     let translation = pose.translation;
                     let rotation = pose.rotation;
 
                     let (local_translation, local_rotation) =
-                        if let Ok(parent_ref) = world.get::<&ae_core::ecs::Parent>(entity) {
+                        if let Ok(parent_ref) = world.get_copied::<ae_plugin_api::Parent>(entity) {
                             if let Ok(parent_gt) =
-                                world.get::<&ae_core::ecs::GlobalTransform>(parent_ref.0)
+                                world.get_copied::<ae_plugin_api::GlobalTransform>(parent_ref.0)
                             {
                                 use ae_core::cgmath::SquareMatrix;
                                 if let Some(inv_parent) = parent_gt.0.invert() {
@@ -57,23 +57,22 @@ impl PhysicsWorld {
                             (translation, rotation)
                         };
 
-                    if let Ok(mut pos) = world.get::<&mut Position>(entity) {
+                    if let Ok(pos) = world.get_mut::<Position>(entity) {
                         pos.x = local_translation.x;
                         pos.y = local_translation.y;
                         pos.z = local_translation.z;
                     }
-                    if let Ok(mut rot) = world.get::<&mut Rotation>(entity) {
+                    if let Ok(rot) = world.get_mut::<Rotation>(entity) {
                         rot.x = local_rotation.x;
                         rot.y = local_rotation.y;
                         rot.z = local_rotation.z;
                         rot.w = local_rotation.w;
                     }
-                    if let Ok(mut gt) = world.get::<&mut ae_core::ecs::GlobalTransform>(entity) {
-                        let (sx, sy, sz) = world
-                            .get::<&ae_core::ecs::Scale>(entity)
-                            .map(|s| (s.x, s.y, s.z))
-                            .unwrap_or((1.0, 1.0, 1.0));
-
+                    let (sx, sy, sz) = world
+                        .get_copied::<ae_plugin_api::Scale>(entity)
+                        .map(|s| (s.x, s.y, s.z))
+                        .unwrap_or((1.0, 1.0, 1.0));
+                    if let Ok(gt) = world.get_mut::<ae_plugin_api::GlobalTransform>(entity) {
                         let glam_mat = glam::Mat4::from_scale_rotation_translation(
                             glam::Vec3::new(sx, sy, sz),
                             glam::Quat::from_xyzw(rotation.x, rotation.y, rotation.z, rotation.w),
@@ -82,7 +81,7 @@ impl PhysicsWorld {
                         gt.0 = ae_core::cgmath::Matrix4::from(glam_mat.to_cols_array_2d());
                     }
                     if body.is_dynamic()
-                        && let Ok(mut vel) = world.get::<&mut Velocity>(entity)
+                        && let Ok(vel) = world.get_mut::<Velocity>(entity)
                     {
                         let linvel = body.linvel();
                         vel.x = linvel.x;
@@ -102,35 +101,32 @@ impl PhysicsWorld {
         use rapier3d::math::Pose;
 
         // Recompute world-space transforms for all entities in scene before resetting physics poses
-        ae_core::ecs::update_hierarchy_transforms(world);
+        ae_core::transform::update_hierarchy_transforms(world);
 
         for (&entity, &handle) in &self.entity_to_body {
             let (world_pos, world_rot) = if let Ok(gt) =
-                world.get::<&ae_core::ecs::GlobalTransform>(entity)
+                world.get_copied::<ae_plugin_api::GlobalTransform>(entity)
             {
                 let (trans, rot, _scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
                 (trans, rot)
             } else {
                 use ae_core::math::conversions::ToGlam;
                 let pos_comp = world
-                    .get::<&Position>(entity)
+                    .get_copied::<Position>(entity)
                     .map(|p| p.to_glam())
                     .unwrap_or(glam::Vec3::ZERO);
                 let rot_comp = world
-                    .get::<&Rotation>(entity)
+                    .get_copied::<Rotation>(entity)
                     .map(|r| r.to_glam())
                     .unwrap_or(glam::Quat::IDENTITY);
                 (pos_comp, rot_comp)
             };
 
-            let vel_comp = world
-                .get::<&Velocity>(entity)
-                .map(|v| *v)
-                .unwrap_or(Velocity {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                });
+            let vel_comp = world.get_copied::<Velocity>(entity).unwrap_or(Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            });
             let final_pose = Pose::from_parts(world_pos, world_rot);
 
             if let Some(body) = self.rigid_body_set.get_mut(handle) {

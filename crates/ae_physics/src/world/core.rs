@@ -5,9 +5,9 @@
 
 use std::collections::HashMap;
 
-use ae_core::ecs::{AssetHandle, RaycastHit};
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{AssetHandle, RaycastHit};
 use glam::Vec3;
-use hecs::{Entity, World};
 use rapier3d::prelude::*;
 
 /// Decoupled wrapper managing Rapier3D simulation datasets.
@@ -52,8 +52,8 @@ pub struct PhysicsWorld {
     /// Reusable scratch buffer for active entities to avoid allocations in hot sync loop.
     pub scratch_active_entities: Vec<(
         Entity,
-        Option<ae_core::ecs::RigidBody>,
-        Option<ae_core::ecs::Collider>,
+        Option<ae_plugin_api::RigidBody>,
+        Option<ae_plugin_api::Collider>,
     )>,
 }
 
@@ -140,7 +140,7 @@ impl PhysicsWorld {
         self.integration_parameters.dt = delta_time;
 
         // Update hierarchy transforms so GlobalTransform is 100% current for all parent-child entities
-        ae_core::ecs::update_hierarchy_transforms(world);
+        ae_core::transform::update_hierarchy_transforms(world);
 
         // 1. Sync ECS state to simulator
         self.sync_ecs_to_physics(world, get_mesh_data);

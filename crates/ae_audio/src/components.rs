@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Stores sound asset file references (`.wav`, `.ogg`, `.mp3`), playback parameters
 /// (volume gain, pitch modulation, looping toggle), and 3D spatial attenuation bounds
-/// (`min_distance`, `max_distance`). Integrates with `hecs::World` and
+/// (`min_distance`, `max_distance`). Integrates with `ae_ecs::World` and
 /// `ae_audio::audio_manager::AudioManager`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AudioSource {

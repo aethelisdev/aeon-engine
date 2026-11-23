@@ -104,7 +104,7 @@ impl CanvasAspectRatio {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UiDragState {
     /// The entity being dragged.
-    pub entity: hecs::Entity,
+    pub entity: ae_ecs::Entity,
     /// Cached canvas origin of the element's anchor point at drag start.
     pub anchor_origin: [f32; 2],
     /// Mouse position in virtual canvas coordinates at drag start.
@@ -119,10 +119,10 @@ pub enum UiDesignerAction {
     /// Requests spawning a new UI element into the active ECS world.
     SpawnElement(UiElementType),
     /// Requests selecting or deselecting a UI element entity.
-    SelectEntity(Option<hecs::Entity>),
+    SelectEntity(Option<ae_ecs::Entity>),
     /// Updates the offset of a UI element during dragging.
     UpdateElementOffset {
-        entity: hecs::Entity,
+        entity: ae_ecs::Entity,
         offset: [f32; 2],
     },
     /// Sets the target canvas aspect ratio preset.

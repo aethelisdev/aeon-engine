@@ -6,8 +6,8 @@
 use crate::spawning::spawn_ui_element;
 use crate::state::UiDesignerState;
 use crate::types::{CanvasAspectRatio, UiElementType};
-use ae_core::ecs::*;
-use hecs::World;
+use ae_ecs::World;
+use ae_plugin_api::*;
 
 #[test]
 fn test_canvas_aspect_ratio_resolutions() {
@@ -54,45 +54,45 @@ fn test_spawn_ui_element_all_types() {
 
     // 1. Panel
     let ent = spawn_ui_element(&mut world, UiElementType::Panel);
-    assert!(world.get::<&UiPanel>(ent).is_ok());
-    assert!(world.get::<&UiElement>(ent).is_ok());
+    assert!(world.has::<UiPanel>(ent));
+    assert!(world.has::<UiElement>(ent));
 
     // 2. ProgressBar
     let ent = spawn_ui_element(&mut world, UiElementType::ProgressBar);
-    assert!(world.get::<&UiProgressBar>(ent).is_ok());
-    assert!(world.get::<&PlayerHealthBarTag>(ent).is_err()); // Generic progress bar has no player tag
+    assert!(world.has::<UiProgressBar>(ent));
+    assert!(!world.has::<PlayerHealthBarTag>(ent)); // Generic progress bar has no player tag
 
     // 3. HealthBar
     let ent = spawn_ui_element(&mut world, UiElementType::HealthBar);
-    assert!(world.get::<&UiProgressBar>(ent).is_ok());
-    assert!(world.get::<&PlayerHealthBarTag>(ent).is_ok()); // HUD preset has tag
+    assert!(world.has::<UiProgressBar>(ent));
+    assert!(world.has::<PlayerHealthBarTag>(ent)); // HUD preset has tag
 
     // 4. Text
     let ent = spawn_ui_element(&mut world, UiElementType::Text);
-    assert!(world.get::<&UiText>(ent).is_ok());
+    assert!(world.has::<UiText>(ent));
 
     // 5. ScoreDisplay
     let ent = spawn_ui_element(&mut world, UiElementType::ScoreDisplay);
-    assert!(world.get::<&UiText>(ent).is_ok());
-    assert!(world.get::<&ScoreDisplayTag>(ent).is_ok());
+    assert!(world.has::<UiText>(ent));
+    assert!(world.has::<ScoreDisplayTag>(ent));
 
     // 6. Button
     let ent = spawn_ui_element(&mut world, UiElementType::Button);
-    assert!(world.get::<&UiButton>(ent).is_ok());
+    assert!(world.has::<UiButton>(ent));
 
     // 7. Image
     let ent = spawn_ui_element(&mut world, UiElementType::Image);
-    assert!(world.get::<&UiImage>(ent).is_ok());
+    assert!(world.has::<UiImage>(ent));
 
     // 8. Slider
     let ent = spawn_ui_element(&mut world, UiElementType::Slider);
-    assert!(world.get::<&UiSlider>(ent).is_ok());
+    assert!(world.has::<UiSlider>(ent));
 
     // 9. Checkbox
     let ent = spawn_ui_element(&mut world, UiElementType::Checkbox);
-    assert!(world.get::<&UiCheckbox>(ent).is_ok());
+    assert!(world.has::<UiCheckbox>(ent));
 
     // 10. TextInput
     let ent = spawn_ui_element(&mut world, UiElementType::TextInput);
-    assert!(world.get::<&UiTextInput>(ent).is_ok());
+    assert!(world.has::<UiTextInput>(ent));
 }

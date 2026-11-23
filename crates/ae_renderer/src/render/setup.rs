@@ -66,7 +66,7 @@ impl RenderState {
         });
 
         let surface = instance
-            .create_surface(window.clone())
+            .create_surface(std::sync::Arc::clone(&window))
             .expect("Failed to create surface");
 
         let adapter_opt = instance

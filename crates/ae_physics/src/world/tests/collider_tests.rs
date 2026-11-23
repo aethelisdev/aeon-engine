@@ -6,12 +6,12 @@
 #[cfg(test)]
 mod tests {
     use super::super::super::*;
-    use ae_core::ecs::{
+    use ae_ecs::World;
+    use ae_plugin_api::{
         AssetHandle, Collider, ColliderShape, ModelId, Position, RigidBody, RigidBodyType,
         Rotation, Scale, Velocity,
     };
     use glam::Vec3;
-    use hecs::World;
 
     #[test]
     fn test_trimesh_collider_creation() {
@@ -177,7 +177,7 @@ mod tests {
         );
 
         // Toggle to sensor = true in ECS
-        if let Ok(mut c) = world.get::<&mut Collider>(entity) {
+        if let Ok(c) = world.get_mut::<Collider>(entity) {
             c.is_sensor = true;
         }
 
@@ -191,7 +191,7 @@ mod tests {
         );
 
         // Toggle back to sensor = false in ECS
-        if let Ok(mut c) = world.get::<&mut Collider>(entity) {
+        if let Ok(c) = world.get_mut::<Collider>(entity) {
             c.is_sensor = false;
         }
 

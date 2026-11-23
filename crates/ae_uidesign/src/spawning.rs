@@ -4,10 +4,10 @@
 //! Data-driven UI Element and HUD Preset Spawning Engine.
 
 use crate::types::UiElementType;
-use ae_core::ecs::*;
+use ae_plugin_api::*;
 
 /// Spawns a canonical UI primitive or HUD preset entity into the ECS world.
-pub fn spawn_ui_element(world: &mut hecs::World, ui_type: UiElementType) -> hecs::Entity {
+pub fn spawn_ui_element(world: &mut ae_ecs::World, ui_type: UiElementType) -> ae_ecs::Entity {
     match ui_type {
         UiElementType::Panel => world.spawn((
             Name("UI Panel".to_string()),

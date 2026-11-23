@@ -41,9 +41,9 @@ impl Default for UiDesignerState {
 /// Context parameters passed into the UI Designer panel renderer.
 pub struct UiDesignerContext<'a> {
     /// Read-only reference to the active ECS world.
-    pub world: &'a hecs::World,
+    pub world: &'a ae_ecs::World,
     /// Currently selected entity in the editor hierarchy/scene.
-    pub selected_entity: Option<hecs::Entity>,
+    pub selected_entity: Option<ae_ecs::Entity>,
     /// Output buffer of UI Designer actions emitted during the frame.
     pub actions: &'a mut Vec<UiDesignerAction>,
     /// Persistent UI Designer state.
