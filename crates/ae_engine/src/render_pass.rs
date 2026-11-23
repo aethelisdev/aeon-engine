@@ -2,8 +2,8 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::engine::AeEngine;
-use ae_core::ecs::{Light, Position};
 use ae_core::modules::EngineMode;
+use ae_plugin_api::{Light, Position};
 use cgmath::InnerSpace;
 
 impl AeEngine {
@@ -46,7 +46,7 @@ impl AeEngine {
             (&empty_set, None)
         };
         ae_renderer::render::types::RenderScene::extract(
-            &self.ecs.world,
+            &self.world,
             &self.camera,
             &self.asset_manager,
             selected_set,
@@ -70,9 +70,9 @@ impl AeEngine {
                 .is_module_enabled(ae_core::modules::EngineModule::Render)
         };
         if render_enabled && !is_2d {
-            self.spatial_grid.sync(&self.ecs.world); // Lazy sync SpatialGrid if entity count changed
+            self.spatial_grid.sync(&self.world); // Lazy sync SpatialGrid if entity count changed
         }
-        ae_core::ecs::update_hierarchy_transforms(&mut self.ecs.world);
+        ae_core::transform::update_hierarchy_transforms(&mut self.world);
         // Compute FPS by subtracting VSync presentation wait from raw delta time.
         // This is only applied in Uncapped mode to reveal the true compute throughput of the engine,
         // without distorting the frame pacing of limited modes (which are capped at 60/120 FPS).
@@ -89,7 +89,7 @@ impl AeEngine {
             0.0
         };
         if render_enabled && !is_2d {
-            for (pos, light) in self.ecs.world.query_mut::<(&Position, &mut Light)>() {
+            for (pos, light) in self.world.query_mut::<(&Position, &mut Light)>() {
                 light.position = [pos.x, pos.y, pos.z];
             }
         }
@@ -99,11 +99,12 @@ impl AeEngine {
 
         // Update entity rotation for Local space gizmo orientation
         if let Some(ent) = self.editor.primary_selected() {
-            if let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent) {
-                self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
-            } else {
-                self.gizmo_system.entity_rotation = cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0);
-            }
+            self.gizmo_system.entity_rotation = self
+                .world
+                .inspect::<ae_plugin_api::Rotation, _>(ent, |r| {
+                    cgmath::Quaternion::new(r.w, r.x, r.y, r.z)
+                })
+                .unwrap_or_else(|_| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
         } else {
             self.gizmo_system.entity_rotation = cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0);
         }
@@ -150,15 +151,20 @@ impl AeEngine {
         let overlay: Option<&dyn ae_renderer::render::OverlayRenderer> =
             if render_enabled && self.mode == EngineMode::Edit && !is_2d {
                 if let Some(ent) = self.editor.primary_selected() {
-                    let gizmo_pos =
-                        if let Ok(gt) = self.ecs.world.get::<&ae_core::ecs::GlobalTransform>(ent) {
+                    let gizmo_pos = self
+                        .world
+                        .inspect::<ae_plugin_api::GlobalTransform, _>(ent, |gt| {
                             let mat = gt.0;
-                            Some(cgmath::Vector3::new(mat.w.x, mat.w.y, mat.w.z))
-                        } else if let Ok(pos) = self.ecs.world.get::<&ae_core::ecs::Position>(ent) {
-                            Some(cgmath::Vector3::new(pos.x, pos.y, pos.z))
-                        } else {
-                            None
-                        };
+                            cgmath::Vector3::new(mat.w.x, mat.w.y, mat.w.z)
+                        })
+                        .ok()
+                        .or_else(|| {
+                            self.world
+                                .inspect::<ae_plugin_api::Position, _>(ent, |pos| {
+                                    cgmath::Vector3::new(pos.x, pos.y, pos.z)
+                                })
+                                .ok()
+                        });
 
                     if let Some(p) = gizmo_pos {
                         let cam_pos = cgmath::Vector3::new(
@@ -208,7 +214,7 @@ impl AeEngine {
             self.debug_renderer.collect_lines(
                 &self.render_state.device,
                 &self.render_state.queue,
-                &self.ecs.world,
+                &self.world,
                 &self.asset_manager,
                 self.camera.build_view_projection_matrix(),
                 &self.editor.selected_entities[..],
@@ -260,13 +266,12 @@ impl AeEngine {
             batcher.update_camera(&self.render_state.queue, &cam_view_proj);
 
             for (pos, scale, sprite, hidden_opt) in self
-                .ecs
                 .world
                 .query::<(
                     &Position,
-                    &ae_core::ecs::Scale,
+                    &ae_plugin_api::Scale,
                     &ae_2d::components::SpriteRenderer,
-                    Option<&ae_core::ecs::Hidden>,
+                    Option<&ae_plugin_api::Hidden>,
                 )>()
                 .iter()
             {
@@ -323,7 +328,7 @@ impl AeEngine {
                     ae_editor::billboard::BillboardPrepareParams {
                         queue: &self.render_state.queue,
                         device: &self.render_state.device,
-                        world: &self.ecs.world,
+                        world: &self.world,
                         view_proj: self.camera.build_view_projection_matrix(),
                         viewport_size: [vp_w, vp_h],
                         selected_entities: &self.editor.selected_entities[..],
@@ -383,7 +388,7 @@ impl AeEngine {
 
         // Split borrows to satisfy borrow checker in closure
         let ui = &mut self.ui;
-        let world = &self.ecs.world;
+        let world = &self.world;
         let mode = &self.mode;
         let editor = &self.editor;
         let camera = &self.camera;

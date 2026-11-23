@@ -206,10 +206,10 @@ impl DebugRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        world: &hecs::World,
+        world: &ae_ecs::World,
         asset_manager: &ae_renderer::asset::AssetManager,
         view_proj: cgmath::Matrix4<f32>,
-        selected_entities: &[hecs::Entity],
+        selected_entities: &[ae_ecs::Entity],
     ) {
         let vp: [[f32; 4]; 4] = view_proj.into();
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&vp));
@@ -218,15 +218,15 @@ impl DebugRenderer {
         let color = [0.0, 1.0, 0.4]; // Green wireframe
 
         let mut query = world.query::<(
-            hecs::Entity,
-            &ae_core::ecs::Collider,
-            &ae_core::ecs::Position,
-            Option<&ae_core::ecs::Rotation>,
-            Option<&ae_core::ecs::Scale>,
-            Option<&ae_core::ecs::GlobalTransform>,
-            Option<&ae_core::ecs::ModelId>,
-            Option<&ae_core::ecs::CharacterController>,
-            Option<&ae_core::ecs::Hidden>,
+            ae_ecs::Entity,
+            &ae_plugin_api::Collider,
+            &ae_plugin_api::Position,
+            Option<&ae_plugin_api::Rotation>,
+            Option<&ae_plugin_api::Scale>,
+            Option<&ae_plugin_api::GlobalTransform>,
+            Option<&ae_plugin_api::ModelId>,
+            Option<&ae_plugin_api::CharacterController>,
+            Option<&ae_plugin_api::Hidden>,
         )>();
 
         for (entity, col, pos, rot, scale, global_transform, model_id, kcc_opt, hidden_opt) in
@@ -253,13 +253,13 @@ impl DebugRenderer {
             };
 
             match col.shape {
-                ae_core::ecs::ColliderShape::Box { half_extents } => {
+                ae_plugin_api::ColliderShape::Box { half_extents } => {
                     DebugShapes::generate_box_lines(&mut vertices, &model, half_extents, color);
                 }
-                ae_core::ecs::ColliderShape::Sphere { radius } => {
+                ae_plugin_api::ColliderShape::Sphere { radius } => {
                     DebugShapes::generate_sphere_lines(&mut vertices, &model, radius, color);
                 }
-                ae_core::ecs::ColliderShape::Capsule {
+                ae_plugin_api::ColliderShape::Capsule {
                     half_height,
                     radius,
                     center_y,
@@ -281,7 +281,7 @@ impl DebugRenderer {
                         color,
                     );
                 }
-                ae_core::ecs::ColliderShape::Trimesh => {
+                ae_plugin_api::ColliderShape::Trimesh => {
                     if let Some(m_id) = model_id {
                         if let Some((raw_vertices, raw_indices)) =
                             asset_manager.get_physics_mesh_data(m_id.0)
@@ -310,7 +310,7 @@ impl DebugRenderer {
                         );
                     }
                 }
-                ae_core::ecs::ColliderShape::ConvexHull => {
+                ae_plugin_api::ColliderShape::ConvexHull => {
                     if let Some(m_id) = model_id {
                         if let Some((raw_vertices, raw_indices)) =
                             asset_manager.get_physics_mesh_data(m_id.0)
@@ -342,17 +342,19 @@ impl DebugRenderer {
             }
         }
 
-        let mut kcc_only_query = world
-            .query::<(
-                &ae_core::ecs::CharacterController,
-                &ae_core::ecs::Position,
-                Option<&ae_core::ecs::Rotation>,
-                Option<&ae_core::ecs::Scale>,
-                Option<&ae_core::ecs::GlobalTransform>,
-            )>()
-            .without::<&ae_core::ecs::Collider>();
+        let mut kcc_only_query = world.query::<(
+            &ae_plugin_api::CharacterController,
+            &ae_plugin_api::Position,
+            Option<&ae_plugin_api::Rotation>,
+            Option<&ae_plugin_api::Scale>,
+            Option<&ae_plugin_api::GlobalTransform>,
+            Option<&ae_plugin_api::Collider>,
+        )>();
 
-        for (ctrl, pos, rot, scale, global_transform) in kcc_only_query.iter() {
+        for (ctrl, pos, rot, scale, global_transform, collider_opt) in kcc_only_query.iter() {
+            if collider_opt.is_some() {
+                continue;
+            }
             let model = if let Some(gt) = global_transform {
                 gt.0
             } else {

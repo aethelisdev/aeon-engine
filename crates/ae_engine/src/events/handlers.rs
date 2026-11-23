@@ -41,7 +41,7 @@ impl AeEngine {
             &mut self.editor,
             &mut self.camera,
             &mut self.gizmo_system,
-            &mut self.ecs,
+            &mut self.world,
             ae_editor::interactions::CursorMoveParams {
                 window_size,
                 last_viewport_rect,
@@ -81,7 +81,7 @@ impl AeEngine {
                 &mut self.editor,
                 &self.camera,
                 &mut self.gizmo_system,
-                &mut self.ecs,
+                &mut self.world,
                 ae_editor::interactions::MouseClickParams {
                     spatial_grid: &self.spatial_grid,
                     window_size,
@@ -166,7 +166,7 @@ impl AeEngine {
             ae_editor::interactions::handle_focus_lost(
                 &mut self.editor,
                 &mut self.gizmo_system,
-                &mut self.ecs,
+                &mut self.world,
             );
             self.input.clear_pressed_keys();
         }

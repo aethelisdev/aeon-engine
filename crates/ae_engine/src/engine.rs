@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use ae_core::ecs::{
-    EcsManager, Light, Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity,
-};
 use ae_core::input::InputManager;
 use ae_core::time::Time;
 use ae_editor::editor_state::EditorState;
 use ae_editor::undo_redo::Command;
 use ae_physics::PhysicsWorld;
+use ae_plugin_api::{Light, Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity};
 use ae_renderer::render::RenderState;
 use std::sync::Arc;
 use winit::window::Window;
@@ -29,7 +27,7 @@ pub struct AeEngine {
     pub billboard_system: ae_editor::billboard::BillboardSystem,
     pub time: Time,
     pub input: InputManager,
-    pub ecs: EcsManager,
+    pub world: ae_ecs::World,
     pub mode: EngineMode,
     pub previous_mode: EngineMode,
     pub editor: EditorState,
@@ -117,7 +115,7 @@ impl AeEngine {
     /// # Errors
     /// Returns an error string if WGPU fails to locate a compatible graphics adapter or initialize the surface.
     pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Result<Self, String> {
-        let (render_state, camera) = RenderState::new(window.clone()).await?;
+        let (render_state, camera) = RenderState::new(Arc::clone(&window)).await?;
         let mut ui = ae_editor_ui::ui::EngineUi::new(
             &render_state.device,
             render_state.config.format,
@@ -155,12 +153,12 @@ impl AeEngine {
             None
         };
 
-        let mut ecs = EcsManager::new();
+        let mut world = ae_ecs::World::new();
 
         if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
-            ecs.world.spawn((
+            world.spawn((
                 Name("Player Sprite".to_string()),
-                ae_core::ecs::PlayerTag,
+                ae_plugin_api::PlayerTag,
                 Position {
                     x: 0.0,
                     y: 0.0,
@@ -180,7 +178,7 @@ impl AeEngine {
                 },
             ));
 
-            ecs.world.spawn((
+            world.spawn((
                 Name("Background Tile".to_string()),
                 Position {
                     x: 0.0,
@@ -202,7 +200,7 @@ impl AeEngine {
             ));
         } else {
             // Default Scene setup: Static Ground Plane + Physics Dynamic Cube + Sun Light
-            ecs.world.spawn((
+            world.spawn((
                 Name("Ground Plane".to_string()),
                 Shape::Cube,
                 Position {
@@ -216,7 +214,7 @@ impl AeEngine {
                     y: 1.0,
                     z: 50.0,
                 },
-                ae_core::ecs::Color {
+                ae_plugin_api::Color {
                     r: 0.2,
                     g: 0.25,
                     b: 0.3,
@@ -227,13 +225,13 @@ impl AeEngine {
                     y: 0.0,
                     z: 0.0,
                 },
-                ae_core::ecs::RigidBody {
-                    body_type: ae_core::ecs::RigidBodyType::Static,
+                ae_plugin_api::RigidBody {
+                    body_type: ae_plugin_api::RigidBodyType::Static,
                     mass: 0.0,
                     gravity_scale: 0.0,
                 },
-                ae_core::ecs::Collider {
-                    shape: ae_core::ecs::ColliderShape::Box {
+                ae_plugin_api::Collider {
+                    shape: ae_plugin_api::ColliderShape::Box {
                         half_extents: [0.5, 0.5, 0.5],
                     },
                     friction: 0.7,
@@ -242,7 +240,7 @@ impl AeEngine {
                 },
             ));
 
-            ecs.world.spawn((
+            world.spawn((
                 PlayerTag,
                 Name("Dynamic Cube".to_string()),
                 Shape::Cube,
@@ -257,19 +255,19 @@ impl AeEngine {
                     y: 1.0,
                     z: 1.0,
                 },
-                ae_core::ecs::Color::soft_blue(),
+                ae_plugin_api::Color::soft_blue(),
                 Velocity {
                     x: 0.0,
                     y: 0.0,
                     z: 0.0,
                 },
-                ae_core::ecs::RigidBody {
-                    body_type: ae_core::ecs::RigidBodyType::Dynamic,
+                ae_plugin_api::RigidBody {
+                    body_type: ae_plugin_api::RigidBodyType::Dynamic,
                     mass: 1.0,
                     gravity_scale: 1.0,
                 },
-                ae_core::ecs::Collider {
-                    shape: ae_core::ecs::ColliderShape::Box {
+                ae_plugin_api::Collider {
+                    shape: ae_plugin_api::ColliderShape::Box {
                         half_extents: [0.5, 0.5, 0.5],
                     },
                     friction: 0.7,
@@ -278,7 +276,7 @@ impl AeEngine {
                 },
             ));
 
-            ecs.world.spawn((
+            world.spawn((
                 Name("Sun".to_string()),
                 Light {
                     position: [5.0, 15.0, 5.0],
@@ -326,7 +324,7 @@ impl AeEngine {
         let active_vfs: Arc<dyn ae_world::VfsProvider> =
             Arc::new(ae_world::DiskVfsProvider::new("."));
         let mut audio_manager = ae_audio::AudioManager::new();
-        audio_manager.set_vfs_provider(Some(active_vfs.clone()));
+        audio_manager.set_vfs_provider(Some(Arc::clone(&active_vfs)));
 
         let mut engine = Self {
             render_state,
@@ -336,7 +334,7 @@ impl AeEngine {
             billboard_system,
             time: Time::new(),
             input: InputManager::new(),
-            ecs,
+            world,
             mode: EngineMode::Edit,
             previous_mode: EngineMode::Edit,
             editor: EditorState::default(),

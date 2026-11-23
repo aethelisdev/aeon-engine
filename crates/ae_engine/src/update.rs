@@ -42,13 +42,13 @@ impl AeEngine {
         // Purge stale entity references (entities deleted by plugins, play mode, etc.)
         self.editor
             .selected_entities
-            .retain(|e| self.ecs.world.contains(*e));
+            .retain(|e| self.world.contains(*e));
 
         // Keyboard Shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, W/E/R/F)
         if !self.ui.wants_keyboard_input() {
             let shortcut_res = ae_editor::shortcuts::process_shortcuts(
                 &self.input,
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.editor,
                 self.mode,
             );
@@ -119,9 +119,11 @@ impl AeEngine {
         self.gizmo_system.mode = self.editor.gizmo_mode;
         self.gizmo_system.space = self.editor.gizmo_space;
         if let Some(ent) = self.editor.primary_selected()
-            && let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent)
+            && let Ok(rot) = self.world.inspect::<ae_plugin_api::Rotation, _>(ent, |r| {
+                cgmath::Quaternion::new(r.w, r.x, r.y, r.z)
+            })
         {
-            self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
+            self.gizmo_system.entity_rotation = rot;
         }
 
         self.profiler.begin_ecs();
@@ -137,7 +139,7 @@ impl AeEngine {
                     if !is_paused {
                         self.fixed_update_play_mode();
                         self.physics_world.step(
-                            &mut self.ecs.world,
+                            &mut self.world,
                             |handle| {
                                 self.asset_manager
                                     .get_physics_mesh_data(handle)
@@ -161,7 +163,7 @@ impl AeEngine {
         if self.mode == EngineMode::Edit && self.physics_sync_dirty {
             self.physics_sync_dirty = false;
             self.physics_world
-                .sync_ecs_to_physics(&mut self.ecs.world, |handle| {
+                .sync_ecs_to_physics(&mut self.world, |handle| {
                     self.asset_manager
                         .get_physics_mesh_data(handle)
                         .map(|(v, i)| (v.as_slice(), i.as_slice()))
@@ -180,7 +182,7 @@ impl AeEngine {
             // Live Update Path: hot-reload enabled, active file watches
             self.plugin_manager.hot_reload_enabled = true;
             self.plugin_manager.tick(
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.resources,
                 &mut self.event_bus,
                 self.time.delta_time,
@@ -189,7 +191,7 @@ impl AeEngine {
             // Fallback Path: Static runtime, zero hot-reload checks, maximum memory stability
             self.plugin_manager.hot_reload_enabled = false;
             self.plugin_manager.tick(
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.resources,
                 &mut self.event_bus,
                 self.time.delta_time,
@@ -208,11 +210,11 @@ impl AeEngine {
         let right_vec = self.camera.get_right();
         let cam_right = ae_audio::Vec3::new(right_vec.x, right_vec.y, right_vec.z);
         self.audio_manager
-            .update(&self.ecs.world, cam_pos, cam_right, is_audio_enabled);
+            .update(&self.world, cam_pos, cam_right, is_audio_enabled);
 
         // --- SKELETAL ANIMATION PLAYER SYSTEM UPDATE ---
         ae_runtime::update_skeletal_animations(
-            &mut self.ecs.world,
+            &mut self.world,
             &self.render_state,
             &mut self.asset_manager,
             self.time.delta_time,
@@ -225,7 +227,7 @@ impl AeEngine {
                 world_guid: self.active_world_guid,
                 cell_size: crate::scene::DEFAULT_WORLD_CELL_SIZE,
                 play_time_secs: self.time.total_time as u64,
-                world: &mut self.ecs.world,
+                world: &mut self.world,
                 event_bus: &mut self.event_bus,
                 streaming: self.streaming.as_mut(),
             }) {
@@ -238,7 +240,7 @@ impl AeEngine {
                     enabled: self.editor.config.autosave_enabled,
                     interval_secs: self.editor.config.autosave_interval_secs,
                     dt: self.time.delta_time,
-                    entity_count: self.ecs.world.len(),
+                    entity_count: self.world.len(),
                     autosaves_root: None,
                     saved_world_dir: self.saved_world_dir.as_deref(),
                     active_scene_path: self.editor.active_scene_path.as_deref(),
@@ -258,23 +260,23 @@ impl AeEngine {
 
         ae_editor::modes::fixed_update_play_mode(
             &self.input,
-            &mut self.ecs,
+            &mut self.world,
             self.time.fixed_time_step,
         );
 
         // Fixed update for GameStateManager
-        let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
+        let mut state_cmd_buffer = ae_ecs::EntityCommandBuffer::new();
         self.state_manager.fixed_update(
-            &mut self.ecs.world,
+            &mut self.world,
             &mut self.event_bus,
             &mut state_cmd_buffer,
             self.time.fixed_time_step,
         );
-        state_cmd_buffer.apply(&mut self.ecs.world);
+        state_cmd_buffer.apply(&mut self.world);
 
         ae_runtime::step_player_movement(
             &self.input,
-            &mut self.ecs,
+            &mut self.world,
             &mut self.physics_world,
             &self.camera,
             self.dimension_mode.is_2d(),
@@ -285,7 +287,7 @@ impl AeEngine {
     pub fn update_play_mode(&mut self) {
         let (was_paused, is_paused) = ae_runtime::step_play_state_and_pause(
             &mut self.state_manager,
-            &mut self.ecs,
+            &mut self.world,
             &mut self.event_bus,
             &self.input,
             self.time.delta_time,
@@ -305,7 +307,7 @@ impl AeEngine {
 
         // 3. Tick In-Game HUD subsystem
         self.in_game_hud
-            .update_from_events(&mut self.ecs.world, &mut self.event_bus);
+            .update_from_events(&mut self.world, &mut self.event_bus);
 
         if is_paused {
             self.editor.mouse_delta = (0.0, 0.0);
@@ -313,20 +315,20 @@ impl AeEngine {
         }
 
         ae_runtime::update_play_camera(
-            &mut self.ecs,
+            &mut self.world,
             &mut self.camera,
             &mut self.editor.mouse_delta,
             self.editor.config.mouse_sensitivity,
         );
 
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
-        self.spatial_grid.sync(&self.ecs.world);
+        self.spatial_grid.sync(&self.world);
 
         if let Some(mut streaming) = self.streaming.take() {
-            let active_vfs = streaming.vfs().clone();
+            let active_vfs = std::sync::Arc::clone(streaming.vfs());
             let render_state = &self.render_state;
             let report = streaming.step(
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.asset_manager,
                 [
                     self.camera.position.x,
@@ -346,7 +348,7 @@ impl AeEngine {
                 },
             );
             if report.spawned_entities > 0 || report.despawned_entities > 0 {
-                ae_core::ecs::update_hierarchy_transforms(&mut self.ecs.world);
+                ae_core::transform::update_hierarchy_transforms(&mut self.world);
                 self.physics_sync_dirty = true;
             }
             self.streaming = Some(streaming);
@@ -356,7 +358,7 @@ impl AeEngine {
         let cam_fwd = self.camera.get_forward();
         ae_runtime::behavior_runner::update_gameplay_behaviors(
             ae_runtime::behavior_runner::BehaviorRunnerParams {
-                world: &mut self.ecs.world,
+                world: &mut self.world,
                 physics_world: &mut self.physics_world,
                 input: &self.input,
                 event_bus: &mut self.event_bus,
@@ -402,14 +404,10 @@ impl AeEngine {
                 && self.state_manager.is_paused()
             {
                 self.state_manager.pop();
-                let mut pop_cmd = ae_core::commands::EntityCommandBuffer::new();
-                self.state_manager.update(
-                    &mut self.ecs.world,
-                    &mut self.event_bus,
-                    &mut pop_cmd,
-                    0.0,
-                );
-                pop_cmd.apply(&mut self.ecs.world);
+                let mut pop_cmd = ae_ecs::EntityCommandBuffer::new();
+                self.state_manager
+                    .update(&mut self.world, &mut self.event_bus, &mut pop_cmd, 0.0);
+                pop_cmd.apply(&mut self.world);
                 if !self.dimension_mode.is_2d() {
                     self.set_cursor_grab(true);
                 }
@@ -420,7 +418,7 @@ impl AeEngine {
         let old_mode = self.previous_mode;
         let mut ctx = ae_editor_ui::ui_processor::UiContext {
             mode: &mut self.mode,
-            world: &mut self.ecs.world,
+            world: &mut self.world,
             editor: &mut self.editor,
             ui: &mut self.ui,
             asset_manager: &mut self.asset_manager,
@@ -432,18 +430,17 @@ impl AeEngine {
         };
         ae_editor_ui::ui_processor::process_ui_actions(&mut ctx, actions);
         if self.mode != old_mode {
-            self.in_game_hud.reset(&mut self.ecs.world);
+            self.in_game_hud.reset(&mut self.world);
             self.state_manager = ae_core::state::StateManager::new();
             self.previous_mode = self.mode;
             // Immediate physics world re-sync to reset dynamic Rapier simulation bodies & velocities
             self.physics_world
-                .sync_ecs_to_physics(&mut self.ecs.world, |handle| {
+                .sync_ecs_to_physics(&mut self.world, |handle| {
                     self.asset_manager
                         .get_physics_mesh_data(handle)
                         .map(|(v, i)| (v.as_slice(), i.as_slice()))
                 });
-            self.physics_world
-                .reset_simulation_poses(&mut self.ecs.world);
+            self.physics_world.reset_simulation_poses(&mut self.world);
             self.physics_sync_dirty = false;
         }
         self.profiler.end_ui();
@@ -453,17 +450,17 @@ impl AeEngine {
     }
 
     pub fn undo(&mut self) {
-        ae_editor::history::undo(&mut self.editor, &mut self.ecs.world);
+        ae_editor::history::undo(&mut self.editor, &mut self.world);
         self.physics_sync_dirty = true;
     }
 
     pub fn redo(&mut self) {
-        ae_editor::history::redo(&mut self.editor, &mut self.ecs.world);
+        ae_editor::history::redo(&mut self.editor, &mut self.world);
         self.physics_sync_dirty = true;
     }
 
     pub fn focus_selected(&mut self) {
-        ae_editor::interactions::focus_selected(&mut self.camera, &self.editor, &self.ecs.world);
+        ae_editor::interactions::focus_selected(&mut self.camera, &self.editor, &self.world);
     }
 
     fn poll_async_export(&mut self) {

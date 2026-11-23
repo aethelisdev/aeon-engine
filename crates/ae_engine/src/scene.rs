@@ -8,13 +8,14 @@
 
 use crate::engine::AeEngine;
 pub use ae_assets::{PendingSceneData, SceneAssetParseRequest};
-use ae_core::ecs::*;
+use ae_ecs::World;
+use ae_ecs::*;
+use ae_plugin_api::*;
 use ae_world::{
     AssetKind, ComponentRecord, EntityRecord, GuidGenerator, SCENE_ASSET_BINDING_TYPE,
     SavedLodPaths, SceneAssetBinding, SpatialCellCoord, WorldDocument,
     asset_guid_from_virtual_path, resolve_partitioned_world_paths,
 };
-use hecs::World;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::BufReader;
@@ -30,17 +31,17 @@ const MAX_SCENE_FILE_SIZE: u64 = 256 * 1024 * 1024;
 const MAX_SCENE_ENTITIES: usize = 500_000;
 
 /// Ensures every ECS entity in `world` holds a non-nil `EntityGuid`, returning a lookup map.
-fn ensure_world_entity_guids(world: &mut World) -> HashMap<hecs::Entity, EntityGuid> {
+fn ensure_world_entity_guids(world: &mut World) -> HashMap<ae_ecs::Entity, EntityGuid> {
     let mut guid_gen = GuidGenerator::new();
     let mut entity_to_guid = HashMap::with_capacity(world.len() as usize);
     let mut missing_guids = Vec::new();
 
     for entity_ref in world.iter() {
         let entity = entity_ref.entity();
-        if let Some(existing) = entity_ref.get::<&EntityGuid>()
+        if let Some(existing) = entity_ref.get_copied::<EntityGuid>()
             && !existing.is_nil()
         {
-            entity_to_guid.insert(entity, *existing);
+            entity_to_guid.insert(entity, existing);
             continue;
         }
         let minted = guid_gen.next_entity_guid();
@@ -58,42 +59,45 @@ fn ensure_world_entity_guids(world: &mut World) -> HashMap<hecs::Entity, EntityG
 /// Extracts model, sprite, and LOD asset paths for `entity` and registers their GUIDs in `world_doc`.
 fn extract_and_register_asset_binding(
     engine: &AeEngine,
-    entity: hecs::Entity,
+    entity: ae_ecs::Entity,
     world_doc: &mut WorldDocument,
 ) -> std::io::Result<Option<SceneAssetBinding>> {
-    let w = &engine.ecs.world;
+    let w = &engine.world;
     let model_path = w
-        .get::<&ModelId>(entity)
+        .get_copied::<ModelId>(entity)
         .ok()
         .and_then(|r| engine.asset_manager.models.get(r.0))
         .map(|asset| asset.source_path.clone());
     let sprite_path = w
-        .get::<&SpriteId>(entity)
+        .get_copied::<SpriteId>(entity)
         .ok()
         .and_then(|r| engine.asset_manager.textures.get(r.0))
         .map(|asset| asset.source_path.clone());
-    let lod_group = w.get::<&LodGroup>(entity).ok().and_then(|lod_ref| {
-        let lod_0_path = engine
-            .asset_manager
-            .models
-            .get(lod_ref.lod_0)
-            .map(|a| a.source_path.clone())?;
-        let lod_1_path = lod_ref
-            .lod_1
-            .and_then(|h| engine.asset_manager.models.get(h))
-            .map(|a| a.source_path.clone());
-        let lod_2_path = lod_ref
-            .lod_2
-            .and_then(|h| engine.asset_manager.models.get(h))
-            .map(|a| a.source_path.clone());
-        Some(SavedLodPaths {
-            lod_0_path,
-            lod_1_path,
-            lod_2_path,
-            threshold_1: lod_ref.threshold_1,
-            threshold_2: lod_ref.threshold_2,
+    let lod_group = w
+        .inspect::<LodGroup, _>(entity, |lod_ref| {
+            let lod_0_path = engine
+                .asset_manager
+                .models
+                .get(lod_ref.lod_0)
+                .map(|a| a.source_path.clone())?;
+            let lod_1_path = lod_ref
+                .lod_1
+                .and_then(|h| engine.asset_manager.models.get(h))
+                .map(|a| a.source_path.clone());
+            let lod_2_path = lod_ref
+                .lod_2
+                .and_then(|h| engine.asset_manager.models.get(h))
+                .map(|a| a.source_path.clone());
+            Some(SavedLodPaths {
+                lod_0_path,
+                lod_1_path,
+                lod_2_path,
+                threshold_1: lod_ref.threshold_1,
+                threshold_2: lod_ref.threshold_2,
+            })
         })
-    });
+        .ok()
+        .flatten();
 
     if let Some(ref mp) = model_path {
         world_doc
@@ -139,18 +143,18 @@ fn extract_and_register_asset_binding(
 /// Captures a single ECS entity into an `EntityRecord` using binary `ComponentRegistry` payloads.
 fn capture_entity_record(
     engine: &AeEngine,
-    entity: hecs::Entity,
-    entity_to_guid: &HashMap<hecs::Entity, EntityGuid>,
+    entity: ae_ecs::Entity,
+    entity_to_guid: &HashMap<ae_ecs::Entity, EntityGuid>,
     registry: &ComponentRegistry,
     world_doc: &mut WorldDocument,
 ) -> std::io::Result<(EntityRecord, Option<[f32; 3]>, bool)> {
-    let w = &engine.ecs.world;
+    let w = &engine.world;
     let guid = entity_to_guid
         .get(&entity)
         .copied()
         .unwrap_or(EntityGuid::NIL);
     let parent_guid = w
-        .get::<&Parent>(entity)
+        .get_copied::<Parent>(entity)
         .ok()
         .and_then(|parent_ref| entity_to_guid.get(&parent_ref.0).copied());
 
@@ -186,10 +190,11 @@ fn capture_entity_record(
         record.components.push(binding_record);
     }
 
-    let world_pos = w.get::<&Position>(entity).ok().map(|p| [p.x, p.y, p.z]);
-    let is_global = w.get::<&Light>(entity).is_ok()
-        || w.get::<&PlayerTag>(entity).is_ok()
-        || world_pos.is_none();
+    let world_pos = w
+        .get_copied::<Position>(entity)
+        .ok()
+        .map(|p| [p.x, p.y, p.z]);
+    let is_global = w.has::<Light>(entity) || w.has::<PlayerTag>(entity) || world_pos.is_none();
 
     Ok((record, world_pos, is_global))
 }
@@ -199,8 +204,8 @@ fn capture_entity_record(
 /// Reuses `engine.active_world_guid` so unchanged worlds yield deterministic checksums across
 /// explicit saves and background auto-saves.
 pub(crate) fn capture_world_document(engine: &mut AeEngine) -> std::io::Result<WorldDocument> {
-    let entity_to_guid = ensure_world_entity_guids(&mut engine.ecs.world);
-    let registry = ComponentRegistry::global();
+    let entity_to_guid = ensure_world_entity_guids(&mut engine.world);
+    let registry = ae_plugin_api::engine_component_registry();
     let world_guid = if engine.active_world_guid.is_nil() {
         let fresh = GuidGenerator::new().next_entity_guid();
         engine.active_world_guid = fresh;
@@ -214,8 +219,7 @@ pub(crate) fn capture_world_document(engine: &mut AeEngine) -> std::io::Result<W
         DEFAULT_WORLD_CELL_SIZE,
     );
 
-    let entities: Vec<hecs::Entity> = engine
-        .ecs
+    let entities: Vec<ae_ecs::Entity> = engine
         .world
         .iter()
         .map(|entity_ref| entity_ref.entity())
@@ -262,7 +266,7 @@ pub(crate) fn save_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 
     engine.saved_world_dir = Some(world_dir);
     engine.last_saved_cell_crcs = stats.cell_crcs;
-    engine.editor.active_scene_path = Some(manifest_path.clone());
+    engine.editor.active_scene_path = Some(manifest_path);
     engine.autosave.reset_timer();
     Ok(())
 }
@@ -327,7 +331,7 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         ));
     }
 
-    let registry = ComponentRegistry::global();
+    let registry = ae_plugin_api::engine_component_registry();
     let mut allowed_hashes = registry.known_type_hashes();
     allowed_hashes.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
 
@@ -377,10 +381,10 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 }
 
 /// Applies `SceneAssetBinding` onto a newly spawned entity on the main thread.
-fn apply_asset_binding(engine: &mut AeEngine, entity: hecs::Entity, binding: &SceneAssetBinding) {
+fn apply_asset_binding(engine: &mut AeEngine, entity: ae_ecs::Entity, binding: &SceneAssetBinding) {
     let vfs = engine.active_vfs.as_deref();
     ae_runtime::streaming::bind_entity_assets_from_binding(
-        &mut engine.ecs.world,
+        &mut engine.world,
         &engine.render_state,
         &mut engine.asset_manager,
         vfs,
@@ -437,7 +441,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
         }
     }
 
-    engine.ecs.world = World::new();
+    engine.world = World::new();
     engine.physics_world.clear();
     engine.editor.selected_entities.clear();
     engine.editor.undo_stack.clear();
@@ -447,21 +451,21 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
     engine.last_saved_cell_crcs = scene_data.cell_crcs;
     engine.autosave.reset_timer();
 
-    let registry = ComponentRegistry::global();
+    let registry = ae_plugin_api::engine_component_registry();
     let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
-    let mut guid_to_entity: HashMap<EntityGuid, hecs::Entity> =
+    let mut guid_to_entity: HashMap<EntityGuid, ae_ecs::Entity> =
         HashMap::with_capacity(scene_data.entities.len());
-    let mut child_to_parent_guid: Vec<(hecs::Entity, EntityGuid)> = Vec::new();
+    let mut child_to_parent_guid: Vec<(ae_ecs::Entity, EntityGuid)> = Vec::new();
     let mut guid_gen = GuidGenerator::new();
 
     for rec in scene_data.entities {
-        let new_ent = engine.ecs.world.spawn(());
+        let new_ent = engine.world.spawn(());
         let entity_guid = if rec.guid.is_nil() {
             guid_gen.next_entity_guid()
         } else {
             rec.guid
         };
-        let _ = engine.ecs.world.insert_one(new_ent, entity_guid);
+        let _ = engine.world.insert_one(new_ent, entity_guid);
         guid_to_entity.insert(entity_guid, new_ent);
 
         let mut has_physics = false;
@@ -474,12 +478,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
             }
             if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
                 && handler
-                    .apply_versioned(
-                        &mut engine.ecs.world,
-                        new_ent,
-                        comp.schema_ver,
-                        &comp.payload,
-                    )
+                    .apply_versioned(&mut engine.world, new_ent, comp.schema_ver, &comp.payload)
                     .is_ok()
             {
                 let name = handler.type_name();
@@ -490,7 +489,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
         }
 
         if has_physics {
-            let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
+            let _ = engine.world.insert_one(new_ent, TransformDirty);
         }
         if let Some(p_guid) = rec.parent_guid {
             child_to_parent_guid.push((new_ent, p_guid));
@@ -499,24 +498,23 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
 
     for (child_ent, parent_guid) in child_to_parent_guid {
         if let Some(&parent_ent) = guid_to_entity.get(&parent_guid) {
-            let _ = engine.ecs.world.insert_one(child_ent, Parent(parent_ent));
-            if let Ok(mut children) = engine.ecs.world.get::<&mut Children>(parent_ent) {
+            let _ = engine.world.insert_one(child_ent, Parent(parent_ent));
+            if let Ok(children) = engine.world.get_mut::<Children>(parent_ent) {
                 if !children.0.contains(&child_ent) {
                     children.0.push(child_ent);
                 }
             } else {
                 let _ = engine
-                    .ecs
                     .world
                     .insert_one(parent_ent, Children(vec![child_ent]));
             }
         }
     }
 
-    ae_core::ecs::update_hierarchy_transforms(&mut engine.ecs.world);
+    ae_core::transform::update_hierarchy_transforms(&mut engine.world);
     engine
         .physics_world
-        .sync_ecs_to_physics(&mut engine.ecs.world, |handle| {
+        .sync_ecs_to_physics(&mut engine.world, |handle| {
             engine
                 .asset_manager
                 .get_physics_mesh_data(handle)
@@ -533,7 +531,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
             3,
             cells.clone(),
             cells,
-            &engine.ecs.world,
+            &engine.world,
         )
     });
 
@@ -571,12 +569,12 @@ mod tests {
         let _ = world.insert_one(parent_ent, Children(vec![child_ent]));
 
         let entity_to_guid = ensure_world_entity_guids(&mut world);
-        let registry = ComponentRegistry::global();
+        let registry = ae_plugin_api::engine_component_registry();
 
         let mut doc = WorldDocument::new(ids.next_entity_guid(), false, DEFAULT_WORLD_CELL_SIZE);
         for ent in [parent_ent, child_ent] {
             let p_guid = world
-                .get::<&Parent>(ent)
+                .get_copied::<Parent>(ent)
                 .ok()
                 .and_then(|p| entity_to_guid.get(&p.0).copied());
             let mut rec = EntityRecord::new(entity_to_guid[&ent], p_guid);
@@ -593,7 +591,7 @@ mod tests {
                     });
                 }
             }
-            let pos = world.get::<&Position>(ent).expect("position");
+            let pos = world.get_copied::<Position>(ent).expect("position");
             doc.insert_entity_at([pos.x, pos.y, pos.z], rec);
         }
 

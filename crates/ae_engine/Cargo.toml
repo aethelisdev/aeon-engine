@@ -15,7 +15,7 @@ wgpu = "30.0.2"
 pollster = { workspace = true }
 env_logger = "0.11.11"
 log = "0.4.33"
-hecs = "0.11.0"
+ae_ecs = { workspace = true }
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
 irisui = { workspace = true }
@@ -52,3 +52,6 @@ embed-resource = "3.0"
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 jemallocator = "0.5"
+
+[lints]
+workspace = true

@@ -119,12 +119,11 @@ impl McpHost for AeEngine {
 
     fn list_entities(&self) -> (Option<u64>, Vec<McpEntityInfo>) {
         let entities = self
-            .ecs
             .world
             .iter()
             .map(|entity| McpEntityInfo {
                 id_bits: entity.entity().to_bits().get(),
-                name: entity.get::<&ae_core::ecs::Name>().map(|n| n.0.clone()),
+                name: entity.get_cloned::<ae_plugin_api::Name>().map(|n| n.0),
             })
             .collect();
         (
@@ -147,10 +146,10 @@ impl McpHost for AeEngine {
         name: Option<&str>,
     ) -> Result<(u64, Map<String, Value>), String> {
         let entity = resolve_ecs_entity(self, id_bits, name)?;
-        let registry = ae_core::ecs::ComponentRegistry::global();
+        let registry = ae_plugin_api::engine_component_registry();
         let mut components = Map::new();
         for handler in registry.handlers() {
-            if let Some(json_str) = handler.capture_debug_json(&self.ecs.world, entity) {
+            if let Some(json_str) = handler.capture_debug_json(&self.world, entity) {
                 let parsed =
                     serde_json::from_str::<Value>(&json_str).unwrap_or_else(|_| json!(json_str));
                 components.insert(handler.type_name().to_string(), parsed);
@@ -192,22 +191,20 @@ fn resolve_ecs_entity(
     engine: &AeEngine,
     target_bits: Option<u64>,
     target_name: Option<&str>,
-) -> Result<hecs::Entity, String> {
+) -> Result<ae_ecs::Entity, String> {
     if target_bits.is_none() && target_name.is_none() {
         return engine.editor.primary_selected().ok_or_else(|| {
             "No entity selected and neither 'id_bits' nor 'name' given".to_string()
         });
     }
 
-    for entity in engine.ecs.world.iter() {
+    for entity in engine.world.iter() {
         let id = entity.entity();
         if target_bits.is_some_and(|b| b == id.to_bits().get()) {
             return Ok(id);
         }
         if let Some(wanted) = target_name
-            && entity
-                .get::<&ae_core::ecs::Name>()
-                .is_some_and(|n| n.0 == wanted)
+            && entity.inspect::<ae_plugin_api::Name, _>(|n| n.0 == wanted) == Some(true)
         {
             return Ok(id);
         }

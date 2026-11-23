@@ -134,13 +134,16 @@ impl ApplicationHandler for AeApp {
                 Ok(win) => Arc::new(win),
                 Err(err) => {
                     log::error!("[AeonEngine] Failed to create OS window: {err}");
-                    eprintln!(
-                        "\n==================================================================\n\
-                         ❌ [Aeon Engine Critical Startup Error]\n\
-                         Failed to create OS application window:\n\n\
-                         {err}\n\n\
-                         Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
-                         ==================================================================\n"
+                    let _ = std::io::Write::write_fmt(
+                        &mut std::io::stderr(),
+                        format_args!(
+                            "\n==================================================================\n\
+                             ❌ [Aeon Engine Critical Startup Error]\n\
+                             Failed to create OS application window:\n\n\
+                             {err}\n\n\
+                             Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
+                             ==================================================================\n\n"
+                        ),
                     );
                     std::process::exit(1);
                 }
@@ -148,20 +151,22 @@ impl ApplicationHandler for AeApp {
 
             // Initialize Core Engine State
             let engine = match pollster::block_on(AeEngine::new(
-                window.clone(),
+                Arc::clone(&window),
                 self.cli_args.clone(),
             )) {
                 Ok(eng) => eng,
                 Err(err) => {
                     log::error!("[AeonEngine] Critical initialization failure: {err}");
-                    eprintln!(
-                        "\n==================================================================\n\
-                         ❌ [Aeon Engine Critical Startup Error]\n\
-                         Failed to initialize GPU or graphics backend:\n\n\
-                         {}\n\n\
-                         Please verify your graphics driver (Vulkan / DX12 / Metal) and reboot if needed.\n\
-                         ==================================================================\n",
-                        err
+                    let _ = std::io::Write::write_fmt(
+                        &mut std::io::stderr(),
+                        format_args!(
+                            "\n==================================================================\n\
+                             ❌ [Aeon Engine Critical Startup Error]\n\
+                             Failed to initialize GPU or graphics backend:\n\n\
+                             {err}\n\n\
+                             Please verify your graphics driver (Vulkan / DX12 / Metal) and reboot if needed.\n\
+                             ==================================================================\n\n"
+                        ),
                     );
                     std::process::exit(1);
                 }
@@ -334,7 +339,10 @@ impl AeApp {
             }
             Err(e) => {
                 std::hint::cold_path();
-                eprintln!("Render error: {:?}", e);
+                let _ = std::io::Write::write_fmt(
+                    &mut std::io::stderr(),
+                    format_args!("Render error: {:?}\n", e),
+                );
             }
         }
         engine.input.end_frame();
@@ -363,7 +371,10 @@ fn build_event_loop() -> Result<EventLoop<()>, winit::error::EventLoopError> {
 /// with `ControlFlow::Poll` (continuous rendering), and runs the application.
 fn main() {
     if let Err(err) = ae_editor::editor_logger::init() {
-        eprintln!("[AeonEngine] Logger already initialized or failed to bind: {err}");
+        let _ = std::io::Write::write_fmt(
+            &mut std::io::stderr(),
+            format_args!("[AeonEngine] Logger already initialized or failed to bind: {err}\n"),
+        );
     }
     let cli_args = cli::CliArgs::from_env();
     log::info!(
@@ -376,13 +387,16 @@ fn main() {
         Ok(loop_instance) => loop_instance,
         Err(err) => {
             log::error!("[AeonEngine] Failed to initialize event loop: {err}");
-            eprintln!(
-                "\n==================================================================\n\
-                 ❌ [Aeon Engine Critical Startup Error]\n\
-                 Failed to initialize platform event loop:\n\n\
-                 {err}\n\n\
-                 Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
-                 ==================================================================\n"
+            let _ = std::io::Write::write_fmt(
+                &mut std::io::stderr(),
+                format_args!(
+                    "\n==================================================================\n\
+                     ❌ [Aeon Engine Critical Startup Error]\n\
+                     Failed to initialize platform event loop:\n\n\
+                     {err}\n\n\
+                     Please verify that an active display server (X11 / Wayland / Win32 / Cocoa) is available.\n\
+                     ==================================================================\n\n"
+                ),
             );
             std::process::exit(1);
         }
