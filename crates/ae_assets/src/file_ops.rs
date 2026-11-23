@@ -108,3 +108,34 @@ pub fn open_in_file_explorer(path: &Path) -> std::io::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_rename_move_delete_cycle() {
+        let root = std::env::temp_dir().join(format!("ae_assets_fileops_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let sub = create_subfolder(&root, "models").expect("create subfolder");
+        assert!(sub.is_dir());
+
+        let file = sub.join("hero.glb");
+        std::fs::write(&file, b"glb").expect("write dummy asset");
+
+        let renamed = rename_asset_or_folder(&file, "knight").expect("rename preserving extension");
+        assert_eq!(
+            renamed.file_name().and_then(|n| n.to_str()),
+            Some("knight.glb")
+        );
+        assert!(renamed.is_file());
+
+        let dst = create_subfolder(&root, "archive").expect("create archive subfolder");
+        let moved = move_asset(&renamed, &dst).expect("move asset");
+        assert!(moved.is_file());
+        assert!(!renamed.exists());
+
+        delete_asset_or_folder(&root).expect("delete root directory");
+        assert!(!root.exists());
+    }
+}

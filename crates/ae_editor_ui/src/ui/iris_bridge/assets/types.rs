@@ -6,9 +6,7 @@
 //! Provides data models, event actions, and layout bounding rectangles for the
 //! 100% native Iris UI GPU SDF Asset Browser panel.
 
-use crate::assets::types::{
-    AssetBrowserState, AssetCategory, AssetItem, AssetSource, AssetViewMode,
-};
+use ae_assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::core::{MemoCache, UiTag};
 use irisui::prelude::Point;
 use std::collections::HashMap;

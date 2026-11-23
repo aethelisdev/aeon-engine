@@ -94,6 +94,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_assets"
+version = "0.9.0"
+dependencies = [
+ "ae_core",
+ "ae_renderer",
+ "ae_world",
+ "gltf",
+ "image",
+ "log",
+ "rayon",
+]
+
+[[package]]
 name = "ae_audio"
 version = "0.9.0"
 dependencies = [
@@ -153,6 +166,7 @@ version = "0.9.0"
 dependencies = [
  "ae_2d",
  "ae_animation",
+ "ae_assets",
  "ae_audio",
  "ae_core",
  "ae_editor",
@@ -162,14 +176,12 @@ dependencies = [
  "ae_uidesign",
  "ae_world",
  "cgmath",
- "gltf",
  "hecs",
  "image",
  "irisui",
  "irisui-winit",
  "log",
  "postcard",
- "rayon",
  "rfd",
  "serde",
  "serde_json",
@@ -183,6 +195,7 @@ version = "0.9.0"
 dependencies = [
  "ae_2d",
  "ae_animation",
+ "ae_assets",
  "ae_audio",
  "ae_core",
  "ae_editor",
@@ -201,7 +214,6 @@ dependencies = [
  "chrono",
  "embed-resource",
  "env_logger",
- "gltf",
  "hecs",
  "image",
  "irisui",

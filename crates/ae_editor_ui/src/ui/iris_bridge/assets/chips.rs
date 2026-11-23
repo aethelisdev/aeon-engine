@@ -8,7 +8,7 @@
 
 use super::panel::ASSETS_CHIPS_BAR_HEIGHT;
 use super::types::{AssetsPanelAction, encode_chip_tag};
-use crate::assets::types::AssetCategory;
+use ae_assets::types::AssetCategory;
 use irisui::prelude::*;
 
 /// Category definitions with display label and pill width in logical pixels.
@@ -71,8 +71,8 @@ fn active_category(scope: &UiScope<'_>, current: AssetCategory) -> AssetCategory
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::AssetBrowserState;
     use crate::ui::iris_bridge::assets::types::AssetsPanelState;
+    use ae_assets::types::AssetBrowserState;
 
     #[test]
     fn test_category_chips_order_matches_canonical_all() {

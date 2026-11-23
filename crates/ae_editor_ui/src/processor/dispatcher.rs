@@ -367,7 +367,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
 
             // --- ASSET BROWSER FILE & DIRECTORY ACTIONS ---
             crate::ui::EngineUiAction::DeleteAssetOrFolder(path) => {
-                let _ = crate::assets::file_ops::delete_asset_or_folder(&path);
+                let _ = ae_assets::file_ops::delete_asset_or_folder(&path);
                 if ctx.ui.asset_browser.selected_asset.as_ref() == Some(&path) {
                     ctx.ui.asset_browser.selected_asset = None;
                 }
@@ -376,13 +376,13 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::CreateSubfolder { parent, name } => {
-                let _ = crate::assets::file_ops::create_subfolder(&parent, &name);
+                let _ = ae_assets::file_ops::create_subfolder(&parent, &name);
                 ctx.ui
                     .host
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
             }
             crate::ui::EngineUiAction::RenameAssetOrFolder { target, new_name } => {
-                let _ = crate::assets::file_ops::rename_asset_or_folder(&target, &new_name);
+                let _ = ae_assets::file_ops::rename_asset_or_folder(&target, &new_name);
                 ctx.ui
                     .host
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);

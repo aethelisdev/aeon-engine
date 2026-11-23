@@ -6,7 +6,6 @@
 #![deny(clippy::allow_attributes)]
 
 /// AE Editor UI — Iris UI-based panel rendering and user interface event handlers.
-pub mod assets;
 pub mod processor;
 pub mod ui;
 

@@ -10,11 +10,11 @@
 
 use super::details;
 use super::model;
-use crate::assets::types::{AssetBrowserState, AssetCategory};
 use crate::ui::iris_bridge::assets::cards::resolve_category_color;
 use crate::ui::iris_bridge::assets::types::{
     ASSET_PREVIEW_TAG_REVEAL, ASSETS_TAG_PREVIEW_MODAL, AssetPreviewModalState,
 };
+use ae_assets::types::{AssetBrowserState, AssetCategory};
 use irisui::prelude::*;
 
 /// Width of the quick preview modal card in logical pixels.

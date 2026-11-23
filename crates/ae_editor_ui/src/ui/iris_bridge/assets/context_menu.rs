@@ -7,7 +7,7 @@
 //! and directories on [`UiLayer::Popup`] via [`UiScope`].
 
 use super::types::AssetsPanelAction;
-use crate::assets::types::{AssetCategory, AssetItem};
+use ae_assets::types::{AssetCategory, AssetItem};
 use irisui::prelude::*;
 use std::path::{Path, PathBuf};
 

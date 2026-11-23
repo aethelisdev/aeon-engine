@@ -17,8 +17,8 @@ use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST,
     AssetsPanelAction,
 };
-use crate::assets::types::{AssetBrowserState, AssetViewMode};
 use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS, ICON_SNAP_GRID};
+use ae_assets::types::{AssetBrowserState, AssetViewMode};
 use irisui::prelude::*;
 
 /// Declarative construction of the Asset Browser top toolbar.

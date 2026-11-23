@@ -1,0 +1,17 @@
+[package]
+name = "ae_assets"
+version = "0.9.0"
+edition = "2024"
+description = "Aeon Engine - Headless asset discovery, file operations, ingestion, thumbnails, and async loading pipelines"
+
+[lints]
+workspace = true
+
+[dependencies]
+ae_core = { path = "../ae_core" }
+ae_renderer = { path = "../ae_renderer" }
+ae_world = { workspace = true }
+gltf = "1.4.1"
+image = "0.25.10"
+log = "0.4.33"
+rayon = "1.12.0"

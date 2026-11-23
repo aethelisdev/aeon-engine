@@ -11,11 +11,11 @@ use super::types::{
     AssetsPanelAction, encode_breadcrumb_tag, encode_item_inspect_tag, encode_item_spawn_tag,
     encode_item_tag, truncate_display_name,
 };
-use crate::assets::types::{AssetCategory, AssetItem};
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CAMERA, ICON_CUBE, ICON_FOLDER, ICON_PLUS, ICON_SPARKLE, ICON_SPHERE,
     ICON_WORLD,
 };
+use ae_assets::types::{AssetCategory, AssetItem};
 use irisui::prelude::*;
 use irisui::widgets::declarative::WrappedLabelDescriptor;
 use std::path::Path;
@@ -315,7 +315,7 @@ pub fn asset_grid_card(
         .on_drag(|| {
             actions.push(AssetsPanelAction::StartAssetDrag(
                 TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
-                    .with_badge(item.category.badge(), item.category.badge_color())
+                    .with_badge(item.category.badge(), resolve_category_color(item.category))
                     .into_erased(),
             ));
         })
@@ -454,7 +454,7 @@ pub fn asset_list_row(
         .on_drag(|| {
             actions.push(AssetsPanelAction::StartAssetDrag(
                 TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
-                    .with_badge(item.category.badge(), item.category.badge_color())
+                    .with_badge(item.category.badge(), resolve_category_color(item.category))
                     .into_erased(),
             ));
         })
@@ -550,7 +550,7 @@ pub fn asset_empty_notice(scope: &mut UiScope<'_>, query: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::{AssetCategory, AssetItem, AssetSource};
+    use ae_assets::types::{AssetCategory, AssetItem, AssetSource};
     use std::path::PathBuf;
 
     #[test]

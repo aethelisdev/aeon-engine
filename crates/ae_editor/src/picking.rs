@@ -242,6 +242,79 @@ pub fn intersect_mesh(ray: &Ray, vertices: &[[f32; 3]], indices: &[u32]) -> Opti
     min_t
 }
 
+/// Computes the 3D world intersection point on the horizontal ground plane (`Y = 0`)
+/// from screen coordinates (`[mx, my]`), a logical viewport rect (`[x, y, width, height]`),
+/// and a camera view-projection matrix.
+#[must_use]
+pub fn compute_ground_intersection(
+    mouse_screen_pos: [f32; 2],
+    viewport_rect: [f32; 4],
+    vp_matrix: &cgmath::Matrix4<f32>,
+) -> Option<[f32; 3]> {
+    let rel_x = mouse_screen_pos[0] - viewport_rect[0];
+    let rel_y = mouse_screen_pos[1] - viewport_rect[1];
+
+    let ray = create_ray(rel_x, rel_y, viewport_rect[2], viewport_rect[3], vp_matrix)?;
+    if ray.direction.y.abs() < 1e-5 {
+        return None;
+    }
+
+    let t = -ray.origin.y / ray.direction.y;
+    if t <= 0.0 || t > 1000.0 {
+        return None;
+    }
+
+    Some([
+        ray.origin.x + t * ray.direction.x,
+        0.0,
+        ray.origin.z + t * ray.direction.z,
+    ])
+}
+
+/// Projects a 3D world point back into logical 2D screen coordinates inside `viewport_rect` (`[x, y, w, h]`).
+///
+/// Returns `None` if the point lies behind the camera near clip threshold or far outside normalized bounds.
+#[must_use]
+pub fn project_world_point_to_viewport(
+    world_pos: [f32; 3],
+    viewport_rect: [f32; 4],
+    vp_matrix: &cgmath::Matrix4<f32>,
+) -> Option<[f32; 2]> {
+    let pos_v4 = cgmath::Vector4::new(world_pos[0], world_pos[1], world_pos[2], 1.0);
+    let clip_v4 = vp_matrix * pos_v4;
+
+    if clip_v4.w <= 0.001 {
+        return None;
+    }
+    let ndc_x = clip_v4.x / clip_v4.w;
+    let ndc_y = clip_v4.y / clip_v4.w;
+    if (-1.2..=1.2).contains(&ndc_x) && (-1.2..=1.2).contains(&ndc_y) {
+        Some([
+            viewport_rect[0] + (ndc_x + 1.0) * 0.5 * viewport_rect[2],
+            viewport_rect[1] + (1.0 - ndc_y) * 0.5 * viewport_rect[3],
+        ])
+    } else {
+        None
+    }
+}
+
+/// Computes a fallback XZ ground coordinate `distance` units ahead of `cam_pos` toward `cam_target`.
+#[must_use]
+pub fn compute_camera_ground_fallback(
+    cam_pos: [f32; 3],
+    cam_target: [f32; 3],
+    distance: f32,
+) -> [f32; 3] {
+    let fx = cam_target[0] - cam_pos[0];
+    let fz = cam_target[2] - cam_pos[2];
+    let len = (fx * fx + fz * fz).sqrt().max(0.001);
+    [
+        cam_pos[0] + (fx / len) * distance,
+        0.0,
+        cam_pos[2] + (fz / len) * distance,
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,5 +347,40 @@ mod tests {
         let max = [1.0, 1.0, 1.0];
         let hit = intersect_aabb(&ray, min, max);
         assert_eq!(hit, Some(0.0));
+    }
+
+    #[test]
+    fn test_compute_ground_intersection_center_and_horizon() {
+        let eye = cgmath::Point3::new(0.0, 10.0, 10.0);
+        let center = cgmath::Point3::new(0.0, 0.0, 0.0);
+        let up = cgmath::Vector3::unit_y();
+        let view = cgmath::Matrix4::look_at_rh(eye, center, up);
+        let proj = cgmath::perspective(cgmath::Deg(45.0), 800.0 / 600.0, 0.1, 1000.0);
+        let vp = proj * view;
+        let rect = [0.0, 0.0, 800.0, 600.0];
+
+        let hit = compute_ground_intersection([400.0, 300.0], rect, &vp)
+            .expect("center screen ray hits ground");
+        assert!(hit[0].abs() < 0.05);
+        assert_eq!(hit[1], 0.0);
+        assert!(hit[2].abs() < 0.05);
+
+        let projected = project_world_point_to_viewport(hit, rect, &vp).expect("projects back");
+        assert!((projected[0] - 400.0).abs() < 1.0);
+        assert!((projected[1] - 300.0).abs() < 1.0);
+
+        let horizon_view =
+            cgmath::Matrix4::look_at_rh(eye, cgmath::Point3::new(0.0, 10.0, 0.0), up);
+        let horizon_vp = proj * horizon_view;
+        assert!(compute_ground_intersection([400.0, 300.0], rect, &horizon_vp).is_none());
+        assert!(compute_ground_intersection([400.0, 50.0], rect, &horizon_vp).is_none());
+    }
+
+    #[test]
+    fn test_compute_camera_ground_fallback() {
+        let pt = compute_camera_ground_fallback([0.0, 5.0, 10.0], [0.0, 0.0, 0.0], 3.0);
+        assert!((pt[0] - 0.0).abs() < 1e-4);
+        assert_eq!(pt[1], 0.0);
+        assert!((pt[2] - 7.0).abs() < 1e-4);
     }
 }

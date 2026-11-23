@@ -43,7 +43,7 @@ pub struct AeEngine {
     ///
     /// Once the background thread finishes parallel loading/parsing of all models
     /// and textures, it sends the full `PendingSceneData` package here.
-    pub scene_rx: Option<std::sync::mpsc::Receiver<Result<crate::scene::PendingSceneData, String>>>,
+    pub scene_rx: Option<std::sync::mpsc::Receiver<Result<ae_assets::PendingSceneData, String>>>,
     /// Dynamic plugin manager for hot-reloadable game logic.
     pub plugin_manager: ae_plugin_host::PluginManager,
     pub asset_manager: ae_renderer::asset::AssetManager,

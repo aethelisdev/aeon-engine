@@ -57,14 +57,9 @@ impl AssetLoader for GltfAssetLoader {
             format!("Loading {} in background...", final_name),
             Color::rgb(0.0, 0.898, 1.0),
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.model_receivers.push(rx);
-
-        rayon::spawn(move || {
-            let result =
-                ae_renderer::render::resources::parse_gltf_file(&path_str_clone, final_name);
-            let _ = tx.send(result);
-        });
+        engine
+            .model_receivers
+            .push(ae_assets::spawn_gltf_parse(path_str_clone, final_name));
     }
 }
 
@@ -78,98 +73,13 @@ impl AssetLoader for FbxAssetLoader {
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
         engine.editor.is_loading_assets = true;
-        let path_clone = path.to_path_buf();
-        let path_str_clone = path.to_string_lossy().to_string();
-
         engine.ui.set_status_message(
             "Converting FBX file... Please wait.",
             Color::rgb(0.0, 0.898, 1.0),
         );
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.asset_receivers.push(rx);
-
-        rayon::spawn(move || {
-            let tool_path = if cfg!(target_os = "windows") {
-                "tools/windows/FBX2glTF.exe"
-            } else if cfg!(target_os = "macos") {
-                "tools/macos/FBX2glTF_macos"
-            } else {
-                "tools/linux/FBX2glTF_linux"
-            };
-
-            let p = std::path::Path::new(tool_path);
-            if !p.exists() {
-                let _ = tx.send(Err(format!(
-                    "FBX2glTF tool not found at '{}'. Please make sure the tools/ folder is intact.",
-                    tool_path
-                )));
-                return;
-            }
-
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                if let Ok(metadata) = std::fs::metadata(tool_path) {
-                    let mut perms = metadata.permissions();
-                    let mode = perms.mode();
-                    if mode & 0o111 == 0 {
-                        perms.set_mode(mode | 0o755);
-                        let _ = std::fs::set_permissions(tool_path, perms);
-                    }
-                }
-            }
-
-            let file_stem = path_clone
-                .file_stem()
-                .unwrap_or(std::ffi::OsStr::new("model"))
-                .to_string_lossy();
-
-            let parent_writable = path_clone.parent().is_some_and(|dir| {
-                let probe = dir.join(format!(".ae_probe_{}", std::process::id()));
-                if std::fs::write(&probe, b"").is_ok() {
-                    let _ = std::fs::remove_file(&probe);
-                    true
-                } else {
-                    false
-                }
-            });
-
-            let (output_stem_str, output_path) = if parent_writable {
-                let stem = path_clone.with_extension("");
-                let glb = path_clone.with_extension("glb");
-                (stem.to_string_lossy().to_string(), glb)
-            } else {
-                let temp_dir = std::env::temp_dir();
-                let temp_stem = temp_dir.join(format!("ae_{}", file_stem));
-                let glb = temp_stem.with_extension("glb");
-                (temp_stem.to_string_lossy().to_string(), glb)
-            };
-
-            let output = std::process::Command::new(tool_path)
-                .arg("-i")
-                .arg(&path_str_clone)
-                .arg("-o")
-                .arg(&output_stem_str)
-                .arg("-b")
-                .arg("--pbr-metallic-roughness")
-                .arg("--normalize-weights")
-                .arg("1")
-                .output();
-
-            match output {
-                Ok(out) if out.status.success() && output_path.exists() => {
-                    let _ = tx.send(Ok(output_path));
-                }
-                Ok(out) => {
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    let _ = tx.send(Err(format!("FBX conversion failed: {}", stderr)));
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(format!("Failed to execute FBX2glTF tool: {}", e)));
-                }
-            }
-        });
+        engine
+            .asset_receivers
+            .push(ae_assets::spawn_fbx_convert(path));
     }
 }
 
@@ -248,7 +158,7 @@ impl AssetLoader for SceneAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
-        let is_3d_scene = ae_editor_ui::assets::scanner::is_world_file_3d(path);
+        let is_3d_scene = ae_assets::scanner::is_world_file_3d(path);
         if engine.dimension_mode.is_2d() && is_3d_scene {
             log::error!("Cannot load 3D scene in 2D mode: {:?}", path);
             engine.ui.set_status_message(
@@ -443,52 +353,16 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 /// Automatically resolves matching `AssetLoader` via `AssetLoaderRegistry`
 /// using `Path::extension()` without magic string searches.
 pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
-    let path_str = path.to_string_lossy();
-    if !ae_renderer::asset::is_safe_path(&path_str) {
-        log::error!("Dropped file has an unsafe path, ignoring: {:?}", path_str);
-        engine
-            .ui
-            .set_status_message("Security Error: Unsafe path blocked!", Color::RED);
+    if let Err(reason) =
+        ae_assets::validate_asset_drop_for_dimension(&path, engine.dimension_mode.is_2d())
+    {
+        log::warn!("Rejected dropped asset {:?}: {}", path, reason);
+        engine.ui.set_status_message(reason, Color::RED);
         return;
     }
 
     log::info!("File dropped for import: {:?}", path);
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-        let ext_lower = ext.to_ascii_lowercase();
-
-        // Dimension Isolation: Strictly reject external 3D models and 3D scenes in 2D mode
-        if engine.dimension_mode.is_2d() {
-            if ext_lower == "gltf" || ext_lower == "glb" || ext_lower == "fbx" || ext_lower == "obj"
-            {
-                log::warn!("Cannot import 3D models in 2D mode: {:?}", path);
-                engine
-                    .ui
-                    .set_status_message("Cannot import 3D models in 2D mode!", Color::RED);
-                return;
-            }
-            if ext_lower == "aeworld" && ae_editor_ui::assets::scanner::is_world_file_3d(&path) {
-                log::warn!("Cannot import 3D world in 2D mode: {:?}", path);
-                engine.ui.set_status_message(
-                    "Cannot load 3D world in 2D mode! Switch to 3D mode.",
-                    Color::RED,
-                );
-                return;
-            }
-        }
-
-        // Dimension Isolation: Strictly reject external 2D worlds in 3D mode
-        if engine.dimension_mode.is_3d()
-            && ext_lower == "aeworld"
-            && !ae_editor_ui::assets::scanner::is_world_file_3d(&path)
-        {
-            log::warn!("Cannot import 2D world in 3D mode: {:?}", path);
-            engine.ui.set_status_message(
-                "Cannot load 2D world in 3D mode! Switch to 2D mode.",
-                Color::RED,
-            );
-            return;
-        }
-
         let registry = AssetLoaderRegistry::global();
         if let Some(loader) = registry.find_loader(ext) {
             let mut final_name = path
@@ -538,31 +412,18 @@ pub fn spawn_model(
     max: [f32; 3],
     path_str: &str,
 ) {
-    let size_x = max[0] - min[0];
-    let size_y = max[1] - min[1];
-    let size_z = max[2] - min[2];
-    let max_dim = size_x.max(size_y).max(size_z);
-    let mut auto_scale = 1.0;
-    if max_dim < 0.05 {
-        auto_scale = 100.0;
-        if max_dim < 0.005 {
-            auto_scale = 1000.0;
-        }
-    }
+    let auto_scale = ae_assets::compute_model_auto_scale(min, max);
 
-    let mut rotation = ae_core::ecs::Rotation::identity();
-    let is_fbx = std::path::Path::new(path_str)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("fbx"));
-    if is_fbx {
-        rotation = ae_core::ecs::Rotation {
+    let rotation = if ae_assets::is_fbx_model_path(path_str) {
+        ae_core::ecs::Rotation {
             x: -std::f32::consts::FRAC_1_SQRT_2,
             y: 0.0,
             z: 0.0,
             w: std::f32::consts::FRAC_1_SQRT_2,
-        };
-    }
+        }
+    } else {
+        ae_core::ecs::Rotation::identity()
+    };
 
     let (bbox_min, bbox_max, default_tex) =
         if let Some(model_asset) = engine.asset_manager.models.get(model_id) {

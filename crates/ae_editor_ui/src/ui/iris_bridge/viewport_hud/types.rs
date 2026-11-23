@@ -228,8 +228,8 @@ pub(super) fn with_test_frame_data<R>(
     world: &hecs::World,
     f: impl FnOnce(&crate::ui::types::EditorFrameData<'_>) -> R,
 ) -> R {
-    use crate::assets::types::AssetBrowserState;
     use crate::ui::types::{EditorFrameData, EditorTelemetrySnapshot, ExportDialogState};
+    use ae_assets::types::AssetBrowserState;
     use ae_editor::editor_state::EditorConfig;
     use ae_renderer::asset::AssetStorage;
     use ae_renderer::graphics_settings::GraphicsSettings;

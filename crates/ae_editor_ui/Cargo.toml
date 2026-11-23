@@ -21,6 +21,7 @@ ae_renderer = { path = "../ae_renderer" }
 ae_uidesign = { path = "../ae_uidesign" }
 ae_runtime = { path = "../ae_runtime" }
 ae_2d = { workspace = true }
+ae_assets = { workspace = true }
 image = { version = "0.25.10", default-features = false, features = [
     "png",
     "jpeg",
@@ -28,8 +29,6 @@ image = { version = "0.25.10", default-features = false, features = [
 winit = "0.30.13"
 wgpu = "30.0.2"
 cgmath = "0.18"
-rayon = "1.12.0"
-gltf = "1.4.1"
 irisui = { workspace = true }
 irisui-winit = { workspace = true }
 

@@ -11,11 +11,12 @@ use std::path::PathBuf;
 
 use irisui::prelude::*;
 
-use crate::assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
+use crate::ui::iris_bridge::assets::components::resolve_category_color;
 use crate::ui::iris_bridge::assets::panel::build_assets_panel;
 use crate::ui::iris_bridge::assets::types::{
     ASSETS_TAG_IMPORT, AssetsPanelAction, AssetsPanelState, encode_item_tag,
 };
+use ae_assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 
 fn build_in_host(
     tree: &mut UiTree,
@@ -367,7 +368,10 @@ fn test_assets_panel_declarative_drag_and_drop_actions() {
     });
     let expected_payload =
         TypedDragDropPayload::new(test_item.clone(), test_item.name.clone(), "Assets")
-            .with_badge(test_item.category.badge(), test_item.category.badge_color())
+            .with_badge(
+                test_item.category.badge(),
+                resolve_category_color(test_item.category),
+            )
             .into_erased();
     assert!(
         drag_actions.contains(&AssetsPanelAction::StartAssetDrag(expected_payload)),
@@ -490,7 +494,10 @@ fn test_assets_panel_drag_and_drop_across_tree_rebuild() {
     });
     let expected_payload =
         TypedDragDropPayload::new(test_item.clone(), test_item.name.clone(), "Assets")
-            .with_badge(test_item.category.badge(), test_item.category.badge_color())
+            .with_badge(
+                test_item.category.badge(),
+                resolve_category_color(test_item.category),
+            )
             .into_erased();
     assert!(
         drag_actions.contains(&AssetsPanelAction::StartAssetDrag(expected_payload)),

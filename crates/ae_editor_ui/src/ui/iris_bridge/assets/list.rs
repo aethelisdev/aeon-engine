@@ -13,7 +13,7 @@ use super::types::{
     ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
     AssetsPanelAction, encode_item_tag,
 };
-use crate::assets::types::AssetItem;
+use ae_assets::types::AssetItem;
 use irisui::prelude::*;
 use std::path::Path;
 
@@ -78,7 +78,7 @@ pub fn build_asset_list_table_scope(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::{AssetCategory, AssetItem, AssetSource};
+    use ae_assets::types::{AssetCategory, AssetItem, AssetSource};
     use std::path::PathBuf;
 
     #[test]

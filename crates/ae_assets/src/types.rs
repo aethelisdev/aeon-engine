@@ -3,14 +3,14 @@
 
 //! Asset Browser Data Models & State Containers.
 //!
-//! Provides category classifications, card/list item view models,
-//! drag-and-drop payloads, inspection modal states, and persistent browser navigation state.
+//! Provides category classifications, card/list item models,
+//! drag-and-drop payloads, inline rename state, and headless browser navigation state.
 
 use ae_renderer::asset::AssetHandle;
 use std::path::PathBuf;
 use std::time::Instant;
 
-/// Asset categories for top-level filter chips.
+/// Asset categories for top-level filter chips and asset routing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AssetCategory {
     #[default]
@@ -58,25 +58,6 @@ impl AssetCategory {
             AssetCategory::Materials => "MAT",
             AssetCategory::Scenes => "SCENE",
             AssetCategory::Audio => "AUD",
-        }
-    }
-
-    /// Primary accent color for UI category badges.
-    pub fn badge_color(self) -> irisui::prelude::Color {
-        match self {
-            AssetCategory::All => {
-                irisui::prelude::Color::rgb(180.0 / 255.0, 180.0 / 255.0, 190.0 / 255.0)
-            }
-            AssetCategory::Models3D => irisui::prelude::Color::rgb(0.0, 229.0 / 255.0, 1.0),
-            AssetCategory::Textures2D => {
-                irisui::prelude::Color::rgb(100.0 / 255.0, 220.0 / 255.0, 120.0 / 255.0)
-            }
-            AssetCategory::Shaders => irisui::prelude::Color::rgb(1.0, 190.0 / 255.0, 60.0 / 255.0),
-            AssetCategory::Materials => {
-                irisui::prelude::Color::rgb(220.0 / 255.0, 100.0 / 255.0, 220.0 / 255.0)
-            }
-            AssetCategory::Scenes => irisui::prelude::Color::rgb(80.0 / 255.0, 160.0 / 255.0, 1.0),
-            AssetCategory::Audio => irisui::prelude::Color::rgb(1.0, 120.0 / 255.0, 100.0 / 255.0),
         }
     }
 }

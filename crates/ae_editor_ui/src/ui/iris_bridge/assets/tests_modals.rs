@@ -5,8 +5,8 @@
 
 use super::panel::build_assets_panel;
 use super::types::{AssetPreviewModalState, AssetsPanelAction, AssetsPanelState};
-use crate::assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use crate::ui::types::EngineUiAction;
+use ae_assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use irisui::prelude::*;
 use irisui::widgets::modal::ModalDialogAction;
 use irisui::workbench::{ActionBus, DialogHost, WorkbenchUiScopeExt};

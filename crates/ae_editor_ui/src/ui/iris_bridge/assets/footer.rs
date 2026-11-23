@@ -10,8 +10,8 @@
 
 use super::panel::ASSETS_FOOTER_HEIGHT;
 use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction};
-use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
+use ae_assets::types::AssetBrowserState;
 use irisui::prelude::*;
 
 /// Declarative construction of the Asset Browser bottom status bar and telemetry footer.
@@ -108,7 +108,7 @@ fn format_footer_telemetry(asset_browser: &AssetBrowserState, filtered_len: usiz
             .iter()
             .filter(|item| {
                 asset_browser.show_engine_content
-                    || item.source != crate::assets::types::AssetSource::Engine
+                    || item.source != ae_assets::types::AssetSource::Engine
             })
             .fold((0usize, 0usize, 0u64), |(count, mem, size), item| {
                 (

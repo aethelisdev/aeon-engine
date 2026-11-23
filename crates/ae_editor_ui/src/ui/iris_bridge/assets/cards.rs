@@ -15,7 +15,7 @@ use super::types::{
     ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
     AssetsPanelAction, encode_item_tag,
 };
-use crate::assets::types::AssetItem;
+use ae_assets::types::AssetItem;
 use irisui::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -85,7 +85,7 @@ fn render_grid_card(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::types::{AssetCategory, AssetItem, AssetSource};
+    use ae_assets::types::{AssetCategory, AssetItem, AssetSource};
 
     fn test_asset_item(name: &str, file_size_bytes: u64, is_loaded: bool) -> AssetItem {
         AssetItem {

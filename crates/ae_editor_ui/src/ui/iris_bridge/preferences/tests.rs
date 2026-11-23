@@ -9,10 +9,10 @@
 
 use super::panel::{SIDEBAR_TABS, SIDEBAR_WIDTH, build_preferences_view};
 use super::types::{PREF_TAG_CONTENT_VIEW, PreferencesDialogState};
-use crate::assets::AssetBrowserState;
 use crate::ui::types::{
     EditorFrameData, EditorTelemetrySnapshot, EngineUiAction, ExportDialogState,
 };
+use ae_assets::AssetBrowserState;
 use ae_core::modules::EngineModule;
 use ae_editor::editor_state::{EditorConfig, EditorState};
 use ae_editor::snapping::SnapSettings;

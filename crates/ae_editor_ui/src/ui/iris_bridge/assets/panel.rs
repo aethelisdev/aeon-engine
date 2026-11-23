@@ -18,12 +18,12 @@ pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP
 use super::types::{
     AssetClickTracker, AssetPreviewModalState, AssetsFilterKey, AssetsPanelAction, AssetsPanelState,
 };
-use crate::assets::types::{
-    AssetBrowserState, AssetCategory, AssetDragPayload, AssetItem, AssetViewMode,
-};
 use crate::ui::panel_layout::PanelId;
 use crate::ui::panel_registry::EditorPanelContext;
 use crate::ui::types::EngineUiAction;
+use ae_assets::types::{
+    AssetBrowserState, AssetCategory, AssetDragPayload, AssetItem, AssetViewMode,
+};
 use irisui::core::MemoCache;
 use irisui::prelude::*;
 use std::collections::HashMap;
@@ -60,7 +60,7 @@ impl AssetsPanelState {
         if self.thumbnail_layers.contains_key(&item.path) {
             return;
         }
-        crate::assets::thumbnails::generate_thumbnail_rgba_64(&item.path, item.category)
+        ae_assets::thumbnails::generate_thumbnail_rgba_64(&item.path, item.category)
             .and_then(|rgba| surface.alloc_atlas_rgba_layer(queue, &rgba))
             .into_iter()
             .for_each(|layer| {
@@ -403,7 +403,7 @@ fn handle_modal_fs_or_drag_action(
             ctx.action_bus.emit(EngineUiAction::OpenModelDialog);
         }
         AssetsPanelAction::RevealFolder(path) => {
-            drop(crate::assets::file_ops::open_in_file_explorer(&path));
+            drop(ae_assets::file_ops::open_in_file_explorer(&path));
         }
         AssetsPanelAction::CleanVram => {
             ctx.action_bus.emit(EngineUiAction::GarbageCollect);
@@ -516,7 +516,7 @@ fn handle_start_asset_drag(
 }
 
 fn handle_end_asset_drag(ctx: &mut EditorPanelContext<'_>) {
-    crate::assets::drag_drop::resolve_viewport_drop_action(
+    super::drag_overlay::resolve_viewport_drop_action(
         ctx.data.asset_browser,
         ctx.cursor_pos,
         ctx.data.viewport_rect,

@@ -8,7 +8,7 @@ use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetClickTracker, AssetPreviewModalState,
     AssetsPanelState, encode_breadcrumb_tag, encode_item_tag, truncate_display_name,
 };
-use crate::assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
+use ae_assets::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use irisui::prelude::*;
 use irisui::widgets::modal::ModalDialogAction;
 use std::path::PathBuf;
@@ -227,7 +227,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
 
 #[test]
 fn test_asset_drag_overlay_construction() {
-    use crate::assets::types::{AssetCategory, AssetDragPayload};
+    use ae_assets::types::{AssetCategory, AssetDragPayload};
     use ae_renderer::camera::Camera;
 
     let mut tree = UiTree::new();
@@ -432,7 +432,7 @@ fn test_engine_and_sidebar_vector_icons() {
 
 #[test]
 fn test_bidirectional_scene_filtering_and_world_bytes() {
-    use crate::assets::scanner::is_world_bytes_3d;
+    use ae_assets::scanner::is_world_bytes_3d;
 
     let mut ids = ae_world::GuidGenerator::from_seed(101);
     let world_3d = ae_world::WorldDocument::new(ids.next_entity_guid(), false, 128.0)

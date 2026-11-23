@@ -7,6 +7,7 @@
 //! `ComponentRegistry`, linking entity hierarchies strictly through persistent `EntityGuid`s.
 
 use crate::engine::AeEngine;
+pub use ae_assets::{PendingSceneData, SceneAssetParseRequest};
 use ae_core::ecs::*;
 use ae_world::{
     AssetKind, ComponentRecord, EntityRecord, GuidGenerator, SCENE_ASSET_BINDING_TYPE,
@@ -14,11 +15,10 @@ use ae_world::{
     asset_guid_from_virtual_path, resolve_partitioned_world_paths,
 };
 use hecs::World;
-use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Default cubic cell size (world units) for newly authored `.aeworld` partition archives.
 pub const DEFAULT_WORLD_CELL_SIZE: f32 = 128.0;
@@ -28,28 +28,6 @@ const MAX_SCENE_FILE_SIZE: u64 = 256 * 1024 * 1024;
 
 /// Maximum total entity count accepted when loading a scene archive.
 const MAX_SCENE_ENTITIES: usize = 500_000;
-
-/// Parsed texture data bundled with its canonicalized filesystem path.
-pub type ParsedTextureItem = (PathBuf, image::RgbaImage);
-
-/// Tuple pairing a virtual asset path with its parallel background parse outcome.
-pub type ParsedTextureEntry = (String, Result<ParsedTextureItem, String>);
-
-/// Bundle of parsed asset data and binary `EntityRecord`s returned by background workers.
-pub struct PendingSceneData {
-    /// Persistent [`EntityGuid`] read from the loaded `.aeworld` header.
-    pub world_guid: EntityGuid,
-    /// Decoded binary entity records collected from persistent and partitioned world tables.
-    pub entities: Vec<EntityRecord>,
-    /// Partitioned world directory path when loaded from a modular `world.aeworld` directory.
-    pub saved_world_dir: Option<PathBuf>,
-    /// CRC32 map of loaded partition cells used for subsequent dirty-only saves.
-    pub cell_crcs: HashMap<SpatialCellCoord, u32>,
-    /// Pre-parsed 3D GLTF/GLB geometry and skinning payloads.
-    pub parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)>,
-    /// Pre-parsed 2D texture RGBA payloads.
-    pub parsed_textures: Vec<ParsedTextureEntry>,
-}
 
 /// Ensures every ECS entity in `world` holds a non-nil `EntityGuid`, returning a lookup map.
 fn ensure_world_entity_guids(world: &mut World) -> HashMap<hecs::Entity, EntityGuid> {
@@ -289,65 +267,6 @@ pub(crate) fn save_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     Ok(())
 }
 
-/// Collects and validates unique GLTF/texture asset paths referenced by decoded entities.
-fn collect_scene_asset_paths(
-    entities: &[EntityRecord],
-) -> std::io::Result<(Vec<String>, Vec<String>)> {
-    let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
-    let mut unique_models = HashSet::new();
-    let mut unique_textures = HashSet::new();
-
-    for rec in entities {
-        for comp in &rec.components {
-            if comp.type_hash != binding_hash {
-                continue;
-            }
-            let binding: SceneAssetBinding = comp
-                .decode_as()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
-
-            if let Some(mp) = binding.model_path {
-                if !ae_renderer::asset::is_safe_path(&mp) {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::PermissionDenied,
-                        format!("Security Error: Unsafe model path detected: {mp}"),
-                    ));
-                }
-                unique_models.insert(mp);
-            }
-            if let Some(sp) = binding.sprite_path {
-                if !ae_renderer::asset::is_safe_path(&sp) {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::PermissionDenied,
-                        format!("Security Error: Unsafe sprite path detected: {sp}"),
-                    ));
-                }
-                unique_textures.insert(sp);
-            }
-            if let Some(lg) = binding.lod_group {
-                if ae_renderer::asset::is_safe_path(&lg.lod_0_path) {
-                    unique_models.insert(lg.lod_0_path);
-                }
-                if let Some(p1) = lg.lod_1_path
-                    && ae_renderer::asset::is_safe_path(&p1)
-                {
-                    unique_models.insert(p1);
-                }
-                if let Some(p2) = lg.lod_2_path
-                    && ae_renderer::asset::is_safe_path(&p2)
-                {
-                    unique_models.insert(p2);
-                }
-            }
-        }
-    }
-
-    Ok((
-        unique_models.into_iter().collect(),
-        unique_textures.into_iter().collect(),
-    ))
-}
-
 /// Asynchronously loads a binary `.aeworld` archive from disk.
 ///
 /// Validates header dimensionality (`is_2d`) before decompressing chunks, decodes partitions
@@ -436,7 +355,7 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     let world_guid = world_doc.world_guid;
     let all_entities = world_doc.into_all_entities();
 
-    let (models_list, textures_list) = collect_scene_asset_paths(&all_entities)?;
+    let (models_list, textures_list) = ae_assets::collect_scene_asset_paths(&all_entities)?;
 
     engine.editor.is_loading_assets = true;
     engine.ui.set_status_message(
@@ -444,43 +363,15 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
     );
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    engine.scene_rx = Some(rx);
-    let filepath_str = filepath.to_string();
-
-    rayon::spawn(move || {
-        let parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)> =
-            models_list
-                .into_par_iter()
-                .map(|path| {
-                    let res = ae_renderer::render::resources::parse_gltf_file(&path, String::new());
-                    (path, res)
-                })
-                .collect();
-
-        let parsed_textures: Vec<ParsedTextureEntry> = textures_list
-            .into_par_iter()
-            .map(|path| {
-                let canonical = std::fs::canonicalize(&path)
-                    .map_err(|e| format!("Failed to canonicalize texture path '{path}': {e}"));
-                let res = canonical.and_then(|c_path| {
-                    ae_renderer::render::resources::parse_texture_file(&path)
-                        .map(|rgba| (c_path, rgba))
-                });
-                (path, res)
-            })
-            .collect();
-
-        let _ = tx.send(Ok(PendingSceneData {
-            world_guid,
-            entities: all_entities,
-            saved_world_dir: resolved_world_dir,
-            cell_crcs,
-            parsed_models,
-            parsed_textures,
-        }));
-        log::info!("Finished parallel background parsing for world: {filepath_str}");
-    });
+    engine.scene_rx = Some(ae_assets::spawn_scene_asset_parse(SceneAssetParseRequest {
+        world_guid,
+        entities: all_entities,
+        saved_world_dir: resolved_world_dir,
+        cell_crcs,
+        models_list,
+        textures_list,
+        world_label: filepath.to_string(),
+    }));
 
     Ok(())
 }

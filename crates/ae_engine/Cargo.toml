@@ -20,7 +20,6 @@ bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
 irisui = { workspace = true }
 image = "0.25.10"
-gltf = "1.4.1"
 
 mint = "0.5"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -33,6 +32,7 @@ ae_plugin_api = { path = "../ae_plugin_api" }
 ae_plugin_host = { path = "../ae_plugin_host" }
 ae_core = { path = "../ae_core" }
 ae_2d = { workspace = true }
+ae_assets = { workspace = true }
 ae_physics = { path = "../ae_physics" }
 ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }

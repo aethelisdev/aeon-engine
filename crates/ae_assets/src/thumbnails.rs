@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Industry-Standard Asset Thumbnail Generation & Caching Subsystem.
+//! Asset Thumbnail Generation & Software Rasterization Subsystem.
 //!
 //! Generates studio-quality thumbnails for:
-//! - 3D Models (.gltf, .glb, .obj): Real-time software depth-buffered 3D studio render.
+//! - 3D Models (.gltf, .glb): Software depth-buffered 3D studio render.
 //! - 2D Textures (.png, .jpg, .hdr): Downscaled high-fidelity texture previews.
 //! - Shaders (.wgsl): 3D Material/Shader preview sphere with glowing WGSL core.
-//! - Scenes (.aee): 3D Isometric scene perspective grid and coordinate gizmo.
+//! - Scenes (.aeworld): 3D Isometric scene perspective grid and center beacon.
 //! - Materials (.mat): PBR Material sphere with specular highlight and Fresnel rim.
-//! - Audio (.wav, .mp3, .ogg): Studio acoustic equalizer waveform visualization.
-#![deny(clippy::allow_attributes)]
-#![deny(clippy::unwrap_used)]
+//! - Audio (.wav, .mp3, .ogg): Acoustic equalizer waveform visualization.
 
 use super::types::AssetCategory;
 use std::path::Path;
@@ -203,11 +201,10 @@ fn rasterize_model_thumbnail(path: &Path, width: usize, height: usize) -> Option
         [x1 / len, y2 / len, z2 / len]
     };
 
-    let num_tris = indices.len() / 3;
-    for t in 0..num_tris {
-        let i0 = indices[t * 3] as usize;
-        let i1 = indices[t * 3 + 1] as usize;
-        let i2 = indices[t * 3 + 2] as usize;
+    for tri in indices.as_chunks::<3>().0 {
+        let i0 = tri[0] as usize;
+        let i1 = tri[1] as usize;
+        let i2 = tri[2] as usize;
 
         if i0 >= vertices.len() || i1 >= vertices.len() || i2 >= vertices.len() {
             continue;
@@ -242,18 +239,13 @@ fn rasterize_model_thumbnail(path: &Path, width: usize, height: usize) -> Option
             [0.0, 0.0, 1.0]
         };
 
-        let min_x = (sx0.min(sx1).min(sx2).floor() as isize)
-            .max(0)
-            .min((width - 1) as isize) as usize;
-        let max_x = (sx0.max(sx1).max(sx2).ceil() as isize)
-            .max(0)
-            .min((width - 1) as isize) as usize;
-        let min_y = (sy0.min(sy1).min(sy2).floor() as isize)
-            .max(0)
-            .min((height - 1) as isize) as usize;
-        let max_y = (sy0.max(sy1).max(sy2).ceil() as isize)
-            .max(0)
-            .min((height - 1) as isize) as usize;
+        let min_x =
+            (sx0.min(sx1).min(sx2).floor() as isize).clamp(0, (width - 1) as isize) as usize;
+        let max_x = (sx0.max(sx1).max(sx2).ceil() as isize).clamp(0, (width - 1) as isize) as usize;
+        let min_y =
+            (sy0.min(sy1).min(sy2).floor() as isize).clamp(0, (height - 1) as isize) as usize;
+        let max_y =
+            (sy0.max(sy1).max(sy2).ceil() as isize).clamp(0, (height - 1) as isize) as usize;
 
         let denom = cross;
         for py in min_y..=max_y {

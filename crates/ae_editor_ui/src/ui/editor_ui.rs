@@ -36,7 +36,7 @@ pub struct EngineUi {
     /// Active UI scale factor.
     pub ui_zoom_factor: f32,
     /// Persistent Content / Asset Browser state.
-    pub asset_browser: crate::assets::AssetBrowserState,
+    pub asset_browser: ae_assets::AssetBrowserState,
     /// Persistent 2D Visual UI Designer canvas state.
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     pub(crate) export_modal: ExportDialogState,
@@ -59,7 +59,7 @@ impl EngineUi {
             fps: 60.0,
             last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             ui_zoom_factor: 1.0,
-            asset_browser: crate::assets::AssetBrowserState::new(),
+            asset_browser: ae_assets::AssetBrowserState::new(),
             ui_designer_state: ae_uidesign::UiDesignerState::default(),
             export_modal: ExportDialogState::default(),
         }
@@ -80,7 +80,7 @@ impl EngineUi {
                     .with_size(360.0, 140.0)
                     .with_status_message("Processing geometry, materials & textures")
             });
-        if crate::assets::scanner::rescan_assets_if_needed(
+        if ae_assets::scanner::rescan_assets_if_needed(
             &mut self.asset_browser,
             params.models,
             params.textures,

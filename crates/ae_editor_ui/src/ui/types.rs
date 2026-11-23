@@ -368,7 +368,7 @@ pub struct EditorFrameData<'frame> {
     /// Cached GPU backend identifier string.
     pub gpu_backend: &'frame str,
     /// Mutable persistent Content / Asset Browser state.
-    pub asset_browser: &'frame mut crate::assets::AssetBrowserState,
+    pub asset_browser: &'frame mut ae_assets::AssetBrowserState,
     /// Mutable persistent 2D UI Designer canvas state.
     pub ui_designer_state: &'frame mut ae_uidesign::UiDesignerState,
     /// Mutable Export Project modal dialog state.
