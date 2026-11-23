@@ -36,6 +36,7 @@ dist_export/
 *.aesave
 *.aemeta
 assets/scenes/
+assets/models/
 Saved/
 Intermediate/
 
