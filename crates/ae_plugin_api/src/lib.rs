@@ -8,6 +8,7 @@ pub mod components;
 pub mod context;
 pub mod events;
 pub mod identity;
+pub mod registry;
 pub mod resources;
 
 // Re-export everything to maintain a clean, flat public API surface
@@ -16,4 +17,5 @@ pub use components::*;
 pub use context::*;
 pub use events::*;
 pub use identity::*;
+pub use registry::{engine_component_registry, register_engine_components};
 pub use resources::*;

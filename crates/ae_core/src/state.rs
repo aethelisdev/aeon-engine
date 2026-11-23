@@ -6,7 +6,7 @@
 //! Provides a flexible, pushdown automaton state architecture for managing game modes,
 //! menus, in-game simulation, pause overlays, and level transitions in 100% Safe Rust.
 
-use crate::commands::EntityCommandBuffer;
+use ae_ecs::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;
 
 /// Execution context passed to `GameState` lifecycle hooks.
@@ -14,7 +14,7 @@ use ae_plugin_api::DynamicEventBus;
 /// Encapsulates access to ECS storage, command queue, event bus, and timing metrics.
 pub struct StateContext<'a> {
     /// Mutable reference to the ECS world for querying or reading entity components.
-    pub world: &'a mut hecs::World,
+    pub world: &'a mut ae_ecs::World,
     /// Shared reference to dynamic event bus for dispatching and reading gameplay events.
     pub event_bus: &'a mut DynamicEventBus,
     /// Deferred entity command buffer for queueing safe mutations at frame boundaries.
@@ -156,7 +156,7 @@ impl StateManager {
     /// Executes the active state's `on_update` loop and applies any requested transitions.
     pub fn update(
         &mut self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         event_bus: &mut DynamicEventBus,
         commands: &mut EntityCommandBuffer,
         dt: f32,
@@ -198,7 +198,7 @@ impl StateManager {
     /// Executes the active state's `on_fixed_update` loop for physics integration.
     pub fn fixed_update(
         &mut self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         event_bus: &mut DynamicEventBus,
         commands: &mut EntityCommandBuffer,
         fixed_dt: f32,
@@ -229,7 +229,7 @@ impl StateManager {
     /// Applies pending transitions with move semantics and dispatches enter/exit/pause/resume hooks.
     fn apply_pending_transition(
         &mut self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         event_bus: &mut DynamicEventBus,
         commands: &mut EntityCommandBuffer,
         dt: f32,
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn test_state_manager_push_pop_lifecycle() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let mut event_bus = DynamicEventBus::new();
         let mut commands = EntityCommandBuffer::new();
 
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_state_manager_switch_and_clear() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let mut event_bus = DynamicEventBus::new();
         let mut commands = EntityCommandBuffer::new();
 

@@ -67,7 +67,7 @@ pub struct UiLayoutResolver;
 impl UiLayoutResolver {
     /// Resolves active UI components into ordered `UiDrawCommand` primitives.
     pub fn resolve_draw_commands(
-        world: &hecs::World,
+        world: &ae_ecs::World,
         screen_w: f32,
         screen_h: f32,
         mouse_pos: Option<[f32; 2]>,
@@ -339,7 +339,7 @@ impl UiLayoutResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hecs::World;
+    use ae_ecs::World;
 
     #[test]
     fn test_ui_anchor_origin_calculation() {

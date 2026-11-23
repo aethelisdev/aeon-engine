@@ -6,7 +6,7 @@
 //! Defines standard lifecycle traits and execution contexts for gameplay actors,
 //! interactive entities, and procedural game mechanics.
 
-use crate::commands::EntityCommandBuffer;
+use ae_ecs::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;
 
 /// Execution context provided to `Behavior` lifecycle callbacks during active simulation.
@@ -15,7 +15,7 @@ use ae_plugin_api::DynamicEventBus;
 /// queue, frame delta time, and spatial camera vectors.
 pub struct BehaviorContext<'a> {
     /// Mutable reference to the ECS world for querying or reading entity state.
-    pub world: &'a mut hecs::World,
+    pub world: &'a mut ae_ecs::World,
     /// Shared reference to dynamic event bus for dispatching and reading gameplay events.
     pub event_bus: &'a mut DynamicEventBus,
     /// Deferred entity command buffer for queueing safe spawning, despawning, and component mutations.
@@ -31,28 +31,28 @@ pub struct BehaviorContext<'a> {
 /// Implementors define logic hooks that execute automatically during Play mode simulation.
 pub trait Behavior: Send + Sync + 'static {
     /// Invoked once when Play mode initializes or when the component is spawned during runtime.
-    fn on_start(&mut self, _entity: hecs::Entity, _ctx: &mut BehaviorContext<'_>) {}
+    fn on_start(&mut self, _entity: ae_ecs::Entity, _ctx: &mut BehaviorContext<'_>) {}
 
     /// Invoked every frame during standard gameplay update.
-    fn on_update(&mut self, _entity: hecs::Entity, _ctx: &mut BehaviorContext<'_>, _dt: f32) {}
+    fn on_update(&mut self, _entity: ae_ecs::Entity, _ctx: &mut BehaviorContext<'_>, _dt: f32) {}
 
     /// Invoked at fixed time intervals during physics integration ticks.
     fn on_fixed_update(
         &mut self,
-        _entity: hecs::Entity,
+        _entity: ae_ecs::Entity,
         _ctx: &mut BehaviorContext<'_>,
         _fixed_dt: f32,
     ) {
     }
 
     /// Invoked when the entity is despawned or when Play mode transitions back to Edit mode.
-    fn on_destroy(&mut self, _entity: hecs::Entity, _ctx: &mut BehaviorContext<'_>) {}
+    fn on_destroy(&mut self, _entity: ae_ecs::Entity, _ctx: &mut BehaviorContext<'_>) {}
 
     /// Invoked when this entity begins physical contact with another solid physics body.
     fn on_collision_enter(
         &mut self,
-        _entity: hecs::Entity,
-        _other: hecs::Entity,
+        _entity: ae_ecs::Entity,
+        _other: ae_ecs::Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
     }
@@ -60,8 +60,8 @@ pub trait Behavior: Send + Sync + 'static {
     /// Invoked when this entity ends physical contact with another solid physics body.
     fn on_collision_exit(
         &mut self,
-        _entity: hecs::Entity,
-        _other: hecs::Entity,
+        _entity: ae_ecs::Entity,
+        _other: ae_ecs::Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
     }
@@ -69,8 +69,8 @@ pub trait Behavior: Send + Sync + 'static {
     /// Invoked when this entity enters a volumetric sensor / trigger zone.
     fn on_trigger_enter(
         &mut self,
-        _entity: hecs::Entity,
-        _other: hecs::Entity,
+        _entity: ae_ecs::Entity,
+        _other: ae_ecs::Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
     }
@@ -78,8 +78,8 @@ pub trait Behavior: Send + Sync + 'static {
     /// Invoked when this entity exits a volumetric sensor / trigger zone.
     fn on_trigger_exit(
         &mut self,
-        _entity: hecs::Entity,
-        _other: hecs::Entity,
+        _entity: ae_ecs::Entity,
+        _other: ae_ecs::Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
     }

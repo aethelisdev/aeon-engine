@@ -17,9 +17,9 @@ pub use ae_plugin_api::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DamageEvent {
     /// Optional source entity (e.g., player, enemy, hazard trap) inflicting damage.
-    pub source: Option<hecs::Entity>,
+    pub source: Option<ae_ecs::Entity>,
     /// Target entity receiving the damage.
-    pub target: hecs::Entity,
+    pub target: ae_ecs::Entity,
     /// Floating-point damage amount deducted from target health.
     pub amount: f32,
     /// 3D world space coordinate where the impact occurred.
@@ -33,9 +33,9 @@ impl Event for DamageEvent {}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HealEvent {
     /// Optional source entity (e.g., medkit, healing zone, spellcaster).
-    pub source: Option<hecs::Entity>,
+    pub source: Option<ae_ecs::Entity>,
     /// Target entity receiving the health restoration.
-    pub target: hecs::Entity,
+    pub target: ae_ecs::Entity,
     /// Amount of health points restored.
     pub amount: f32,
 }
@@ -45,9 +45,9 @@ impl Event for HealEvent {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TriggerEvent {
     /// The trigger sensor entity.
-    pub trigger: hecs::Entity,
+    pub trigger: ae_ecs::Entity,
     /// The activator entity (e.g., player or actor) that triggered the zone.
-    pub activator: hecs::Entity,
+    pub activator: ae_ecs::Entity,
     /// `true` if entering the trigger zone, `false` if leaving/exiting.
     pub is_enter: bool,
 }
@@ -57,9 +57,9 @@ impl Event for TriggerEvent {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActorKilledEvent {
     /// Optional entity responsible for the kill.
-    pub killer: Option<hecs::Entity>,
+    pub killer: Option<ae_ecs::Entity>,
     /// Victim entity that was eliminated.
-    pub victim: hecs::Entity,
+    pub victim: ae_ecs::Entity,
 }
 impl Event for ActorKilledEvent {}
 
@@ -87,7 +87,7 @@ impl Event for CustomGameplayEvent {}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SurfaceImpactEvent {
     /// Entity that was impacted.
-    pub entity: hecs::Entity,
+    pub entity: ae_ecs::Entity,
     /// Surface material type of the struck surface.
     pub surface_type: ae_plugin_api::SurfaceType,
     /// 3D world space coordinate where the impact occurred.

@@ -3,7 +3,11 @@
 //! AE Core - Spatial Partitioning (Spatial Grid) Module.
 #![deny(clippy::unwrap_used)]
 
-use hecs::Entity;
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{
+    CharacterController, GlobalTransform, Position, RigidBody, RigidBodyType, TransformDirty,
+    Velocity,
+};
 use std::collections::HashMap;
 
 /// Axis-Aligned Bounding Box (AABB) for raycasting and frustum culling.
@@ -99,7 +103,7 @@ impl SpatialGrid {
 
     /// Synchronizes spatial grid with world entities.
     /// Rebuilds full grid on entity count changes, and performs fast delta updates for moving dynamic entities.
-    pub fn sync(&mut self, world: &hecs::World) {
+    pub fn sync(&mut self, world: &World) {
         let current_count = world.len() as usize;
 
         // High-performance topology check:
@@ -119,11 +123,7 @@ impl SpatialGrid {
             self.entity_to_cell.clear();
             self.last_entity_count = current_count;
 
-            let mut query = world.query::<(
-                hecs::Entity,
-                &crate::ecs::Position,
-                Option<&crate::ecs::GlobalTransform>,
-            )>();
+            let mut query = world.query::<(Entity, &Position, Option<&GlobalTransform>)>();
 
             for (entity, pos, global_transform) in query.iter() {
                 let world_pos = if let Some(gt) = global_transform {
@@ -145,14 +145,14 @@ impl SpatialGrid {
             // 1. Collect entities marked dirty, moving, KCC, or dynamic physics
             for (entity, (pos, gt, _dirty, _vel, _rb, _kcc)) in world
                 .query::<(
-                    hecs::Entity,
+                    Entity,
                     (
-                        &crate::ecs::Position,
-                        Option<&crate::ecs::GlobalTransform>,
-                        Option<&crate::ecs::TransformDirty>,
-                        Option<&crate::ecs::Velocity>,
-                        Option<&crate::ecs::RigidBody>,
-                        Option<&crate::ecs::CharacterController>,
+                        &Position,
+                        Option<&GlobalTransform>,
+                        Option<&TransformDirty>,
+                        Option<&Velocity>,
+                        Option<&RigidBody>,
+                        Option<&CharacterController>,
                     ),
                 )>()
                 .iter()
@@ -162,10 +162,7 @@ impl SpatialGrid {
                     || _vel
                         .map(|v| v.x != 0.0 || v.y != 0.0 || v.z != 0.0)
                         .unwrap_or(false)
-                    || matches!(
-                        _rb.map(|r| r.body_type),
-                        Some(crate::ecs::RigidBodyType::Dynamic)
-                    );
+                    || matches!(_rb.map(|r| r.body_type), Some(RigidBodyType::Dynamic));
 
                 if is_dynamic {
                     let world_pos = if let Some(gt_val) = gt {

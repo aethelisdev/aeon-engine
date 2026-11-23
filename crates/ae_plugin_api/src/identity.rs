@@ -4,31 +4,9 @@
 //! Persistent binary identity types (`EntityGuid`, `AssetGuid`) and deterministic component
 //! type hashing shared across the engine, ECS registry, world archive, and plugin boundary.
 
+pub use ae_ecs::component_type_hash;
 use core::fmt;
 use serde::{Deserialize, Serialize};
-
-/// Deterministic FNV-1a 64-bit offset basis constant.
-const FNV1A_OFFSET_BASIS_64: u64 = 0xcbf2_9ce4_8422_2325;
-/// Deterministic FNV-1a 64-bit prime multiplier constant.
-const FNV1A_PRIME_64: u64 = 0x0100_0000_01b3;
-
-/// Computes a deterministic 64-bit FNV-1a type hash from a canonical component type name.
-///
-/// Used as the stable binary discriminator in length-prefixed component streams so
-/// serialized records remain independent of runtime Rust `TypeId` layouts across builds
-/// and target platforms (Windows, Linux, Android).
-#[must_use]
-pub const fn component_type_hash(name: &str) -> u64 {
-    let bytes = name.as_bytes();
-    let mut hash = FNV1A_OFFSET_BASIS_64;
-    let mut idx = 0;
-    while idx < bytes.len() {
-        hash ^= bytes[idx] as u64;
-        hash = hash.wrapping_mul(FNV1A_PRIME_64);
-        idx += 1;
-    }
-    hash
-}
 
 /// Stable 128-bit persistent identifier assigned to serialized ECS entities.
 ///

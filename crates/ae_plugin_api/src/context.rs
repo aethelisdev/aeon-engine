@@ -9,8 +9,8 @@ use std::path::Path;
 
 /// Context passed from the engine to plugins on each update call.
 pub struct PluginContext<'a> {
-    /// Mutable reference to the `hecs::World`.
-    pub world: &'a mut hecs::World,
+    /// Mutable reference to the [`ae_ecs::World`].
+    pub world: &'a mut ae_ecs::World,
     /// Mutable reference to the `Resources` map.
     pub resources: &'a mut Resources,
     /// Mutable reference to the `DynamicEventBus`.
@@ -22,7 +22,7 @@ pub struct PluginContext<'a> {
 impl<'a> PluginContext<'a> {
     /// Creates a new PluginContext.
     pub fn new(
-        world: &'a mut hecs::World,
+        world: &'a mut ae_ecs::World,
         resources: &'a mut Resources,
         event_bus: &'a mut DynamicEventBus,
         delta_time: f32,
@@ -36,12 +36,12 @@ impl<'a> PluginContext<'a> {
     }
 
     /// Returns a mutable reference to the ECS World.
-    pub fn world_mut(&mut self) -> &mut hecs::World {
+    pub fn world_mut(&mut self) -> &mut ae_ecs::World {
         self.world
     }
 
     /// Returns an immutable reference to the ECS World.
-    pub fn world(&self) -> &hecs::World {
+    pub fn world(&self) -> &ae_ecs::World {
         self.world
     }
 }
@@ -50,7 +50,7 @@ impl<'a> PluginContext<'a> {
 #[repr(C)]
 pub struct PluginContextFFI<'a> {
     /// Reference to the ECS World.
-    pub world: Option<&'a mut hecs::World>,
+    pub world: Option<&'a mut ae_ecs::World>,
     /// Reference to the Resources map.
     pub resources: Option<&'a mut Resources>,
     /// Reference to the DynamicEventBus.
@@ -61,7 +61,7 @@ pub struct PluginContextFFI<'a> {
 
 impl<'a> PluginContextFFI<'a> {
     /// Provides safe access to the World for plugin code.
-    pub fn get_world(&mut self) -> Option<&mut hecs::World> {
+    pub fn get_world(&mut self) -> Option<&mut ae_ecs::World> {
         match &mut self.world {
             Some(w) => Some(*w),
             None => None,

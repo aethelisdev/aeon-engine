@@ -139,7 +139,7 @@ impl Default for CharacterController {
 /// Structured hit output returned by 3D physics raycasting queries.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaycastHit {
-    pub entity: hecs::Entity,
+    pub entity: ae_ecs::Entity,
     pub point: [f32; 3],
     pub normal: [f32; 3],
     pub distance: f32,

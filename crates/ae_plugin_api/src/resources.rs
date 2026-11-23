@@ -56,5 +56,5 @@ impl Default for Resources {
 #[derive(Debug, Clone, Default)]
 pub struct VisibleEntities {
     /// Inner list of visible entity generational IDs.
-    pub entities: Vec<hecs::Entity>,
+    pub entities: Vec<ae_ecs::Entity>,
 }

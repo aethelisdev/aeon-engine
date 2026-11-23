@@ -112,9 +112,9 @@ impl Default for DynamicEventBus {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CollisionEnter {
     /// First entity involved in the physical contact.
-    pub entity_a: hecs::Entity,
+    pub entity_a: ae_ecs::Entity,
     /// Second entity involved in the physical contact.
-    pub entity_b: hecs::Entity,
+    pub entity_b: ae_ecs::Entity,
     /// World-space contact point where physical impact occurred, if available.
     pub contact_point: Option<[f32; 3]>,
     /// Contact surface normal vector, if available.
@@ -126,7 +126,7 @@ impl Event for CollisionEnter {}
 
 impl CollisionEnter {
     /// Creates a new `CollisionEnter` event with entity IDs and default contact info.
-    pub fn new(entity_a: hecs::Entity, entity_b: hecs::Entity) -> Self {
+    pub fn new(entity_a: ae_ecs::Entity, entity_b: ae_ecs::Entity) -> Self {
         Self {
             entity_a,
             entity_b,
@@ -138,8 +138,8 @@ impl CollisionEnter {
 
     /// Creates a new `CollisionEnter` event with full contact and impulse parameters.
     pub fn with_details(
-        entity_a: hecs::Entity,
-        entity_b: hecs::Entity,
+        entity_a: ae_ecs::Entity,
+        entity_b: ae_ecs::Entity,
         contact_point: Option<[f32; 3]>,
         normal: Option<[f32; 3]>,
         impulse: f32,
@@ -157,35 +157,35 @@ impl CollisionEnter {
 /// Event fired when two solid physics bodies end contact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CollisionExit {
-    pub entity_a: hecs::Entity,
-    pub entity_b: hecs::Entity,
+    pub entity_a: ae_ecs::Entity,
+    pub entity_b: ae_ecs::Entity,
 }
 impl Event for CollisionExit {}
 
 /// Event fired when an entity enters a sensor/trigger volume.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TriggerEnter {
-    pub entity_a: hecs::Entity,
-    pub entity_b: hecs::Entity,
+    pub entity_a: ae_ecs::Entity,
+    pub entity_b: ae_ecs::Entity,
 }
 impl Event for TriggerEnter {}
 
 /// Event fired when an entity leaves a sensor/trigger volume.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TriggerExit {
-    pub entity_a: hecs::Entity,
-    pub entity_b: hecs::Entity,
+    pub entity_a: ae_ecs::Entity,
+    pub entity_b: ae_ecs::Entity,
 }
 impl Event for TriggerExit {}
 
 /// Event fired when an entity is spawned into the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EntitySpawned(pub hecs::Entity);
+pub struct EntitySpawned(pub ae_ecs::Entity);
 impl Event for EntitySpawned {}
 
 /// Event fired when an entity is destroyed from the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EntityDestroyed(pub hecs::Entity);
+pub struct EntityDestroyed(pub ae_ecs::Entity);
 impl Event for EntityDestroyed {}
 
 /// Physics simulation tick marker event.
@@ -231,8 +231,8 @@ impl Event for MaterialChanged {}
 /// Event broadcast when a raycast or projectile strikes a target.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaycastHitEvent {
-    pub shooter: Option<hecs::Entity>,
-    pub target: hecs::Entity,
+    pub shooter: Option<ae_ecs::Entity>,
+    pub target: ae_ecs::Entity,
     pub hit_point: [f32; 3],
     pub hit_normal: [f32; 3],
     pub damage: f32,
@@ -242,7 +242,7 @@ impl Event for RaycastHitEvent {}
 /// Event broadcast when a destructible target runs out of health.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetDestroyedEvent {
-    pub target: hecs::Entity,
+    pub target: ae_ecs::Entity,
 }
 impl Event for TargetDestroyedEvent {}
 

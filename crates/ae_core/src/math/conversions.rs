@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use crate::ecs::{Position, Rotation, Scale};
+use ae_plugin_api::{Position, Rotation, Scale};
 
 /// Extension trait for converting Aeon Engine math types to `glam` representations.
 pub trait ToGlam {

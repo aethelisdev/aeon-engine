@@ -94,17 +94,17 @@ impl Default for Scale {
 
 /// Parent entity reference for hierarchical transforms and scene graphs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Parent(pub hecs::Entity);
+pub struct Parent(pub ae_ecs::Entity);
 
 impl Default for Parent {
     fn default() -> Self {
-        Self(hecs::Entity::DANGLING)
+        Self(ae_ecs::Entity::DANGLING)
     }
 }
 
 /// Child entity list for hierarchical transforms and scene graphs.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Children(pub Vec<hecs::Entity>);
+pub struct Children(pub Vec<ae_ecs::Entity>);
 
 /// Cached world-space transform matrix for hierarchical transforms, picking, and rendering.
 #[derive(Debug, Clone, Copy, PartialEq)]

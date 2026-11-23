@@ -259,3 +259,30 @@ impl SpriteRenderer {
         [u0, v0, u1, v1]
     }
 }
+
+/// Level of Detail (LOD) model selection component based on camera distance.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LodGroup {
+    /// LOD 0 model handle (High detail).
+    pub lod_0: AssetHandle,
+    /// LOD 1 model handle (Medium detail, optional).
+    pub lod_1: Option<AssetHandle>,
+    /// LOD 2 model handle (Low detail, optional).
+    pub lod_2: Option<AssetHandle>,
+    /// Distance threshold between LOD 0 and LOD 1.
+    pub threshold_1: f32,
+    /// Distance threshold between LOD 1 and LOD 2.
+    pub threshold_2: f32,
+}
+
+impl Default for LodGroup {
+    fn default() -> Self {
+        Self {
+            lod_0: AssetHandle::default(),
+            lod_1: None,
+            lod_2: None,
+            threshold_1: 15.0,
+            threshold_2: 35.0,
+        }
+    }
+}
