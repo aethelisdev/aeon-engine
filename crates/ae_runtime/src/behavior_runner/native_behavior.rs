@@ -8,9 +8,9 @@
 //! with zero `unsafe` blocks and complete borrow safety.
 
 use ae_core::behavior::{BehaviorContext, NativeBehavior};
-use ae_core::commands::EntityCommandBuffer;
 use ae_core::events::DynamicEventBus;
-use hecs::World;
+use ae_ecs::EntityCommandBuffer;
+use ae_ecs::World;
 
 /// Executes the frame update lifecycle for all active `NativeBehavior` components.
 ///
@@ -25,7 +25,7 @@ pub fn update_native_behaviors(
     dt: f32,
 ) {
     let mut behavior_entities = Vec::new();
-    for (ent, _) in world.query::<(hecs::Entity, &NativeBehavior)>().iter() {
+    for (ent, _) in world.query::<(ae_ecs::Entity, &NativeBehavior)>().iter() {
         behavior_entities.push(ent);
     }
 
@@ -67,7 +67,7 @@ pub fn fixed_update_native_behaviors(
     fixed_dt: f32,
 ) {
     let mut behavior_entities = Vec::new();
-    for (ent, _) in world.query::<(hecs::Entity, &NativeBehavior)>().iter() {
+    for (ent, _) in world.query::<(ae_ecs::Entity, &NativeBehavior)>().iter() {
         behavior_entities.push(ent);
     }
 

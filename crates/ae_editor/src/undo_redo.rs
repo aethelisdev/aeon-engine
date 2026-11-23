@@ -7,7 +7,8 @@
 //! extensible entity state capture, restoration, serialization, and undo history.
 #![deny(clippy::unwrap_used)]
 
-use ae_core::ecs::{Color, ComponentRegistry, Light, Name, Position, Rotation, Scale};
+use ae_ecs::ComponentRegistry;
+use ae_plugin_api::{Color, Light, Name, Position, Rotation, Scale};
 use serde::{Deserialize, Serialize};
 
 /// Serialized component entry stored within an `EntitySnapshot`.
@@ -38,14 +39,14 @@ impl EntitySnapshot {
     }
 
     /// Captures the current state of all registered components on `entity` using the global registry.
-    pub fn capture(world: &hecs::World, entity: hecs::Entity) -> Self {
-        Self::capture_with_registry(world, entity, ComponentRegistry::global())
+    pub fn capture(world: &ae_ecs::World, entity: ae_ecs::Entity) -> Self {
+        Self::capture_with_registry(world, entity, ae_plugin_api::engine_component_registry())
     }
 
     /// Captures all components present on `entity` registered in the provided `registry`.
     pub fn capture_with_registry(
-        world: &hecs::World,
-        entity: hecs::Entity,
+        world: &ae_ecs::World,
+        entity: ae_ecs::Entity,
         registry: &ComponentRegistry,
     ) -> Self {
         let mut components = Vec::new();
@@ -61,15 +62,15 @@ impl EntitySnapshot {
     }
 
     /// Restores all captured components onto an existing entity using the global registry.
-    pub fn apply(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        self.apply_with_registry(world, entity, ComponentRegistry::global());
+    pub fn apply(&self, world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+        self.apply_with_registry(world, entity, ae_plugin_api::engine_component_registry());
     }
 
     /// Restores all captured components onto an existing entity using the provided `registry`.
     pub fn apply_with_registry(
         &self,
-        world: &mut hecs::World,
-        entity: hecs::Entity,
+        world: &mut ae_ecs::World,
+        entity: ae_ecs::Entity,
         registry: &ComponentRegistry,
     ) {
         for comp in &self.components {
@@ -83,25 +84,25 @@ impl EntitySnapshot {
     ///
     /// Returns the new entity handle. Used by undo-delete to re-create
     /// a previously destroyed entity with all its original components.
-    pub fn spawn(&self, world: &mut hecs::World) -> hecs::Entity {
-        self.spawn_with_registry(world, ComponentRegistry::global())
+    pub fn spawn(&self, world: &mut ae_ecs::World) -> ae_ecs::Entity {
+        self.spawn_with_registry(world, ae_plugin_api::engine_component_registry())
     }
 
     /// Spawns a new entity in `world` and applies components using the provided `registry`.
     pub fn spawn_with_registry(
         &self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         registry: &ComponentRegistry,
-    ) -> hecs::Entity {
+    ) -> ae_ecs::Entity {
         let entity = world.spawn(());
         self.apply_with_registry(world, entity, registry);
         entity
     }
 
     /// Deserializes and returns a specific component `T` if present in the snapshot.
-    pub fn get<T: hecs::Component + serde::de::DeserializeOwned>(&self) -> Option<T> {
+    pub fn get<T: ae_ecs::Component + serde::de::DeserializeOwned>(&self) -> Option<T> {
         let type_id = std::any::TypeId::of::<T>();
-        let handler = ComponentRegistry::global().get_by_type_id(type_id)?;
+        let handler = ae_plugin_api::engine_component_registry().get_by_type_id(type_id)?;
         let name = handler.type_name();
         for comp in &self.components {
             if comp.type_name == name {
@@ -112,9 +113,9 @@ impl EntitySnapshot {
     }
 
     /// Returns true if a component of type `T` is stored in the snapshot.
-    pub fn has<T: hecs::Component>(&self) -> bool {
+    pub fn has<T: ae_ecs::Component>(&self) -> bool {
         let type_id = std::any::TypeId::of::<T>();
-        if let Some(handler) = ComponentRegistry::global().get_by_type_id(type_id) {
+        if let Some(handler) = ae_plugin_api::engine_component_registry().get_by_type_id(type_id) {
             let name = handler.type_name();
             self.components.iter().any(|c| c.type_name == name)
         } else {
@@ -142,19 +143,19 @@ impl EntitySnapshot {
 /// - `Batch`: groups multiple commands for atomic multi-entity operations
 ///
 /// Entity ID remapping is handled via `remap_entity()` when undo/redo
-/// produces a different entity handle (since `hecs` may reuse or assign new IDs).
+/// produces a different entity handle (since the ECS world may reuse or assign new IDs).
 #[derive(Clone, Debug)]
 pub enum Command {
-    Spawn(hecs::Entity, EntitySnapshot),
-    Delete(hecs::Entity, EntitySnapshot),
-    Modify(hecs::Entity, Property),
+    Spawn(ae_ecs::Entity, EntitySnapshot),
+    Delete(ae_ecs::Entity, EntitySnapshot),
+    Modify(ae_ecs::Entity, Property),
     Batch(Vec<Command>),
 }
 
 impl Command {
     /// Reverses this command. Returns `Some((old_id, new_id))` if the operation
     /// changed an entity's ID (e.g., re-spawning a deleted entity produces a new handle).
-    pub fn undo(&mut self, world: &mut hecs::World) -> Option<(hecs::Entity, hecs::Entity)> {
+    pub fn undo(&mut self, world: &mut ae_ecs::World) -> Option<(ae_ecs::Entity, ae_ecs::Entity)> {
         match self {
             Command::Spawn(entity, _snapshot) => {
                 let _ = world.despawn(*entity);
@@ -177,22 +178,24 @@ impl Command {
                         old_data,
                         ..
                     } => {
-                        if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
+                        if let Some(handler) =
+                            ae_plugin_api::engine_component_registry().get_by_name(type_name)
+                        {
                             let _ = handler.apply(world, *entity, old_data);
                         }
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Position(old, _) => {
                         let _ = world.insert_one(*entity, *old);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Rotation(old, _) => {
                         let _ = world.insert_one(*entity, *old);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Scale(old, _) => {
                         let _ = world.insert_one(*entity, *old);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Name(old, _) => {
                         let _ = world.insert_one(*entity, Name(old.clone()));
@@ -219,7 +222,7 @@ impl Command {
     }
 
     /// Executes the redo command. If an Entity ID change occurred, returns `Some((old_id, new_id))`.
-    pub fn redo(&mut self, world: &mut hecs::World) -> Option<(hecs::Entity, hecs::Entity)> {
+    pub fn redo(&mut self, world: &mut ae_ecs::World) -> Option<(ae_ecs::Entity, ae_ecs::Entity)> {
         match self {
             Command::Spawn(entity, snapshot) => {
                 if !world.contains(*entity) {
@@ -243,22 +246,24 @@ impl Command {
                         new_data,
                         ..
                     } => {
-                        if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
+                        if let Some(handler) =
+                            ae_plugin_api::engine_component_registry().get_by_name(type_name)
+                        {
                             let _ = handler.apply(world, *entity, new_data);
                         }
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Position(_, new) => {
                         let _ = world.insert_one(*entity, *new);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Rotation(_, new) => {
                         let _ = world.insert_one(*entity, *new);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Scale(_, new) => {
                         let _ = world.insert_one(*entity, *new);
-                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
                     }
                     Property::Name(_, new) => {
                         let _ = world.insert_one(*entity, Name(new.clone()));
@@ -286,7 +291,7 @@ impl Command {
 
     /// Updates the entity reference within the command (old → new ID).
     /// Applied to all commands in the stack when an entity ID changes during undo/redo.
-    pub fn remap_entity(&mut self, old: hecs::Entity, new: hecs::Entity) {
+    pub fn remap_entity(&mut self, old: ae_ecs::Entity, new: ae_ecs::Entity) {
         match self {
             Command::Spawn(entity, _) | Command::Delete(entity, _) | Command::Modify(entity, _) => {
                 if *entity == old {
@@ -324,7 +329,7 @@ pub enum Property {
 
 impl Property {
     /// Creates a generic component modification property for any registered component type.
-    pub fn from_component<T: hecs::Component + serde::Serialize>(
+    pub fn from_component<T: ae_ecs::Component + serde::Serialize>(
         old: &T,
         new: &T,
     ) -> Result<Self, String> {
@@ -347,14 +352,14 @@ impl Property {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::{
+    use ae_plugin_api::{
         CharacterController, Collider, ColliderShape, Parent, RigidBody, RigidBodyType,
     };
 
     /// Tests that EntitySnapshot captures and restores CharacterController correctly.
     #[test]
     fn test_entity_snapshot_character_controller_retention() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Position::new(1.0, 2.0, 3.0),
             CharacterController {
@@ -372,7 +377,7 @@ mod tests {
         assert_eq!(snapshot.component_count(), 2);
 
         let restored_ent = snapshot.spawn(&mut world);
-        let cc = world.get::<&CharacterController>(restored_ent);
+        let cc = world.get_copied::<CharacterController>(restored_ent);
         assert!(cc.is_ok());
         let cc = cc.expect("character controller component should exist");
         assert_eq!(cc.radius, 0.4);
@@ -382,7 +387,7 @@ mod tests {
     /// Tests that EntitySnapshot captures complex hierarchies and physics components dynamically.
     #[test]
     fn test_entity_snapshot_dynamic_hierarchy_and_physics() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let parent_entity = world.spawn((
             Name("ParentEntity".to_string()),
             Position::new(0.0, 5.0, 0.0),
@@ -422,21 +427,20 @@ mod tests {
         let restored_ent = snapshot.spawn(&mut world);
         assert_eq!(
             world
-                .get::<&Name>(restored_ent)
-                .expect("restored entity name should exist")
-                .0,
+                .inspect::<Name, _>(restored_ent, |n| n.0.clone())
+                .expect("restored entity name should exist"),
             "ChildEntity"
         );
         assert_eq!(
             world
-                .get::<&Parent>(restored_ent)
+                .get_copied::<Parent>(restored_ent)
                 .expect("restored entity parent should exist")
                 .0,
             parent_entity
         );
         assert_eq!(
             world
-                .get::<&RigidBody>(restored_ent)
+                .get_copied::<RigidBody>(restored_ent)
                 .expect("restored entity rigid body should exist")
                 .mass,
             15.0
@@ -446,7 +450,7 @@ mod tests {
     /// Tests that Property::from_component enables generic single-field undo and redo.
     #[test]
     fn test_generic_property_component_undo_redo() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Position::new(0.0, 0.0, 0.0),
             RigidBody {
@@ -475,7 +479,7 @@ mod tests {
         cmd.redo(&mut world);
         {
             let current_rb = world
-                .get::<&RigidBody>(entity)
+                .get_copied::<RigidBody>(entity)
                 .expect("entity rigid body should exist");
             assert_eq!(current_rb.mass, 50.0);
             assert_eq!(current_rb.body_type, RigidBodyType::Dynamic);
@@ -485,7 +489,7 @@ mod tests {
         cmd.undo(&mut world);
         {
             let current_rb = world
-                .get::<&RigidBody>(entity)
+                .get_copied::<RigidBody>(entity)
                 .expect("entity rigid body should exist after undo");
             assert_eq!(current_rb.mass, 10.0);
             assert_eq!(current_rb.body_type, RigidBodyType::Static);
@@ -495,22 +499,22 @@ mod tests {
     /// Tests that Property::Component for Velocity correctly undos, redos, and marks TransformDirty.
     #[test]
     fn test_generic_velocity_component_undo_redo() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             Position::new(0.0, 0.0, 0.0),
-            ae_core::ecs::Velocity {
+            ae_plugin_api::Velocity {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
             },
         ));
 
-        let old_vel = ae_core::ecs::Velocity {
+        let old_vel = ae_plugin_api::Velocity {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         };
-        let new_vel = ae_core::ecs::Velocity {
+        let new_vel = ae_plugin_api::Velocity {
             x: 5.0,
             y: 10.0,
             z: -2.5,
@@ -524,25 +528,25 @@ mod tests {
         cmd.redo(&mut world);
         {
             let current_vel = world
-                .get::<&ae_core::ecs::Velocity>(entity)
+                .get_copied::<ae_plugin_api::Velocity>(entity)
                 .expect("entity velocity should exist");
             assert_eq!(current_vel.x, 5.0);
             assert_eq!(current_vel.y, 10.0);
             assert_eq!(current_vel.z, -2.5);
-            assert!(world.get::<&ae_core::ecs::TransformDirty>(entity).is_ok());
+            assert!(world.has::<ae_plugin_api::TransformDirty>(entity));
         }
 
         // Revert change (undo)
-        let _ = world.remove_one::<ae_core::ecs::TransformDirty>(entity);
+        let _ = world.remove_one::<ae_plugin_api::TransformDirty>(entity);
         cmd.undo(&mut world);
         {
             let current_vel = world
-                .get::<&ae_core::ecs::Velocity>(entity)
+                .get_copied::<ae_plugin_api::Velocity>(entity)
                 .expect("entity velocity should exist after undo");
             assert_eq!(current_vel.x, 0.0);
             assert_eq!(current_vel.y, 0.0);
             assert_eq!(current_vel.z, 0.0);
-            assert!(world.get::<&ae_core::ecs::TransformDirty>(entity).is_ok());
+            assert!(world.has::<ae_plugin_api::TransformDirty>(entity));
         }
     }
 }

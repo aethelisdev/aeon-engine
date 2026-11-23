@@ -3,15 +3,15 @@
 
 //! Trigger zone, sensor pad, and elevating door mechanism subsystem.
 
-use ae_core::ecs::{Color, Position, Scale, TriggerZone};
 use ae_core::events::DynamicEventBus;
-use hecs::{Entity, World};
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{Color, Position, Scale, TriggerZone};
 
 /// Processes incoming trigger enter/exit events dispatched by Rapier.
 pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus) {
     if let Some(events) = event_bus.receive::<ae_core::events::TriggerEnter>() {
         for ev in events {
-            if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_a) {
+            if let Ok(zone) = world.get_mut::<TriggerZone>(ev.entity_a) {
                 zone.is_triggered = true;
                 event_bus.send(ae_core::events::TriggerEvent {
                     trigger: ev.entity_a,
@@ -19,7 +19,7 @@ pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus
                     is_enter: true,
                 });
             }
-            if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_b) {
+            if let Ok(zone) = world.get_mut::<TriggerZone>(ev.entity_b) {
                 zone.is_triggered = true;
                 event_bus.send(ae_core::events::TriggerEvent {
                     trigger: ev.entity_b,
@@ -32,7 +32,7 @@ pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus
 
     if let Some(events) = event_bus.receive::<ae_core::events::TriggerExit>() {
         for ev in events {
-            if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_a) {
+            if let Ok(zone) = world.get_mut::<TriggerZone>(ev.entity_a) {
                 zone.is_triggered = false;
                 event_bus.send(ae_core::events::TriggerEvent {
                     trigger: ev.entity_a,
@@ -40,7 +40,7 @@ pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus
                     is_enter: false,
                 });
             }
-            if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_b) {
+            if let Ok(zone) = world.get_mut::<TriggerZone>(ev.entity_b) {
                 zone.is_triggered = false;
                 event_bus.send(ae_core::events::TriggerEvent {
                     trigger: ev.entity_b,
@@ -63,7 +63,7 @@ pub fn test_spatial_sensor_overlaps(
                 &mut TriggerZone,
                 &Position,
                 Option<&Scale>,
-                Option<&ae_core::ecs::Collider>,
+                Option<&ae_plugin_api::Collider>,
             )>()
             .into_iter()
         {
@@ -75,12 +75,12 @@ pub fn test_spatial_sensor_overlaps(
 
                 let (hx, hy, hz) = if let Some(col) = col_opt {
                     match col.shape {
-                        ae_core::ecs::ColliderShape::Box { half_extents } => (
+                        ae_plugin_api::ColliderShape::Box { half_extents } => (
                             half_extents[0] * sx,
                             (half_extents[1] * sy).max(1.5),
                             half_extents[2] * sz,
                         ),
-                        ae_core::ecs::ColliderShape::Sphere { radius } => (
+                        ae_plugin_api::ColliderShape::Sphere { radius } => (
                             radius * sx.max(sy).max(sz),
                             (radius * sx.max(sy).max(sz)).max(1.5),
                             radius * sx.max(sy).max(sz),
@@ -100,7 +100,7 @@ pub fn test_spatial_sensor_overlaps(
         }
     } else {
         for (zone, col_opt) in world
-            .query_mut::<(&mut TriggerZone, Option<&ae_core::ecs::Collider>)>()
+            .query_mut::<(&mut TriggerZone, Option<&ae_plugin_api::Collider>)>()
             .into_iter()
         {
             if col_opt.map(|c| c.is_sensor).unwrap_or(false) {
@@ -116,17 +116,14 @@ pub fn update_trigger_zone_mechanisms(
     dt: f32,
     dirty_entities: &mut Vec<Entity>,
 ) {
-    let any_sensor_triggered = world
-        .query::<&TriggerZone>()
-        .into_iter()
-        .any(|z| z.is_triggered);
+    let any_sensor_triggered = world.query::<&TriggerZone>().iter().any(|z| z.is_triggered);
 
     for (ent, zone, pos_opt, col_opt, color_opt) in world
         .query_mut::<(
             Entity,
             &TriggerZone,
             Option<&mut Position>,
-            Option<&ae_core::ecs::Collider>,
+            Option<&ae_plugin_api::Collider>,
             Option<&mut Color>,
         )>()
         .into_iter()

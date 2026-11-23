@@ -3,11 +3,11 @@
 
 //! Behavior execution loop orchestrating physics impacts, triggers, combat, and native behaviors.
 
-use ae_core::ecs::Position;
 use ae_core::events::DynamicEventBus;
 use ae_core::input::InputManager;
+use ae_ecs::World;
 use ae_physics::world::PhysicsWorld;
-use hecs::World;
+use ae_plugin_api::Position;
 
 use super::{
     collision_bridge, combat, destructible, moving_platform, native_behavior, rotator, trigger_zone,
@@ -38,20 +38,20 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     // 2. Identify player entity and position for trigger and elevator interactions
     let mut player_entity_and_pos = None;
     for (ent, _) in world
-        .query::<(hecs::Entity, &ae_core::ecs::PlayerTag)>()
+        .query::<(ae_ecs::Entity, &ae_plugin_api::PlayerTag)>()
         .iter()
     {
-        if let Ok(pos) = world.get::<&Position>(ent) {
+        if let Ok(pos) = world.get_copied::<Position>(ent) {
             player_entity_and_pos = Some((ent, [pos.x, pos.y, pos.z]));
             break;
         }
     }
     if player_entity_and_pos.is_none() {
         for (ent, _) in world
-            .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
+            .query::<(ae_ecs::Entity, &ae_plugin_api::CharacterController)>()
             .iter()
         {
-            if let Ok(pos) = world.get::<&Position>(ent) {
+            if let Ok(pos) = world.get_copied::<Position>(ent) {
                 player_entity_and_pos = Some((ent, [pos.x, pos.y, pos.z]));
                 break;
             }
@@ -86,7 +86,7 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     destructible::update_ephemeral_projectiles(world, dt);
 
     // 11. Execute dynamic NativeBehavior lifecycle scripts and collision/trigger callbacks
-    let mut command_buffer = ae_core::commands::EntityCommandBuffer::new();
+    let mut command_buffer = ae_ecs::EntityCommandBuffer::new();
     native_behavior::dispatch_collision_and_trigger_behaviors(
         world,
         event_bus,
@@ -105,6 +105,6 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
 
     // 12. Mark dirty entities for transform hierarchy sync
     for ent in dirty_entities {
-        let _ = world.insert_one(ent, ae_core::ecs::TransformDirty);
+        let _ = world.insert_one(ent, ae_plugin_api::TransformDirty);
     }
 }

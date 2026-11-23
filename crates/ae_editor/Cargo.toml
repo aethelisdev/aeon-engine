@@ -5,7 +5,7 @@ edition = "2024"
 description = "Aeon Engine - Editor utilities, camera, gizmo, snapping, and undo/redo"
 
 [dependencies]
-hecs = "0.11.0"
+ae_ecs = { workspace = true }
 cgmath = "0.18"
 winit = { version = "0.30.13", features = ["serde"] }
 log = "0.4.33"
@@ -16,8 +16,12 @@ lz4_flex = { workspace = true }
 wgpu = "30.0.2"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 ae_core = { path = "../ae_core" }
+ae_plugin_api = { path = "../ae_plugin_api" }
 ae_world = { workspace = true }
 ae_renderer = { path = "../ae_renderer" }
 ae_audio = { path = "../ae_audio" }
 chrono = "0.4.45"
 image = "0.25.10"
+
+[lints]
+workspace = true

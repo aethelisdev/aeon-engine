@@ -5,7 +5,7 @@
 
 use ae_core::events::DynamicEventBus;
 use ae_core::state::{GameState, StateContext, StateManager, StateTransition};
-use hecs::World;
+use ae_ecs::World;
 
 struct TestLevelState {
     score: u32,
@@ -34,8 +34,8 @@ impl GameState for TestPauseState {
     fn on_enter(&mut self, ctx: &mut StateContext<'_>) {
         ctx.commands.spawn_with(|w| {
             w.spawn((
-                ae_core::ecs::Name("PauseMenuBanner".to_string()),
-                ae_core::ecs::Position::new(0.0, 0.0, 0.0),
+                ae_plugin_api::Name("PauseMenuBanner".to_string()),
+                ae_plugin_api::Position::new(0.0, 0.0, 0.0),
             ))
         });
     }
@@ -51,7 +51,7 @@ fn test_game_state_machine_custom_stack_flow() {
     assert_eq!(sm.stack_depth(), 1);
 
     // Frame 1: score = 10
-    let mut cmd = ae_core::commands::EntityCommandBuffer::new();
+    let mut cmd = ae_ecs::EntityCommandBuffer::new();
     sm.update(&mut world, &mut event_bus, &mut cmd, 0.016);
     cmd.apply(&mut world);
     assert_eq!(sm.active_state_name(), "TestLevel");
@@ -70,7 +70,7 @@ fn test_game_state_machine_custom_stack_flow() {
     // Verify deferred entity from on_enter was spawned into ECS world
     let mut pause_banner_found = false;
     for (name, _) in world
-        .query::<(&ae_core::ecs::Name, &ae_core::ecs::Position)>()
+        .query::<(&ae_plugin_api::Name, &ae_plugin_api::Position)>()
         .iter()
     {
         if name.0 == "PauseMenuBanner" {

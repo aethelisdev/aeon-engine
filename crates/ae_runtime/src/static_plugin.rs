@@ -105,7 +105,7 @@ mod tests {
             sample_static_logic,
         )));
 
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let mut resources = Resources::new();
         let mut bus = DynamicEventBus::new();
 

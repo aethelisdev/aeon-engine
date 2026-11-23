@@ -3,10 +3,10 @@
 
 use crate::editor_state::EditorState;
 use crate::undo_redo::{Command, EntitySnapshot};
-use ae_core::ecs::{Name, Position};
+use ae_plugin_api::{Name, Position};
 
 /// Copies all currently selected entities into the editor clipboard buffer (`editor.clipboard`).
-pub fn copy_selected(world: &hecs::World, editor: &mut EditorState) {
+pub fn copy_selected(world: &ae_ecs::World, editor: &mut EditorState) {
     if editor.selected_entities.is_empty() {
         return;
     }
@@ -29,7 +29,7 @@ pub fn copy_selected(world: &hecs::World, editor: &mut EditorState) {
 /// New entities receive a slight position offset (+0.5, +0.5) and a " (Copy)" suffix.
 /// Pushes an undoable `Command::Spawn` or `Command::Batch` onto `editor.undo_stack`
 /// and updates the selection to the newly pasted entities.
-pub fn paste_clipboard(world: &mut hecs::World, editor: &mut EditorState) {
+pub fn paste_clipboard(world: &mut ae_ecs::World, editor: &mut EditorState) {
     if editor.clipboard.is_empty() {
         return;
     }
@@ -44,13 +44,13 @@ pub fn paste_clipboard(world: &mut hecs::World, editor: &mut EditorState) {
         let new_ent = snap.spawn(world);
 
         // Apply slight offset to avoid exact position overlap
-        if let Ok(mut pos) = world.get::<&mut Position>(new_ent) {
+        if let Ok(pos) = world.get_mut::<Position>(new_ent) {
             pos.x += 0.5;
             pos.y += 0.5;
         }
 
         // Append (Copy) suffix to name
-        if let Ok(mut name) = world.get::<&mut Name>(new_ent)
+        if let Ok(name) = world.get_mut::<Name>(new_ent)
             && !name.0.ends_with("(Copy)")
         {
             name.0 = format!("{} (Copy)", name.0);

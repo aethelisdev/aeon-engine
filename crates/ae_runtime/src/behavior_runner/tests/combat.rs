@@ -4,14 +4,14 @@
 //! Unit tests for character combat actions, weapon cooldowns, projectile speed, and destructibles.
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use ae_core::ecs::{
+use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
+use ae_core::input::InputManager;
+use ae_ecs::World;
+use ae_physics::world::PhysicsWorld;
+use ae_plugin_api::{
     Collider, ColliderShape, Color, DestructibleTarget, Position, RigidBody, RigidBodyType,
     Rotation, Velocity,
 };
-use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
-use ae_core::input::InputManager;
-use ae_physics::world::PhysicsWorld;
-use hecs::World;
 
 #[test]
 fn test_destructible_target_damage_and_destruction_event() {
@@ -45,15 +45,11 @@ fn test_destructible_target_damage_and_destruction_event() {
     });
 
     {
-        let target = world.get::<&DestructibleTarget>(target_ent).unwrap();
-        assert_eq!(
-            target.health, 20.0,
-            "Health should drop to 20.0 after 30 damage"
-        );
-        assert!(
-            target.hit_flash_timer > 0.0,
-            "Hit flash timer should be active"
-        );
+        let (health, flash) = world
+            .inspect::<DestructibleTarget, _>(target_ent, |t| (t.health, t.hit_flash_timer))
+            .unwrap();
+        assert_eq!(health, 20.0, "Health should drop to 20.0 after 30 damage");
+        assert!(flash > 0.0, "Hit flash timer should be active");
     }
 
     // Send fatal 25 damage hit
@@ -74,8 +70,10 @@ fn test_destructible_target_damage_and_destruction_event() {
         delta_time: 0.016,
     });
 
-    let target = world.get::<&DestructibleTarget>(target_ent).unwrap();
-    assert_eq!(target.health, 0.0, "Health should clamp to 0.0");
+    let health = world
+        .inspect::<DestructibleTarget, _>(target_ent, |t| t.health)
+        .unwrap();
+    assert_eq!(health, 0.0, "Health should clamp to 0.0");
 
     let destruction_events = event_bus.receive::<TargetDestroyedEvent>();
     assert!(
@@ -119,7 +117,7 @@ fn test_destructible_target_hit_flash_restores_original_color() {
     });
 
     {
-        let col = world.get::<&Color>(target_ent).unwrap();
+        let col = world.get_copied::<Color>(target_ent).unwrap();
         assert_eq!(col.r, 1.0);
         assert_eq!(col.g, 0.9);
     }
@@ -135,7 +133,7 @@ fn test_destructible_target_hit_flash_restores_original_color() {
     });
 
     {
-        let col = world.get::<&Color>(target_ent).unwrap();
+        let col = world.get_copied::<Color>(target_ent).unwrap();
         assert_eq!(col.r, 1.0, "Red channel must be 1.0");
         assert_eq!(col.g, 0.2, "Green channel must be 0.2 (Color::red)");
         assert_eq!(col.b, 0.2, "Blue channel must be 0.2 (Color::red)");
@@ -153,7 +151,7 @@ fn test_entities_without_character_action_do_not_shoot() {
     let _player_ent = world.spawn((
         Position::new(0.0, 1.0, 0.0),
         Rotation::identity(),
-        ae_core::ecs::PlayerTag,
+        ae_plugin_api::PlayerTag,
     ));
 
     // Simulate Fire button press
@@ -173,8 +171,8 @@ fn test_entities_without_character_action_do_not_shoot() {
 
     // Verify NO EphemeralProjectile was spawned
     let projectile_count = world
-        .query::<&ae_core::ecs::EphemeralProjectile>()
-        .into_iter()
+        .query::<&ae_plugin_api::EphemeralProjectile>()
+        .iter()
         .count();
     assert_eq!(
         projectile_count, 0,
@@ -185,7 +183,7 @@ fn test_entities_without_character_action_do_not_shoot() {
     let shooter_ent = world.spawn((
         Position::new(0.0, 1.0, 0.0),
         Rotation::identity(),
-        ae_core::ecs::CharacterAction::default(),
+        ae_plugin_api::CharacterAction::default(),
     ));
 
     input.process_key_event(
@@ -203,8 +201,8 @@ fn test_entities_without_character_action_do_not_shoot() {
     });
 
     let projectile_count_after = world
-        .query::<&ae_core::ecs::EphemeralProjectile>()
-        .into_iter()
+        .query::<&ae_plugin_api::EphemeralProjectile>()
+        .iter()
         .count();
     assert_eq!(
         projectile_count_after, 1,
@@ -223,7 +221,7 @@ fn test_character_action_cooldown_and_speed() {
     let _shooter = world.spawn((
         Position::new(0.0, 1.0, 0.0),
         Rotation::identity(),
-        ae_core::ecs::CharacterAction {
+        ae_plugin_api::CharacterAction {
             speed: 80.0,
             cooldown: 1.0,
             timer: 0.0,
@@ -248,7 +246,7 @@ fn test_character_action_cooldown_and_speed() {
 
     let mut bolt_velocity = None;
     for (vel, _) in world
-        .query::<(&Velocity, &ae_core::ecs::EphemeralProjectile)>()
+        .query::<(&Velocity, &ae_plugin_api::EphemeralProjectile)>()
         .iter()
     {
         bolt_velocity = Some(*vel);
@@ -280,8 +278,8 @@ fn test_character_action_cooldown_and_speed() {
     });
 
     let projectile_count = world
-        .query::<&ae_core::ecs::EphemeralProjectile>()
-        .into_iter()
+        .query::<&ae_plugin_api::EphemeralProjectile>()
+        .iter()
         .count();
     assert_eq!(
         projectile_count, 1,
@@ -319,8 +317,8 @@ fn test_character_action_cooldown_and_speed() {
     });
 
     let projectile_count_after = world
-        .query::<&ae_core::ecs::EphemeralProjectile>()
-        .into_iter()
+        .query::<&ae_plugin_api::EphemeralProjectile>()
+        .iter()
         .count();
     assert_eq!(
         projectile_count_after, 2,
@@ -339,7 +337,7 @@ fn test_character_action_shoots_and_pushes_dynamic_cube() {
     let shooter = world.spawn((
         Position::new(0.0, 0.0, 0.0),
         Rotation::identity(),
-        ae_core::ecs::CharacterAction {
+        ae_plugin_api::CharacterAction {
             speed: 50.0,
             cooldown: 0.5,
             timer: 0.0,
@@ -397,7 +395,7 @@ fn test_character_action_shoots_and_pushes_dynamic_cube() {
 
     // Verify spawned projectile has impact lifetime clamped to hit distance / speed
     let mut projectile_lifetime = None;
-    for projectile in world.query::<&ae_core::ecs::EphemeralProjectile>().iter() {
+    for projectile in world.query::<&ae_plugin_api::EphemeralProjectile>().iter() {
         projectile_lifetime = Some(projectile.lifetime_remaining);
     }
     assert!(
@@ -416,14 +414,14 @@ fn test_character_action_shoots_and_pushes_dynamic_cube() {
     // Step physics: dynamic cube must retain impulse and accelerate along +Z
     physics.step(&mut world, |_| None, 0.1, &mut event_bus);
 
-    let cube_vel = world.get::<&Velocity>(cube).unwrap();
+    let cube_vel = world.get_copied::<Velocity>(cube).unwrap();
     assert!(
         cube_vel.z > 2.0,
         "Dynamic cube velocity along +Z must accelerate from weapon impulse, got {}",
         cube_vel.z
     );
 
-    let cube_pos = world.get::<&Position>(cube).unwrap();
+    let cube_pos = world.get_copied::<Position>(cube).unwrap();
     assert!(
         cube_pos.z > 6.1,
         "Dynamic cube position must advance along +Z after being shot, got {}",

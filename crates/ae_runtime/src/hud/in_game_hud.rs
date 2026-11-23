@@ -6,9 +6,9 @@
 //! Bridges gameplay events (`DamageEvent`, `HealEvent`, `ScoreEvent`) to user-defined
 //! ECS UI entities tagged with `PlayerHealthBarTag` and `ScoreDisplayTag`.
 
-use ae_core::ecs::{PlayerHealthBarTag, ScoreDisplayTag, UiProgressBar, UiText};
 use ae_core::events::DynamicEventBus;
-use hecs::World;
+use ae_ecs::World;
+use ae_plugin_api::{PlayerHealthBarTag, ScoreDisplayTag, UiProgressBar, UiText};
 
 /// State tracker for active in-game HUD session.
 #[derive(Default)]
@@ -58,7 +58,7 @@ impl InGameHudState {
         // 2. Process Damage Events - applies to Player Health Bar when Player is damaged
         if let Some(events) = event_bus.receive::<ae_core::events::DamageEvent>() {
             for ev in events {
-                let is_player_target = world.get::<&ae_core::ecs::PlayerTag>(ev.target).is_ok();
+                let is_player_target = world.has::<ae_plugin_api::PlayerTag>(ev.target);
                 if is_player_target {
                     self.player_health = (self.player_health - ev.amount).max(0.0);
                     for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
@@ -80,7 +80,7 @@ impl InGameHudState {
         // 3. Process Heal Events
         if let Some(events) = event_bus.receive::<ae_core::events::HealEvent>() {
             for ev in events {
-                let is_player_target = world.get::<&ae_core::ecs::PlayerTag>(ev.target).is_ok();
+                let is_player_target = world.has::<ae_plugin_api::PlayerTag>(ev.target);
                 if is_player_target {
                     self.player_health =
                         (self.player_health + ev.amount).min(self.player_max_health);
@@ -101,7 +101,7 @@ impl InGameHudState {
 mod tests {
     use super::*;
     use ae_core::ui::{UiAnchor, UiElement};
-    use hecs::World;
+    use ae_ecs::World;
 
     #[test]
     fn test_in_game_hud_event_reactions() {
@@ -110,7 +110,7 @@ mod tests {
         let mut hud = InGameHudState::new();
 
         // Spawn a user-created health bar and score display
-        let player = world.spawn((ae_core::ecs::PlayerTag,));
+        let player = world.spawn((ae_plugin_api::PlayerTag,));
 
         let health_bar_ent = world.spawn((
             PlayerHealthBarTag,
@@ -149,10 +149,14 @@ mod tests {
         assert_eq!(hud.player_health, 60.0);
         assert_eq!(hud.current_score, 250);
 
-        let bar = world.get::<&UiProgressBar>(health_bar_ent).unwrap();
-        assert_eq!(bar.value, 60.0);
+        let bar_val = world
+            .inspect::<UiProgressBar, _>(health_bar_ent, |b| b.value)
+            .unwrap();
+        assert_eq!(bar_val, 60.0);
 
-        let text = world.get::<&UiText>(score_ent).unwrap();
-        assert_eq!(text.text, "SCORE: 00250");
+        let score_text = world
+            .inspect::<UiText, _>(score_ent, |t| t.text.clone())
+            .unwrap();
+        assert_eq!(score_text, "SCORE: 00250");
     }
 }

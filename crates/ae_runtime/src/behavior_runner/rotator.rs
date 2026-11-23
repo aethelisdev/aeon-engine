@@ -3,10 +3,10 @@
 
 //! Rotator subsystem for angular rotation of spinning objects.
 
-use ae_core::ecs::{Rotation, Rotator};
+use ae_ecs::{Entity, World};
 use ae_physics::world::PhysicsWorld;
+use ae_plugin_api::{Rotation, Rotator};
 use cgmath::{InnerSpace, Rotation3};
-use hecs::{Entity, World};
 
 /// Updates continuous angular rotation for entities holding a `Rotator` component.
 pub fn update_rotators(

@@ -18,14 +18,15 @@ use crate::world_loader::{
 use ae_2d::mode::ActiveDimensionMode;
 use ae_audio::AudioManager;
 use ae_core::camera::{Camera, ProjectionMode};
-use ae_core::ecs::{EcsManager, Position, Scale, update_hierarchy_transforms};
 use ae_core::events::DynamicEventBus;
 use ae_core::input::{InputManager, KeyCode};
 use ae_core::modules::EngineModule;
 use ae_core::spatial::SpatialGrid;
 use ae_core::state::StateManager;
 use ae_core::time::Time;
+use ae_core::transform::update_hierarchy_transforms;
 use ae_physics::PhysicsWorld;
+use ae_plugin_api::{Position, Scale};
 use ae_plugin_host::PluginManager;
 use ae_renderer::asset::{AssetHandle, AssetManager, AssetStorage};
 use ae_renderer::render::types::{LightUniform, RenderScene};
@@ -48,7 +49,7 @@ pub struct RuntimeSession {
     input: InputManager,
     mouse_delta: (f32, f32),
     mouse_sensitivity: f32,
-    ecs: EcsManager,
+    world: ae_ecs::World,
     asset_manager: AssetManager,
     physics_world: PhysicsWorld,
     audio_manager: AudioManager,
@@ -92,7 +93,7 @@ impl RuntimeSession {
         let mut audio_manager = AudioManager::new();
         audio_manager.set_vfs_provider(Some(Arc::clone(&vfs)));
 
-        let mut ecs = EcsManager::new();
+        let mut world = ae_ecs::World::new();
         let mut asset_manager = AssetManager::new();
         let mut physics_world = PhysicsWorld::new();
 
@@ -102,7 +103,7 @@ impl RuntimeSession {
             save_games_dir,
             &render_state,
             &mut asset_manager,
-            &mut ecs.world,
+            &mut world,
             &mut physics_world,
         )?;
 
@@ -172,7 +173,7 @@ impl RuntimeSession {
             input,
             mouse_delta: (0.0, 0.0),
             mouse_sensitivity: 0.005,
-            ecs,
+            world,
             asset_manager,
             physics_world,
             audio_manager,
@@ -218,7 +219,7 @@ impl RuntimeSession {
 
         let (was_paused, is_paused) = step_play_state_and_pause(
             &mut self.state_manager,
-            &mut self.ecs,
+            &mut self.world,
             &mut self.event_bus,
             &self.input,
             self.time.delta_time,
@@ -237,17 +238,20 @@ impl RuntimeSession {
         if self.event_bus.is_module_enabled(EngineModule::Physics) {
             while self.time.consume_fixed_step() {
                 if !self.state_manager.is_paused() {
-                    self.ecs.update(self.time.fixed_time_step);
+                    ae_core::transform::integrate_unconstrained_velocities(
+                        &mut self.world,
+                        self.time.fixed_time_step,
+                    );
                     crate::simulation::step_player_movement(
                         &self.input,
-                        &mut self.ecs,
+                        &mut self.world,
                         &mut self.physics_world,
                         &self.camera,
                         self.world_info.is_2d,
                         self.time.fixed_time_step,
                     );
                     self.physics_world.step(
-                        &mut self.ecs.world,
+                        &mut self.world,
                         |handle| {
                             self.asset_manager
                                 .get_physics_mesh_data(handle)
@@ -265,7 +269,7 @@ impl RuntimeSession {
         if self.physics_sync_dirty {
             self.physics_sync_dirty = false;
             self.physics_world
-                .sync_ecs_to_physics(&mut self.ecs.world, |handle| {
+                .sync_ecs_to_physics(&mut self.world, |handle| {
                     self.asset_manager
                         .get_physics_mesh_data(handle)
                         .map(|(v, i)| (v.as_slice(), i.as_slice()))
@@ -274,17 +278,17 @@ impl RuntimeSession {
 
         if !self.state_manager.is_paused() {
             update_play_camera(
-                &mut self.ecs,
+                &mut self.world,
                 &mut self.camera,
                 &mut self.mouse_delta,
                 self.mouse_sensitivity,
             );
-            self.spatial_grid.sync(&self.ecs.world);
+            self.spatial_grid.sync(&self.world);
 
             let active_vfs = Arc::clone(self.streaming.vfs());
             let render_state = &self.render_state;
             let report = self.streaming.step(
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.asset_manager,
                 [
                     self.camera.position.x,
@@ -304,13 +308,13 @@ impl RuntimeSession {
                 },
             );
             if report.spawned_entities > 0 || report.despawned_entities > 0 {
-                update_hierarchy_transforms(&mut self.ecs.world);
+                update_hierarchy_transforms(&mut self.world);
                 self.physics_sync_dirty = true;
             }
 
             let cam_fwd = self.camera.get_forward();
             update_gameplay_behaviors(BehaviorRunnerParams {
-                world: &mut self.ecs.world,
+                world: &mut self.world,
                 physics_world: &mut self.physics_world,
                 input: &self.input,
                 event_bus: &mut self.event_bus,
@@ -319,7 +323,7 @@ impl RuntimeSession {
             });
 
             self.plugin_manager.tick(
-                &mut self.ecs.world,
+                &mut self.world,
                 &mut self.resources,
                 &mut self.event_bus,
                 self.time.delta_time,
@@ -332,7 +336,7 @@ impl RuntimeSession {
             world_guid: self.world_info.world_guid,
             cell_size: self.world_info.cell_size,
             play_time_secs: play_secs,
-            world: &mut self.ecs.world,
+            world: &mut self.world,
             event_bus: &mut self.event_bus,
             streaming: Some(&mut self.streaming),
         }) {
@@ -340,7 +344,7 @@ impl RuntimeSession {
         }
 
         self.hud
-            .update_from_events(&mut self.ecs.world, &mut self.event_bus);
+            .update_from_events(&mut self.world, &mut self.event_bus);
 
         let audio_enabled = self.event_bus.is_module_enabled(EngineModule::Audio);
         let cam_pos = ae_audio::Vec3::new(
@@ -351,10 +355,10 @@ impl RuntimeSession {
         let right = self.camera.get_right();
         let cam_right = ae_audio::Vec3::new(right.x, right.y, right.z);
         self.audio_manager
-            .update(&self.ecs.world, cam_pos, cam_right, audio_enabled);
+            .update(&self.world, cam_pos, cam_right, audio_enabled);
 
         update_skeletal_animations(
-            &mut self.ecs.world,
+            &mut self.world,
             &self.render_state,
             &mut self.asset_manager,
             self.time.delta_time,
@@ -372,14 +376,14 @@ impl RuntimeSession {
             self.event_bus.is_module_enabled(EngineModule::Render)
         };
         if render_enabled && !is_2d {
-            self.spatial_grid.sync(&self.ecs.world);
+            self.spatial_grid.sync(&self.world);
         }
-        update_hierarchy_transforms(&mut self.ecs.world);
+        update_hierarchy_transforms(&mut self.world);
 
         let empty_selected = HashSet::new();
         let mut scene = if render_enabled && !is_2d {
             RenderScene::extract(
-                &self.ecs.world,
+                &self.world,
                 &self.camera,
                 &self.asset_manager,
                 &empty_selected,
@@ -427,13 +431,12 @@ impl RuntimeSession {
             let view_proj = self.camera.build_view_projection_matrix();
             batcher.update_camera(&self.render_state.queue, &view_proj);
             for (pos, scale, sprite, hidden_opt) in self
-                .ecs
                 .world
                 .query::<(
                     &Position,
                     &Scale,
                     &ae_2d::components::SpriteRenderer,
-                    Option<&ae_core::ecs::Hidden>,
+                    Option<&ae_plugin_api::Hidden>,
                 )>()
                 .iter()
             {
@@ -485,7 +488,7 @@ impl RuntimeSession {
 
         let is_paused = self.state_manager.is_paused();
         let pause_action = self.hud_overlay.prepare_and_poll_action(
-            &self.ecs.world,
+            &self.world,
             is_paused,
             &self.render_state.device,
             &self.render_state.queue,
@@ -519,10 +522,10 @@ impl RuntimeSession {
         match pause_action {
             RuntimePauseAction::Resume => {
                 self.state_manager.pop();
-                let mut cmd = ae_core::commands::EntityCommandBuffer::new();
+                let mut cmd = ae_ecs::EntityCommandBuffer::new();
                 self.state_manager
-                    .update(&mut self.ecs.world, &mut self.event_bus, &mut cmd, 0.0);
-                cmd.apply(&mut self.ecs.world);
+                    .update(&mut self.world, &mut self.event_bus, &mut cmd, 0.0);
+                cmd.apply(&mut self.world);
                 if !is_2d {
                     self.set_cursor_grab(true);
                 }

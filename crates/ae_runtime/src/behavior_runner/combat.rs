@@ -3,14 +3,14 @@
 
 //! Character combat actions, weapon raycast shooting, kinetic impulses, and projectile spawning.
 
-use ae_core::ecs::{
+use ae_core::events::{DynamicEventBus, RaycastHitEvent};
+use ae_core::input::InputManager;
+use ae_ecs::{Entity, World};
+use ae_physics::world::PhysicsWorld;
+use ae_plugin_api::{
     CharacterAction, Collider, ColliderShape, Color, EphemeralProjectile, Name, Position,
     RigidBody, RigidBodyType, Rotation, Scale, TransformDirty, Velocity,
 };
-use ae_core::events::{DynamicEventBus, RaycastHitEvent};
-use ae_core::input::InputManager;
-use ae_physics::world::PhysicsWorld;
-use hecs::{Entity, World};
 
 /// Updates weapon shooting for character actions, queries filtered physics raycasts, applies impulses, and spawns projectiles.
 pub fn update_character_actions(
@@ -22,7 +22,7 @@ pub fn update_character_actions(
     dt: f32,
 ) {
     // 1. Tick cooldown timers for all active CharacterAction components
-    for (_ent, action) in world.query::<(Entity, &mut CharacterAction)>().iter() {
+    for (_ent, action) in world.query_mut::<(Entity, &mut CharacterAction)>() {
         action.timer = (action.timer - dt).max(0.0);
     }
 
@@ -35,10 +35,7 @@ pub fn update_character_actions(
 
         // 2. Filter shooters whose cooldown timer has elapsed
         let mut ready_shooters = Vec::new();
-        for (ent, action, pos) in world
-            .query::<(Entity, &mut CharacterAction, &Position)>()
-            .iter()
-        {
+        for (ent, action, pos) in world.query_mut::<(Entity, &mut CharacterAction, &Position)>() {
             if action.timer <= 0.0 {
                 action.timer = action.cooldown;
                 let speed = if action.speed > 0.0 {
@@ -87,7 +84,7 @@ pub fn update_character_actions(
                     z: 0.2,
                 },
                 Color::new(1.0, 0.85, 0.15, 1.0),
-                ae_core::ecs::Shape::Sphere,
+                ae_plugin_api::Shape::Sphere,
                 RigidBody {
                     body_type: RigidBodyType::Dynamic,
                     mass: 0.05,

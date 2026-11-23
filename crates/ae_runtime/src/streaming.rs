@@ -5,10 +5,12 @@
 //! `.aesave` deltas, cross-cell [`PendingGuidResolver`], `AssetManager` reference counting,
 //! and floating-origin camera-relative stability.
 
-use ae_core::commands::EntityCommandBuffer;
-use ae_core::ecs::{
-    BoundingRadius, Children, ComponentRegistry, EntityGuid, LodGroup, ModelId, Parent, Position,
-    SpriteId, TransformDirty, component_type_hash,
+use ae_ecs::EntityCommandBuffer;
+use ae_ecs::component_type_hash;
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{
+    BoundingRadius, Children, EntityGuid, LodGroup, ModelId, Parent, Position, SpriteId,
+    TransformDirty,
 };
 use ae_renderer::asset::AssetManager;
 use ae_renderer::camera::FloatingOrigin;
@@ -17,7 +19,6 @@ use ae_world::{
     PendingGuidLink, PendingGuidResolver, ResolvedGuidLink, SCENE_ASSET_BINDING_TYPE,
     SceneAssetBinding, SpatialCellCoord, VfsProvider, WorldDeltaSnapshot,
 };
-use hecs::World;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
@@ -50,13 +51,13 @@ pub struct RuntimeStreamingManager {
     guid_resolver: PendingGuidResolver,
     available_cells: HashSet<SpatialCellCoord>,
     loaded_cells: HashSet<SpatialCellCoord>,
-    entity_to_hecs: HashMap<EntityGuid, hecs::Entity>,
-    hecs_to_guid: HashMap<hecs::Entity, EntityGuid>,
+    entity_to_hecs: HashMap<EntityGuid, Entity>,
+    hecs_to_guid: HashMap<Entity, EntityGuid>,
     floating_origin: FloatingOrigin,
     vfs: Arc<dyn VfsProvider>,
     save_delta: Option<WorldDeltaSnapshot>,
     known_hashes: HashSet<u64>,
-    pending_parent_links: HashMap<EntityGuid, Vec<hecs::Entity>>,
+    pending_parent_links: HashMap<EntityGuid, Vec<Entity>>,
 }
 
 impl RuntimeStreamingManager {
@@ -69,7 +70,7 @@ impl RuntimeStreamingManager {
         unload_radius: i32,
         available_cells: HashSet<SpatialCellCoord>,
     ) -> Self {
-        let mut known_hashes = ComponentRegistry::global().known_type_hashes();
+        let mut known_hashes = ae_plugin_api::engine_component_registry().known_type_hashes();
         known_hashes.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
         Self {
             planner: CellStreamingPlanner::new(cell_size, load_radius, unload_radius),
@@ -113,13 +114,13 @@ impl RuntimeStreamingManager {
     ) {
         self.loaded_cells = initially_loaded_cells;
         for entity_ref in world.iter() {
-            let Some(guid) = entity_ref.get::<&EntityGuid>().map(|g| *g) else {
+            let Some(guid) = entity_ref.get_copied::<EntityGuid>() else {
                 continue;
             };
             if guid.is_nil() {
                 continue;
             }
-            let Some(pos) = entity_ref.get::<&Position>().map(|p| *p) else {
+            let Some(pos) = entity_ref.get_copied::<Position>() else {
                 continue;
             };
             let cell =
@@ -162,9 +163,9 @@ impl RuntimeStreamingManager {
         self.loaded_cells.contains(&coord)
     }
 
-    /// Resolves a live `hecs::Entity` handle by persistent [`EntityGuid`], if currently streamed in.
+    /// Resolves a live [`Entity`] handle by persistent [`EntityGuid`], if currently streamed in.
     #[must_use]
-    pub fn resolve_entity(&self, guid: EntityGuid) -> Option<hecs::Entity> {
+    pub fn resolve_entity(&self, guid: EntityGuid) -> Option<Entity> {
         self.entity_to_hecs.get(&guid).copied()
     }
 
@@ -188,7 +189,7 @@ impl RuntimeStreamingManager {
         mut on_asset_binding: F,
     ) -> StreamingStepReport
     where
-        F: FnMut(&mut World, &mut AssetManager, hecs::Entity, &SceneAssetBinding),
+        F: FnMut(&mut World, &mut AssetManager, Entity, &SceneAssetBinding),
     {
         self.floating_origin.cell =
             SpatialCellCoord::from_world_pos(camera_pos, self.planner.cell_size);
@@ -224,7 +225,7 @@ impl RuntimeStreamingManager {
     fn sync_entity_cell_migrations(&mut self, world: &World) {
         let mut moved: Vec<(EntityGuid, SpatialCellCoord)> = Vec::new();
         for (&guid, &ent) in &self.entity_to_hecs {
-            if let Ok(pos) = world.get::<&Position>(ent) {
+            if let Ok(pos) = world.get_copied::<Position>(ent) {
                 let current_cell =
                     SpatialCellCoord::from_world_pos([pos.x, pos.y, pos.z], self.planner.cell_size);
                 if self.guid_resolver.entity_cell(guid) != Some(current_cell) {
@@ -276,7 +277,7 @@ impl RuntimeStreamingManager {
         report: &mut StreamingStepReport,
     ) -> Result<(), String>
     where
-        F: FnMut(&mut World, &mut AssetManager, hecs::Entity, &SceneAssetBinding),
+        F: FnMut(&mut World, &mut AssetManager, Entity, &SceneAssetBinding),
     {
         let rel_path = cell_coord.relative_chunk_path();
         let bytes = self.vfs.read_bytes(&rel_path).map_err(|e| e.to_string())?;
@@ -307,9 +308,9 @@ impl RuntimeStreamingManager {
         on_asset_binding: &mut F,
     ) -> Vec<EntityGuid>
     where
-        F: FnMut(&mut World, &mut AssetManager, hecs::Entity, &SceneAssetBinding),
+        F: FnMut(&mut World, &mut AssetManager, Entity, &SceneAssetBinding),
     {
-        let registry = ComponentRegistry::global();
+        let registry = ae_plugin_api::engine_component_registry();
         let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
         let mut guid_gen = GuidGenerator::new();
         let mut spawned_guids = Vec::with_capacity(records.len());
@@ -363,7 +364,7 @@ impl RuntimeStreamingManager {
     fn attach_or_defer_parent(
         &mut self,
         world: &mut World,
-        child: hecs::Entity,
+        child: Entity,
         parent_guid: EntityGuid,
     ) {
         if let Some(&parent_ent) = self.entity_to_hecs.get(&parent_guid) {
@@ -380,7 +381,7 @@ impl RuntimeStreamingManager {
         &mut self,
         world: &mut World,
         parent_guid: EntityGuid,
-        parent_ent: hecs::Entity,
+        parent_ent: Entity,
     ) {
         if let Some(children) = self.pending_parent_links.remove(&parent_guid) {
             for child in children {
@@ -392,9 +393,9 @@ impl RuntimeStreamingManager {
     }
 }
 
-fn link_parent_child(world: &mut World, child: hecs::Entity, parent: hecs::Entity) {
+fn link_parent_child(world: &mut World, child: Entity, parent: Entity) {
     let _ = world.insert_one(child, Parent(parent));
-    if let Ok(mut list) = world.get::<&mut Children>(parent) {
+    if let Ok(list) = world.get_mut::<Children>(parent) {
         if !list.0.contains(&child) {
             list.0.push(child);
         }
@@ -403,11 +404,11 @@ fn link_parent_child(world: &mut World, child: hecs::Entity, parent: hecs::Entit
     }
 }
 
-fn release_entity_assets(world: &World, asset_manager: &mut AssetManager, entity: hecs::Entity) {
-    if let Ok(model_id) = world.get::<&ModelId>(entity) {
+fn release_entity_assets(world: &World, asset_manager: &mut AssetManager, entity: Entity) {
+    if let Ok(model_id) = world.get_copied::<ModelId>(entity) {
         asset_manager.release_model(model_id.0);
     }
-    if let Ok(sprite_id) = world.get::<&SpriteId>(entity) {
+    if let Ok(sprite_id) = world.get_copied::<SpriteId>(entity) {
         asset_manager.release_texture(sprite_id.0);
     }
 }
@@ -450,7 +451,7 @@ pub fn bind_entity_assets_from_binding(
     render_state: &ae_renderer::render::RenderState,
     asset_manager: &mut AssetManager,
     vfs: Option<&dyn VfsProvider>,
-    entity: hecs::Entity,
+    entity: Entity,
     binding: &SceneAssetBinding,
 ) {
     let resolve_model = |am: &mut AssetManager, p: &str| {
@@ -505,7 +506,7 @@ pub fn bind_entity_assets_from_binding(
     {
         asset_manager.retain_model(mid);
         let _ = world.insert_one(entity, ModelId(mid));
-        if world.get::<&BoundingRadius>(entity).is_err()
+        if !world.has::<BoundingRadius>(entity)
             && let Some(m) = asset_manager.models.get(mid)
         {
             let max_dim = (m.max[0] - m.min[0])
@@ -674,14 +675,17 @@ mod tests {
         assert_eq!(step_0.resolved_links[0].resolved_cell, cell_0);
         let switch_ent = mgr.resolve_entity(switch_guid).expect("switch present");
         assert_eq!(
-            world.get::<&Parent>(door_ent).expect("parent resolved").0,
+            world
+                .get_copied::<Parent>(door_ent)
+                .expect("parent resolved")
+                .0,
             switch_ent
         );
 
         // Move door entity at runtime from cell_1 into cell_0, then move camera to cell (-1, 0, 0)
         // at x = -15.0 so dist(cell_1) = 2 > unload_radius(1) while dist(cell_0) = 1 <= 1:
         // cell_1 unloads cleanly WITHOUT despawning moved door_ent!
-        if let Ok(mut pos) = world.get::<&mut Position>(door_ent) {
+        if let Ok(pos) = world.get_mut::<Position>(door_ent) {
             pos.x = 12.0;
         }
         let step_unload = mgr.step(

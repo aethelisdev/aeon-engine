@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use super::selection::create_ray;
 use crate::editor_state::EditorState;
-use ae_core::ecs::{Position, Rotation, Scale};
+use ae_plugin_api::{Position, Rotation, Scale};
 use cgmath::{EuclideanSpace, InnerSpace, Quaternion, Rad, Rotation3, Vector3};
 
 /// Parameters for processing gizmo drag interactions.
@@ -10,7 +10,7 @@ pub struct GizmoDragParams<'a> {
     pub editor: &'a mut EditorState,
     pub camera: &'a ae_core::camera::Camera,
     pub gizmo_system: &'a mut crate::gizmo::GizmoSystem,
-    pub ecs: &'a mut ae_core::ecs::EcsManager,
+    pub world: &'a mut ae_ecs::World,
     pub window_size: (u32, u32),
     pub cursor_pos: (f64, f64),
 }
@@ -20,7 +20,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
     let editor = params.editor;
     let camera = params.camera;
     let gizmo_system = params.gizmo_system;
-    let ecs = params.ecs;
+    let world = params.world;
     let gizmo_mode = editor.gizmo_mode;
     let gizmo_space = editor.gizmo_space;
     let window_size = params.window_size;
@@ -30,13 +30,11 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         None => return,
     };
 
-    let gizmo_pos = if let Ok(gt) = ecs
-        .world
-        .get::<&ae_core::ecs::GlobalTransform>(selected_ent)
+    let gizmo_pos = if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(selected_ent)
     {
         let mat = gt.0;
         Vector3::new(mat.w.x, mat.w.y, mat.w.z)
-    } else if let Ok(p) = ecs.world.get::<&Position>(selected_ent) {
+    } else if let Ok(p) = world.get_copied::<Position>(selected_ent) {
         Vector3::new(p.x, p.y, p.z)
     } else {
         return;
@@ -48,7 +46,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         let gizmo_screen = gizmo_screen_params(camera, window_size);
 
         gizmo_system.space = gizmo_space;
-        if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
+        if let Ok(r) = world.get_copied::<Rotation>(selected_ent) {
             gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
         }
 
@@ -73,32 +71,27 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                 crate::gizmo::GizmoMode::Select => {}
                 crate::gizmo::GizmoMode::Translate => {
                     for &ent in &editor.selected_entities {
-                        if let Some(start) = editor.multi_start_positions.get(&ent)
-                            && let Ok(mut p) = ecs.world.get::<&mut Position>(ent)
+                        let Some(start) = editor.multi_start_positions.get(&ent).copied() else {
+                            continue;
+                        };
+                        // Project the world drag delta d into parent's local space if the entity has a parent
+                        let local_delta = if let Ok(parent_ref) =
+                            world.get_copied::<ae_plugin_api::Parent>(ent)
+                            && let Ok(parent_gt) =
+                                world.get_copied::<ae_plugin_api::GlobalTransform>(parent_ref.0)
                         {
-                            // Project the world drag delta d into parent's local space if the entity has a parent
-                            let local_delta = if let Ok(parent_ref) =
-                                ecs.world.get::<&ae_core::ecs::Parent>(ent)
-                            {
-                                if let Ok(parent_gt) = ecs
-                                    .world
-                                    .get::<&ae_core::ecs::GlobalTransform>(parent_ref.0)
-                                {
-                                    use cgmath::SquareMatrix;
-                                    if let Some(inv_parent) = parent_gt.0.invert() {
-                                        let d_vec = cgmath::Vector4::new(d.x, d.y, d.z, 0.0);
-                                        let local_d = inv_parent * d_vec;
-                                        cgmath::Vector3::new(local_d.x, local_d.y, local_d.z)
-                                    } else {
-                                        d
-                                    }
-                                } else {
-                                    d
-                                }
+                            use cgmath::SquareMatrix;
+                            if let Some(inv_parent) = parent_gt.0.invert() {
+                                let d_vec = cgmath::Vector4::new(d.x, d.y, d.z, 0.0);
+                                let local_d = inv_parent * d_vec;
+                                cgmath::Vector3::new(local_d.x, local_d.y, local_d.z)
                             } else {
                                 d
-                            };
-
+                            }
+                        } else {
+                            d
+                        };
+                        if let Ok(p) = world.get_mut::<Position>(ent) {
                             let mut target = cgmath::Vector3::new(
                                 start.x + local_delta.x,
                                 start.y + local_delta.y,
@@ -120,7 +113,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                 crate::gizmo::GizmoMode::Rotate => {
                     for &ent in &editor.selected_entities {
                         if let Some(start_rot) = editor.multi_start_rotations.get(&ent)
-                            && let Ok(mut r) = ecs.world.get::<&mut Rotation>(ent)
+                            && let Ok(r) = world.get_mut::<Rotation>(ent)
                         {
                             let step = 15.0;
                             let (axis_vec, raw_angle) = match gizmo_system.active_axis {
@@ -158,7 +151,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                 crate::gizmo::GizmoMode::Scale => {
                     for &ent in &editor.selected_entities {
                         if let Some(start) = editor.multi_start_scales.get(&ent)
-                            && let Ok(mut s) = ecs.world.get::<&mut Scale>(ent)
+                            && let Ok(s) = world.get_mut::<Scale>(ent)
                         {
                             let mut target = cgmath::Vector3::new(
                                 start.x * (1.0 + d.x),
@@ -191,7 +184,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
             }
 
             for ent in dirtied_entities {
-                let _ = ecs.world.insert_one(ent, ae_core::ecs::TransformDirty);
+                let _ = world.insert_one(ent, ae_plugin_api::TransformDirty);
             }
         }
     }

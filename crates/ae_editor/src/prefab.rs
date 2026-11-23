@@ -3,9 +3,7 @@
 
 //! Binary hierarchical prefab template system (`.aeprefab`) backed by `ae_world`.
 
-use ae_core::ecs::{
-    Children, ComponentRegistry, EntityGuid, Name, Parent, Position, TransformDirty,
-};
+use ae_plugin_api::{Children, EntityGuid, Name, Parent, Position, TransformDirty};
 use ae_world::{
     ComponentRecord, EntityRecord, GuidGenerator, decode_checksummed_envelope,
     encode_checksummed_envelope,
@@ -37,13 +35,13 @@ impl Prefab {
     /// Creates a hierarchical [`Prefab`] starting at `root_entity` and collecting all
     /// reachable descendants via `Children` components.
     #[must_use]
-    pub fn create_from_entity(world: &hecs::World, root_entity: hecs::Entity) -> Self {
-        let registry = ComponentRegistry::global();
+    pub fn create_from_entity(world: &ae_ecs::World, root_entity: ae_ecs::Entity) -> Self {
+        let registry = ae_plugin_api::engine_component_registry();
         let mut guid_gen = GuidGenerator::new();
-        let mut entity_to_guid: HashMap<hecs::Entity, EntityGuid> = HashMap::new();
-        let mut ordered: Vec<(hecs::Entity, Option<hecs::Entity>)> = Vec::new();
-        let mut visited: HashSet<hecs::Entity> = HashSet::new();
-        let mut queue: VecDeque<(hecs::Entity, Option<hecs::Entity>)> = VecDeque::new();
+        let mut entity_to_guid: HashMap<ae_ecs::Entity, EntityGuid> = HashMap::new();
+        let mut ordered: Vec<(ae_ecs::Entity, Option<ae_ecs::Entity>)> = Vec::new();
+        let mut visited: HashSet<ae_ecs::Entity> = HashSet::new();
+        let mut queue: VecDeque<(ae_ecs::Entity, Option<ae_ecs::Entity>)> = VecDeque::new();
 
         queue.push_back((root_entity, None));
         while let Some((ent, parent_ent)) = queue.pop_front() {
@@ -51,19 +49,18 @@ impl Prefab {
                 continue;
             }
             let assigned = world
-                .get::<&EntityGuid>(ent)
+                .get_copied::<EntityGuid>(ent)
                 .ok()
-                .map(|g| *g)
                 .filter(|g| !g.is_nil())
                 .unwrap_or_else(|| guid_gen.next_entity_guid());
             entity_to_guid.insert(ent, assigned);
             ordered.push((ent, parent_ent));
 
-            if let Ok(children) = world.get::<&Children>(ent) {
+            let _ = world.inspect::<Children, _>(ent, |children| {
                 for &child in &children.0 {
                     queue.push_back((child, Some(ent)));
                 }
-            }
+            });
         }
 
         let root_guid = entity_to_guid
@@ -71,8 +68,7 @@ impl Prefab {
             .copied()
             .unwrap_or(EntityGuid::NIL);
         let name = world
-            .get::<&Name>(root_entity)
-            .map(|n| n.0.clone())
+            .inspect::<Name, _>(root_entity, |n| n.0.clone())
             .unwrap_or_else(|_| "PrefabEntity".to_string());
 
         let mut records = Vec::with_capacity(ordered.len());
@@ -122,14 +118,14 @@ impl Prefab {
     /// reconstructing `Parent`/`Children` links and optionally overriding the root's `Position`.
     pub fn instantiate(
         &self,
-        world: &mut hecs::World,
+        world: &mut ae_ecs::World,
         target_pos: Option<Position>,
-    ) -> hecs::Entity {
-        let registry = ComponentRegistry::global();
+    ) -> ae_ecs::Entity {
+        let registry = ae_plugin_api::engine_component_registry();
         let mut guid_gen = GuidGenerator::new();
-        let mut old_to_new_ent: HashMap<EntityGuid, hecs::Entity> =
+        let mut old_to_new_ent: HashMap<EntityGuid, ae_ecs::Entity> =
             HashMap::with_capacity(self.entities.len());
-        let mut spawned_order: Vec<(hecs::Entity, EntityRecord)> =
+        let mut spawned_order: Vec<(ae_ecs::Entity, EntityRecord)> =
             Vec::with_capacity(self.entities.len());
 
         for rec in &self.entities {
@@ -144,7 +140,7 @@ impl Prefab {
             }
 
             let _ = world.insert_one(ent, TransformDirty);
-            let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(ent);
+            let _ = world.remove_one::<ae_plugin_api::GlobalTransform>(ent);
             old_to_new_ent.insert(rec.guid, ent);
             spawned_order.push((ent, rec.clone()));
         }
@@ -154,7 +150,7 @@ impl Prefab {
                 && let Some(&parent_ent) = old_to_new_ent.get(&p_guid)
             {
                 let _ = world.insert_one(*ent, Parent(parent_ent));
-                if let Ok(mut children) = world.get::<&mut Children>(parent_ent) {
+                if let Ok(children) = world.get_mut::<Children>(parent_ent) {
                     if !children.0.contains(ent) {
                         children.0.push(*ent);
                     }
@@ -243,11 +239,11 @@ impl Prefab {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::{Color, Name, Rotation, Scale, Shape};
+    use ae_plugin_api::{Color, Name, Rotation, Scale, Shape};
 
     #[test]
     fn test_prefab_binary_roundtrip_and_hierarchy_instantiation() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
 
         let original_root = world.spawn((
             Name("TestBarrel".to_string()),
@@ -277,22 +273,27 @@ mod tests {
 
         let inst_root = loaded.instantiate(&mut world, Some(Position::new(50.0, 0.0, 50.0)));
         assert_ne!(inst_root, original_root);
-        assert_eq!(world.get::<&Name>(inst_root).unwrap().0, "TestBarrel");
         assert_eq!(
-            *world.get::<&Position>(inst_root).unwrap(),
+            world
+                .inspect::<Name, _>(inst_root, |n| n.0.clone())
+                .unwrap(),
+            "TestBarrel"
+        );
+        assert_eq!(
+            world.get_copied::<Position>(inst_root).unwrap(),
             Position::new(50.0, 0.0, 50.0)
         );
 
-        let children = world
-            .get::<&Children>(inst_root)
+        let child_ids = world
+            .inspect::<Children, _>(inst_root, |c| c.0.clone())
             .expect("children restored");
-        assert_eq!(children.0.len(), 1);
-        let inst_child = children.0[0];
+        assert_eq!(child_ids.len(), 1);
+        let inst_child = child_ids[0];
         assert_ne!(inst_child, original_child);
-        assert_eq!(world.get::<&Parent>(inst_child).unwrap().0, inst_root);
+        assert_eq!(world.get_copied::<Parent>(inst_child).unwrap().0, inst_root);
         assert_ne!(
-            *world.get::<&EntityGuid>(inst_root).unwrap(),
-            *world.get::<&EntityGuid>(inst_child).unwrap()
+            world.get_copied::<EntityGuid>(inst_root).unwrap(),
+            world.get_copied::<EntityGuid>(inst_child).unwrap()
         );
 
         // Corrupted payload must error cleanly
@@ -305,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_prefab_save_creates_parent_directories() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((Name("TreePrefab".to_string()),));
         let prefab = Prefab::create_from_entity(&world, entity);
 

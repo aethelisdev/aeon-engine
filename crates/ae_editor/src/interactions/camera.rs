@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::editor_state::EditorState;
 use crate::input::{InputManager, KeyCode};
-use ae_core::ecs::Position;
+use ae_plugin_api::Position;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Rad, Vector3};
 
 /// Handles mouse scroll wheel input for camera zoom in Edit Mode.
@@ -45,14 +45,14 @@ pub fn handle_mouse_scroll(
 pub fn focus_selected(
     camera: &mut ae_core::camera::Camera,
     editor: &EditorState,
-    world: &hecs::World,
+    world: &ae_ecs::World,
 ) {
     let entity = match editor.selected_entities.first() {
         Some(&e) => e,
         None => return,
     };
 
-    let pos = match world.get::<&Position>(entity) {
+    let pos = match world.get_copied::<Position>(entity) {
         Ok(p) => Vector3::new(p.x, p.y, p.z),
         Err(_) => return,
     };
@@ -83,7 +83,7 @@ mod tests {
     /// Tests that focus_selected points the camera forward vector towards the selected entity.
     #[test]
     fn test_focus_selected_forward_alignment() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((Position::new(10.0, 0.0, 0.0),));
 
         let mut editor = EditorState::default();
@@ -120,7 +120,7 @@ mod tests {
     /// Tests that focus_selected in Orthographic mode aligns camera XY without altering yaw or pitch angles.
     #[test]
     fn test_focus_selected_orthographic_preserves_orientation() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let entity = world.spawn((Position::new(7.0, -4.0, 0.0),));
 
         let mut editor = EditorState::default();

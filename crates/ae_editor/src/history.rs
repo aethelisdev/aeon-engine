@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::editor_state::EditorState;
 use crate::undo_redo::{Command, EntitySnapshot, Property};
-use ae_core::ecs::{Position, Rotation, Scale};
+use ae_plugin_api::{Position, Rotation, Scale};
 
 /// Pushes a new command to the undo stack, dropping the oldest if the limit is exceeded.
 pub fn push_undo(editor: &mut EditorState, cmd: Command) {
@@ -19,7 +19,7 @@ pub fn push_undo(editor: &mut EditorState, cmd: Command) {
 /// After undoing, the command is moved to the redo stack for potential re-application.
 /// If the undo operation changes an Entity ID (e.g., re-spawning a deleted entity),
 /// all remaining stack commands and the current selection are remapped to the new ID.
-pub fn undo(editor: &mut EditorState, world: &mut hecs::World) {
+pub fn undo(editor: &mut EditorState, world: &mut ae_ecs::World) {
     if let Some(mut cmd) = editor.undo_stack.pop() {
         editor.history_revision = editor.history_revision.wrapping_add(1);
         let remap = cmd.undo(world);
@@ -48,7 +48,7 @@ pub fn undo(editor: &mut EditorState, world: &mut hecs::World) {
 /// After redoing, the command is pushed back onto the undo stack via `push_undo`.
 /// Entity ID remapping is performed identically to `undo()` to maintain
 /// referential integrity across all stacks and selection state.
-pub fn redo(editor: &mut EditorState, world: &mut hecs::World) {
+pub fn redo(editor: &mut EditorState, world: &mut ae_ecs::World) {
     if let Some(mut cmd) = editor.redo_stack.pop() {
         let remap = cmd.redo(world);
         push_undo(editor, cmd);
@@ -79,8 +79,8 @@ pub fn redo(editor: &mut EditorState, world: &mut hecs::World) {
 /// The redo stack is cleared after committing new history.
 pub fn commit_undo_history(
     editor: &mut EditorState,
-    world: &hecs::World,
-    _primary_entity: hecs::Entity,
+    world: &ae_ecs::World,
+    _primary_entity: ae_ecs::Entity,
 ) {
     if editor.current_edit_snapshots.is_empty() {
         return;

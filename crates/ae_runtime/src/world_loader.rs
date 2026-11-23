@@ -5,11 +5,10 @@
 //! worlds, and partitioned `cells/*.aechunk` directories through [`ae_world::VfsProvider`].
 
 use crate::streaming::{RuntimeStreamingManager, bind_entity_assets_from_binding};
-use ae_core::ecs::{
-    Children, ComponentRegistry, EntityGuid, Parent, TransformDirty, component_type_hash,
-    update_hierarchy_transforms,
-};
+use ae_core::transform::update_hierarchy_transforms;
+use ae_ecs::component_type_hash;
 use ae_physics::PhysicsWorld;
+use ae_plugin_api::{Children, EntityGuid, Parent, TransformDirty};
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
 use ae_world::{
@@ -211,10 +210,10 @@ pub fn load_world_into_runtime(
     save_games_dir: PathBuf,
     render_state: &RenderState,
     asset_manager: &mut AssetManager,
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     physics_world: &mut PhysicsWorld,
 ) -> Result<(LoadedRuntimeWorld, RuntimeStreamingManager), String> {
-    let mut allowed = ComponentRegistry::global().known_type_hashes();
+    let mut allowed = ae_plugin_api::engine_component_registry().known_type_hashes();
     allowed.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
 
     let (doc, is_partitioned) =
@@ -337,13 +336,13 @@ fn spawn_world_records(
     vfs: Option<&dyn VfsProvider>,
     render_state: &RenderState,
     asset_manager: &mut AssetManager,
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
 ) {
-    let registry = ComponentRegistry::global();
+    let registry = ae_plugin_api::engine_component_registry();
     let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
-    let mut guid_to_entity: HashMap<EntityGuid, hecs::Entity> =
+    let mut guid_to_entity: HashMap<EntityGuid, ae_ecs::Entity> =
         HashMap::with_capacity(records.len());
-    let mut pending_parents: Vec<(hecs::Entity, EntityGuid)> = Vec::new();
+    let mut pending_parents: Vec<(ae_ecs::Entity, EntityGuid)> = Vec::new();
     let mut guid_gen = GuidGenerator::new();
 
     for rec in records {
@@ -394,7 +393,7 @@ fn spawn_world_records(
     for (child, parent_guid) in pending_parents {
         if let Some(&parent) = guid_to_entity.get(&parent_guid) {
             let _ = world.insert_one(child, Parent(parent));
-            if let Ok(mut children) = world.get::<&mut Children>(parent) {
+            if let Ok(children) = world.get_mut::<Children>(parent) {
                 if !children.0.contains(&child) {
                     children.0.push(child);
                 }
@@ -414,7 +413,7 @@ pub fn default_world_manifest_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::Position;
+    use ae_plugin_api::Position;
     use ae_world::{AssetKind, ComponentRecord, PakBuilder, PakCodec};
 
     #[test]

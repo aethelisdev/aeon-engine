@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::editor_state::EditorState;
 use crate::input::{InputManager, KeyCode};
-use ae_core::ecs::PlayerTag;
+use ae_plugin_api::PlayerTag;
 
 /// Fixed-timestep update loop for Play Mode.
 ///
@@ -10,10 +10,10 @@ use ae_core::ecs::PlayerTag;
 /// Player character movement is exclusively driven by `CharacterController` in the physics system.
 pub fn fixed_update_play_mode(
     _input: &InputManager,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     fixed_time_step: f32,
 ) {
-    ecs.update(fixed_time_step);
+    ae_core::transform::integrate_unconstrained_velocities(world, fixed_time_step);
 }
 
 /// Per-frame update for Play Mode (render-rate logic).
@@ -21,7 +21,7 @@ pub fn fixed_update_play_mode(
 /// Automatically queries the active player entity (or entity with `CharacterController`),
 /// processes mouse look orbit rotation, and maintains a stable spring-arm camera behind the target.
 pub fn update_play_mode(
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     camera: &mut ae_core::camera::Camera,
     editor: &mut EditorState,
 ) {
@@ -33,16 +33,17 @@ pub fn update_play_mode(
 
         // Find active player target position (check PlayerTag first, then CharacterController)
         let mut player_pos = None;
-        if let Some((_tag, pos)) = ecs
-            .world
-            .query_mut::<(&PlayerTag, &ae_core::ecs::Position)>()
+        if let Some((_tag, pos)) = world
+            .query_mut::<(&PlayerTag, &ae_plugin_api::Position)>()
             .into_iter()
             .next()
         {
             player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
-        } else if let Some((_ctrl, pos)) = ecs
-            .world
-            .query_mut::<(&ae_core::ecs::CharacterController, &ae_core::ecs::Position)>()
+        } else if let Some((_ctrl, pos)) = world
+            .query_mut::<(
+                &ae_plugin_api::CharacterController,
+                &ae_plugin_api::Position,
+            )>()
             .into_iter()
             .next()
         {
@@ -81,18 +82,19 @@ pub fn update_play_mode(
 
     // Locate active player target position (check CharacterController first, then PlayerTag)
     let mut player_pos = None;
-    if let Some((_ctrl, pos)) = ecs
-        .world
-        .query_mut::<(&ae_core::ecs::CharacterController, &ae_core::ecs::Position)>()
+    if let Some((_ctrl, pos)) = world
+        .query_mut::<(
+            &ae_plugin_api::CharacterController,
+            &ae_plugin_api::Position,
+        )>()
         .into_iter()
         .next()
     {
         player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
     }
     if player_pos.is_none()
-        && let Some((_tag, pos)) = ecs
-            .world
-            .query_mut::<(&PlayerTag, &ae_core::ecs::Position)>()
+        && let Some((_tag, pos)) = world
+            .query_mut::<(&PlayerTag, &ae_plugin_api::Position)>()
             .into_iter()
             .next()
     {
@@ -198,7 +200,7 @@ pub fn handle_mouse_look(
 mod tests {
     use super::*;
     use ae_core::camera::Camera;
-    use ae_core::ecs::{EcsManager, Position};
+    use ae_plugin_api::Position;
 
     fn make_test_camera() -> Camera {
         Camera {
@@ -218,8 +220,8 @@ mod tests {
     /// Verifies that update_play_mode preserves camera orientation and orbit position exactly when mouse_delta is zero.
     #[test]
     fn test_update_play_mode_zero_delta_preserves_camera() {
-        let mut ecs = EcsManager::new();
-        let _player = ecs.world.spawn((PlayerTag, Position::new(10.0, 0.0, 5.0)));
+        let mut world = ae_ecs::World::new();
+        let _player = world.spawn((PlayerTag, Position::new(10.0, 0.0, 5.0)));
 
         let mut camera = make_test_camera();
         let mut editor = EditorState {
@@ -228,7 +230,7 @@ mod tests {
         };
 
         // Run play mode update
-        update_play_mode(&mut ecs, &mut camera, &mut editor);
+        update_play_mode(&mut world, &mut camera, &mut editor);
 
         let initial_pos = camera.position;
         let initial_target = camera.target;
@@ -236,7 +238,7 @@ mod tests {
         let initial_pitch = camera.pitch;
 
         // Run second frame with zero mouse delta
-        update_play_mode(&mut ecs, &mut camera, &mut editor);
+        update_play_mode(&mut world, &mut camera, &mut editor);
 
         assert_eq!(camera.yaw, initial_yaw);
         assert_eq!(camera.pitch, initial_pitch);
@@ -248,8 +250,8 @@ mod tests {
     /// Verifies that update_play_mode in Orthographic mode strictly locks camera yaw/pitch planar and follows player.
     #[test]
     fn test_update_play_mode_orthographic_locks_planar() {
-        let mut ecs = EcsManager::new();
-        let _player = ecs.world.spawn((PlayerTag, Position::new(5.0, 3.0, 0.0)));
+        let mut world = ae_ecs::World::new();
+        let _player = world.spawn((PlayerTag, Position::new(5.0, 3.0, 0.0)));
 
         let mut camera = Camera {
             position: cgmath::Point3::new(0.0, 0.0, 10.0),
@@ -269,7 +271,7 @@ mod tests {
         };
 
         // Run play mode update
-        update_play_mode(&mut ecs, &mut camera, &mut editor);
+        update_play_mode(&mut world, &mut camera, &mut editor);
 
         // Yaw and pitch must be strictly planar
         assert_eq!(camera.yaw, cgmath::Rad(-std::f32::consts::FRAC_PI_2));

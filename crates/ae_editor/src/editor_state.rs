@@ -3,7 +3,7 @@
 #![deny(clippy::unwrap_used)]
 
 use crate::undo_redo::{Command, EntitySnapshot};
-use hecs::Entity;
+use ae_ecs::Entity;
 use std::collections::{HashMap, HashSet};
 
 /// Action payload sent from async native file dialog threads to the main editor loop.
@@ -208,7 +208,7 @@ impl EditorState {
         }
     }
     /// Backs up all entity snapshots in the ECS World before entering Play Mode.
-    pub fn backup_scene(&mut self, world: &hecs::World) {
+    pub fn backup_scene(&mut self, world: &ae_ecs::World) {
         self.scene_backup.clear();
         for entity in world.iter().map(|e| e.entity()) {
             let snapshot = EntitySnapshot::capture(world, entity);
@@ -220,9 +220,9 @@ impl EditorState {
     ///
     /// Preserves original scene entity states, including user-configured initial velocities,
     /// while cleanly removing transient components or entities created during gameplay.
-    pub fn restore_scene(&self, world: &mut hecs::World) {
+    pub fn restore_scene(&self, world: &mut ae_ecs::World) {
         // Despawn temporary entities spawned during gameplay that were not in the scene backup
-        let current_entities: Vec<hecs::Entity> = world.iter().map(|e| e.entity()).collect();
+        let current_entities: Vec<ae_ecs::Entity> = world.iter().map(|e| e.entity()).collect();
         for entity in current_entities {
             if !self.scene_backup.contains_key(&entity) {
                 let _ = world.despawn(entity);
@@ -234,16 +234,16 @@ impl EditorState {
             if world.contains(*entity) {
                 snapshot.apply(world, *entity);
                 // If velocity was not present in the pre-play snapshot, clean up any transient gameplay velocity
-                if !snapshot.has::<ae_core::ecs::Velocity>() {
-                    let _ = world.remove_one::<ae_core::ecs::Velocity>(*entity);
+                if !snapshot.has::<ae_plugin_api::Velocity>() {
+                    let _ = world.remove_one::<ae_plugin_api::Velocity>(*entity);
                 }
-                let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
-                let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(*entity);
+                let _ = world.insert_one(*entity, ae_plugin_api::TransformDirty);
+                let _ = world.remove_one::<ae_plugin_api::GlobalTransform>(*entity);
             } else {
                 // Re-spawn entities that were despawned during play mode
                 let new_ent = snapshot.spawn(world);
-                let _ = world.insert_one(new_ent, ae_core::ecs::TransformDirty);
-                let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(new_ent);
+                let _ = world.insert_one(new_ent, ae_plugin_api::TransformDirty);
+                let _ = world.remove_one::<ae_plugin_api::GlobalTransform>(new_ent);
             }
         }
     }
@@ -252,11 +252,11 @@ impl EditorState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::{Position, Velocity};
+    use ae_plugin_api::{Position, Velocity};
 
     #[test]
     fn test_editor_scene_backup_and_restore() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let e1 = world.spawn((
             Position {
                 x: 10.0,
@@ -279,11 +279,11 @@ mod tests {
         editor.backup_scene(&world);
 
         // Simulate gameplay mutations
-        if let Ok(mut pos) = world.get::<&mut Position>(e1) {
+        if let Ok(pos) = world.get_mut::<Position>(e1) {
             pos.x = 999.0;
             pos.y = -500.0;
         }
-        if let Ok(mut vel) = world.get::<&mut Velocity>(e1) {
+        if let Ok(vel) = world.get_mut::<Velocity>(e1) {
             vel.x = 100.0;
             vel.y = -50.0;
             vel.z = 200.0;
@@ -304,7 +304,7 @@ mod tests {
 
         // e1 position restored
         let pos1 = world
-            .get::<&Position>(e1)
+            .get_copied::<Position>(e1)
             .expect("e1 Position must exist after scene restore");
         assert_eq!(pos1.x, 10.0);
         assert_eq!(pos1.y, 5.0);
@@ -312,7 +312,7 @@ mod tests {
 
         // e1 velocity restored to initial backup value (not zeroed out)
         let vel1 = world
-            .get::<&Velocity>(e1)
+            .get_copied::<Velocity>(e1)
             .expect("e1 Velocity must exist after scene restore");
         assert_eq!(vel1.x, 1.5);
         assert_eq!(vel1.y, 2.0);

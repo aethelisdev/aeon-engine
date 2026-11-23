@@ -4,11 +4,11 @@
 //! Unit tests for rotating actors, moving platforms, and trigger mechanisms.
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use ae_core::ecs::{Color, MovingPlatform, Position, Rotation, Rotator, Scale, TriggerZone};
 use ae_core::events::DynamicEventBus;
 use ae_core::input::InputManager;
+use ae_ecs::World;
 use ae_physics::world::PhysicsWorld;
-use hecs::World;
+use ae_plugin_api::{Color, MovingPlatform, Position, Rotation, Rotator, Scale, TriggerZone};
 
 #[test]
 fn test_rotator_behavior_rotation_progression() {
@@ -32,7 +32,7 @@ fn test_rotator_behavior_rotation_progression() {
         delta_time: 0.5,
     });
 
-    let rot = *world.get::<&Rotation>(ent).unwrap();
+    let rot = world.get_copied::<Rotation>(ent).unwrap();
     assert!(
         rot.y.abs() > 0.01 || rot.w.abs() < 0.99,
         "Rotator must advance rotation quaternion"
@@ -61,7 +61,7 @@ fn test_moving_platform_waypoint_interpolation() {
         delta_time: 1.0,
     });
 
-    let pos = *world.get::<&Position>(ent).unwrap();
+    let pos = world.get_copied::<Position>(ent).unwrap();
     assert!(
         (pos.x - 5.0).abs() < 0.1,
         "Platform should move 5.0 units in 1 second at 5.0 m/s"
@@ -105,10 +105,12 @@ fn test_trigger_zone_activation_and_elevation() {
         delta_time: 0.5,
     });
 
-    let zone = world.get::<&TriggerZone>(trigger_ent).unwrap();
-    assert!(zone.is_triggered, "Trigger zone should be marked triggered");
+    let is_triggered = world
+        .inspect::<TriggerZone, _>(trigger_ent, |z| z.is_triggered)
+        .unwrap();
+    assert!(is_triggered, "Trigger zone should be marked triggered");
 
-    let pos = world.get::<&Position>(trigger_ent).unwrap();
+    let pos = world.get_copied::<Position>(trigger_ent).unwrap();
     assert!(
         pos.y > 0.5,
         "Trigger zone should begin moving up towards target Y"
@@ -126,8 +128,8 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
     let sensor_pad = world.spawn((
         Position::new(10.0, 0.55, -4.0),
         Scale::new(4.0, 0.1, 4.0),
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 10.0, 0.5],
             },
             friction: 0.0,
@@ -140,8 +142,8 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
     // 2. Sliding Door
     let door = world.spawn((
         Position::new(10.0, 2.0, -7.0),
-        ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
+        ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Box {
                 half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.5,
@@ -159,7 +161,7 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
     ));
 
     // 3. Player entity stepping on sensor pad (10.0, 0.55, -4.0)
-    let player = world.spawn((Position::new(10.0, 1.0, -4.0), ae_core::ecs::PlayerTag));
+    let player = world.spawn((Position::new(10.0, 1.0, -4.0), ae_plugin_api::PlayerTag));
 
     // Frame 1: Player is on the pad -> Door raises up
     update_gameplay_behaviors(BehaviorRunnerParams {
@@ -171,16 +173,18 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
         delta_time: 0.5,
     });
 
-    let is_triggered = world.get::<&TriggerZone>(sensor_pad).unwrap().is_triggered;
+    let is_triggered = world
+        .inspect::<TriggerZone, _>(sensor_pad, |z| z.is_triggered)
+        .unwrap();
     assert!(is_triggered, "Pad must be triggered when player is on it");
-    let door_pos = *world.get::<&Position>(door).unwrap();
+    let door_pos = world.get_copied::<Position>(door).unwrap();
     assert!(
         door_pos.y > 2.0,
         "Door must move up towards 6.0 when player is on pad"
     );
 
     // Frame 2: Player steps OFF the pad to (50.0, 1.0, 50.0) -> Door lowers back down
-    if let Ok(mut pos) = world.get::<&mut Position>(player) {
+    if let Ok(pos) = world.get_mut::<Position>(player) {
         pos.x = 50.0;
         pos.z = 50.0;
     }
@@ -194,12 +198,14 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
         delta_time: 1.0,
     });
 
-    let is_triggered = world.get::<&TriggerZone>(sensor_pad).unwrap().is_triggered;
+    let is_triggered = world
+        .inspect::<TriggerZone, _>(sensor_pad, |z| z.is_triggered)
+        .unwrap();
     assert!(
         !is_triggered,
         "Pad must NOT be triggered when player steps off"
     );
-    let door_pos = *world.get::<&Position>(door).unwrap();
+    let door_pos = world.get_copied::<Position>(door).unwrap();
     assert!(
         door_pos.y <= 2.05,
         "Door must lower back down to original position (2.0) after player steps off"

@@ -42,7 +42,7 @@ pub enum RuntimePauseAction {
 /// Builds active in-game ECS UI components (health bars, score labels, panels) into declarative [`UiScope`] nodes.
 pub fn build_ingame_ecs_ui(
     scope: &mut UiScope<'_>,
-    world: &hecs::World,
+    world: &ae_ecs::World,
     viewport_rect: Rect,
     cursor_pos: Point,
 ) {
@@ -336,7 +336,7 @@ impl RuntimeHudOverlay {
     /// computes Taffy layout, and uploads text/quad GPU buffers.
     pub fn prepare_and_poll_action(
         &mut self,
-        world: &hecs::World,
+        world: &ae_ecs::World,
         is_paused: bool,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_shared_ingame_ecs_ui_and_pause_menu_build_nodes() {
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         world.spawn((
             UiElement::new(UiAnchor::TopLeft, [16.0, 16.0], [200.0, 48.0]),
             UiPanel::default(),

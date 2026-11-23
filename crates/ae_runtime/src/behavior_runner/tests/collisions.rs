@@ -6,25 +6,25 @@
 use std::sync::{Arc, Mutex};
 
 use ae_core::behavior::{Behavior, BehaviorContext, NativeBehavior};
-use ae_core::commands::EntityCommandBuffer;
-use ae_core::ecs::{PhysicsMaterial, SurfaceType};
 use ae_core::events::{
     CollisionEnter, CollisionExit, DynamicEventBus, SurfaceImpactEvent, TriggerEnter, TriggerExit,
 };
-use hecs::World;
+use ae_ecs::EntityCommandBuffer;
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{PhysicsMaterial, SurfaceType};
 
 struct TestCollisionActor {
-    collided_with: Arc<Mutex<Vec<hecs::Entity>>>,
-    exited_with: Arc<Mutex<Vec<hecs::Entity>>>,
-    triggered_with: Arc<Mutex<Vec<hecs::Entity>>>,
-    trigger_exited_with: Arc<Mutex<Vec<hecs::Entity>>>,
+    collided_with: Arc<Mutex<Vec<Entity>>>,
+    exited_with: Arc<Mutex<Vec<Entity>>>,
+    triggered_with: Arc<Mutex<Vec<Entity>>>,
+    trigger_exited_with: Arc<Mutex<Vec<Entity>>>,
 }
 
 impl Behavior for TestCollisionActor {
     fn on_collision_enter(
         &mut self,
-        _entity: hecs::Entity,
-        other: hecs::Entity,
+        _entity: Entity,
+        other: Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
         if let Ok(mut lock) = self.collided_with.lock() {
@@ -34,8 +34,8 @@ impl Behavior for TestCollisionActor {
 
     fn on_collision_exit(
         &mut self,
-        _entity: hecs::Entity,
-        other: hecs::Entity,
+        _entity: Entity,
+        other: Entity,
         _ctx: &mut BehaviorContext<'_>,
     ) {
         if let Ok(mut lock) = self.exited_with.lock() {
@@ -43,23 +43,13 @@ impl Behavior for TestCollisionActor {
         }
     }
 
-    fn on_trigger_enter(
-        &mut self,
-        _entity: hecs::Entity,
-        other: hecs::Entity,
-        _ctx: &mut BehaviorContext<'_>,
-    ) {
+    fn on_trigger_enter(&mut self, _entity: Entity, other: Entity, _ctx: &mut BehaviorContext<'_>) {
         if let Ok(mut lock) = self.triggered_with.lock() {
             lock.push(other);
         }
     }
 
-    fn on_trigger_exit(
-        &mut self,
-        _entity: hecs::Entity,
-        other: hecs::Entity,
-        _ctx: &mut BehaviorContext<'_>,
-    ) {
+    fn on_trigger_exit(&mut self, _entity: Entity, other: Entity, _ctx: &mut BehaviorContext<'_>) {
         if let Ok(mut lock) = self.trigger_exited_with.lock() {
             lock.push(other);
         }

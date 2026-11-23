@@ -7,7 +7,7 @@ pub mod in_game_hud;
 pub mod overlay;
 pub mod pause_menu;
 
-pub use ae_core::ecs::{PlayerHealthBarTag, ScoreDisplayTag};
+pub use ae_plugin_api::{PlayerHealthBarTag, ScoreDisplayTag};
 pub use in_game_hud::InGameHudState;
 pub use overlay::{
     RuntimeHudOverlay, RuntimePauseAction, TAG_PLAY_EXIT, TAG_PLAY_RESUME,

@@ -7,7 +7,7 @@ use super::viewport::{map_window_to_viewport, should_pass_to_3d};
 use crate::editor_state::EditorState;
 use crate::input::{InputManager, KeyCode};
 use crate::picking;
-use ae_core::ecs::{Position, Rotation, Scale};
+use ae_plugin_api::{Position, Rotation, Scale};
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, SquareMatrix, Vector3};
 
 /// Creates a picking ray from screen-space mouse coordinates.
@@ -39,7 +39,7 @@ pub fn on_left_click_pressed(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     params: LeftClickPressParams<'_>,
 ) {
     let LeftClickPressParams {
@@ -69,17 +69,15 @@ pub fn on_left_click_pressed(
 
     let mut gizmo_drag_started = false;
     if let Some(&selected_ent) = editor.selected_entities.first() {
-        let gizmo_world_pos = if let Ok(gt) = ecs
-            .world
-            .get::<&ae_core::ecs::GlobalTransform>(selected_ent)
-        {
-            let mat = gt.0;
-            Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
-        } else if let Ok(pos0) = ecs.world.get::<&Position>(selected_ent) {
-            Some(Vector3::new(pos0.x, pos0.y, pos0.z))
-        } else {
-            None
-        };
+        let gizmo_world_pos =
+            if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(selected_ent) {
+                let mat = gt.0;
+                Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
+            } else if let Ok(pos0) = world.get_copied::<Position>(selected_ent) {
+                Some(Vector3::new(pos0.x, pos0.y, pos0.z))
+            } else {
+                None
+            };
 
         if let Some(pos) = gizmo_world_pos {
             let camera_pos = camera.position.to_vec();
@@ -87,7 +85,7 @@ pub fn on_left_click_pressed(
             let gizmo_screen = gizmo_screen_params(camera, local_size);
 
             gizmo_system.space = editor.gizmo_space;
-            if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
+            if let Ok(r) = world.get_copied::<Rotation>(selected_ent) {
                 gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
             }
 
@@ -109,27 +107,26 @@ pub fn on_left_click_pressed(
             editor.gizmo_dragging = true;
             editor.current_edit_snapshots.clear();
             for &ent in &editor.selected_entities {
-                editor.current_edit_snapshots.insert(
-                    ent,
-                    crate::undo_redo::EntitySnapshot::capture(&ecs.world, ent),
-                );
+                editor
+                    .current_edit_snapshots
+                    .insert(ent, crate::undo_redo::EntitySnapshot::capture(world, ent));
             }
 
             editor.multi_start_positions.clear();
             editor.multi_start_scales.clear();
             editor.multi_start_rotations.clear();
             for &ent in &editor.selected_entities {
-                if let Ok(p) = ecs.world.get::<&Position>(ent) {
+                if let Ok(p) = world.get_copied::<Position>(ent) {
                     editor
                         .multi_start_positions
                         .insert(ent, cgmath::Vector3::new(p.x, p.y, p.z));
                 }
-                if let Ok(r) = ecs.world.get::<&Rotation>(ent) {
+                if let Ok(r) = world.get_copied::<Rotation>(ent) {
                     editor
                         .multi_start_rotations
                         .insert(ent, cgmath::Quaternion::new(r.w, r.x, r.y, r.z));
                 }
-                if let Ok(s) = ecs.world.get::<&Scale>(ent) {
+                if let Ok(s) = world.get_copied::<Scale>(ent) {
                     editor
                         .multi_start_scales
                         .insert(ent, cgmath::Vector3::new(s.x, s.y, s.z));
@@ -140,14 +137,14 @@ pub fn on_left_click_pressed(
     }
 
     if !gizmo_drag_started {
-        try_select_entity(editor, ecs, spatial_grid, input, &ray);
+        try_select_entity(editor, world, spatial_grid, input, &ray);
     }
 }
 
 /// Performs raycast entity selection via AABB intersection testing.
 pub fn try_select_entity(
     editor: &mut EditorState,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     spatial_grid: &ae_core::spatial::SpatialGrid,
     input: &InputManager,
     ray: &picking::Ray,
@@ -155,7 +152,7 @@ pub fn try_select_entity(
     let mut closest_dist = f32::MAX;
     let mut selected = None;
 
-    let total_ents = ecs.world.len() as usize;
+    let total_ents = world.len() as usize;
     let use_spatial = total_ents >= 150_000 && !spatial_grid.cells.is_empty();
 
     if use_spatial {
@@ -181,12 +178,12 @@ pub fn try_select_entity(
         }
 
         for &ent in &candidates {
-            let mut q = ecs.world.query_one::<(
-                Option<&ae_core::ecs::GlobalTransform>,
+            let mut q = world.query_one::<(
+                Option<&ae_plugin_api::GlobalTransform>,
                 Option<&Position>,
                 Option<&Rotation>,
                 Option<&Scale>,
-                Option<&ae_core::ecs::BoundingBox>,
+                Option<&ae_plugin_api::BoundingBox>,
             )>(ent);
 
             if let Ok((gt, pos, rot, scale, bbox)) = q.get() {
@@ -233,15 +230,15 @@ pub fn try_select_entity(
             }
         }
     } else {
-        let mut query = ecs.world.query::<(
-            hecs::Entity,
-            Option<&ae_core::ecs::GlobalTransform>,
+        let mut query = world.query::<(
+            ae_ecs::Entity,
+            Option<&ae_plugin_api::GlobalTransform>,
             Option<&Position>,
             Option<&Rotation>,
             Option<&Scale>,
-            Option<&ae_core::ecs::Shape>,
-            Option<&ae_core::ecs::Collider>,
-            Option<&ae_core::ecs::BoundingBox>,
+            Option<&ae_plugin_api::Shape>,
+            Option<&ae_plugin_api::Collider>,
+            Option<&ae_plugin_api::BoundingBox>,
         )>();
 
         for (ent, gt, pos, rot, scale, shape_opt, col_opt, bbox) in query.iter() {
@@ -270,20 +267,20 @@ pub fn try_select_entity(
                     (b.min, b.max)
                 } else if let Some(shape) = shape_opt {
                     match shape {
-                        ae_core::ecs::Shape::Capsule => ([-0.35, -0.5, -0.35], [0.35, 0.5, 0.35]),
-                        ae_core::ecs::Shape::Torus => ([-0.5, -0.15, -0.5], [0.5, 0.15, 0.5]),
+                        ae_plugin_api::Shape::Capsule => ([-0.35, -0.5, -0.35], [0.35, 0.5, 0.35]),
+                        ae_plugin_api::Shape::Torus => ([-0.5, -0.15, -0.5], [0.5, 0.15, 0.5]),
                         _ => ([-0.5; 3], [0.5; 3]),
                     }
                 } else if let Some(col) = col_opt {
                     match col.shape {
-                        ae_core::ecs::ColliderShape::Box { half_extents } => (
+                        ae_plugin_api::ColliderShape::Box { half_extents } => (
                             [-half_extents[0], -half_extents[1], -half_extents[2]],
                             [half_extents[0], half_extents[1], half_extents[2]],
                         ),
-                        ae_core::ecs::ColliderShape::Sphere { radius } => {
+                        ae_plugin_api::ColliderShape::Sphere { radius } => {
                             ([-radius, -radius, -radius], [radius, radius, radius])
                         }
-                        ae_core::ecs::ColliderShape::Capsule {
+                        ae_plugin_api::ColliderShape::Capsule {
                             half_height,
                             radius,
                             center_y,
@@ -310,7 +307,7 @@ pub fn try_select_entity(
 
     // --- 3D VIEWPORT BILLBOARD ICON PICKING ---
     // Allows selecting Light, Audio, Camera, or empty entities by clicking their 3D billboard icons
-    for (ent, pos) in ecs.world.query::<(hecs::Entity, &Position)>().iter() {
+    for (ent, pos) in world.query::<(ae_ecs::Entity, &Position)>().iter() {
         let sphere_center = Point3::new(pos.x, pos.y, pos.z);
         if let Some(t_world) = picking::intersect_sphere(ray, sphere_center, 0.75)
             && t_world < closest_dist
@@ -356,7 +353,7 @@ pub fn on_left_click_released(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     params: LeftClickReleaseParams,
 ) {
     let LeftClickReleaseParams {
@@ -374,13 +371,13 @@ pub fn on_left_click_released(
             editor.selected_entities.first(),
             create_ray(camera, local_size, local_mx, local_my),
         ) {
-            if let Ok(pos0) = ecs.world.get::<&Position>(sel) {
+            if let Ok(pos0) = world.get_copied::<Position>(sel) {
                 let camera_pos = camera.position.to_vec();
                 let cam_forward = camera.get_forward();
                 let gizmo_screen = gizmo_screen_params(camera, local_size);
 
                 gizmo_system.space = editor.gizmo_space;
-                if let Ok(r) = ecs.world.get::<&Rotation>(sel) {
+                if let Ok(r) = world.get_copied::<Rotation>(sel) {
                     gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                 }
 
@@ -396,7 +393,7 @@ pub fn on_left_click_released(
                     left_released: true,
                 });
             }
-            crate::history::commit_undo_history(editor, &ecs.world, sel);
+            crate::history::commit_undo_history(editor, world, sel);
         }
         editor.gizmo_dragging = false;
     }

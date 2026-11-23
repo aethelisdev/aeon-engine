@@ -3,7 +3,7 @@
 
 use crate::editor_state::EditorState;
 use crate::undo_redo::{Command, EntitySnapshot};
-use ae_core::ecs::{
+use ae_plugin_api::{
     BoundingBox, Children, Color, GlobalTransform, Light, ModelId, Name, Parent, PlayerTag,
     Position, Rotation, Scale, Shape, SpriteId, Velocity,
 };
@@ -11,7 +11,7 @@ use ae_core::ecs::{
 /// Deletes all currently selected entities from the ECS world.
 ///
 /// Captures an `EntitySnapshot` for each entity before despawning to enable undo.
-pub fn delete_selected(world: &mut hecs::World, editor: &mut EditorState) {
+pub fn delete_selected(world: &mut ae_ecs::World, editor: &mut EditorState) {
     if editor.selected_entities.is_empty() {
         return;
     }
@@ -22,25 +22,19 @@ pub fn delete_selected(world: &mut hecs::World, editor: &mut EditorState) {
     for ent in to_delete {
         if world.contains(ent) {
             // 1. Clean up parent's children list and prevent stale/stuck positions
-            let parent_opt = if let Ok(parent_ref) = world.get::<&Parent>(ent) {
-                Some(parent_ref.0)
-            } else {
-                None
-            };
+            let parent_opt = world.get_copied::<Parent>(ent).ok().map(|p| p.0);
 
             if let Some(parent) = parent_opt {
                 let mut remove_parent_children = false;
-                let mut remove_parent_gt = false;
 
-                if let Ok(mut children_ref) = world.get::<&mut Children>(parent) {
+                if let Ok(children_ref) = world.get_mut::<Children>(parent) {
                     children_ref.0.retain(|&e| e != ent);
                     if children_ref.0.is_empty() {
                         remove_parent_children = true;
-                        if world.get::<&Parent>(parent).is_err() {
-                            remove_parent_gt = true;
-                        }
                     }
                 }
+
+                let remove_parent_gt = remove_parent_children && !world.has::<Parent>(parent);
 
                 if remove_parent_children {
                     let _ = world.remove_one::<Children>(parent);
@@ -51,11 +45,9 @@ pub fn delete_selected(world: &mut hecs::World, editor: &mut EditorState) {
             }
 
             // 2. Unparent any children first to prevent stale hierarchy components and stuck GlobalTransforms
-            let children_list = if let Ok(children_ref) = world.get::<&Children>(ent) {
-                children_ref.0.clone()
-            } else {
-                Vec::new()
-            };
+            let children_list = world
+                .inspect::<Children, _>(ent, |children_ref| children_ref.0.clone())
+                .unwrap_or_default();
 
             for child in children_list {
                 let _ = world.remove_one::<Parent>(child);
@@ -90,7 +82,7 @@ pub fn delete_selected(world: &mut hecs::World, editor: &mut EditorState) {
 }
 
 /// Duplicates all currently selected entities with a position offset.
-pub fn duplicate_selected(world: &mut hecs::World, editor: &mut EditorState) {
+pub fn duplicate_selected(world: &mut ae_ecs::World, editor: &mut EditorState) {
     if editor.selected_entities.is_empty() {
         return;
     }
@@ -103,49 +95,49 @@ pub fn duplicate_selected(world: &mut hecs::World, editor: &mut EditorState) {
 
     for ent in to_duplicate {
         if world.contains(ent) {
-            let mut builder = hecs::EntityBuilder::new();
+            let mut builder = ae_ecs::EntityBuilder::new();
 
-            if let Ok(name) = world.get::<&Name>(ent) {
-                builder.add(Name(format!("{} (Copy)", name.0)));
+            if let Ok(name_copy) = world.inspect::<Name, _>(ent, |n| format!("{} (Copy)", n.0)) {
+                builder.add(Name(name_copy));
             } else {
                 builder.add(Name("Entity (Copy)".to_string()));
             }
 
-            if let Ok(pos) = world.get::<&Position>(ent) {
+            if let Ok(pos) = world.get_copied::<Position>(ent) {
                 builder.add(Position {
                     x: pos.x + 0.5,
                     y: pos.y + 0.5,
                     z: pos.z,
                 });
             }
-            if let Ok(rot) = world.get::<&Rotation>(ent) {
-                builder.add(*rot);
+            if let Ok(rot) = world.get_copied::<Rotation>(ent) {
+                builder.add(rot);
             }
-            if let Ok(scl) = world.get::<&Scale>(ent) {
-                builder.add(*scl);
+            if let Ok(scl) = world.get_copied::<Scale>(ent) {
+                builder.add(scl);
             }
-            if let Ok(col) = world.get::<&Color>(ent) {
-                builder.add(*col);
+            if let Ok(col) = world.get_copied::<Color>(ent) {
+                builder.add(col);
             }
-            if let Ok(vel) = world.get::<&Velocity>(ent) {
-                builder.add(*vel);
+            if let Ok(vel) = world.get_copied::<Velocity>(ent) {
+                builder.add(vel);
             }
-            if let Ok(shape) = world.get::<&Shape>(ent) {
-                builder.add(*shape);
+            if let Ok(shape) = world.get_copied::<Shape>(ent) {
+                builder.add(shape);
             }
-            if let Ok(mid) = world.get::<&ModelId>(ent) {
-                builder.add(*mid);
+            if let Ok(mid) = world.get_copied::<ModelId>(ent) {
+                builder.add(mid);
             }
-            if let Ok(sid) = world.get::<&SpriteId>(ent) {
-                builder.add(*sid);
+            if let Ok(sid) = world.get_copied::<SpriteId>(ent) {
+                builder.add(sid);
             }
-            if let Ok(l) = world.get::<&Light>(ent) {
-                builder.add(*l);
+            if let Ok(l) = world.get_copied::<Light>(ent) {
+                builder.add(l);
             }
-            if let Ok(bbox) = world.get::<&BoundingBox>(ent) {
-                builder.add(*bbox);
+            if let Ok(bbox) = world.get_copied::<BoundingBox>(ent) {
+                builder.add(bbox);
             }
-            if world.get::<&PlayerTag>(ent).is_ok() {
+            if world.has::<PlayerTag>(ent) {
                 builder.add(PlayerTag);
             }
 

@@ -3,16 +3,31 @@
 
 //! Destructible targets, hit reactions, health tracking, and projectile lifecycle subsystem.
 
-use ae_core::ecs::{Color, DestructibleTarget, EphemeralProjectile, Scale};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
-use hecs::World;
+use ae_ecs::World;
+use ae_plugin_api::{Color, DestructibleTarget, EphemeralProjectile, Scale};
 
 /// Processes raycast damage events, decrements health, triggers hit flashes, and broadcasts destruction.
 pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEventBus) {
     let mut targets_to_destroy = Vec::new();
     if let Some(hits) = event_bus.receive::<RaycastHitEvent>() {
         for hit in hits {
-            if let Ok(mut target) = world.get::<&mut DestructibleTarget>(hit.target) {
+            let needs_orig = world
+                .inspect::<DestructibleTarget, _>(hit.target, |t| {
+                    t.health > 0.0 && t.hit_flash_timer <= 0.0
+                })
+                .unwrap_or(false);
+            let orig_color = if needs_orig {
+                world
+                    .get_copied::<Color>(hit.target)
+                    .ok()
+                    .map(|col| [col.r, col.g, col.b, col.a])
+            } else {
+                None
+            };
+
+            let mut flash_applied = false;
+            if let Ok(target) = world.get_mut::<DestructibleTarget>(hit.target) {
                 // If target is already dead (health <= 0.0), ignore subsequent hits!
                 if target.health <= 0.0 {
                     continue;
@@ -21,20 +36,11 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
                 target.health = (target.health - hit.damage).max(0.0);
 
                 // Save original color before applying flash if not currently flashing
-                if target.hit_flash_timer <= 0.0
-                    && let Ok(col) = world.get::<&Color>(hit.target)
-                {
-                    target.original_color = [col.r, col.g, col.b, col.a];
+                if let Some(orig) = orig_color {
+                    target.original_color = orig;
                 }
                 target.hit_flash_timer = 0.20; // 200ms impact flash
-
-                // Apply bright impact flash color
-                if let Ok(mut col) = world.get::<&mut Color>(hit.target) {
-                    col.r = 1.0;
-                    col.g = 0.9;
-                    col.b = 0.4;
-                    col.a = 1.0;
-                }
+                flash_applied = true;
 
                 log::info!(
                     "🎯 [RaycastHit] Target {:?} took {} damage! Health: {}/{}",
@@ -65,21 +71,29 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
                     targets_to_destroy.push(hit.target);
                 }
             }
+
+            // Apply bright impact flash color
+            if flash_applied && let Ok(col) = world.get_mut::<Color>(hit.target) {
+                col.r = 1.0;
+                col.g = 0.9;
+                col.b = 0.4;
+                col.a = 1.0;
+            }
         }
     }
 
     for target in targets_to_destroy {
         log::info!("💥 [Target Destroyed] Entity {:?} was destroyed!", target);
-        if let Ok(mut col) = world.get::<&mut Color>(target) {
+        if let Ok(col) = world.get_mut::<Color>(target) {
             col.r = 0.2;
             col.g = 0.2;
             col.b = 0.2;
             col.a = 0.6;
         }
-        if let Ok(mut scale) = world.get::<&mut Scale>(target) {
+        if let Ok(scale) = world.get_mut::<Scale>(target) {
             scale.y *= 0.35; // Visually flatten / destroy the dummy
         }
-        let _ = world.insert_one(target, ae_core::ecs::TransformDirty);
+        let _ = world.insert_one(target, ae_plugin_api::TransformDirty);
     }
 }
 
@@ -104,7 +118,7 @@ pub fn update_destructible_visuals(world: &mut World, dt: f32) {
 /// Updates projectile lifetime timers and cleans up expired entities.
 pub fn update_ephemeral_projectiles(world: &mut World, dt: f32) {
     let mut projectiles_to_despawn = Vec::new();
-    for (ent, projectile) in world.query_mut::<(hecs::Entity, &mut EphemeralProjectile)>() {
+    for (ent, projectile) in world.query_mut::<(ae_ecs::Entity, &mut EphemeralProjectile)>() {
         projectile.lifetime_remaining -= dt;
         if projectile.lifetime_remaining <= 0.0 {
             projectiles_to_despawn.push(ent);

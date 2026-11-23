@@ -124,10 +124,10 @@ pub fn intersect_aabb(ray: &Ray, min: [f32; 3], max: [f32; 3]) -> Option<f32> {
 /// Prioritizes `GlobalTransform` if present (ensuring correct world-space raycasting for parent-child hierarchies),
 /// falling back to local `Position`, `Rotation`, and `Scale` components.
 pub fn compute_model_matrix(
-    gt: Option<&ae_core::ecs::GlobalTransform>,
-    pos: Option<&ae_core::ecs::Position>,
-    rot: Option<&ae_core::ecs::Rotation>,
-    scale: Option<&ae_core::ecs::Scale>,
+    gt: Option<&ae_plugin_api::GlobalTransform>,
+    pos: Option<&ae_plugin_api::Position>,
+    rot: Option<&ae_plugin_api::Rotation>,
+    scale: Option<&ae_plugin_api::Scale>,
 ) -> Matrix4<f32> {
     if let Some(global_tf) = gt {
         global_tf.0
@@ -323,8 +323,8 @@ mod tests {
     #[test]
     fn test_compute_model_matrix_global_transform_priority() {
         let gt_matrix = cgmath::Matrix4::from_translation(cgmath::Vector3::new(100.0, 50.0, 0.0));
-        let gt = ae_core::ecs::GlobalTransform(gt_matrix);
-        let pos = ae_core::ecs::Position {
+        let gt = ae_plugin_api::GlobalTransform(gt_matrix);
+        let pos = ae_plugin_api::Position {
             x: 1.0,
             y: 2.0,
             z: 3.0,

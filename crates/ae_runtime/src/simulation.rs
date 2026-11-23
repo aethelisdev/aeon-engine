@@ -5,15 +5,14 @@
 //! fixed physics stepping, and `SaveGame` runtime delta slot execution.
 
 use crate::streaming::RuntimeStreamingManager;
-use ae_core::ecs::{
-    ComponentRegistry, EcsManager, EntityGuid, PlayerTag, Position, TransformDirty,
-    update_hierarchy_transforms,
-};
 use ae_core::events::{
     DynamicEventBus, LoadGameCompleted, LoadGameRequest, SaveGameCompleted, SaveGameRequest,
 };
 use ae_core::input::InputManager;
+use ae_core::transform::update_hierarchy_transforms;
+use ae_ecs::ComponentRegistry;
 use ae_physics::world::PhysicsWorld;
+use ae_plugin_api::{EntityGuid, PlayerTag, Position, TransformDirty};
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
 use ae_world::{
@@ -31,7 +30,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// builds exhibit identical player controls without duplicating movement logic.
 pub fn step_player_movement(
     input: &InputManager,
-    ecs: &mut EcsManager,
+    world: &mut ae_ecs::World,
     physics_world: &mut PhysicsWorld,
     camera: &ae_core::camera::Camera,
     is_2d: bool,
@@ -46,7 +45,7 @@ pub fn step_player_movement(
         let move_x = right_axis * speed * dt;
         let move_y = fwd_axis * speed * dt;
         if move_x.abs() > 0.0001 || move_y.abs() > 0.0001 {
-            for (_tag, pos) in ecs.world.query::<(&PlayerTag, &mut Position)>().iter() {
+            for (_tag, pos) in world.query::<(&PlayerTag, &mut Position)>().iter() {
                 pos.x += move_x;
                 pos.y += move_y;
                 pos.z = 0.0;
@@ -54,9 +53,8 @@ pub fn step_player_movement(
         }
     }
 
-    let kcc_entities: Vec<hecs::Entity> = ecs
-        .world
-        .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
+    let kcc_entities: Vec<ae_ecs::Entity> = world
+        .query::<(ae_ecs::Entity, &ae_plugin_api::CharacterController)>()
         .iter()
         .map(|(ent, _)| ent)
         .collect();
@@ -77,7 +75,7 @@ pub fn step_player_movement(
     if move_dir.length_squared() > 0.001 {
         let rot_quat = Quat::from_rotation_y(move_dir.x.atan2(move_dir.z));
         for &ent in &kcc_entities {
-            if let Ok(mut r) = ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
+            if let Ok(r) = world.get_mut::<ae_plugin_api::Rotation>(ent) {
                 r.x = rot_quat.x;
                 r.y = rot_quat.y;
                 r.z = rot_quat.z;
@@ -93,19 +91,17 @@ pub fn step_player_movement(
 
     let jump_pressed = input.is_action_pressed("Jump");
     for ent in kcc_entities {
-        let is_grounded = ecs
-            .world
-            .get::<&ae_core::ecs::CharacterController>(ent)
-            .is_ok_and(|c| c.is_grounded);
-        let mut vert_vel = ecs
-            .world
-            .get::<&ae_core::ecs::Velocity>(ent)
+        let is_grounded = world
+            .inspect::<ae_plugin_api::CharacterController, _>(ent, |c| c.is_grounded)
+            .unwrap_or(false);
+        let mut vert_vel = world
+            .get_copied::<ae_plugin_api::Velocity>(ent)
             .map_or(0.0, |v| v.y);
 
         if is_grounded {
             if jump_pressed {
                 vert_vel = 9.0;
-                if let Ok(mut ctrl) = ecs.world.get::<&mut ae_core::ecs::CharacterController>(ent) {
+                if let Ok(ctrl) = world.get_mut::<ae_plugin_api::CharacterController>(ent) {
                     ctrl.is_grounded = false;
                 }
             } else {
@@ -115,7 +111,7 @@ pub fn step_player_movement(
             vert_vel -= 20.0 * dt;
         }
 
-        if let Ok(mut vel) = ecs.world.get::<&mut ae_core::ecs::Velocity>(ent) {
+        if let Ok(vel) = world.get_mut::<ae_plugin_api::Velocity>(ent) {
             vel.x = 0.0;
             vel.y = vert_vel;
             vel.z = 0.0;
@@ -126,7 +122,7 @@ pub fn step_player_movement(
             vert_vel * dt,
             move_dir.z * speed * dt,
         );
-        physics_world.move_character(&mut ecs.world, ent, translation, dt);
+        physics_world.move_character(world, ent, translation, dt);
     }
 }
 
@@ -134,7 +130,7 @@ pub fn step_player_movement(
 ///
 /// Consumes `mouse_delta` and zeroes it out after applying rotation.
 pub fn update_play_camera(
-    ecs: &mut EcsManager,
+    world: &mut ae_ecs::World,
     camera: &mut ae_core::camera::Camera,
     mouse_delta: &mut (f32, f32),
     mouse_sensitivity: f32,
@@ -144,7 +140,7 @@ pub fn update_play_camera(
         camera.pitch = cgmath::Rad(0.0);
         *mouse_delta = (0.0, 0.0);
 
-        if let Some(target_pos) = find_play_target_pos(&mut ecs.world, false) {
+        if let Some(target_pos) = find_play_target_pos(world, false) {
             camera.position.x = target_pos.x;
             camera.position.y = target_pos.y;
             camera.position.z = 10.0;
@@ -172,7 +168,7 @@ pub fn update_play_camera(
     }
     *mouse_delta = (0.0, 0.0);
 
-    if let Some(mut target_pos) = find_play_target_pos(&mut ecs.world, true) {
+    if let Some(mut target_pos) = find_play_target_pos(world, true) {
         target_pos.y += 1.5;
         let forward = camera.get_forward();
         let arm_distance = 6.0_f32;
@@ -184,7 +180,7 @@ pub fn update_play_camera(
 }
 
 fn find_play_target_pos(
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     prefer_controller: bool,
 ) -> Option<cgmath::Point3<f32>> {
     if prefer_controller {
@@ -199,7 +195,7 @@ fn find_play_target_pos(
     query_controller_pos(world)
 }
 
-fn query_player_tag_pos(world: &mut hecs::World) -> Option<cgmath::Point3<f32>> {
+fn query_player_tag_pos(world: &mut ae_ecs::World) -> Option<cgmath::Point3<f32>> {
     world
         .query_mut::<(&PlayerTag, &Position)>()
         .into_iter()
@@ -207,9 +203,9 @@ fn query_player_tag_pos(world: &mut hecs::World) -> Option<cgmath::Point3<f32>> 
         .map(|(_, pos)| cgmath::Point3::new(pos.x, pos.y, pos.z))
 }
 
-fn query_controller_pos(world: &mut hecs::World) -> Option<cgmath::Point3<f32>> {
+fn query_controller_pos(world: &mut ae_ecs::World) -> Option<cgmath::Point3<f32>> {
     world
-        .query_mut::<(&ae_core::ecs::CharacterController, &Position)>()
+        .query_mut::<(&ae_plugin_api::CharacterController, &Position)>()
         .into_iter()
         .next()
         .map(|(_, pos)| cgmath::Point3::new(pos.x, pos.y, pos.z))
@@ -217,7 +213,7 @@ fn query_controller_pos(world: &mut hecs::World) -> Option<cgmath::Point3<f32>> 
 
 /// Evaluates active skeletal animation clips and pushes GPU skinning bone matrices.
 pub fn update_skeletal_animations(
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     render_state: &RenderState,
     asset_manager: &mut AssetManager,
     dt: f32,
@@ -225,9 +221,9 @@ pub fn update_skeletal_animations(
     let mut candidate_entities = Vec::new();
     for (entity, player, model_id) in world
         .query_mut::<(
-            hecs::Entity,
+            ae_ecs::Entity,
             &mut ae_animation::AnimationPlayer,
-            &ae_core::ecs::ModelId,
+            &ae_plugin_api::ModelId,
         )>()
         .into_iter()
     {
@@ -235,7 +231,7 @@ pub fn update_skeletal_animations(
     }
 
     for (entity, model_id, needs_clip) in candidate_entities {
-        if world.get::<&ae_animation::Skeleton>(entity).is_err()
+        if !world.has::<ae_animation::Skeleton>(entity)
             && let Some(asset) = asset_manager.models.get(model_id)
         {
             if let Some(ref skel) = asset.skeleton {
@@ -243,7 +239,7 @@ pub fn update_skeletal_animations(
             }
             if needs_clip
                 && !asset.animations.is_empty()
-                && let Ok(mut player) = world.get::<&mut ae_animation::AnimationPlayer>(entity)
+                && let Ok(player) = world.get_mut::<ae_animation::AnimationPlayer>(entity)
             {
                 player.play(asset.animations[0].clone());
             }
@@ -253,10 +249,10 @@ pub fn update_skeletal_animations(
     let mut skinning_updates = Vec::new();
     for (_entity, player, skeleton, model_id) in world
         .query_mut::<(
-            hecs::Entity,
+            ae_ecs::Entity,
             &mut ae_animation::AnimationPlayer,
             &ae_animation::Skeleton,
-            &ae_core::ecs::ModelId,
+            &ae_plugin_api::ModelId,
         )>()
         .into_iter()
     {
@@ -285,7 +281,7 @@ pub struct SaveLoadDispatchContext<'a> {
     /// Total gameplay session duration in seconds written to save headers.
     pub play_time_secs: u64,
     /// Active ECS world whose stateful components are captured or restored.
-    pub world: &'a mut hecs::World,
+    pub world: &'a mut ae_ecs::World,
     /// Event bus supplying [`SaveGameRequest`]/[`LoadGameRequest`] and receiving completions.
     pub event_bus: &'a mut DynamicEventBus,
     /// Optional runtime chunk streaming manager synchronized with loaded delta snapshots.
@@ -301,16 +297,16 @@ pub fn save_slot_path(save_games_dir: &Path, slot_index: u16) -> PathBuf {
 /// Captures live ECS entity components partitioned by [`SpatialCellCoord`] into a [`WorldDeltaSnapshot`].
 #[must_use]
 pub fn capture_runtime_save_snapshot(
-    world: &hecs::World,
+    world: &ae_ecs::World,
     metadata: SaveSlotMetadata,
     cell_size: f32,
 ) -> WorldDeltaSnapshot {
     let mut snapshot = WorldDeltaSnapshot::new(metadata);
-    let registry = ComponentRegistry::global();
+    let registry = ae_plugin_api::engine_component_registry();
 
     let mut entity_to_guid = HashMap::new();
     for entity_ref in world.iter() {
-        if let Some(guid) = entity_ref.get::<&EntityGuid>().map(|g| *g)
+        if let Some(guid) = entity_ref.get_copied::<EntityGuid>()
             && !guid.is_nil()
         {
             entity_to_guid.insert(entity_ref.entity(), guid);
@@ -323,7 +319,7 @@ pub fn capture_runtime_save_snapshot(
             continue;
         };
         let parent_guid = entity_ref
-            .get::<&ae_core::ecs::Parent>()
+            .get_copied::<ae_plugin_api::Parent>()
             .and_then(|p| entity_to_guid.get(&p.0).copied());
         let mut rec = EntityRecord::new(guid, parent_guid);
 
@@ -341,7 +337,7 @@ pub fn capture_runtime_save_snapshot(
             }
         }
 
-        if let Some(pos) = entity_ref.get::<&Position>().map(|p| *p) {
+        if let Some(pos) = entity_ref.get_copied::<Position>() {
             let cell = SpatialCellCoord::from_world_pos([pos.x, pos.y, pos.z], cell_size);
             snapshot.record_cell_modified(cell, rec);
         } else {
@@ -355,14 +351,14 @@ pub fn capture_runtime_save_snapshot(
 /// Applies loaded delta snapshot component overrides to live entities sharing matching [`EntityGuid`]s
 /// and forwards the full snapshot to `streaming` when active.
 pub fn apply_runtime_save_snapshot(
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     snapshot: &WorldDeltaSnapshot,
     mut streaming: Option<&mut RuntimeStreamingManager>,
 ) {
-    let registry = ComponentRegistry::global();
+    let registry = ae_plugin_api::engine_component_registry();
     let mut guid_to_entity = HashMap::new();
     for entity_ref in world.iter() {
-        if let Some(guid) = entity_ref.get::<&EntityGuid>().map(|g| *g)
+        if let Some(guid) = entity_ref.get_copied::<EntityGuid>()
             && !guid.is_nil()
         {
             guid_to_entity.insert(guid, entity_ref.entity());
@@ -397,9 +393,9 @@ pub fn apply_runtime_save_snapshot(
 }
 
 fn apply_record_slice(
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     registry: &ComponentRegistry,
-    guid_to_entity: &HashMap<EntityGuid, hecs::Entity>,
+    guid_to_entity: &HashMap<EntityGuid, ae_ecs::Entity>,
     records: &[EntityRecord],
 ) {
     for rec in records {
@@ -450,7 +446,7 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
     }
 
     if let Some(load_reqs) = ctx.event_bus.receive::<LoadGameRequest>() {
-        let known_hashes = ComponentRegistry::global().known_type_hashes();
+        let known_hashes = ae_plugin_api::engine_component_registry().known_type_hashes();
         for req in load_reqs {
             let target_path = save_slot_path(ctx.save_games_dir, req.slot_index);
             match load_save_with_fallback(&target_path, Some(&known_hashes)) {
@@ -483,16 +479,16 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
 /// gameplay camera/simulation updates while paused.
 pub fn step_play_state_and_pause(
     state_manager: &mut ae_core::state::StateManager,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     event_bus: &mut DynamicEventBus,
     input: &InputManager,
     dt: f32,
 ) -> (bool, bool) {
     let was_paused = state_manager.is_paused();
 
-    let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
-    state_manager.update(&mut ecs.world, event_bus, &mut state_cmd_buffer, dt);
-    state_cmd_buffer.apply(&mut ecs.world);
+    let mut state_cmd_buffer = ae_ecs::EntityCommandBuffer::new();
+    state_manager.update(world, event_bus, &mut state_cmd_buffer, dt);
+    state_cmd_buffer.apply(world);
 
     if input.is_action_just_pressed("Pause") {
         if state_manager.is_paused() {
@@ -500,9 +496,9 @@ pub fn step_play_state_and_pause(
         } else {
             state_manager.push(crate::hud::InGamePauseState::new());
         }
-        let mut toggle_cmd = ae_core::commands::EntityCommandBuffer::new();
-        state_manager.update(&mut ecs.world, event_bus, &mut toggle_cmd, 0.0);
-        toggle_cmd.apply(&mut ecs.world);
+        let mut toggle_cmd = ae_ecs::EntityCommandBuffer::new();
+        state_manager.update(world, event_bus, &mut toggle_cmd, 0.0);
+        toggle_cmd.apply(world);
     }
 
     (was_paused, state_manager.is_paused())
@@ -511,7 +507,7 @@ pub fn step_play_state_and_pause(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::Name;
+    use ae_plugin_api::Name;
     use ae_world::GuidGenerator;
 
     #[test]
@@ -526,7 +522,7 @@ mod tests {
         let world_guid = ids.next_entity_guid();
         let player_guid = ids.next_entity_guid();
 
-        let mut world = hecs::World::new();
+        let mut world = ae_ecs::World::new();
         let player = world.spawn((
             player_guid,
             Name("Hero".to_string()),
@@ -553,7 +549,7 @@ mod tests {
         assert!(save_slot_path(&save_dir, 1).is_file());
 
         // Mutate player position and request restore from slot 1
-        if let Ok(mut pos) = world.get::<&mut Position>(player) {
+        if let Ok(pos) = world.get_mut::<Position>(player) {
             pos.x = 999.0;
         }
         bus.load_slot(1);
@@ -573,7 +569,7 @@ mod tests {
             .receive::<LoadGameCompleted>()
             .expect("load completion emitted");
         assert!(load_done[0].success, "load err: {:?}", load_done[0].error);
-        let restored_pos = world.get::<&Position>(player).expect("player pos");
+        let restored_pos = world.get_copied::<Position>(player).expect("player pos");
         assert!((restored_pos.x - 42.0).abs() < 1e-5);
         assert!((restored_pos.z + 18.0).abs() < 1e-5);
 
@@ -583,12 +579,17 @@ mod tests {
     #[test]
     fn test_step_play_state_and_pause_toggles_pause_via_action_map() {
         let mut state_manager = ae_core::state::StateManager::new();
-        let mut ecs = ae_core::ecs::EcsManager::new();
+        let mut world = ae_ecs::World::new();
         let mut event_bus = DynamicEventBus::new();
         let mut input = InputManager::new();
 
-        let (was_paused, is_paused) =
-            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        let (was_paused, is_paused) = step_play_state_and_pause(
+            &mut state_manager,
+            &mut world,
+            &mut event_bus,
+            &input,
+            0.016,
+        );
         assert!(!was_paused);
         assert!(!is_paused);
 
@@ -596,12 +597,17 @@ mod tests {
             ae_core::input::KeyCode::KeyP,
             winit::event::ElementState::Pressed,
         );
-        let (was_paused, is_paused) =
-            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        let (was_paused, is_paused) = step_play_state_and_pause(
+            &mut state_manager,
+            &mut world,
+            &mut event_bus,
+            &input,
+            0.016,
+        );
         assert!(!was_paused);
         assert!(is_paused);
         assert!(
-            ecs.world
+            world
                 .query::<&ae_core::ui::PauseMenuUiTag>()
                 .iter()
                 .next()
@@ -618,12 +624,17 @@ mod tests {
             ae_core::input::KeyCode::KeyP,
             winit::event::ElementState::Pressed,
         );
-        let (was_paused, is_paused) =
-            step_play_state_and_pause(&mut state_manager, &mut ecs, &mut event_bus, &input, 0.016);
+        let (was_paused, is_paused) = step_play_state_and_pause(
+            &mut state_manager,
+            &mut world,
+            &mut event_bus,
+            &input,
+            0.016,
+        );
         assert!(was_paused);
         assert!(!is_paused);
         assert!(
-            ecs.world
+            world
                 .query::<&ae_core::ui::PauseMenuUiTag>()
                 .iter()
                 .next()

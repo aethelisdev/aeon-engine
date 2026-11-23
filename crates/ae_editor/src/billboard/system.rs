@@ -8,8 +8,8 @@
 
 use super::pipeline::BillboardPipeline;
 use super::types::{BillboardIconType, BillboardUniform, BillboardVertex};
+use ae_ecs::Entity;
 use cgmath::Matrix4;
-use hecs::Entity;
 
 /// Parameters for preparing billboard overlays before render pass execution.
 pub struct BillboardPrepareParams<'a> {
@@ -18,7 +18,7 @@ pub struct BillboardPrepareParams<'a> {
     /// WGPU device for buffer allocation/resizing.
     pub device: &'a wgpu::Device,
     /// ECS world containing scene entities and components.
-    pub world: &'a hecs::World,
+    pub world: &'a ae_ecs::World,
     /// Combined camera view-projection matrix.
     pub view_proj: Matrix4<f32>,
     /// Viewport logical screen dimensions in pixels `[width, height]`.
@@ -122,19 +122,19 @@ impl BillboardSystem {
 
         for (ent, pos) in params
             .world
-            .query::<(Entity, &ae_core::ecs::Position)>()
+            .query::<(Entity, &ae_plugin_api::Position)>()
             .iter()
         {
             let is_selected = params.selected_entities.contains(&ent);
 
             // Skip hidden entities unless actively selected
-            if params.world.get::<&ae_core::ecs::Hidden>(ent).is_ok() && !is_selected {
+            if params.world.has::<ae_plugin_api::Hidden>(ent) && !is_selected {
                 continue;
             }
 
-            let is_light = params.world.get::<&ae_core::ecs::Light>(ent).is_ok();
-            let is_audio_source = params.world.get::<&ae_audio::AudioSource>(ent).is_ok();
-            let is_audio_listener = params.world.get::<&ae_audio::AudioListener>(ent).is_ok();
+            let is_light = params.world.has::<ae_plugin_api::Light>(ent);
+            let is_audio_source = params.world.has::<ae_audio::AudioSource>(ent);
+            let is_audio_listener = params.world.has::<ae_audio::AudioListener>(ent);
 
             if !is_light && !is_audio_source && !is_audio_listener {
                 continue;

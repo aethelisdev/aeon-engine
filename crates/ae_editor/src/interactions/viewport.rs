@@ -4,7 +4,7 @@ use super::gizmo_drag::handle_gizmo_drag;
 use super::selection::{on_left_click_pressed, on_left_click_released};
 use crate::editor_state::EditorState;
 use crate::input::InputManager;
-use ae_core::ecs::{GlobalTransform, Position, Rotation};
+use ae_plugin_api::{GlobalTransform, Position, Rotation};
 use cgmath::{EuclideanSpace, Quaternion, Vector3};
 
 /// Parameters for handling cursor movement in the viewport.
@@ -22,7 +22,7 @@ pub fn handle_cursor_moved(
     editor: &mut EditorState,
     camera: &mut ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     params: CursorMoveParams,
 ) {
     let CursorMoveParams {
@@ -59,7 +59,7 @@ pub fn handle_cursor_moved(
             editor,
             camera,
             gizmo_system,
-            ecs,
+            world,
             window_size: local_size,
             cursor_pos: (local_x as f64, local_y as f64),
         });
@@ -79,10 +79,10 @@ pub fn handle_cursor_moved(
                     super::selection::create_ray(camera, local_size, local_x, local_y)
             {
                 let gizmo_world_pos =
-                    if let Ok(gt) = ecs.world.get::<&GlobalTransform>(selected_ent) {
+                    if let Ok(gt) = world.get_copied::<GlobalTransform>(selected_ent) {
                         let mat = gt.0;
                         Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
-                    } else if let Ok(pos0) = ecs.world.get::<&Position>(selected_ent) {
+                    } else if let Ok(pos0) = world.get_copied::<Position>(selected_ent) {
                         Some(Vector3::new(pos0.x, pos0.y, pos0.z))
                     } else {
                         None
@@ -95,7 +95,7 @@ pub fn handle_cursor_moved(
 
                     gizmo_system.space = editor.gizmo_space;
                     gizmo_system.mode = editor.gizmo_mode;
-                    if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
+                    if let Ok(r) = world.get_copied::<Rotation>(selected_ent) {
                         gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                     }
 
@@ -137,7 +137,7 @@ pub fn handle_mouse_click(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
     params: MouseClickParams<'_>,
 ) {
     let MouseClickParams {
@@ -173,7 +173,7 @@ pub fn handle_mouse_click(
                 editor,
                 camera,
                 gizmo_system,
-                ecs,
+                world,
                 super::selection::LeftClickPressParams {
                     spatial_grid,
                     window_size,
@@ -189,7 +189,7 @@ pub fn handle_mouse_click(
                 editor,
                 camera,
                 gizmo_system,
-                ecs,
+                world,
                 super::selection::LeftClickReleaseParams {
                     window_size,
                     last_viewport_rect,
@@ -226,11 +226,11 @@ pub fn should_pass_to_3d(
 pub fn handle_focus_lost(
     editor: &mut EditorState,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
+    world: &mut ae_ecs::World,
 ) {
     if editor.gizmo_dragging {
         if let Some(&sel) = editor.selected_entities.first() {
-            crate::history::commit_undo_history(editor, &ecs.world, sel);
+            crate::history::commit_undo_history(editor, world, sel);
         }
         gizmo_system.end_drag();
         editor.gizmo_dragging = false;

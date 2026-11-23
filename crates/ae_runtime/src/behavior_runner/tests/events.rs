@@ -5,7 +5,7 @@
 
 use crate::behavior_runner::{destructible, trigger_zone};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent};
-use hecs::World;
+use ae_ecs::World;
 
 #[test]
 fn test_gameplay_events_damage_and_actor_killed_dispatch() {
@@ -13,12 +13,12 @@ fn test_gameplay_events_damage_and_actor_killed_dispatch() {
     let mut event_bus = DynamicEventBus::new();
 
     let target_ent = world.spawn((
-        ae_core::ecs::Position::new(0.0, 1.0, 5.0),
-        ae_core::ecs::DestructibleTarget::new(50.0),
-        ae_core::ecs::Color::red(),
+        ae_plugin_api::Position::new(0.0, 1.0, 5.0),
+        ae_plugin_api::DestructibleTarget::new(50.0),
+        ae_plugin_api::Color::red(),
     ));
 
-    let shooter_ent = world.spawn((ae_core::ecs::Position::new(0.0, 1.0, 0.0),));
+    let shooter_ent = world.spawn((ae_plugin_api::Position::new(0.0, 1.0, 0.0),));
 
     // Send RaycastHitEvent with 25 damage
     event_bus.send(RaycastHitEvent {
@@ -64,10 +64,10 @@ fn test_gameplay_events_trigger_channel_dispatch() {
     let mut event_bus = DynamicEventBus::new();
 
     let trigger_ent = world.spawn((
-        ae_core::ecs::Position::new(0.0, 0.0, 0.0),
-        ae_core::ecs::TriggerZone::new(),
+        ae_plugin_api::Position::new(0.0, 0.0, 0.0),
+        ae_plugin_api::TriggerZone::new(),
     ));
-    let player_ent = world.spawn((ae_core::ecs::Position::new(0.0, 0.0, 0.0),));
+    let player_ent = world.spawn((ae_plugin_api::Position::new(0.0, 0.0, 0.0),));
 
     // Simulate TriggerEnter
     event_bus.send(ae_core::events::TriggerEnter {

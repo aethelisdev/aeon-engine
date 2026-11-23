@@ -7,9 +7,9 @@
 //! (`PhysicsMaterial` / `SurfaceType`) to dispatch standardized `SurfaceImpactEvent`
 //! and audio cues across the `DynamicEventBus`.
 
-use ae_core::ecs::{PhysicsMaterial, Position, SurfaceType};
 use ae_core::events::{CollisionEnter, DynamicEventBus, SurfaceImpactEvent};
-use hecs::World;
+use ae_ecs::World;
+use ae_plugin_api::{PhysicsMaterial, Position, SurfaceType};
 
 /// Processes physical collision enter events and generates surface impact events.
 pub fn process_collision_surface_impacts(world: &World, event_bus: &mut DynamicEventBus) {
@@ -19,17 +19,15 @@ pub fn process_collision_surface_impacts(world: &World, event_bus: &mut DynamicE
         for col in events {
             // Determine surface types for both entities
             let surface_a = world
-                .get::<&PhysicsMaterial>(col.entity_a)
-                .map(|m| m.surface_type)
+                .inspect::<PhysicsMaterial, _>(col.entity_a, |m| m.surface_type)
                 .unwrap_or(SurfaceType::Default);
             let surface_b = world
-                .get::<&PhysicsMaterial>(col.entity_b)
-                .map(|m| m.surface_type)
+                .inspect::<PhysicsMaterial, _>(col.entity_b, |m| m.surface_type)
                 .unwrap_or(SurfaceType::Default);
 
             let hit_point = col.contact_point.unwrap_or_else(|| {
                 world
-                    .get::<&Position>(col.entity_a)
+                    .get_copied::<Position>(col.entity_a)
                     .map(|p| [p.x, p.y, p.z])
                     .unwrap_or([0.0, 0.0, 0.0])
             });

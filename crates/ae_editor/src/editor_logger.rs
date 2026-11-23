@@ -78,7 +78,9 @@ impl log::Log for EditorLogger {
                 Level::Debug => "\x1b[34m", // Blue
                 Level::Trace => "\x1b[36m", // Cyan
             };
-            println!(
+            use std::io::Write;
+            let _ = writeln!(
+                std::io::stdout(),
                 "{}{}\x1b[0m [{}] {}",
                 color_code,
                 record.level(),
@@ -90,7 +92,10 @@ impl log::Log for EditorLogger {
             // If another thread panicked while holding the lock (poisoned),
             // recover by taking the inner data — losing logs is worse than a stale lock.
             if let Ok(mut lock) = self.logs.lock().or_else(|poisoned| {
-                eprintln!("[EditorLogger] WARNING: Log mutex was poisoned, recovering.");
+                let _ = writeln!(
+                    std::io::stderr(),
+                    "[EditorLogger] WARNING: Log mutex was poisoned, recovering."
+                );
                 Ok::<_, ()>(poisoned.into_inner())
             }) {
                 if lock.len() >= MAX_LOGS {

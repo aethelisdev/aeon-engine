@@ -3,8 +3,8 @@
 
 //! Moving platform and elevator subsystem with waypoint ping-pong interpolation.
 
-use ae_core::ecs::{MovingPlatform, Position};
-use hecs::{Entity, World};
+use ae_ecs::{Entity, World};
+use ae_plugin_api::{MovingPlatform, Position};
 
 /// Updates waypoint interpolation for moving platforms and translates any standing passengers.
 pub fn update_moving_platforms(
@@ -56,7 +56,7 @@ pub fn update_moving_platforms(
     }
 
     if let Some((p_ent, [step_x, step_y, step_z])) = player_delta
-        && let Ok(mut player_pos_comp) = world.get::<&mut Position>(p_ent)
+        && let Ok(player_pos_comp) = world.get_mut::<Position>(p_ent)
     {
         player_pos_comp.x += step_x;
         player_pos_comp.y += step_y;

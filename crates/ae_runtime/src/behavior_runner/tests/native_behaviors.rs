@@ -4,11 +4,11 @@
 //! Unit tests for NativeBehavior lifecycle and EntityCommandBuffer operations.
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use ae_core::ecs::{Position, Rotation};
 use ae_core::events::DynamicEventBus;
 use ae_core::input::InputManager;
+use ae_ecs::{Entity, World};
 use ae_physics::world::PhysicsWorld;
-use hecs::World;
+use ae_plugin_api::{Position, Rotation};
 
 #[derive(Default)]
 struct MockActorBehavior {
@@ -17,29 +17,25 @@ struct MockActorBehavior {
 }
 
 impl ae_core::behavior::Behavior for MockActorBehavior {
-    fn on_start(
-        &mut self,
-        _entity: hecs::Entity,
-        ctx: &mut ae_core::behavior::BehaviorContext<'_>,
-    ) {
+    fn on_start(&mut self, _entity: Entity, ctx: &mut ae_core::behavior::BehaviorContext<'_>) {
         self.start_invoked = true;
         // Schedule spawning a companion entity via deferred command buffer
         ctx.commands.spawn_with(|w| {
             w.spawn((
                 Position::new(10.0, 20.0, 30.0),
-                ae_core::ecs::Name("CompanionEntity".to_string()),
+                ae_plugin_api::Name("CompanionEntity".to_string()),
             ))
         });
     }
 
     fn on_update(
         &mut self,
-        entity: hecs::Entity,
+        entity: Entity,
         ctx: &mut ae_core::behavior::BehaviorContext<'_>,
         dt: f32,
     ) {
         self.update_count += 1;
-        if let Ok(mut pos) = ctx.world.get::<&mut Position>(entity) {
+        if let Ok(pos) = ctx.world.get_mut::<Position>(entity) {
             pos.y += 10.0 * dt;
         }
     }
@@ -69,7 +65,7 @@ fn test_native_behavior_lifecycle_and_deferred_commands() {
     });
 
     // 1. Verify position was updated by on_update
-    let actor_pos = *world.get::<&Position>(actor_ent).unwrap();
+    let actor_pos = world.get_copied::<Position>(actor_ent).unwrap();
     assert!(
         (actor_pos.y - 1.0).abs() < 0.01,
         "Actor Y should increase by 1.0 unit (10.0 * 0.1)"
@@ -77,7 +73,7 @@ fn test_native_behavior_lifecycle_and_deferred_commands() {
 
     // 2. Verify companion entity was spawned by on_start via CommandBuffer
     let mut companion_found = false;
-    for (pos, name) in world.query::<(&Position, &ae_core::ecs::Name)>().iter() {
+    for (pos, name) in world.query::<(&Position, &ae_plugin_api::Name)>().iter() {
         if name.0 == "CompanionEntity" {
             assert_eq!(pos.x, 10.0);
             assert_eq!(pos.y, 20.0);
@@ -101,7 +97,7 @@ fn test_native_behavior_lifecycle_and_deferred_commands() {
         delta_time: 0.1,
     });
 
-    let actor_pos_frame2 = *world.get::<&Position>(actor_ent).unwrap();
+    let actor_pos_frame2 = world.get_copied::<Position>(actor_ent).unwrap();
     assert!(
         (actor_pos_frame2.y - 2.0).abs() < 0.01,
         "Actor Y should now be 2.0"
@@ -111,16 +107,16 @@ fn test_native_behavior_lifecycle_and_deferred_commands() {
 #[test]
 fn test_entity_command_buffer_direct_operations() {
     let mut world = World::new();
-    let mut cmd = ae_core::commands::EntityCommandBuffer::new();
+    let mut cmd = ae_ecs::EntityCommandBuffer::new();
 
     let ent1 = world.spawn((Position::new(0.0, 0.0, 0.0),));
     let ent2 = world.spawn((Position::new(5.0, 5.0, 5.0),));
 
     // Queue insert_one, remove_one, despawn, and spawn_with
-    cmd.insert_one(ent1, ae_core::ecs::Color::red());
+    cmd.insert_one(ent1, ae_plugin_api::Color::red());
     cmd.remove_one::<Position>(ent2);
     cmd.despawn(ent1);
-    cmd.spawn_with(|w| w.spawn((Position::new(100.0, 100.0, 100.0), ae_core::ecs::PlayerTag)));
+    cmd.spawn_with(|w| w.spawn((Position::new(100.0, 100.0, 100.0), ae_plugin_api::PlayerTag)));
 
     assert_eq!(cmd.len(), 4);
     assert!(!cmd.is_empty());
@@ -133,12 +129,12 @@ fn test_entity_command_buffer_direct_operations() {
     assert!(!world.contains(ent1));
 
     // ent2 must no longer have Position
-    assert!(world.get::<&Position>(ent2).is_err());
+    assert!(!world.has::<Position>(ent2));
 
     // New spawned entity with PlayerTag must exist at 100,100,100
     let mut player_found = false;
     for (pos, _) in world
-        .query::<(&Position, &ae_core::ecs::PlayerTag)>()
+        .query::<(&Position, &ae_plugin_api::PlayerTag)>()
         .iter()
     {
         if pos.x == 100.0 && pos.y == 100.0 && pos.z == 100.0 {

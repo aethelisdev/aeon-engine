@@ -32,7 +32,7 @@ pub struct ShortcutResult {
 /// and returns a `ShortcutResult` for engine-level signals (undo/redo, open scene, save scene, camera focus).
 pub fn process_shortcuts(
     input: &InputManager,
-    world: &mut hecs::World,
+    world: &mut ae_ecs::World,
     editor: &mut EditorState,
     engine_mode: EngineMode,
 ) -> ShortcutResult {

@@ -89,7 +89,11 @@ impl GameState for InGamePauseState {
     fn on_exit(&mut self, ctx: &mut StateContext<'_>) {
         log::info!("▶️ [PauseState] Resuming gameplay...");
         let mut to_despawn = Vec::new();
-        for (ent, _tag) in ctx.world.query::<(hecs::Entity, &PauseMenuUiTag)>().iter() {
+        for (ent, _tag) in ctx
+            .world
+            .query::<(ae_ecs::Entity, &PauseMenuUiTag)>()
+            .iter()
+        {
             to_despawn.push(ent);
         }
         for ent in to_despawn {
