@@ -38,10 +38,11 @@ name = "ae-2d-core"
 version = "0.1.0"
 dependencies = [
  "ae_core",
+ "ae_ecs",
+ "ae_plugin_api",
  "ae_texture",
  "cgmath",
  "glam 0.33.12",
- "hecs",
  "serde",
 ]
 
@@ -51,8 +52,8 @@ version = "0.1.0"
 dependencies = [
  "ae-2d-core",
  "ae_core",
+ "ae_ecs",
  "glam 0.33.12",
- "hecs",
  "log",
  "rapier2d",
 ]
@@ -86,9 +87,9 @@ name = "ae_animation"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_ecs",
  "bytemuck",
  "glam 0.33.12",
- "hecs",
  "log",
  "serde",
 ]
@@ -98,6 +99,7 @@ name = "ae_assets"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_plugin_api",
  "ae_renderer",
  "ae_world",
  "gltf",
@@ -111,9 +113,10 @@ name = "ae_audio"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_ecs",
+ "ae_plugin_api",
  "ae_world",
  "glam 0.33.12",
- "hecs",
  "log",
  "rodio",
  "serde",
@@ -123,14 +126,11 @@ dependencies = [
 name = "ae_core"
 version = "0.9.0"
 dependencies = [
+ "ae_ecs",
  "ae_plugin_api",
  "cgmath",
- "crc32fast",
  "glam 0.33.12",
- "hecs",
  "log",
- "lz4_flex",
- "postcard",
  "rayon",
  "serde",
  "serde_json",
@@ -139,17 +139,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_ecs"
+version = "0.9.0"
+dependencies = [
+ "hecs",
+ "postcard",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ae_editor"
 version = "0.9.0"
 dependencies = [
  "ae_audio",
  "ae_core",
+ "ae_ecs",
+ "ae_plugin_api",
  "ae_renderer",
  "ae_world",
  "bytemuck",
  "cgmath",
  "chrono",
- "hecs",
  "image",
  "log",
  "lz4_flex",
@@ -169,14 +180,15 @@ dependencies = [
  "ae_assets",
  "ae_audio",
  "ae_core",
+ "ae_ecs",
  "ae_editor",
  "ae_export",
+ "ae_plugin_api",
  "ae_renderer",
  "ae_runtime",
  "ae_uidesign",
  "ae_world",
  "cgmath",
- "hecs",
  "image",
  "irisui",
  "irisui-winit",
@@ -198,6 +210,7 @@ dependencies = [
  "ae_assets",
  "ae_audio",
  "ae_core",
+ "ae_ecs",
  "ae_editor",
  "ae_editor_ui",
  "ae_export",
@@ -214,7 +227,6 @@ dependencies = [
  "chrono",
  "embed-resource",
  "env_logger",
- "hecs",
  "image",
  "irisui",
  "jemallocator",
@@ -284,9 +296,9 @@ name = "ae_physics"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_ecs",
  "ae_plugin_api",
  "glam 0.33.12",
- "hecs",
  "log",
  "rapier3d",
 ]
@@ -295,8 +307,8 @@ dependencies = [
 name = "ae_plugin_api"
 version = "0.9.0"
 dependencies = [
+ "ae_ecs",
  "cgmath",
- "hecs",
  "serde",
  "slotmap",
 ]
@@ -305,8 +317,8 @@ dependencies = [
 name = "ae_plugin_host"
 version = "0.9.0"
 dependencies = [
+ "ae_ecs",
  "ae_plugin_api",
- "hecs",
  "libloading 0.9.0",
  "log",
 ]
@@ -317,6 +329,7 @@ version = "0.9.0"
 dependencies = [
  "ae_animation",
  "ae_core",
+ "ae_ecs",
  "ae_plugin_api",
  "ae_texture",
  "ae_world",
@@ -324,7 +337,6 @@ dependencies = [
  "cgmath",
  "glam 0.33.12",
  "gltf",
- "hecs",
  "image",
  "irisui",
  "log",
@@ -343,6 +355,7 @@ dependencies = [
  "ae_animation",
  "ae_audio",
  "ae_core",
+ "ae_ecs",
  "ae_physics",
  "ae_plugin_api",
  "ae_plugin_host",
@@ -353,7 +366,6 @@ dependencies = [
  "cgmath",
  "env_logger",
  "game_logic",
- "hecs",
  "irisui-core",
  "irisui-layout",
  "irisui-text",
@@ -386,8 +398,8 @@ name = "ae_uidesign"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_ecs",
  "ae_plugin_api",
- "hecs",
  "log",
  "serde",
  "serde_json",
@@ -1569,8 +1581,8 @@ dependencies = [
 name = "game_logic"
 version = "0.9.0"
 dependencies = [
+ "ae_ecs",
  "ae_plugin_api",
- "hecs",
 ]
 
 [[package]]

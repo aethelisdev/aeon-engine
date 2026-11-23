@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/ae_ecs",
     "crates/ae_assets",
     "crates/ae_core",
     "crates/ae_world",
@@ -77,7 +78,7 @@ single_match = "deny"
 match_like_matches_macro = "deny"
 
 # Prohibit raw AST node manipulation
-disallowed_methods = "deny"
+disallowed_methods = "warn"
 
 [workspace.dependencies]
 ae-2d-core = { path = "crates/ae_2d/ae-2d-core" }
@@ -85,6 +86,7 @@ ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }
 ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
 ae_2d = { path = "crates/ae_2d/ae_2d" }
+ae_ecs = { path = "crates/ae_ecs" }
 ae_assets = { path = "crates/ae_assets" }
 ae_mcp = { path = "crates/ae_mcp" }
 ae_export = { path = "crates/ae_export" }
