@@ -7,8 +7,8 @@
 //! and rendering via the `OverlayRenderer` trait inside the 3D forward pass.
 
 use super::pipeline::BillboardPipeline;
-use super::types::{BillboardIconType, BillboardUniform, BillboardVertex};
 use ae_ecs::Entity;
+use ae_gizmos::{BillboardIconType, BillboardUniform, BillboardVertex};
 use cgmath::Matrix4;
 
 /// Parameters for preparing billboard overlays before render pass execution.

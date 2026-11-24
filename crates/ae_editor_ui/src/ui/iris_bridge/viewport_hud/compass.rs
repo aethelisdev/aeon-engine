@@ -8,7 +8,7 @@
 //! oriented GPU SDF line segments (`canvas.draw_line`).
 
 use super::types::TAG_COMPASS_CANVAS;
-use ae_editor::scene_gizmo::SceneNavigationGizmo;
+use ae_gizmos::SceneNavigationGizmo;
 use ae_renderer::camera::Camera;
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;

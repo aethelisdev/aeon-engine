@@ -1,25 +1,34 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use super::core::GizmoScreenParams;
-use super::core::{ActiveAxis, GizmoMode, GizmoSystem};
+use super::core::{ActiveAxis, GizmoMode, TransformGizmo};
 use super::math::ray_plane;
 /// Gizmo input — handles the drag lifecycle (start, calculate, end).
 use cgmath::{InnerSpace, Quaternion, Rad, Rotation as _, Rotation3 as _, Vector3};
 
 /// Input parameters for evaluating Gizmo interaction and ray casting.
 pub struct GizmoInputParams<'a> {
+    /// World-space pointer ray origin.
     pub ray_origin: Vector3<f32>,
+    /// Normalized world-space pointer ray direction.
     pub ray_dir: Vector3<f32>,
+    /// World-space pivot position of the selected entity/gizmo.
     pub gizmo_pos: Vector3<f32>,
+    /// World-space active camera eye position.
     pub camera_pos: Vector3<f32>,
+    /// Normalized active camera forward vector.
     pub cam_forward: Vector3<f32>,
+    /// Screen-space gizmo scaling parameters.
     pub screen: &'a GizmoScreenParams,
+    /// True on the frame the primary pointer button transitions down.
     pub left_just_pressed: bool,
+    /// True while the primary pointer button remains held.
     pub left_pressed: bool,
+    /// True on the frame the primary pointer button is released.
     pub left_released: bool,
 }
 
-impl GizmoSystem {
+impl TransformGizmo {
     /// Top-level input handler called each frame.
     ///
     /// 1. Updates hover state (when not dragging).

@@ -106,9 +106,9 @@ pub struct EditorState {
     /// Whether the infinite world grid overlay is enabled in 3D Edit mode.
     pub grid_enabled: bool,
     /// Active viewport transform gizmo manipulation tool.
-    pub gizmo_mode: crate::gizmo::GizmoMode,
+    pub gizmo_mode: ae_gizmos::GizmoMode,
     /// Active transform gizmo coordinate space (`Local` vs `World`).
-    pub gizmo_space: crate::gizmo::GizmoSpace,
+    pub gizmo_space: ae_gizmos::GizmoSpace,
     /// Whether background asset/scene loading progress feedback is active.
     pub is_loading_assets: bool,
     /// Pending save-scene trigger flag consumed by the main application loop.
@@ -153,8 +153,8 @@ impl Default for EditorState {
             history_revision: 0,
             wireframe_enabled: false,
             grid_enabled: true,
-            gizmo_mode: crate::gizmo::GizmoMode::Select,
-            gizmo_space: crate::gizmo::GizmoSpace::Local,
+            gizmo_mode: ae_gizmos::GizmoMode::Select,
+            gizmo_space: ae_gizmos::GizmoSpace::Local,
             is_loading_assets: false,
             should_save_scene: false,
             should_load_scene: false,

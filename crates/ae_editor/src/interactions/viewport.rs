@@ -21,7 +21,7 @@ pub struct CursorMoveParams {
 pub fn handle_cursor_moved(
     editor: &mut EditorState,
     camera: &mut ae_core::camera::Camera,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
+    gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: CursorMoveParams,
 ) {
@@ -108,13 +108,13 @@ pub fn handle_cursor_moved(
                         &gizmo_screen,
                     );
                 } else {
-                    gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+                    gizmo_system.hovered_axis = ae_gizmos::ActiveAxis::None;
                 }
             } else {
-                gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+                gizmo_system.hovered_axis = ae_gizmos::ActiveAxis::None;
             }
         } else {
-            gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+            gizmo_system.hovered_axis = ae_gizmos::ActiveAxis::None;
         }
     }
 }
@@ -136,7 +136,7 @@ pub struct MouseClickParams<'a> {
 pub fn handle_mouse_click(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
+    gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: MouseClickParams<'_>,
 ) {
@@ -225,7 +225,7 @@ pub fn should_pass_to_3d(
 /// Handles window focus loss by finalizing any active gizmo drags and committing history.
 pub fn handle_focus_lost(
     editor: &mut EditorState,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
+    gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
 ) {
     if editor.gizmo_dragging {

@@ -6,7 +6,27 @@
 //! Pipeline layout, shader compilation, and texture array atlas loading
 //! for 3D billboard icon badge rendering.
 
-use super::types::BillboardVertex;
+use ae_gizmos::BillboardVertex;
+
+const BILLBOARD_ATTRIBS: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
+    0 => Float32x3, // world_pos
+    1 => Float32x2, // quad_offset
+    2 => Float32x2, // uv
+    3 => Float32,   // layer
+    4 => Float32x4, // bg_color
+    5 => Float32x4, // border_color
+    6 => Float32x4  // icon_tint
+];
+
+/// Returns the WGPU vertex buffer layout descriptor matching [`ae_gizmos::BillboardVertex`].
+#[must_use]
+pub fn billboard_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<BillboardVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &BILLBOARD_ATTRIBS,
+    }
+}
 
 /// Embedded 64x64x16 Editor Texture Array atlas containing viewport and entity icons.
 const TOOLS_ICON_BYTES: &[u8] = include_bytes!("../../../../assets/icons/editor_atlas.png");
@@ -130,7 +150,7 @@ impl BillboardPipeline {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(BillboardVertex::layout())],
+                buffers: &[Some(billboard_vertex_layout())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {

@@ -1,0 +1,20 @@
+[package]
+name = "ae_gizmos_render"
+version = "0.1.0"
+edition = "2024"
+description = "Aeon Engine - WGPU renderers for transform gizmos, collider debug wireframes, and 3D entity billboards"
+
+[dependencies]
+ae_gizmos = { workspace = true }
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+ae_renderer = { path = "../ae_renderer" }
+ae_audio = { path = "../ae_audio" }
+wgpu = { workspace = true }
+cgmath = "0.18"
+bytemuck = { workspace = true }
+image = "0.25.10"
+log = { workspace = true }
+
+[lints]
+workspace = true

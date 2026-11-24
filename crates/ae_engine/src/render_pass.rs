@@ -94,31 +94,31 @@ impl AeEngine {
             }
         }
 
-        self.gizmo_system.mode = self.editor.gizmo_mode;
-        self.gizmo_system.space = self.editor.gizmo_space;
+        self.transform_gizmo.mode = self.editor.gizmo_mode;
+        self.transform_gizmo.space = self.editor.gizmo_space;
 
         // Update entity rotation for Local space gizmo orientation
         if let Some(ent) = self.editor.primary_selected() {
-            self.gizmo_system.entity_rotation = self
+            self.transform_gizmo.entity_rotation = self
                 .world
                 .inspect::<ae_plugin_api::Rotation, _>(ent, |r| {
                     cgmath::Quaternion::new(r.w, r.x, r.y, r.z)
                 })
                 .unwrap_or_else(|_| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
         } else {
-            self.gizmo_system.entity_rotation = cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0);
+            self.transform_gizmo.entity_rotation = cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0);
         }
 
         // Apply graphics settings changes BEFORE rendering.
-        // If MSAA changed, rebuild the gizmo system with the new sample count.
+        // If MSAA changed, rebuild the gizmo renderer with the new sample count.
         if let Some(new_msaa) = self.render_state.apply_settings_changes() {
-            self.gizmo_system = ae_editor::gizmo::GizmoSystem::new(
+            self.gizmo_renderer = ae_gizmos_render::GizmoRenderer::new(
                 &self.render_state.device,
                 self.render_state.config.format,
                 new_msaa,
             );
-            self.gizmo_system.mode = self.editor.gizmo_mode;
-            self.gizmo_system.space = self.editor.gizmo_space;
+            self.transform_gizmo.mode = self.editor.gizmo_mode;
+            self.transform_gizmo.space = self.editor.gizmo_space;
             self.debug_renderer.rebuild_pipeline(
                 &self.render_state.device,
                 self.render_state.config.format,
@@ -185,8 +185,9 @@ impl AeEngine {
 
                         let dist = (p - cam_pos).dot(cam_fwd).abs().max(1e-6);
                         let screen = self.gizmo_screen_params();
-                        self.gizmo_system.prepare_overlay(
-                            ae_editor::gizmo::render::GizmoOverlayPrepareParams {
+                        self.gizmo_renderer.prepare_overlay(
+                            &mut self.transform_gizmo,
+                            ae_gizmos_render::GizmoOverlayPrepareParams {
                                 queue: &self.render_state.queue,
                                 gizmo_pos: p,
                                 camera_distance: dist,
@@ -198,7 +199,7 @@ impl AeEngine {
                                 cam_pos,
                             },
                         );
-                        Some(&self.gizmo_system as &dyn ae_renderer::render::OverlayRenderer)
+                        Some(&self.gizmo_renderer as &dyn ae_renderer::render::OverlayRenderer)
                     } else {
                         None
                     }
@@ -324,8 +325,8 @@ impl AeEngine {
             if !is_2d {
                 let vp_w = self.ui.last_viewport_rect.width.max(1.0);
                 let vp_h = self.ui.last_viewport_rect.height.max(1.0);
-                self.billboard_system.prepare_overlay(
-                    ae_editor::billboard::BillboardPrepareParams {
+                self.billboard_system
+                    .prepare_overlay(ae_gizmos_render::BillboardPrepareParams {
                         queue: &self.render_state.queue,
                         device: &self.render_state.device,
                         world: &self.world,
@@ -333,8 +334,7 @@ impl AeEngine {
                         viewport_size: [vp_w, vp_h],
                         selected_entities: &self.editor.selected_entities[..],
                         hovered_entity: None,
-                    },
-                );
+                    });
                 overlays.push(&self.billboard_system);
             }
             overlays.push(&self.debug_renderer);

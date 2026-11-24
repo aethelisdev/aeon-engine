@@ -23,8 +23,9 @@ pub struct AeEngine {
     pub render_state: RenderState,
     pub ui: ae_editor_ui::ui::EngineUi,
     pub camera: ae_renderer::camera::Camera,
-    pub gizmo_system: ae_editor::gizmo::GizmoSystem,
-    pub billboard_system: ae_editor::billboard::BillboardSystem,
+    pub transform_gizmo: ae_gizmos::TransformGizmo,
+    pub gizmo_renderer: ae_gizmos_render::GizmoRenderer,
+    pub billboard_system: ae_gizmos_render::BillboardSystem,
     pub time: Time,
     pub input: InputManager,
     pub world: ae_ecs::World,
@@ -46,7 +47,7 @@ pub struct AeEngine {
     pub plugin_manager: ae_plugin_host::PluginManager,
     pub asset_manager: ae_renderer::asset::AssetManager,
     /// Debug wireframe renderer for collider visualization.
-    pub debug_renderer: crate::debug_renderer::DebugRenderer,
+    pub debug_renderer: ae_gizmos_render::DebugRenderer,
     pub resources: ae_core::Resources,
     pub event_bus: ae_core::events::DynamicEventBus,
     pub spatial_grid: ae_core::spatial::SpatialGrid,
@@ -123,12 +124,13 @@ impl AeEngine {
         );
         let init_size = window.inner_size();
         ui.on_window_resized(init_size.width, init_size.height);
-        let gizmo_system = ae_editor::gizmo::GizmoSystem::new(
+        let transform_gizmo = ae_gizmos::TransformGizmo::new();
+        let gizmo_renderer = ae_gizmos_render::GizmoRenderer::new(
             &render_state.device,
             render_state.config.format,
             render_state.post_process.msaa_samples,
         );
-        let billboard_system = ae_editor::billboard::BillboardSystem::new(
+        let billboard_system = ae_gizmos_render::BillboardSystem::new(
             &render_state.device,
             &render_state.queue,
             render_state.config.format,
@@ -296,7 +298,7 @@ impl AeEngine {
             ));
         }
 
-        let debug_renderer = crate::debug_renderer::DebugRenderer::new(
+        let debug_renderer = ae_gizmos_render::DebugRenderer::new(
             &render_state.device,
             render_state.config.format,
             render_state.post_process.msaa_samples,
@@ -330,7 +332,8 @@ impl AeEngine {
             render_state,
             ui,
             camera,
-            gizmo_system,
+            transform_gizmo,
+            gizmo_renderer,
             billboard_system,
             time: Time::new(),
             input: InputManager::new(),

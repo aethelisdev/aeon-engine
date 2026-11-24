@@ -431,3 +431,48 @@ impl DebugShapes {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cgmath::SquareMatrix;
+
+    #[test]
+    fn test_box_lines_edge_count_and_negative_oob_mesh_indices_ignored() {
+        let model = cgmath::Matrix4::identity();
+        let mut verts = Vec::new();
+        DebugShapes::generate_box_lines(&mut verts, &model, [0.5, 0.5, 0.5], [0.0, 1.0, 0.0]);
+        assert_eq!(
+            verts.len(),
+            24,
+            "12 cube edges must produce 24 line vertices"
+        );
+
+        // Out-of-bounds indices must safely be skipped without panicking
+        let mut mesh_verts = Vec::new();
+        let raw_pts = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]];
+        let invalid_indices = [0u32, 1, 99];
+        DebugShapes::generate_mesh_lines(
+            &mut mesh_verts,
+            &model,
+            &raw_pts,
+            &invalid_indices,
+            [1.0, 0.0, 0.0],
+        );
+        assert!(mesh_verts.is_empty());
+
+        // Zero segments must emit zero circle vertices safely
+        let mut circle_verts = Vec::new();
+        DebugShapes::generate_circle(
+            &mut circle_verts,
+            DebugCircleParams {
+                model: &model,
+                radius: 1.0,
+                axes: (0, 1, 2),
+                segments: 0,
+                color: [1.0, 1.0, 1.0],
+            },
+        );
+        assert!(circle_verts.is_empty());
+    }
+}

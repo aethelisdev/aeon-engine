@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::core::{ActiveAxis, GizmoMode, GizmoSystem};
-use super::render::GizmoVertex;
+use super::core::{ActiveAxis, GizmoMode, TransformGizmo};
+use super::vertex::GizmoVertex;
 /// Aeon Engine - Gizmo Geometry Generation
 ///
 /// This module handles mathematical geometry generation for the 3D translation, rotation, and scale gizmo handles.
 /// It constructs procedural vertex data for torus rings, axis arrows, planar quads, and uniform scaling O-rings.
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 
-impl GizmoSystem {
+impl TransformGizmo {
     /// Generates a colored quad on the specified plane for planar translation handles.
     ///
     /// ### Arguments
@@ -152,7 +152,7 @@ impl GizmoSystem {
     /// ### Arguments
     /// * `len` - Length of each axis arrow in local units.
     /// * `is_scale` - True for scale mode (cube tips), false for translation mode (cone tips + planar handles).
-    pub(crate) fn build_dynamic_axis_vertices(&self, len: f32, is_scale: bool) -> Vec<GizmoVertex> {
+    pub fn build_dynamic_axis_vertices(&self, len: f32, is_scale: bool) -> Vec<GizmoVertex> {
         Self::build_axis_vertices_styled(
             len,
             is_scale,
@@ -162,8 +162,8 @@ impl GizmoSystem {
         )
     }
 
-    /// Internal procedural constructor for styled axis geometry with explicit hover and drag states.
-    pub(crate) fn build_axis_vertices_styled(
+    /// Procedural constructor for styled axis geometry with explicit hover and drag states.
+    pub fn build_axis_vertices_styled(
         len: f32,
         is_scale: bool,
         hovered_axis: ActiveAxis,
@@ -323,7 +323,7 @@ impl GizmoSystem {
     /// ### Arguments
     /// * `len` - Length of each axis arrow.
     /// * `is_scale` - True if generating geometry for scale mode (cubes), false for translate mode (cones/planes).
-    pub(crate) fn build_axis_vertices(len: f32, is_scale: bool) -> Vec<GizmoVertex> {
+    pub fn build_axis_vertices(len: f32, is_scale: bool) -> Vec<GizmoVertex> {
         Self::build_axis_vertices_styled(len, is_scale, ActiveAxis::None, ActiveAxis::None, false)
     }
 
@@ -334,7 +334,7 @@ impl GizmoSystem {
     /// - Dashed axis alignment lines when dragging an axis.
     /// - Dashed bounding lines when dragging planar translation handles.
     /// - A solid rubber-band line connecting the origin to the current mouse drag position.
-    pub(crate) fn build_interaction_lines(&self) -> Vec<GizmoVertex> {
+    pub fn build_interaction_lines(&self) -> Vec<GizmoVertex> {
         let mut lines = Vec::new();
 
         // Red Center Point always drawn exactly in the middle of all three gizmo modes!
@@ -613,7 +613,7 @@ impl GizmoSystem {
     ///
     /// Generates a camera-aligned Quad billboard with normalized `[-1.0, 1.0]` UVs.
     /// The fragment shader renders an analytic sub-pixel anti-aliased circular ring with `fwidth()`.
-    pub(crate) fn build_o_ring_mesh(&self) -> Vec<GizmoVertex> {
+    pub fn build_o_ring_mesh(&self) -> Vec<GizmoVertex> {
         let radius = 0.16 * self.drag_scale_factor;
 
         let color = if self.is_dragging || self.hovered_axis == ActiveAxis::Free {
@@ -662,14 +662,14 @@ mod tests {
 
     #[test]
     fn test_dynamic_axis_vertices_hover_highlight() {
-        let idle_verts = GizmoSystem::build_axis_vertices_styled(
+        let idle_verts = TransformGizmo::build_axis_vertices_styled(
             1.0,
             false,
             ActiveAxis::None,
             ActiveAxis::None,
             false,
         );
-        let hovered_x_verts = GizmoSystem::build_axis_vertices_styled(
+        let hovered_x_verts = TransformGizmo::build_axis_vertices_styled(
             1.0,
             false,
             ActiveAxis::X,
@@ -688,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_high_contrast_unlit_axis_and_plane_colors() {
-        let verts = GizmoSystem::build_axis_vertices_styled(
+        let verts = TransformGizmo::build_axis_vertices_styled(
             1.0,
             false,
             ActiveAxis::None,
@@ -716,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_axis_scale_vertices() {
-        let scale_verts = GizmoSystem::build_axis_vertices_styled(
+        let scale_verts = TransformGizmo::build_axis_vertices_styled(
             1.0,
             true,
             ActiveAxis::Y,

@@ -38,7 +38,7 @@ pub struct LeftClickPressParams<'a> {
 pub fn on_left_click_pressed(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
+    gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: LeftClickPressParams<'_>,
 ) {
@@ -89,7 +89,7 @@ pub fn on_left_click_pressed(
                 gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
             }
 
-            gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+            gizmo_system.handle_input(ae_gizmos::GizmoInputParams {
                 ray_origin: ray.origin.to_vec(),
                 ray_dir: ray.direction,
                 gizmo_pos: pos,
@@ -352,7 +352,7 @@ pub struct LeftClickReleaseParams {
 pub fn on_left_click_released(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
+    gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: LeftClickReleaseParams,
 ) {
@@ -381,7 +381,7 @@ pub fn on_left_click_released(
                     gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                 }
 
-                gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+                gizmo_system.handle_input(ae_gizmos::GizmoInputParams {
                     ray_origin: ray.origin.to_vec(),
                     ray_dir: ray.direction,
                     gizmo_pos: Vector3::new(pos0.x, pos0.y, pos0.z),

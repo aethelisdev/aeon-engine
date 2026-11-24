@@ -3,8 +3,22 @@
 
 //! Self-contained debug wireframe renderer and overlay implementation.
 
-use super::shapes::DebugShapes;
-use super::vertex::DebugLineVertex;
+use ae_gizmos::{DebugLineVertex, DebugShapes};
+
+const DEBUG_LINE_ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+    0 => Float32x3,
+    1 => Float32x3
+];
+
+/// Returns the WGPU vertex buffer layout matching [`ae_gizmos::DebugLineVertex`].
+#[must_use]
+pub fn debug_line_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<DebugLineVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &DEBUG_LINE_ATTRIBS,
+    }
+}
 
 /// Self-contained debug wireframe renderer.
 ///
@@ -74,7 +88,7 @@ impl DebugRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(DebugLineVertex::layout())],
+                buffers: &[Some(debug_line_vertex_layout())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -165,7 +179,7 @@ impl DebugRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(DebugLineVertex::layout())],
+                buffers: &[Some(debug_line_vertex_layout())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {

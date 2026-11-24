@@ -40,7 +40,7 @@ impl AeEngine {
         ae_editor::interactions::handle_cursor_moved(
             &mut self.editor,
             &mut self.camera,
-            &mut self.gizmo_system,
+            &mut self.transform_gizmo,
             &mut self.world,
             ae_editor::interactions::CursorMoveParams {
                 window_size,
@@ -80,7 +80,7 @@ impl AeEngine {
             ae_editor::interactions::handle_mouse_click(
                 &mut self.editor,
                 &self.camera,
-                &mut self.gizmo_system,
+                &mut self.transform_gizmo,
                 &mut self.world,
                 ae_editor::interactions::MouseClickParams {
                     spatial_grid: &self.spatial_grid,
@@ -154,7 +154,7 @@ impl AeEngine {
 
     /// Returns screen space transformation parameters for rendering transformation gizmos.
     #[must_use]
-    pub fn gizmo_screen_params(&self) -> ae_editor::gizmo::GizmoScreenParams {
+    pub fn gizmo_screen_params(&self) -> ae_gizmos::GizmoScreenParams {
         let window_size = (self.render_state.size.width, self.render_state.size.height);
         ae_editor::interactions::gizmo_screen_params(&self.camera, window_size)
     }
@@ -165,7 +165,7 @@ impl AeEngine {
             self.set_cursor_grab(false);
             ae_editor::interactions::handle_focus_lost(
                 &mut self.editor,
-                &mut self.gizmo_system,
+                &mut self.transform_gizmo,
                 &mut self.world,
             );
             self.input.clear_pressed_keys();

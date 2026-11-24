@@ -62,7 +62,7 @@ pub enum EngineUiAction {
     SelectEntity(Option<ae_ecs::Entity>),
     SetWireframe(bool),
     SetGridEnabled(bool),
-    SetGizmoMode(ae_editor::gizmo::GizmoMode),
+    SetGizmoMode(ae_gizmos::GizmoMode),
     ToggleGizmoSpace,
     SetCameraMode(ae_renderer::camera::ProjectionMode),
     ToggleCameraProjection,

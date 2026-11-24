@@ -143,8 +143,8 @@ mod tests {
     };
     use ae_ecs::World;
     use ae_editor::editor_state::EditorState;
-    use ae_editor::gizmo::GizmoMode;
     use ae_editor::snapping::SnapSettings;
+    use ae_gizmos::GizmoMode;
     use ae_renderer::camera::{Camera, ProjectionMode};
 
     fn make_test_camera() -> Camera {

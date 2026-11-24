@@ -83,3 +83,58 @@ pub fn ray_plane(
     }
     Some(ro + rd * t)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ray_plane_front_back_and_parallel() {
+        let hit = ray_plane(
+            Vector3::new(0.0, 0.0, 5.0),
+            Vector3::new(0.0, 0.0, -1.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 1.0),
+        );
+        assert_eq!(hit, Some(Vector3::new(0.0, 0.0, 0.0)));
+
+        // Ray pointing away from plane must return None.
+        let behind = ray_plane(
+            Vector3::new(0.0, 0.0, 5.0),
+            Vector3::new(0.0, 0.0, 1.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 1.0),
+        );
+        assert!(behind.is_none());
+
+        // Parallel ray must return None.
+        let parallel = ray_plane(
+            Vector3::new(0.0, 2.0, 5.0),
+            Vector3::new(1.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 1.0, 0.0),
+        );
+        assert!(parallel.is_none());
+    }
+
+    #[test]
+    fn test_ray_segment_closest_degenerate_and_orthogonal() {
+        let (dist_deg, pt_deg) = ray_segment_closest(
+            Vector3::new(0.0, 0.0, 3.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(1.0, 0.0, 0.0),
+        );
+        assert!((dist_deg - 3.0).abs() < 1e-5);
+        assert_eq!(pt_deg, Vector3::new(0.0, 0.0, 0.0));
+
+        let (dist, pt) = ray_segment_closest(
+            Vector3::new(0.5, 2.0, 0.0),
+            Vector3::new(0.0, -1.0, 0.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(1.0, 0.0, 0.0),
+        );
+        assert!(dist < 1e-5);
+        assert!((pt.x - 0.5).abs() < 1e-5);
+    }
+}

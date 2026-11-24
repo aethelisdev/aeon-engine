@@ -10,12 +10,12 @@
 
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 
-use super::core::{ActiveAxis, GizmoSystem};
-use super::render::GizmoVertex;
+use super::core::{ActiveAxis, TransformGizmo};
+use super::vertex::GizmoVertex;
 
 /// Parameters describing procedural construction of a rotation torus ring.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct TorusRingDescriptor {
+pub struct TorusRingDescriptor {
     /// Radius from the gizmo center to the center of the ring tube.
     pub major_radius: f32,
     /// Cross-sectional radius of the ring tube.
@@ -34,7 +34,7 @@ pub(crate) struct TorusRingDescriptor {
     pub view_dir_local: Vector3<f32>,
 }
 
-impl GizmoSystem {
+impl TransformGizmo {
     /// Generates a torus ring handle: either a 180-degree front-facing arc or a full 360-degree circle during drag.
     ///
     /// When idle, generates a clean 180-degree arc facing the camera that never vanishes even when viewed edge-on.
@@ -42,7 +42,7 @@ impl GizmoSystem {
     ///
     /// ### Arguments
     /// * `params` - Geometry parameters and orientation descriptor.
-    pub(crate) fn build_torus_ring(params: &TorusRingDescriptor) -> Vec<GizmoVertex> {
+    pub fn build_torus_ring(params: &TorusRingDescriptor) -> Vec<GizmoVertex> {
         let normal = match params.axis {
             ActiveAxis::X => Vector3::unit_x(),
             ActiveAxis::Y => Vector3::unit_y(),
@@ -134,7 +134,7 @@ impl GizmoSystem {
     /// * `minor_radius` - Tube thickness of the screen ring.
     /// * `segments` - Circumferential subdivisions.
     /// * `cross_segments` - Cross-sectional subdivisions around the tube.
-    pub(crate) fn build_screen_rotation_ring(
+    pub fn build_screen_rotation_ring(
         &self,
         major_radius: f32,
         minor_radius: f32,
@@ -224,7 +224,7 @@ impl GizmoSystem {
     ///
     /// ### Arguments
     /// * `radius` - Major radius of the orthogonal rotation rings.
-    pub(crate) fn build_dynamic_rotation_vertices(&self, radius: f32) -> Vec<GizmoVertex> {
+    pub fn build_dynamic_rotation_vertices(&self, radius: f32) -> Vec<GizmoVertex> {
         let mut vertices = Vec::new();
         let thickness = radius * 0.04;
 
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn test_torus_ring_arc_generation() {
         let view_dir = Vector3::new(0.0, 0.0, 1.0);
-        let verts = GizmoSystem::build_torus_ring(&TorusRingDescriptor {
+        let verts = TransformGizmo::build_torus_ring(&TorusRingDescriptor {
             major_radius: 1.0,
             minor_radius: 0.04,
             segments: 16,
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn test_torus_ring_full_360_generation() {
         let view_dir = Vector3::new(0.0, 1.0, 0.0);
-        let verts = GizmoSystem::build_torus_ring(&TorusRingDescriptor {
+        let verts = TransformGizmo::build_torus_ring(&TorusRingDescriptor {
             major_radius: 1.0,
             minor_radius: 0.04,
             segments: 32,
@@ -430,7 +430,7 @@ mod tests {
         // Looking along Y axis directly edge-on to the X-axis ring (normal = X, plane = YZ)
         // normal = [1, 0, 0], view_dir = [0, 1, 0] => dot = 0.0
         let view_dir = Vector3::new(0.0, 1.0, 0.0);
-        let verts = GizmoSystem::build_torus_ring(&TorusRingDescriptor {
+        let verts = TransformGizmo::build_torus_ring(&TorusRingDescriptor {
             major_radius: 1.0,
             minor_radius: 0.04,
             segments: 16,

@@ -6,7 +6,8 @@
 //! Validates vertex memory alignment, uniform byte layout, layer mapping,
 //! and coordinate invariants.
 
-use super::types::{BillboardIconType, BillboardUniform, BillboardVertex};
+use super::pipeline::billboard_vertex_layout;
+use ae_gizmos::{BillboardIconType, BillboardUniform, BillboardVertex};
 
 #[test]
 fn test_billboard_vertex_layout() {
@@ -14,7 +15,7 @@ fn test_billboard_vertex_layout() {
         std::mem::size_of::<BillboardVertex>(),
         (3 + 2 + 2 + 1 + 4 + 4 + 4) * 4
     );
-    let layout = BillboardVertex::layout();
+    let layout = billboard_vertex_layout();
     assert_eq!(
         layout.array_stride,
         std::mem::size_of::<BillboardVertex>() as u64

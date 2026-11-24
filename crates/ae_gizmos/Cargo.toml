@@ -1,0 +1,13 @@
+[package]
+name = "ae_gizmos"
+version = "0.1.0"
+edition = "2024"
+description = "Aeon Engine - Transform gizmo math, debug wireframe shapes, billboard data, and viewport navigation compass"
+
+[dependencies]
+ae_core = { path = "../ae_core" }
+cgmath = "0.18"
+bytemuck = { workspace = true }
+
+[lints]
+workspace = true

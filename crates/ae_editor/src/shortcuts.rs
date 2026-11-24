@@ -23,7 +23,7 @@ pub struct ShortcutResult {
     /// Signal to focus the camera on the selected entity (F).
     pub trigger_focus_selected: bool,
     /// Updated gizmo mode if Q/W/E/R keys were pressed in Edit mode.
-    pub new_gizmo_mode: Option<crate::gizmo::GizmoMode>,
+    pub new_gizmo_mode: Option<ae_gizmos::GizmoMode>,
 }
 
 /// Evaluates all keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, Ctrl+S, Ctrl+Shift+S, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Q/W/E/R/F).
@@ -102,16 +102,16 @@ pub fn process_shortcuts(
     // Suppress gizmo mode shortcuts while Right Mouse Button is held for Fly Camera navigation
     if engine_mode == EngineMode::Edit && !input.is_mouse_button_pressed(MouseButton::Right) {
         if input.is_key_just_pressed(KeyCode::KeyQ) {
-            result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Select);
+            result.new_gizmo_mode = Some(ae_gizmos::GizmoMode::Select);
         }
         if input.is_key_just_pressed(KeyCode::KeyW) {
-            result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Translate);
+            result.new_gizmo_mode = Some(ae_gizmos::GizmoMode::Translate);
         }
         if input.is_key_just_pressed(KeyCode::KeyE) {
-            result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Rotate);
+            result.new_gizmo_mode = Some(ae_gizmos::GizmoMode::Rotate);
         }
         if input.is_key_just_pressed(KeyCode::KeyR) {
-            result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Scale);
+            result.new_gizmo_mode = Some(ae_gizmos::GizmoMode::Scale);
         }
         if input.is_key_just_pressed(KeyCode::KeyF) {
             result.trigger_focus_selected = true;

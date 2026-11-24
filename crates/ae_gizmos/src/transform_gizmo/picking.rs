@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::core::{ActiveAxis, GizmoMode, GizmoScreenParams, GizmoSystem};
+use super::core::{ActiveAxis, GizmoMode, GizmoScreenParams, TransformGizmo};
 use super::math::{ray_plane, ray_segment_closest};
 /// Gizmo picking — raycast intersection against gizmo axes and plane handles.
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 
-impl GizmoSystem {
+impl TransformGizmo {
     /// Determines which axis handle the mouse ray is hovering over.
     ///
     /// Updates `self.hovered_axis` and returns the detected axis.

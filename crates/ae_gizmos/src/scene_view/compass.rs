@@ -177,3 +177,29 @@ impl SceneNavigationGizmo {
         axes.map(|(dx, dy, label, color, is_pos, _depth)| (dx, dy, label, color, is_pos))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scene_view_snap_clamps_small_distance() {
+        let (pitch, yaw, pos) =
+            SceneViewSnap::Right.compute_transform(Point3::new(1.0, 2.0, 3.0), 0.1);
+        assert_eq!(pitch, Rad(0.0));
+        assert_eq!(yaw, Rad(0.0));
+        assert!((pos.x - 2.0).abs() < 1e-5);
+        assert_eq!(pos.y, 2.0);
+        assert_eq!(pos.z, 3.0);
+    }
+
+    #[test]
+    fn test_compass_axis_endpoints_count_and_finiteness() {
+        let endpoints = SceneNavigationGizmo::compute_axis_endpoints(-0.4, 0.6, 25.0);
+        assert_eq!(endpoints.len(), 6);
+        for (dx, dy, label, _col, _pos) in endpoints {
+            assert!(dx.is_finite() && dy.is_finite());
+            assert!(!label.is_empty());
+        }
+    }
+}

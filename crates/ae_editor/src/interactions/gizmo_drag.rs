@@ -9,7 +9,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Quaternion, Rad, Rotation3, Vector3};
 pub struct GizmoDragParams<'a> {
     pub editor: &'a mut EditorState,
     pub camera: &'a ae_core::camera::Camera,
-    pub gizmo_system: &'a mut crate::gizmo::GizmoSystem,
+    pub gizmo_system: &'a mut ae_gizmos::TransformGizmo,
     pub world: &'a mut ae_ecs::World,
     pub window_size: (u32, u32),
     pub cursor_pos: (f64, f64),
@@ -50,7 +50,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
             gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
         }
 
-        let delta = gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+        let delta = gizmo_system.handle_input(ae_gizmos::GizmoInputParams {
             ray_origin: ray.origin.to_vec(),
             ray_dir: ray.direction,
             gizmo_pos,
@@ -68,8 +68,8 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         {
             let mut dirtied_entities = Vec::new();
             match gizmo_mode {
-                crate::gizmo::GizmoMode::Select => {}
-                crate::gizmo::GizmoMode::Translate => {
+                ae_gizmos::GizmoMode::Select => {}
+                ae_gizmos::GizmoMode::Translate => {
                     for &ent in &editor.selected_entities {
                         let Some(start) = editor.multi_start_positions.get(&ent).copied() else {
                             continue;
@@ -110,17 +110,17 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                         }
                     }
                 }
-                crate::gizmo::GizmoMode::Rotate => {
+                ae_gizmos::GizmoMode::Rotate => {
                     for &ent in &editor.selected_entities {
                         if let Some(start_rot) = editor.multi_start_rotations.get(&ent)
                             && let Ok(r) = world.get_mut::<Rotation>(ent)
                         {
                             let step = 15.0;
                             let (axis_vec, raw_angle) = match gizmo_system.active_axis {
-                                crate::gizmo::ActiveAxis::X => (Vector3::unit_x(), d.x),
-                                crate::gizmo::ActiveAxis::Y => (Vector3::unit_y(), d.y),
-                                crate::gizmo::ActiveAxis::Z => (Vector3::unit_z(), d.z),
-                                crate::gizmo::ActiveAxis::Screen => {
+                                ae_gizmos::ActiveAxis::X => (Vector3::unit_x(), d.x),
+                                ae_gizmos::ActiveAxis::Y => (Vector3::unit_y(), d.y),
+                                ae_gizmos::ActiveAxis::Z => (Vector3::unit_z(), d.z),
+                                ae_gizmos::ActiveAxis::Screen => {
                                     (camera.get_forward().normalize(), d.x)
                                 }
                                 _ => (Vector3::unit_y(), 0.0),
@@ -132,14 +132,14 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                             };
                             let q_delta = Quaternion::from_axis_angle(axis_vec, Rad(angle));
 
-                            let q_new =
-                                if gizmo_system.active_axis == crate::gizmo::ActiveAxis::Screen {
-                                    q_delta * start_rot
-                                } else if gizmo_space == crate::gizmo::space::GizmoSpace::Local {
-                                    start_rot * q_delta
-                                } else {
-                                    q_delta * start_rot
-                                };
+                            let q_new = if gizmo_system.active_axis == ae_gizmos::ActiveAxis::Screen
+                            {
+                                q_delta * start_rot
+                            } else if gizmo_space == ae_gizmos::GizmoSpace::Local {
+                                start_rot * q_delta
+                            } else {
+                                q_delta * start_rot
+                            };
                             r.x = q_new.v.x;
                             r.y = q_new.v.y;
                             r.z = q_new.v.z;
@@ -148,7 +148,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                         }
                     }
                 }
-                crate::gizmo::GizmoMode::Scale => {
+                ae_gizmos::GizmoMode::Scale => {
                     for &ent in &editor.selected_entities {
                         if let Some(start) = editor.multi_start_scales.get(&ent)
                             && let Ok(s) = world.get_mut::<Scale>(ent)
@@ -194,8 +194,8 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
 pub fn gizmo_screen_params(
     camera: &ae_core::camera::Camera,
     window_size: (u32, u32),
-) -> crate::gizmo::GizmoScreenParams {
-    crate::gizmo::GizmoScreenParams {
+) -> ae_gizmos::GizmoScreenParams {
+    ae_gizmos::GizmoScreenParams {
         viewport_height_px: window_size.1 as f32,
         camera_fovy_deg: camera.fovy,
         axis_length_px: 96.0,

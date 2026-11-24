@@ -116,14 +116,14 @@ impl AeEngine {
         }
 
         // Sync gizmo space + entity rotation early so input handlers use correct orientation
-        self.gizmo_system.mode = self.editor.gizmo_mode;
-        self.gizmo_system.space = self.editor.gizmo_space;
+        self.transform_gizmo.mode = self.editor.gizmo_mode;
+        self.transform_gizmo.space = self.editor.gizmo_space;
         if let Some(ent) = self.editor.primary_selected()
             && let Ok(rot) = self.world.inspect::<ae_plugin_api::Rotation, _>(ent, |r| {
                 cgmath::Quaternion::new(r.w, r.x, r.y, r.z)
             })
         {
-            self.gizmo_system.entity_rotation = rot;
+            self.transform_gizmo.entity_rotation = rot;
         }
 
         self.profiler.begin_ecs();

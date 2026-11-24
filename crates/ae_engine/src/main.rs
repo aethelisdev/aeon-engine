@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 pub mod actions;
 pub mod cli;
-pub mod debug_renderer;
 pub mod engine;
 pub mod events;
 pub mod icon;

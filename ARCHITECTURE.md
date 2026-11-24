@@ -44,15 +44,19 @@ graph TD
         ae_core --> ae_uidesign
     end
 
-    subgraph Pipeline3D["3D Engine, Assets & Scene Layer"]
+    subgraph Pipeline3D["3D Engine, Gizmos, Assets & Scene Layer"]
         ae_core --> ae_physics["ae_physics (Rapier3D & KCC)"]
         ae_ecs --> ae_physics
         ae_core --> ae_animation["ae_animation (3D Skeletal)"]
         ae_ecs --> ae_animation
+        ae_core --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
         ae_texture --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
         ae_world --> ae_renderer
         ae_ecs --> ae_renderer
+        ae_gizmos --> ae_gizmos_render["ae_gizmos_render (GizmoRenderer, DebugRenderer, BillboardSystem)"]
+        ae_renderer --> ae_gizmos_render
+        ae_audio --> ae_gizmos_render
         ae_renderer --> ae_assets["ae_assets (Scanner, File Ops, Ingestion, Thumbnails, Pipeline)"]
         ae_world --> ae_assets
         ae_core --> ae_assets
@@ -100,15 +104,19 @@ graph TD
         ae_audio --> ae_runtime
         ae_plugin_host --> ae_runtime
 
-        ae_renderer --> ae_editor["ae_editor (Gizmos, Picking, Selection, Snapping, Undo/Redo)"]
+        ae_gizmos --> ae_editor["ae_editor (Camera, Picking, Selection, Snapping, Undo/Redo)"]
+        ae_renderer --> ae_editor
         ae_ecs --> ae_editor
         ae_editor --> ae_editor_ui["ae_editor_ui (Pure Declarative IDE Views & EngineUiAction)"]
+        ae_gizmos --> ae_editor_ui
         ae_export --> ae_editor_ui
         ae_runtime --> ae_editor_ui
         irisui --> ae_editor_ui
 
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
         ae_scene --> ae_engine
+        ae_gizmos --> ae_engine
+        ae_gizmos_render --> ae_engine
         ae_export --> ae_engine
         ae_editor_ui --> ae_engine
         ae_uidesign --> ae_engine
@@ -168,16 +176,18 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 * **`ae_physics`:** Wraps Rapier3D with retained collider scale mapping (`entity_to_collider_scale`), kinematic character control (KCC), and collision/trigger event emission.
 * **`ae_audio`:** Spatial 3D audio mixing via `rodio`, reading directly from `VfsProvider` byte streams or zero-parse `CookedAudio` PCM buffers.
 
-### 4.5. `ae_renderer` & `ae_texture`
+### 4.5. `ae_renderer`, `ae_texture`, `ae_gizmos` & `ae_gizmos_render`
 * **`ae_texture`:** CPU pixel/mipmap decoding and VFS/GUID loading (`parse_texture_bytes`, `load_texture_from_vfs`, `CookedTexture` conversion).
 * **`ae_renderer`:** WGPU forward PBR pipeline (4-cascade CSM shadows, sky atmosphere, MSAA/post-process, `FloatingOrigin` double-precision camera offset helpers, `AssetManager` chunk reference counting, and VFS mesh/texture/shader loaders).
+* **`ae_gizmos`:** GPU-independent gizmo crate (`TransformGizmo` interaction/math/picking/geometry, collider wireframe generators `DebugShapes`, `BillboardVertex`/`BillboardUniform`/`BillboardIconType`, and 3D viewport compass `SceneNavigationGizmo`/`SceneViewSnap`) with zero `wgpu` dependency.
+* **`ae_gizmos_render`:** WGPU `OverlayRenderer` crate hosting `GizmoRenderer`, `DebugRenderer`, and `BillboardSystem`/`BillboardPipeline` alongside `gizmo.wgsl`, `debug_line.wgsl`, and `billboard.wgsl`.
 
 ### 4.6. `ae_2d` (Decoupled 2D Subsystem)
 Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-animation`, `ae_2d`) operating under `ActiveDimensionMode::Mode2D`, bypassing 3D PBR/Rapier3D when 2D mode is active.
 
 ### 4.7. `irisui` & `ae_editor_ui`
 * **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
-* **`ae_editor` & `ae_editor_ui`:** `ae_editor` owns 3D transform gizmos, raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
+* **`ae_editor` & `ae_editor_ui`:** `ae_editor` (free of `wgpu`) owns editor camera controls, raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
 
 ### 4.8. `ae_mcp` & `ae_export` & `ae_engine` & `ae_launcher`
 * **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).
