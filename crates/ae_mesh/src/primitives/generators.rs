@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! Procedural parametric 3D mesh generators producing unit-bounded triangle lists.
+
 use crate::vertex::Vertex;
 
-/// Generates a parametric UV Sphere mesh with smooth normals.
+/// Generates a parametric UV sphere mesh with radius `0.5` (fitting a `1x1x1` unit box)
+/// and outward smooth normals.
 ///
-/// latitude_bands and longitude_bands determine resolution (smoothness).
+/// Returns an empty vector if `latitude_bands == 0` or `longitude_bands == 0`.
+#[must_use]
 pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex> {
     if latitude_bands == 0 || longitude_bands == 0 {
         return Vec::new();
     }
-    let mut vertices = Vec::new();
-    let mut raw_vertices = Vec::new();
+
+    let mut vertices = Vec::with_capacity((latitude_bands * longitude_bands * 6) as usize);
+    let mut raw_vertices =
+        Vec::with_capacity(((latitude_bands + 1) * (longitude_bands + 1)) as usize);
 
     for lat in 0..=latitude_bands {
         let theta = lat as f32 * std::f32::consts::PI / latitude_bands as f32;
@@ -29,7 +36,6 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
             let u = lon as f32 / longitude_bands as f32;
             let v = lat as f32 / latitude_bands as f32;
 
-            // Sphere radius is 0.5 (to fit a unit bounding box of size 1x1x1)
             raw_vertices.push(Vertex {
                 position: [x * 0.5, y * 0.5, z * 0.5],
                 color: [1.0, 1.0, 1.0],
@@ -39,38 +45,31 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
         }
     }
 
-    for lat in 0..latitude_bands {
-        for lon in 0..longitude_bands {
-            let first = (lat * (longitude_bands + 1) + lon) as usize;
-            let second = first + (longitude_bands + 1) as usize;
-
-            // Triangle 1
-            vertices.push(raw_vertices[first]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[first + 1]);
-
-            // Triangle 2
-            vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[second + 1]);
-        }
-    }
+    push_grid_triangles(
+        &raw_vertices,
+        0,
+        latitude_bands,
+        longitude_bands,
+        &mut vertices,
+    );
     vertices
 }
 
-/// Generates a parametric Cylinder mesh with smooth normals and caps.
+/// Generates a capped parametric cylinder mesh fitting a `1x1x1` unit box (`radius = 0.5`, `height = 1.0`).
 ///
-/// segments determines circle resolution. Fits in a unit box (radius=0.5, height=1.0).
+/// Returns an empty vector if `segments == 0`.
+#[must_use]
 pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
     if segments == 0 {
         return Vec::new();
     }
-    let mut vertices = Vec::new();
+
+    let mut vertices = Vec::with_capacity(segments as usize * 12);
 
     let top_center = [0.0, 0.5, 0.0];
     let bottom_center = [0.0, -0.5, 0.0];
 
-    let mut circle_pts = Vec::new();
+    let mut circle_pts = Vec::with_capacity(segments as usize + 1);
     for i in 0..=segments {
         let angle = i as f32 * 2.0 * std::f32::consts::PI / segments as f32;
         circle_pts.push((angle.cos() * 0.5, angle.sin() * 0.5));
@@ -86,7 +85,7 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
         let u0 = i as f32 / segments as f32;
         let u1 = (i + 1) as f32 / segments as f32;
 
-        // Side Triangle 1: top-0 -> top-1 -> bottom-0 (CCW outward)
+        // Side triangles (CCW outward)
         vertices.push(Vertex {
             position: [x0, 0.5, z0],
             color: [1.0; 3],
@@ -106,7 +105,6 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [u0, 1.0],
         });
 
-        // Side Triangle 2: top-1 -> bottom-1 -> bottom-0 (CCW outward)
         vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
@@ -126,7 +124,7 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [u0, 1.0],
         });
 
-        // Top cap: CCW looking from +Y down (normal +Y UP): top_center -> [x1] -> [x0]
+        // Top cap (+Y)
         vertices.push(Vertex {
             position: top_center,
             color: [1.0; 3],
@@ -146,7 +144,7 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [x0 + 0.5, z0 + 0.5],
         });
 
-        // Bottom cap: CCW looking from -Y up (normal -Y DOWN): bottom_center -> [x0] -> [x1]
+        // Bottom cap (-Y)
         vertices.push(Vertex {
             position: bottom_center,
             color: [1.0; 3],
@@ -170,16 +168,20 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
     vertices
 }
 
-/// Generates a parametric Capsule mesh (hemispheres on top and bottom of a cylinder).
+/// Generates a parametric capsule mesh (`radius = 0.35`, total height `1.0`).
+///
+/// Returns an empty vector if `segments == 0` or `rings == 0`.
+#[must_use]
 pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
     if segments == 0 || rings == 0 {
         return Vec::new();
     }
+
     let mut vertices = Vec::new();
     let mut raw_vertices = Vec::new();
 
     let radius = 0.35;
-    let cylinder_half_height = 0.15; // Total capsule height = 1.0
+    let cylinder_half_height = 0.15;
 
     // Top hemisphere
     for ring in 0..=rings {
@@ -237,39 +239,9 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
         }
     }
 
-    // Top hemisphere triangles
-    for ring in 0..rings {
-        for seg in 0..segments {
-            let first = (ring * (segments + 1) + seg) as usize;
-            let second = first + (segments + 1) as usize;
+    push_grid_triangles(&raw_vertices, 0, rings, segments, &mut vertices);
+    push_grid_triangles(&raw_vertices, base_idx, rings, segments, &mut vertices);
 
-            vertices.push(raw_vertices[first]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[first + 1]);
-
-            vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[second + 1]);
-        }
-    }
-
-    // Bottom hemisphere triangles
-    for ring in 0..rings {
-        for seg in 0..segments {
-            let first = base_idx + (ring * (segments + 1) + seg) as usize;
-            let second = first + (segments + 1) as usize;
-
-            vertices.push(raw_vertices[first]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[first + 1]);
-
-            vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second]);
-            vertices.push(raw_vertices[second + 1]);
-        }
-    }
-
-    // Side cylinder triangles
     let top_rim_start = (rings * (segments + 1)) as usize;
     let bottom_rim_start = base_idx;
     for seg in 0..segments {
@@ -279,24 +251,52 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
         let b1 = b0 + 1;
 
         vertices.push(raw_vertices[t0]);
-        vertices.push(raw_vertices[b0]);
         vertices.push(raw_vertices[t1]);
+        vertices.push(raw_vertices[b0]);
 
         vertices.push(raw_vertices[t1]);
-        vertices.push(raw_vertices[b0]);
         vertices.push(raw_vertices[b1]);
+        vertices.push(raw_vertices[b0]);
     }
 
     vertices
 }
 
-/// Generates a parametric Torus mesh.
+fn push_grid_triangles(
+    raw_vertices: &[Vertex],
+    base_idx: usize,
+    rows: u32,
+    cols: u32,
+    out: &mut Vec<Vertex>,
+) {
+    for row in 0..rows {
+        for col in 0..cols {
+            let first = base_idx + (row * (cols + 1) + col) as usize;
+            let second = first + (cols + 1) as usize;
+
+            out.push(raw_vertices[first]);
+            out.push(raw_vertices[first + 1]);
+            out.push(raw_vertices[second]);
+
+            out.push(raw_vertices[first + 1]);
+            out.push(raw_vertices[second + 1]);
+            out.push(raw_vertices[second]);
+        }
+    }
+}
+
+/// Generates a parametric torus mesh (`main_radius = 0.35`, `tube_radius = 0.15`).
+///
+/// Returns an empty vector if `radial_segments == 0` or `tubular_segments == 0`.
+#[must_use]
 pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex> {
     if radial_segments == 0 || tubular_segments == 0 {
         return Vec::new();
     }
-    let mut vertices = Vec::new();
-    let mut raw_vertices = Vec::new();
+
+    let mut vertices = Vec::with_capacity((radial_segments * tubular_segments * 6) as usize);
+    let mut raw_vertices =
+        Vec::with_capacity(((radial_segments + 1) * (tubular_segments + 1)) as usize);
 
     let main_radius = 0.35;
     let tube_radius = 0.15;
@@ -331,21 +331,13 @@ pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex
         }
     }
 
-    for r_seg in 0..radial_segments {
-        for t_seg in 0..tubular_segments {
-            let first = (r_seg * (tubular_segments + 1) + t_seg) as usize;
-            let second = first + (tubular_segments + 1) as usize;
-
-            // Outward-facing CCW winding for Torus (first -> first + 1 -> second)
-            vertices.push(raw_vertices[first]);
-            vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second]);
-
-            vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second + 1]);
-            vertices.push(raw_vertices[second]);
-        }
-    }
+    push_grid_triangles(
+        &raw_vertices,
+        0,
+        radial_segments,
+        tubular_segments,
+        &mut vertices,
+    );
 
     vertices
 }

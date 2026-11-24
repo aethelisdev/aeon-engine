@@ -35,6 +35,49 @@ fn test_primitive_constants_and_generators_bounds() {
 }
 
 #[test]
+fn test_primitive_triangle_winding_matches_outward_normals() {
+    let assert_ccw_mesh = |verts: &[Vertex], label: &str| {
+        let (tris, rem) = verts.as_chunks::<3>();
+        assert!(rem.is_empty(), "{label} must be a triangle list");
+        for (tri_idx, tri) in tris.iter().enumerate() {
+            let p0 = glam::Vec3::from_array(tri[0].position);
+            let p1 = glam::Vec3::from_array(tri[1].position);
+            let p2 = glam::Vec3::from_array(tri[2].position);
+            let cross = (p1 - p0).cross(p2 - p0);
+            let n = glam::Vec3::from_array(tri[0].normal);
+            if cross.length_squared() > 1e-10 {
+                assert!(
+                    cross.dot(n) > 0.0,
+                    "{label} triangle {tri_idx} has inverted winding (cross={cross:?}, normal={n:?})"
+                );
+            }
+        }
+    };
+
+    assert_ccw_mesh(PYRAMID_VERTICES, "PYRAMID_VERTICES");
+    assert_ccw_mesh(CUBE_VERTICES, "CUBE_VERTICES");
+    assert_ccw_mesh(GRID_QUAD_VERTICES, "GRID_QUAD_VERTICES");
+    assert_ccw_mesh(&generate_sphere(8, 12), "sphere");
+    assert_ccw_mesh(&generate_cylinder(12), "cylinder");
+    assert_ccw_mesh(&generate_capsule(8, 6), "capsule");
+    assert_ccw_mesh(&generate_torus(8, 6), "torus");
+
+    let (quad_tris, quad_rem) = QUAD_VERTICES.as_chunks::<3>();
+    assert!(quad_rem.is_empty(), "QUAD_VERTICES must be a triangle list");
+    for (tri_idx, tri) in quad_tris.iter().enumerate() {
+        let p0 = glam::Vec3::from_array(tri[0].position);
+        let p1 = glam::Vec3::from_array(tri[1].position);
+        let p2 = glam::Vec3::from_array(tri[2].position);
+        let cross = (p1 - p0).cross(p2 - p0);
+        let n = glam::Vec3::from_array(tri[0].normal);
+        assert!(
+            cross.dot(n) > 0.0,
+            "QUAD_VERTICES triangle {tri_idx} has inverted winding"
+        );
+    }
+}
+
+#[test]
 fn test_degenerate_zero_segment_generators_return_empty_without_nan() {
     assert!(generate_sphere(0, 10).is_empty());
     assert!(generate_sphere(10, 0).is_empty());
