@@ -12,7 +12,6 @@ pub mod input;
 pub mod interactions;
 pub mod modes;
 pub mod picking;
-pub mod prefab;
 pub mod scene_gizmo;
 pub mod shortcuts;
 pub mod snapping;

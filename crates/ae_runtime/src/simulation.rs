@@ -4,7 +4,6 @@
 //! Editor-free shared simulation execution core: Play camera tracking, skeletal skinning,
 //! fixed physics stepping, and `SaveGame` runtime delta slot execution.
 
-use crate::streaming::RuntimeStreamingManager;
 use ae_core::events::{
     DynamicEventBus, LoadGameCompleted, LoadGameRequest, SaveGameCompleted, SaveGameRequest,
 };
@@ -15,6 +14,7 @@ use ae_physics::world::PhysicsWorld;
 use ae_plugin_api::{EntityGuid, PlayerTag, Position, TransformDirty};
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
+use ae_scene::RuntimeStreamingManager;
 use ae_world::{
     ComponentRecord, EntityRecord, SaveSlotMetadata, SpatialCellCoord, WorldDeltaSnapshot,
     atomic_write_save, load_save_with_fallback,

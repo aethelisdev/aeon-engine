@@ -11,7 +11,6 @@ use crate::simulation::{
     update_play_camera, update_skeletal_animations,
 };
 use crate::static_plugin::attach_static_game_logic;
-use crate::streaming::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use crate::world_loader::{
     LoadedRuntimeWorld, RuntimeLaunchArgs, discover_vfs_and_entry, load_world_into_runtime,
 };
@@ -33,6 +32,7 @@ use ae_renderer::render::types::{LightUniform, RenderScene};
 use ae_renderer::render::{
     OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset, ViewportRect,
 };
+use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use std::collections::HashSet;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;

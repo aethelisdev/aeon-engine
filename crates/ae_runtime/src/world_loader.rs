@@ -4,21 +4,21 @@
 //! Editor-free runtime world loader resolving `.aepak` archives, `aeon_project.json` entry
 //! worlds, and partitioned `cells/*.aechunk` directories through [`ae_world::VfsProvider`].
 
-use crate::streaming::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use ae_core::transform::update_hierarchy_transforms;
 use ae_ecs::component_type_hash;
 use ae_physics::PhysicsWorld;
-use ae_plugin_api::{Children, EntityGuid, Parent, TransformDirty};
+use ae_plugin_api::EntityGuid;
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
+use ae_scene::{
+    PrefixedWorldVfs, RuntimeStreamingManager, decode_world_document_from_vfs, spawn_world_records,
+};
 use ae_world::{
-    DiskVfsProvider, EntityRecord, GuidGenerator, PakFileVfsProvider, PakMemoryVfsProvider,
-    PartitionCell, ProjectWorkspaceLayout, SCENE_ASSET_BINDING_TYPE, SceneAssetBinding,
-    SpatialCellCoord, VfsProvider, WORLD_MANIFEST_FILENAME, WorldDocument, WorldResult,
+    DiskVfsProvider, PakFileVfsProvider, PakMemoryVfsProvider, ProjectWorkspaceLayout,
+    SCENE_ASSET_BINDING_TYPE, SpatialCellCoord, VfsProvider, WORLD_MANIFEST_FILENAME,
 };
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
-use std::io::Cursor;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -157,48 +157,6 @@ pub fn resolve_entry_world_path(vfs: &dyn VfsProvider, explicit_world: Option<&s
     ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL.to_string()
 }
 
-/// Decodes a [`WorldDocument`] and all referenced spatial cells directly from `vfs` without OS
-/// filesystem directory assumptions.
-///
-/// Handles both monolithic `.aeworld` archives and partitioned directories whose chunks live under
-/// `<world_parent>/cells/<x>_<y>_<z>.aechunk`.
-///
-/// # Errors
-/// Returns [`ae_world::WorldIoError`] on missing entries, corrupted headers, or CRC32 mismatches.
-pub fn decode_world_document_from_vfs(
-    vfs: &dyn VfsProvider,
-    world_virtual_path: &str,
-    known_hashes: Option<&HashSet<u64>>,
-) -> WorldResult<(WorldDocument, bool)> {
-    let normalized = world_virtual_path.replace('\\', "/");
-    let manifest_bytes = vfs.read_bytes(&normalized)?;
-    let mut cursor = Cursor::new(manifest_bytes.as_slice());
-    let (index, is_partitioned) = WorldDocument::read_index_with_flags(&mut cursor, known_hashes)?;
-
-    if !is_partitioned {
-        return WorldDocument::decode_full(&manifest_bytes, known_hashes).map(|doc| (doc, false));
-    }
-
-    let world_parent = Path::new(&normalized)
-        .parent()
-        .map_or_else(String::new, |p| p.to_string_lossy().replace('\\', "/"));
-
-    let mut cells = std::collections::BTreeMap::new();
-    for part in &index.partitions {
-        let rel = part.coord.relative_chunk_path();
-        let full_rel = if world_parent.is_empty() {
-            rel
-        } else {
-            format!("{world_parent}/{rel}")
-        };
-        let chunk_bytes = vfs.read_bytes(&full_rel)?;
-        let cell = PartitionCell::decode_chunk(&chunk_bytes, known_hashes)?;
-        cells.insert(part.coord, cell);
-    }
-
-    Ok((WorldDocument::from_index_and_cells(index, cells)?, true))
-}
-
 /// Loads a world from `vfs`, spawns its initial entities into `world`, binds VFS models/textures
 /// via `render_state`, syncs physics colliders, and initializes [`RuntimeStreamingManager`].
 ///
@@ -254,7 +212,7 @@ pub fn load_world_into_runtime(
         if prefix.is_empty() {
             vfs
         } else {
-            Arc::new(PrefixedWorldVfs { inner: vfs, prefix })
+            Arc::new(PrefixedWorldVfs::new(vfs, prefix))
         }
     } else {
         vfs
@@ -280,130 +238,6 @@ pub fn load_world_into_runtime(
     ))
 }
 
-struct PrefixedWorldVfs {
-    inner: Arc<dyn VfsProvider>,
-    prefix: String,
-}
-
-impl PrefixedWorldVfs {
-    fn prefixed(&self, virtual_path: &str) -> String {
-        let clean = virtual_path
-            .trim_start_matches("./")
-            .trim_start_matches('/');
-        if clean.starts_with(&self.prefix) {
-            clean.to_string()
-        } else {
-            format!("{}/{}", self.prefix.trim_end_matches('/'), clean)
-        }
-    }
-}
-
-impl VfsProvider for PrefixedWorldVfs {
-    fn exists(&self, virtual_path: &str) -> bool {
-        self.inner.exists(&self.prefixed(virtual_path)) || self.inner.exists(virtual_path)
-    }
-
-    fn read_bytes(&self, virtual_path: &str) -> WorldResult<Vec<u8>> {
-        self.inner
-            .read_bytes(&self.prefixed(virtual_path))
-            .or_else(|_| self.inner.read_bytes(virtual_path))
-    }
-
-    fn read_aligned_bytes(&self, virtual_path: &str) -> WorldResult<ae_world::AlignedBuffer> {
-        self.inner
-            .read_aligned_bytes(&self.prefixed(virtual_path))
-            .or_else(|_| self.inner.read_aligned_bytes(virtual_path))
-    }
-
-    fn read_by_guid(&self, guid: ae_world::AssetGuid) -> WorldResult<Vec<u8>> {
-        self.inner.read_by_guid(guid)
-    }
-
-    fn read_aligned_by_guid(
-        &self,
-        guid: ae_world::AssetGuid,
-    ) -> WorldResult<ae_world::AlignedBuffer> {
-        self.inner.read_aligned_by_guid(guid)
-    }
-
-    fn list_entries(&self) -> Vec<String> {
-        self.inner.list_entries()
-    }
-}
-
-fn spawn_world_records(
-    records: Vec<EntityRecord>,
-    vfs: Option<&dyn VfsProvider>,
-    render_state: &RenderState,
-    asset_manager: &mut AssetManager,
-    world: &mut ae_ecs::World,
-) {
-    let registry = ae_plugin_api::engine_component_registry();
-    let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
-    let mut guid_to_entity: HashMap<EntityGuid, ae_ecs::Entity> =
-        HashMap::with_capacity(records.len());
-    let mut pending_parents: Vec<(ae_ecs::Entity, EntityGuid)> = Vec::new();
-    let mut guid_gen = GuidGenerator::new();
-
-    for rec in records {
-        let ent = world.spawn(());
-        let entity_guid = if rec.guid.is_nil() {
-            guid_gen.next_entity_guid()
-        } else {
-            rec.guid
-        };
-        let _ = world.insert_one(ent, entity_guid);
-        guid_to_entity.insert(entity_guid, ent);
-
-        let mut has_physics = false;
-        for comp in &rec.components {
-            if comp.type_hash == binding_hash {
-                if let Ok(binding) = comp.decode_as::<SceneAssetBinding>() {
-                    bind_entity_assets_from_binding(
-                        world,
-                        render_state,
-                        asset_manager,
-                        vfs,
-                        ent,
-                        &binding,
-                    );
-                }
-                continue;
-            }
-            if let Some(handler) = registry.get_by_type_hash(comp.type_hash)
-                && handler
-                    .apply_versioned(world, ent, comp.schema_ver, &comp.payload)
-                    .is_ok()
-                && matches!(
-                    handler.type_name(),
-                    "RigidBody" | "Collider" | "CharacterController"
-                )
-            {
-                has_physics = true;
-            }
-        }
-        if has_physics {
-            let _ = world.insert_one(ent, TransformDirty);
-        }
-        if let Some(parent_guid) = rec.parent_guid {
-            pending_parents.push((ent, parent_guid));
-        }
-    }
-
-    for (child, parent_guid) in pending_parents {
-        if let Some(&parent) = guid_to_entity.get(&parent_guid) {
-            let _ = world.insert_one(child, Parent(parent));
-            if let Ok(children) = world.get_mut::<Children>(parent) {
-                if !children.0.contains(&child) {
-                    children.0.push(child);
-                }
-            } else {
-                let _ = world.insert_one(parent, Children(vec![child]));
-            }
-        }
-    }
-}
-
 /// Ensures unused manifest constant stays referenced when inspecting default world paths.
 #[must_use]
 pub fn default_world_manifest_name() -> &'static str {
@@ -414,7 +248,10 @@ pub fn default_world_manifest_name() -> &'static str {
 mod tests {
     use super::*;
     use ae_plugin_api::Position;
-    use ae_world::{AssetKind, ComponentRecord, PakBuilder, PakCodec};
+    use ae_world::{
+        AssetKind, ComponentRecord, EntityRecord, GuidGenerator, PakBuilder, PakCodec,
+        WorldDocument,
+    };
 
     #[test]
     fn test_pak_vfs_resolves_project_entry_and_decodes_partitioned_world() {
@@ -427,11 +264,8 @@ mod tests {
         );
         doc.insert_entity_at([15.0, 2.0, 20.0], rec);
 
-        // Save partitioned tree into temporary dir, then pack all files into an in-memory .aepak
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = std::env::temp_dir().join(format!("ae_runtime_pak_world_{nanos}"));
+        let dir = std::env::temp_dir().join("ae_runtime_pak_world_deterministic");
+        let _ = std::fs::remove_dir_all(&dir);
         let world_dir = dir.join("Worlds/Dungeon");
         doc.save_partitioned_dir(&world_dir, None)
             .expect("save partitioned dir");
