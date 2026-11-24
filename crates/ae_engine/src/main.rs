@@ -13,7 +13,6 @@ pub mod mcp_host;
 /// Initializes the winit event loop, creates the application window with embedded icon,
 /// and delegates all event processing to `AeEngine`. Implements `ApplicationHandler` for
 /// the modern winit 0.30+ callback-based architecture.
-mod importer;
 pub mod render_pass;
 pub mod update;
 use std::sync::Arc;

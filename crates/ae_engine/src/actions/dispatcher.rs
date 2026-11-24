@@ -3,7 +3,7 @@
 
 //! Top-level [`EngineUiAction`] dispatcher routing UI intents directly onto [`AeEngine`].
 
-use super::{components, scene_io, spawning, system};
+use super::{asset_import, components, scene_io, spawning, system};
 use crate::engine::AeEngine;
 use ae_editor_ui::ui::{EngineUiAction, PanelId};
 
@@ -316,9 +316,9 @@ pub fn process_ui_actions(engine: &mut AeEngine, actions: Vec<EngineUiAction>) {
             }
 
             // --- SCENE, PREFAB & ASSET BROWSER I/O ACTIONS ---
-            EngineUiAction::OpenModelDialog => scene_io::handle_open_model_dialog(engine),
+            EngineUiAction::OpenModelDialog => asset_import::handle_open_model_dialog(engine),
             EngineUiAction::ImportDroppedFiles { paths, target } => {
-                scene_io::handle_import_dropped_files(engine, paths, target);
+                asset_import::handle_import_dropped_files(engine, paths, target);
             }
             EngineUiAction::OpenLoadPrefabDialog => {
                 scene_io::handle_open_load_prefab_dialog(engine);

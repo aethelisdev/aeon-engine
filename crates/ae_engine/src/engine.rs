@@ -31,9 +31,8 @@ pub struct AeEngine {
     pub mode: EngineMode,
     pub previous_mode: EngineMode,
     pub editor: EditorState,
-    pub asset_receivers: Vec<std::sync::mpsc::Receiver<Result<std::path::PathBuf, String>>>,
-    pub model_receivers: Vec<std::sync::mpsc::Receiver<Result<ae_mesh::ParsedModelData, String>>>,
-    pub dialog_receivers: Vec<std::sync::mpsc::Receiver<std::path::PathBuf>>,
+    /// Unified asynchronous import receivers (native file dialogs and background `rayon` parsing).
+    pub import_receivers: Vec<std::sync::mpsc::Receiver<ae_assets::AsyncImportResult>>,
     /// Tracks active mouse cursor grab status to prevent duplicate Win32 `ShowCursor` calls.
     pub is_cursor_grabbed: bool,
     /// Channel receiver for holding background scene parsing thread results.
@@ -192,9 +191,7 @@ impl AeEngine {
             mode: EngineMode::Edit,
             previous_mode: EngineMode::Edit,
             editor: EditorState::default(),
-            asset_receivers: Vec::new(),
-            model_receivers: Vec::new(),
-            dialog_receivers: Vec::new(),
+            import_receivers: Vec::new(),
             is_cursor_grabbed: false,
             scene_rx: None,
             plugin_manager: ae_plugin_host::PluginManager::new(),

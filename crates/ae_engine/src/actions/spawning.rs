@@ -68,6 +68,33 @@ pub fn handle_spawn_sprite_at(
     record_spawn_undo_and_select(engine, new_entity);
 }
 
+/// Uploads parsed CPU model geometry onto the GPU, spawns an ECS model entity at `pos`,
+/// and records an editor undo entry.
+pub fn spawn_parsed_model_at(
+    engine: &mut AeEngine,
+    parsed_data: ae_mesh::ParsedModelData,
+    pos: [f32; 3],
+    apply_fbx_axis_fix: bool,
+) {
+    let source_override = parsed_data.original_path.clone();
+    let final_name = parsed_data.final_name.clone();
+    let (model_id, _min, _max) = engine
+        .render_state
+        .upload_model_data(&mut engine.asset_manager, parsed_data);
+    let new_entity = spawn_model_entity(
+        &mut engine.world,
+        &engine.asset_manager,
+        ModelSpawnDesc {
+            model_id,
+            name_override: Some(final_name),
+            position: pos,
+            source_path_override: Some(source_override.as_str()),
+            apply_fbx_axis_fix,
+        },
+    );
+    record_spawn_undo_and_select(engine, new_entity);
+}
+
 /// Loads (or reuses cached) GLTF/GLB asset at `path` and spawns it at `pos`.
 ///
 /// # Errors
@@ -89,10 +116,7 @@ pub fn handle_spawn_model_path_at(
 
     match ae_mesh::parse_gltf_file(&path_str, final_name) {
         Ok(parsed_data) => {
-            let (model_id, _min, _max) = engine
-                .render_state
-                .upload_model_data(&mut engine.asset_manager, parsed_data);
-            handle_spawn_model_at(engine, model_id, pos);
+            spawn_parsed_model_at(engine, parsed_data, pos, false);
             Ok(())
         }
         Err(e) => {

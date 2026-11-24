@@ -6,6 +6,7 @@
 //! Consumes [`ae_editor_ui::ui::EngineUiAction`] commands emitted by UI panels and executes
 //! mutations directly against [`crate::engine::AeEngine`].
 
+pub mod asset_import;
 pub mod components;
 pub mod dispatcher;
 pub mod scene_io;

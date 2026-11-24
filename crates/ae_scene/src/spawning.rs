@@ -64,6 +64,27 @@ pub fn resolve_asset_display_name(path: &Path, fallback: &str) -> String {
     }
 }
 
+/// Returns a unique entity display name inside `world` by appending ` 1`, ` 2`, ... on collisions.
+#[must_use]
+pub fn resolve_unique_entity_name(world: &World, raw_base: &str) -> String {
+    let base_name = if raw_base.is_empty() {
+        "Asset"
+    } else {
+        raw_base
+    };
+    let mut candidate = base_name.to_string();
+    let mut suffix = 0usize;
+    while world
+        .query::<&Name>()
+        .iter()
+        .any(|existing| existing.0 == candidate)
+    {
+        suffix += 1;
+        candidate = format!("{base_name} {suffix}");
+    }
+    candidate
+}
+
 /// Spawns a 3D model entity into `world` with AABB bounds, auto-computed uniform scale,
 /// optional default texture, and skeletal animation playback when present.
 pub fn spawn_model_entity(
@@ -690,5 +711,18 @@ mod tests {
         assert!(world.contains(player));
         assert!(world.has::<PlayerTag>(player));
         assert!(world.len() >= 10);
+    }
+
+    #[test]
+    fn test_resolve_unique_entity_name_deduplicates_and_handles_empty_base() {
+        let mut world = World::new();
+        assert_eq!(resolve_unique_entity_name(&world, ""), "Asset");
+        assert_eq!(resolve_unique_entity_name(&world, "Crate"), "Crate");
+
+        world.spawn((Name("Crate".to_string()),));
+        assert_eq!(resolve_unique_entity_name(&world, "Crate"), "Crate 1");
+
+        world.spawn((Name("Crate 1".to_string()),));
+        assert_eq!(resolve_unique_entity_name(&world, "Crate"), "Crate 2");
     }
 }

@@ -15,7 +15,7 @@ impl AeEngine {
         self.profiler.end_frame();
         self.profiler.begin_frame();
         self.time.tick();
-        crate::importer::process_async_imports(self);
+        crate::actions::asset_import::poll_async_imports(self);
 
         // Track loaded texture files for live hot-reloading
         for path in self.asset_manager.texture_path_map.keys() {

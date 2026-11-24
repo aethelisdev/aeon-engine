@@ -18,8 +18,8 @@ pub mod types;
 
 pub use ingestion::import_asset_path;
 pub use pipeline::{
-    resolve_fbx2gltf_tool_path, spawn_fbx_convert, spawn_gltf_parse,
-    validate_asset_drop_for_dimension,
+    AsyncImportResult, ImportAssetKind, resolve_fbx2gltf_tool_path, spawn_fbx_import,
+    spawn_gltf_import, validate_asset_drop_for_dimension,
 };
 pub use scene_assets::{
     ParsedTextureEntry, ParsedTextureItem, PendingSceneData, SceneAssetParseRequest,
