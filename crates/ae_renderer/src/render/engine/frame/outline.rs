@@ -4,7 +4,7 @@
 //! Adapter bridging selected ECS primitives and 3D models into [`ae_post_process::SelectionOutlinePass`].
 
 use crate::render::engine::state::RenderState;
-use crate::render::types::Instance;
+use ae_pbr::Instance;
 
 impl RenderState {
     /// Records selected primitives and 3D models into the selection outline mask and composite passes.

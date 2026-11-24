@@ -11,9 +11,9 @@ use ae_camera::ViewportRect;
 #[derive(Default)]
 pub struct RenderFrameScratch {
     /// Combined flat instance data uploaded to GPU instance buffer.
-    pub all_instances: Vec<crate::render::types::Instance>,
+    pub all_instances: Vec<ae_pbr::Instance>,
     /// Flattened model instance items referencing textures and reflection states.
-    pub model_instances: Vec<crate::render::types::RenderInstanceItem>,
+    pub model_instances: Vec<ae_pbr::RenderInstanceItem>,
     /// Active 3D model batches prepared for the current frame.
     pub model_batches: Vec<PreparedModelBatch>,
     /// Instance buffer start offsets mapped by model asset handle.
@@ -72,13 +72,13 @@ pub struct RenderState {
     pub window: Arc<Window>,
     pub viewport_texture: Option<ViewportTexture>,
 
-    pub pipelines: crate::render::pipelines::PipelineManager,
-    pub uniforms: crate::render::uniforms::SceneUniforms,
+    pub pipelines: ae_pbr::PipelineManager,
+    pub uniforms: ae_pbr::SceneUniforms,
     pub geometry: crate::render::primitives::GeometrySystem,
     pub default_white_texture: crate::render::TextureAsset,
 
     pub post_process: ae_post_process::PostProcessSystem,
-    pub shadow: crate::render::shadow::ShadowSystem,
+    pub shadow: ae_pbr::ShadowSystem,
     pub outline: ae_post_process::SelectionOutlinePass,
 
     // Settings
@@ -147,8 +147,7 @@ impl RenderState {
         // 3. Dynamic Uniform & Target VRAM
         let mut dynamic_uniform_bytes: usize = 0;
         // Dynamic instance buffer
-        dynamic_uniform_bytes += self.geometry.instance_buffer_capacity
-            * std::mem::size_of::<crate::render::types::Instance>();
+        dynamic_uniform_bytes += self.geometry.instance_buffer_capacity * ae_pbr::INSTANCE_SIZE;
         // Uniform buffers (Camera, Light, Sky, Bloom, Outline)
         dynamic_uniform_bytes += 1024; // Scene uniforms
         // Shadow depth texture (2048x2048 D32Float = 16MB) + shadow cascade uniform
@@ -179,7 +178,7 @@ impl RenderState {
 mod tests {
     use super::*;
     use crate::asset::AssetHandle;
-    use crate::render::types::Instance;
+    use ae_pbr::Instance;
 
     #[test]
     fn test_render_frame_scratch_clear_retains_capacity() {

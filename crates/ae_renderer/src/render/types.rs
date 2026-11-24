@@ -3,19 +3,12 @@
 
 //! # Core Render Data Types & Subsystems
 //!
-//! Re-exports vertex layouts, GPU uniforms, textures, 3D models, scene extraction, and viewport metrics.
+//! Re-exports textures, 3D models, scene extraction, and viewport metrics.
 
 pub mod assets;
 pub mod scene;
-pub mod uniforms;
-pub mod vertex;
 pub mod viewport;
 
-//  re-exports across engine and renderer
 pub use assets::{ModelAsset, TextureAsset};
 pub use scene::RenderScene;
-pub use uniforms::DEPTH_FORMAT;
-pub use vertex::{
-    INSTANCE_SIZE, Instance, RenderInstanceItem, sprite_vertex_buffer_layout, vertex_buffer_layout,
-};
 pub use viewport::{FrameRenderStats, OverlayRenderer, RenderError};

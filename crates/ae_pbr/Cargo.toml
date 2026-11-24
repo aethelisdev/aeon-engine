@@ -1,0 +1,18 @@
+[package]
+name = "ae_pbr"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - 3D PBR, cascaded shadow mapping, procedural sky, infinite grid, and sprite WGPU pipelines, scene uniforms, and GPU vertex layouts"
+
+[dependencies]
+ae_camera = { workspace = true }
+ae_light = { workspace = true }
+ae_mesh = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+bytemuck = { workspace = true }
+cgmath = "0.18"
+wgpu = { workspace = true }
+
+[lints]
+workspace = true

@@ -454,13 +454,15 @@ impl RenderState {
         } else {
             1.0
         };
-        self.uniforms
-            .update_environment(&self.queue, &self.graphics_settings);
+        self.uniforms.update_environment(
+            &self.queue,
+            &self.graphics_settings.to_environment_light_config(),
+        );
 
         // Shadow Cascades share the sun vector
         self.shadow.update_cascades(
             &self.queue,
-            &self.graphics_settings,
+            &self.graphics_settings.to_cascade_config(),
             camera,
             cgmath::Vector3::new(
                 self.uniforms.light_uniform.direction[0],
@@ -480,32 +482,25 @@ impl RenderState {
             });
 
         let shadow_timer = std::time::Instant::now();
-        self.shadow.execute_pass(
+        self.execute_shadow_passes(
             &mut encoder,
-            crate::render::shadow::ShadowPassParams {
-                graphics_settings: &self.graphics_settings,
-                primitives: &self.geometry,
-                instance_buffer: &self.geometry.instance_buffer,
-                offsets: crate::render::shadow::ShadowPassBatchOffsets {
-                    all_instances_count: self.frame_scratch.all_instances.len(),
-                    triangle_instances_count: triangle_instances.len(),
-                    tri_start,
-                    cube_instances_count: cube_instances.len(),
-                    cube_start,
-                    sphere_instances_count: sphere_instances.len(),
-                    sphere_start,
-                    cylinder_instances_count: cylinder_instances.len(),
-                    cylinder_start,
-                    capsule_instances_count: capsule_instances.len(),
-                    capsule_start,
-                    torus_instances_count: torus_instances.len(),
-                    torus_start,
-                },
-                asset_manager,
-                model_instance_data: &model_instance_data,
-                model_starts: &self.frame_scratch.model_starts,
-                default_white_texture: &self.default_white_texture,
+            super::shadow::ShadowBatchOffsets {
+                all_instances_count: self.frame_scratch.all_instances.len(),
+                triangle_instances_count: triangle_instances.len(),
+                tri_start,
+                cube_instances_count: cube_instances.len(),
+                cube_start,
+                sphere_instances_count: sphere_instances.len(),
+                sphere_start,
+                cylinder_instances_count: cylinder_instances.len(),
+                cylinder_start,
+                capsule_instances_count: capsule_instances.len(),
+                capsule_start,
+                torus_instances_count: torus_instances.len(),
+                torus_start,
             },
+            asset_manager,
+            &model_instance_data,
         );
         let shadow_pass_record_ms = shadow_timer.elapsed().as_secs_f32() * 1000.0;
 

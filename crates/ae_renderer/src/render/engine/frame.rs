@@ -9,6 +9,7 @@
 pub mod forward;
 pub mod outline;
 pub mod pipeline;
+pub mod shadow;
 
 pub use forward::*;
 pub use pipeline::*;

@@ -164,12 +164,12 @@ impl RenderState {
             target: cgmath::Point3::new(0.0, 0.0, 0.0),
         };
 
-        let uniforms = crate::render::uniforms::SceneUniforms::new(&device, &camera);
+        let uniforms = ae_pbr::SceneUniforms::new(&device, &camera);
         let geometry = crate::render::primitives::GeometrySystem::new(&device);
 
-        let shadow = crate::render::shadow::ShadowSystem::new(
+        let shadow = ae_pbr::ShadowSystem::new(
             &device,
-            &graphics_settings,
+            &graphics_settings.to_cascade_config(),
             &uniforms.texture_bind_group_layout,
         );
 
@@ -180,9 +180,9 @@ impl RenderState {
             graphics_settings.bloom_intensity,
         );
 
-        let pipelines = crate::render::pipelines::PipelineManager::new(
+        let pipelines = ae_pbr::PipelineManager::new(
             &device,
-            &crate::render::pipelines::PipelineConfigParams {
+            &ae_pbr::PipelineConfigParams {
                 camera_bgl: &uniforms.camera_bind_group_layout,
                 light_bgl: &uniforms.light_bind_group_layout,
                 shadow_bgl: &shadow.shadow_bind_group_layout,
@@ -197,8 +197,8 @@ impl RenderState {
             &device,
             post_process.scene_format,
             &uniforms.camera_bind_group_layout,
-            crate::render::types::vertex_buffer_layout(),
-            crate::render::types::Instance::desc(),
+            ae_pbr::vertex_buffer_layout(),
+            ae_pbr::Instance::desc(),
         );
 
         let default_white_cpu = ae_texture::FallbackTextureGenerator::white_1x1();
@@ -268,7 +268,7 @@ impl RenderState {
 
             self.pipelines.rebuild_for_msaa(
                 &self.device,
-                &crate::render::pipelines::PipelineConfigParams {
+                &ae_pbr::PipelineConfigParams {
                     camera_bgl: &self.uniforms.camera_bind_group_layout,
                     light_bgl: &self.uniforms.light_bind_group_layout,
                     shadow_bgl: &self.shadow.shadow_bind_group_layout,
@@ -285,7 +285,7 @@ impl RenderState {
         // --- Shadow Resolution Change ---
         let new_shadow_res = gs.shadow_resolution.as_u32();
         if self.shadow.shadow_depth_texture.size().width != new_shadow_res {
-            self.shadow.resize_targets(&self.device, gs);
+            self.shadow.resize_targets(&self.device, new_shadow_res);
         }
 
         // --- FPS Limit / Present Mode Change ---

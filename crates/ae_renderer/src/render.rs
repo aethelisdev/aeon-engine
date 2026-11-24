@@ -4,13 +4,10 @@
 //! Rendering Engine Module — Manages WGPU device state, render passes, pipelines, materials, and post-processing.
 
 pub mod engine;
-pub mod pipelines;
 pub mod primitives;
 pub mod resources;
 pub mod setup;
-pub mod shadow;
 pub mod types;
-pub mod uniforms;
 pub mod viewport_texture;
 
 pub use engine::*;

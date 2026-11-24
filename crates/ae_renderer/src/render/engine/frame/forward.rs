@@ -7,10 +7,9 @@
 //! to minimize CPU-side submission overhead and GPU state thrashing.
 
 use crate::render::engine::state::{RenderOptions, RenderState};
-use crate::render::types::{
-    FrameRenderStats, INSTANCE_SIZE, Instance, ModelAsset, OverlayRenderer, RenderInstanceItem,
-};
+use crate::render::types::{FrameRenderStats, ModelAsset, OverlayRenderer};
 use ae_mesh::{ModelSubmesh, SubmeshAlphaMode};
+use ae_pbr::{INSTANCE_SIZE, Instance, RenderInstanceItem};
 
 /// Prepared batch of model instances referencing cached GPU buffers and precomputed offsets.
 #[derive(Copy, Clone, Debug, Default)]
@@ -104,7 +103,7 @@ enum ActivePipeline {
 
 /// Tracks bound texture keys to eliminate redundant `set_bind_group(3, ...)` invocations.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum BoundTextureKey {
+pub(crate) enum BoundTextureKey {
     DefaultWhite,
     Asset(crate::asset::AssetHandle),
 }
@@ -166,7 +165,7 @@ impl RenderPassTracker {
 
 /// Resolves the texture handle and associated GPU bind group for a model submesh.
 #[inline]
-fn resolve_submesh_texture<'a>(
+pub(crate) fn resolve_submesh_texture<'a>(
     model: &'a ModelAsset,
     submesh: &ModelSubmesh,
     override_tex: Option<crate::asset::AssetHandle>,

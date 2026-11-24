@@ -104,7 +104,7 @@ impl GeometrySystem {
         let instance_buffer_capacity = 25000;
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
-            size: (instance_buffer_capacity * std::mem::size_of::<crate::render::types::Instance>())
+            size: (instance_buffer_capacity * std::mem::size_of::<ae_pbr::Instance>())
                 as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -142,7 +142,7 @@ impl GeometrySystem {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        all_instances: &[crate::render::types::Instance],
+        all_instances: &[ae_pbr::Instance],
     ) {
         if all_instances.is_empty() {
             return;
@@ -156,8 +156,7 @@ impl GeometrySystem {
 
             self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Instance Buffer (Resized Up)"),
-                size: (self.instance_buffer_capacity
-                    * std::mem::size_of::<crate::render::types::Instance>())
+                size: (self.instance_buffer_capacity * std::mem::size_of::<ae_pbr::Instance>())
                     as wgpu::BufferAddress,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -178,8 +177,7 @@ impl GeometrySystem {
 
                 self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("Instance Buffer (Shrunken Down)"),
-                    size: (self.instance_buffer_capacity
-                        * std::mem::size_of::<crate::render::types::Instance>())
+                    size: (self.instance_buffer_capacity * std::mem::size_of::<ae_pbr::Instance>())
                         as wgpu::BufferAddress,
                     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,

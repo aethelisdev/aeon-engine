@@ -5,8 +5,8 @@
 //!
 //! Extracts visible entities from the ECS World into GPU-ready instances, applying spatial-partitioned frustum culling.
 
-use crate::render::types::vertex::{Instance, RenderInstanceItem};
 use ae_light::LightUniform;
+use ae_pbr::{Instance, RenderInstanceItem};
 
 /// Abstract representation of the scene to decouple RenderState from ECS.
 ///

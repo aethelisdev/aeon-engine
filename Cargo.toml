@@ -9,6 +9,7 @@ members = [
     "crates/ae_input",
     "crates/ae_light",
     "crates/ae_mesh",
+    "crates/ae_pbr",
     "crates/ae_scene",
     "crates/ae_state",
     "crates/ae_time",
@@ -108,6 +109,7 @@ ae_gizmos_render = { path = "crates/ae_gizmos_render" }
 ae_input = { path = "crates/ae_input" }
 ae_light = { path = "crates/ae_light" }
 ae_mesh = { path = "crates/ae_mesh" }
+ae_pbr = { path = "crates/ae_pbr" }
 ae_post_process = { path = "crates/ae_post_process" }
 ae_scene = { path = "crates/ae_scene" }
 ae_state = { path = "crates/ae_state" }
