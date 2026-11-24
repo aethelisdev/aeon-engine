@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-pub mod autosave;
 pub mod cli;
 pub mod debug_renderer;
 pub mod engine;
@@ -17,7 +16,6 @@ pub mod mcp_host;
 mod importer;
 pub mod profiler;
 pub mod render_pass;
-pub mod scene;
 pub mod update;
 use std::sync::Arc;
 use winit::{
@@ -286,15 +284,33 @@ impl AeApp {
                     )
                 });
             let path_str = path.to_string_lossy();
-            if let Err(e) = crate::scene::save_scene(engine, &path_str) {
-                engine
-                    .ui
-                    .set_status_message(format!("Save Error: {}", e), irisui::prelude::Color::RED);
-            } else {
-                engine.ui.set_status_message(
-                    format!("Scene saved to {}", path_str),
-                    irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
-                );
+            match ae_scene::save_partitioned_world(
+                &mut engine.world,
+                &engine.asset_manager,
+                &mut engine.active_world_guid,
+                ae_scene::WorldSaveRequest {
+                    filepath: &path,
+                    is_2d: engine.dimension_mode.is_2d(),
+                    prev_saved_world_dir: engine.saved_world_dir.as_deref(),
+                    prev_cell_crcs: &engine.last_saved_cell_crcs,
+                },
+            ) {
+                Ok(saved) => {
+                    engine.saved_world_dir = Some(saved.saved_world_dir);
+                    engine.last_saved_cell_crcs = saved.cell_crcs;
+                    engine.editor.active_scene_path = Some(saved.manifest_path);
+                    engine.autosave.reset_timer();
+                    engine.ui.set_status_message(
+                        format!("Scene saved to {}", path_str),
+                        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+                    );
+                }
+                Err(e) => {
+                    engine.ui.set_status_message(
+                        format!("Save Error: {}", e),
+                        irisui::prelude::Color::RED,
+                    );
+                }
             }
         }
         if engine.editor.should_load_scene {
@@ -309,12 +325,34 @@ impl AeApp {
                         ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL,
                     )
                 });
-            let path_str = path.to_string_lossy();
-            if let Err(e) = crate::scene::load_scene(engine, &path_str) {
-                engine
-                    .ui
-                    .set_status_message(format!("Load Error: {}", e), irisui::prelude::Color::RED);
-                engine.editor.is_loading_assets = false;
+            match ae_scene::begin_async_scene_load(&path, engine.dimension_mode.is_2d()) {
+                Ok(rx) => {
+                    engine.editor.is_loading_assets = true;
+                    engine.scene_rx = Some(rx);
+                    engine.ui.set_status_message(
+                        "Loading world: parsing assets in background...",
+                        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+                    );
+                }
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        log::error!("{e}");
+                        let ui_msg = if engine.dimension_mode.is_2d() {
+                            "Cannot load 3D world in 2D mode! Switch to 3D mode."
+                        } else {
+                            "Cannot load 2D world in 3D mode! Switch to 2D mode."
+                        };
+                        engine
+                            .ui
+                            .set_status_message(ui_msg, irisui::prelude::Color::RED);
+                    } else {
+                        engine.ui.set_status_message(
+                            format!("Load Error: {}", e),
+                            irisui::prelude::Color::RED,
+                        );
+                    }
+                    engine.editor.is_loading_assets = false;
+                }
             }
         }
 
@@ -325,7 +363,54 @@ impl AeApp {
             return;
         }
 
-        crate::scene::process_async_scene_load(engine);
+        if let Some(rx) = engine.scene_rx.as_ref()
+            && let Ok(result) = rx.try_recv()
+        {
+            engine.scene_rx = None;
+            match result {
+                Ok(scene_data) => {
+                    engine.physics_world.clear();
+                    engine.editor.selected_entities.clear();
+                    engine.editor.undo_stack.clear();
+                    engine.editor.redo_stack.clear();
+                    engine.autosave.reset_timer();
+
+                    let applied = ae_scene::apply_loaded_scene_data(
+                        scene_data,
+                        &mut engine.world,
+                        &engine.render_state,
+                        &mut engine.asset_manager,
+                        engine.active_vfs.as_deref(),
+                    );
+                    engine.saved_world_dir = applied.saved_world_dir;
+                    engine.active_world_guid = applied.world_guid;
+                    engine.last_saved_cell_crcs = applied.cell_crcs;
+                    engine.streaming = applied.streaming;
+
+                    engine
+                        .physics_world
+                        .sync_ecs_to_physics(&mut engine.world, |handle| {
+                            engine
+                                .asset_manager
+                                .get_physics_mesh_data(handle)
+                                .map(|(v, i)| (v.as_slice(), i.as_slice()))
+                        });
+                    engine.editor.is_loading_assets = false;
+                    engine.ui.set_status_message(
+                        "World loaded successfully!",
+                        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+                    );
+                    log::info!("Async binary world load processed cleanly.");
+                }
+                Err(e) => {
+                    engine.editor.is_loading_assets = false;
+                    engine.ui.set_status_message(
+                        format!("Async world load failed: {e}"),
+                        irisui::prelude::Color::RED,
+                    );
+                }
+            }
+        }
         engine.update();
         match engine.render() {
             Ok(_) => {}

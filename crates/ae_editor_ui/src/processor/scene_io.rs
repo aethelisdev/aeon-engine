@@ -271,7 +271,7 @@ pub fn handle_save_entity_as_prefab(
         );
         return;
     }
-    let prefab = ae_editor::prefab::Prefab::create_from_entity(ctx.world, entity);
+    let prefab = ae_scene::Prefab::create_from_entity(ctx.world, entity);
     if let Err(e) = prefab.save_to_file(&path) {
         log::error!("Failed to save prefab to {:?}: {}", path, e);
         ctx.ui.set_status_message(
@@ -289,7 +289,7 @@ pub fn handle_save_entity_as_prefab(
 
 /// Handles instantiating a prefab asset from specified path into the ECS world.
 pub fn handle_instantiate_prefab(ctx: &mut UiContext, path: std::path::PathBuf) {
-    match ae_editor::prefab::Prefab::load_from_file(&path) {
+    match ae_scene::Prefab::load_from_file(&path) {
         Ok(prefab) => {
             let new_entity = prefab.instantiate(ctx.world, None);
             ctx.editor.select_single(Some(new_entity));

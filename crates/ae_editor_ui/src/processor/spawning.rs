@@ -1,10 +1,28 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+//! Editor action handlers for spawning models, sprites, primitives, and test scenes with
+//! automatic Undo/Redo history and active editor selection registration.
+
 #![deny(clippy::allow_attributes)]
 #![deny(clippy::unwrap_used)]
 
 use super::UiContext;
+use ae_scene::{
+    ModelSpawnDesc, SpriteSpawnDesc, resolve_asset_display_name, spawn_default_sprite_entity,
+    spawn_empty_2d_entity, spawn_model_entity, spawn_phase1_sandbox, spawn_player_sprite_entity,
+    spawn_shape_entity, spawn_sprite_entity, spawn_stress_test_cubes,
+};
+
+fn record_spawn_undo_and_select(ctx: &mut UiContext, entity: ae_ecs::Entity) {
+    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, entity);
+    ae_editor::history::push_undo(
+        ctx.editor,
+        ae_editor::undo_redo::Command::Spawn(entity, snap),
+    );
+    ctx.editor.redo_stack.clear();
+    ctx.editor.select_single(Some(entity));
+}
 
 /// Handles spawning a 3D model asset entity into the ECS world at the default origin.
 pub fn handle_spawn_model(ctx: &mut UiContext, mid: ae_renderer::asset::AssetHandle) {
@@ -17,85 +35,24 @@ pub fn handle_spawn_model_at(
     mid: ae_renderer::asset::AssetHandle,
     pos: [f32; 3],
 ) {
-    let mut base_name = "Model".to_string();
-    let mut bbox = ae_plugin_api::BoundingBox {
-        min: [-0.5; 3],
-        max: [0.5; 3],
-    };
-
-    if let Some(m) = ctx.asset_manager.models.get(mid) {
-        let path = std::path::Path::new(&m.source_path);
-        let raw_stem = path
-            .file_stem()
-            .unwrap_or(std::ffi::OsStr::new("Model"))
-            .to_string_lossy();
-        base_name = if raw_stem.eq_ignore_ascii_case("scene") {
-            path.parent()
-                .and_then(|p| p.file_name())
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_else(|| raw_stem.into_owned())
-        } else {
-            raw_stem.into_owned()
-        };
-        bbox = ae_plugin_api::BoundingBox {
-            min: m.min,
-            max: m.max,
-        };
-    }
-
-    let auto_scale = ae_assets::compute_model_auto_scale(bbox.min, bbox.max);
-
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name(base_name.clone()),
-        ae_plugin_api::ModelId(mid),
-        ae_plugin_api::Position {
-            x: pos[0],
-            y: pos[1],
-            z: pos[2],
+    let new_entity = spawn_model_entity(
+        ctx.world,
+        ctx.asset_manager,
+        ModelSpawnDesc {
+            model_id: mid,
+            name_override: None,
+            position: pos,
+            source_path_override: None,
+            apply_fbx_axis_fix: false,
         },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: auto_scale,
-            y: auto_scale,
-            z: auto_scale,
-        },
-        bbox,
-        ae_plugin_api::Velocity {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-    ));
-
-    if let Some(m) = ctx.asset_manager.models.get(mid) {
-        if let Some(tex) = m.default_texture {
-            let _ = ctx
-                .world
-                .insert_one(new_entity, ae_plugin_api::SpriteId(tex));
-        }
-        if let Some(ref skel) = m.skeleton {
-            let _ = ctx.world.insert_one(new_entity, skel.clone());
-        }
-        if !m.animations.is_empty() {
-            let mut player = ae_animation::AnimationPlayer::default();
-            player.play(m.animations[0].clone());
-            let _ = ctx.world.insert_one(new_entity, player);
-        }
-    }
+    );
     log::info!(
-        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, Name='{}', ModelId={:?}, Pos={:?}",
+        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, ModelId={:?}, Pos={:?}",
         new_entity,
-        base_name,
         mid,
         pos
     );
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    record_spawn_undo_and_select(ctx, new_entity);
 }
 
 /// Handles spawning a 2D sprite texture asset entity into the ECS world at default origin.
@@ -109,50 +66,22 @@ pub fn handle_spawn_sprite_at(
     tid: ae_renderer::asset::AssetHandle,
     pos: [f32; 3],
 ) {
-    let mut base_name = "Sprite".to_string();
-    if let Some(t) = ctx.asset_manager.textures.get(tid) {
-        let path = std::path::Path::new(&t.source_path);
-        base_name = path
-            .file_stem()
-            .unwrap_or(std::ffi::OsStr::new("Sprite"))
-            .to_string_lossy()
-            .into_owned();
-    }
-
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name(base_name.clone()),
-        ae_plugin_api::SpriteId(tid),
-        ae_plugin_api::Position {
-            x: pos[0],
-            y: pos[1],
-            z: pos[2],
+    let new_entity = spawn_sprite_entity(
+        ctx.world,
+        ctx.asset_manager,
+        SpriteSpawnDesc {
+            texture_id: tid,
+            name_override: None,
+            position: pos,
         },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-        ae_plugin_api::Velocity {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-    ));
+    );
     log::info!(
-        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, Name='{}', SpriteId={:?}, Pos={:?}",
+        "[SPAWN] ae_ecs::World::spawn succeeded! Entity={:?}, SpriteId={:?}, Pos={:?}",
         new_entity,
-        base_name,
         tid,
         pos
     );
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    record_spawn_undo_and_select(ctx, new_entity);
 }
 
 /// Handles spawning a 3D model entity into the ECS world from an arbitrary file path.
@@ -167,20 +96,8 @@ pub fn handle_spawn_model_path_at(
     pos: [f32; 3],
 ) -> Result<(), String> {
     let path_str = path.to_string_lossy().to_string();
-    let raw_stem = path
-        .file_stem()
-        .unwrap_or(std::ffi::OsStr::new("Model"))
-        .to_string_lossy();
-    let final_name = if raw_stem.eq_ignore_ascii_case("scene") {
-        path.parent()
-            .and_then(|p| p.file_name())
-            .map(|f| f.to_string_lossy().into_owned())
-            .unwrap_or_else(|| raw_stem.into_owned())
-    } else {
-        raw_stem.into_owned()
-    };
+    let final_name = resolve_asset_display_name(&path, "Model");
 
-    // Check if model already loaded into memory
     let mut existing_handle = None;
     if let Ok(canonical) = std::fs::canonicalize(&path)
         && let Some(&handle) = ctx.asset_manager.model_path_map.get(&canonical)
@@ -193,7 +110,6 @@ pub fn handle_spawn_model_path_at(
         return Ok(());
     }
 
-    // Dynamically parse and upload model to GPU
     match ae_renderer::render::resources::parse_gltf_file(&path_str, final_name) {
         Ok(parsed_data) => {
             let (model_id, _min, _max) = ctx
@@ -231,58 +147,8 @@ pub fn handle_spawn_sprite_path_at(ctx: &mut UiContext, path: std::path::PathBuf
 
 /// Handles spawning a parametric 3D primitive shape entity.
 pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_plugin_api::Shape) {
-    let final_name = match shape {
-        ae_plugin_api::Shape::Cube => "New Cube",
-        ae_plugin_api::Shape::Triangle => "New Triangle",
-        ae_plugin_api::Shape::Sphere => "New Sphere",
-        ae_plugin_api::Shape::Cylinder => "New Cylinder",
-        ae_plugin_api::Shape::Capsule => "New Capsule",
-        ae_plugin_api::Shape::Torus => "New Torus",
-    }
-    .to_string();
-
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name(final_name),
-        shape,
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 3.0,
-            z: 0.0,
-        },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-        ae_plugin_api::Color::soft_blue(),
-        ae_plugin_api::Velocity {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        ae_plugin_api::RigidBody {
-            body_type: ae_plugin_api::RigidBodyType::Dynamic,
-            mass: 1.0,
-            gravity_scale: 1.0,
-        },
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Box {
-                half_extents: [0.5, 0.5, 0.5],
-            },
-            friction: 0.7,
-            restitution: 0.0,
-            is_sensor: false,
-        },
-        ae_plugin_api::TransformDirty,
-    ));
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    let new_entity = spawn_shape_entity(ctx.world, shape);
+    record_spawn_undo_and_select(ctx, new_entity);
 }
 
 /// Handles selecting an entity in the editor hierarchy or viewport.
@@ -297,396 +163,37 @@ pub fn handle_delete_selected(ctx: &mut UiContext) {
 
 /// Handles running the multi-object stress test spawning benchmark.
 pub fn handle_stress_test(ctx: &mut UiContext, count: usize) {
-    let mut batch = Vec::new();
-    let mut seed = 12345u32;
-    let mut next_rand = |min: f32, max: f32| {
-        seed ^= seed << 13;
-        seed ^= seed >> 17;
-        seed ^= seed << 5;
-        let fraction = (seed & 0xFFFFFF) as f32 / 16777216.0;
-        min + fraction * (max - min)
-    };
-
-    let bounds = if count >= 1000000 {
-        10000.0
-    } else if count >= 100000 {
-        80.0
-    } else {
-        40.0
-    };
-
-    for i in 0..count {
-        let name = ae_plugin_api::Name(format!("Cube_{}", i));
-        let pos = ae_plugin_api::Position {
-            x: next_rand(-bounds, bounds),
-            y: next_rand(0.5, bounds / 2.0),
-            z: next_rand(-bounds, bounds),
-        };
-        let rot = ae_plugin_api::Rotation::identity();
-        let scale = ae_plugin_api::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        };
-        let shape = ae_plugin_api::Shape::Cube;
-        let color = ae_plugin_api::Color {
-            r: next_rand(0.2, 1.0),
-            g: next_rand(0.2, 1.0),
-            b: next_rand(0.2, 1.0),
-            a: 1.0,
-        };
-        batch.push((name, pos, rot, scale, shape, color));
-    }
-
-    let _ = ctx.world.spawn_batch(batch).count();
-    log::info!("🚀 Spawned stress test batch of {} entities!", count);
+    let spawned = spawn_stress_test_cubes(ctx.world, count);
+    log::info!("🚀 Spawned stress test batch of {} entities!", spawned);
 }
 
 /// Handles spawning the Phase 1 interactive test sandbox.
 pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
-    ctx.world.clear();
-    ctx.editor.select_single(None);
-
-    // 1. Static Ground Platform (50m x 1m x 50m)
-    ctx.world.spawn((
-        ae_plugin_api::Name("Static Ground Plane".to_string()),
-        ae_plugin_api::Position::new(0.0, 0.0, 0.0),
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale::new(50.0, 1.0, 50.0),
-        ae_plugin_api::Shape::Cube,
-        ae_plugin_api::Color::dark_gray(),
-        ae_plugin_api::RigidBody {
-            body_type: ae_plugin_api::RigidBodyType::Static,
-            mass: 0.0,
-            gravity_scale: 0.0,
-        },
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Box {
-                half_extents: [0.5, 0.5, 0.5],
-            },
-            friction: 0.7,
-            restitution: 0.0,
-            is_sensor: false,
-        },
-        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Stone, 0.7, 0.0),
-    ));
-
-    // 2. Player Character with KCC & CharacterAction (Raycast Weapon Shooting)
-    let player_ent = ctx.world.spawn((
-        ae_plugin_api::Name("Player Character".to_string()),
-        ae_plugin_api::Position::new(0.0, 2.0, 8.0),
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale::one(),
-        ae_plugin_api::Shape::Capsule,
-        ae_plugin_api::Color::soft_blue(),
-        ae_plugin_api::CharacterController::default(),
-        ae_plugin_api::PlayerTag,
-        ae_plugin_api::Velocity::zero(),
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Capsule {
-                half_height: 0.5,
-                radius: 0.4,
-                center_y: 0.0,
-            },
-            friction: 0.7,
-            restitution: 0.0,
-            is_sensor: false,
-        },
-        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Flesh, 0.7, 0.0),
-        ae_plugin_api::CharacterAction::new(),
-    ));
-
-    // 3. Destructible Target Dummies (Shooting Range)
-    let target_positions = [
-        ("Target Alpha", [-4.0, 1.5, -12.0]),
-        ("Target Beta", [0.0, 1.5, -15.0]),
-        ("Target Gamma", [4.0, 1.5, -12.0]),
-    ];
-
-    for (name, pos) in target_positions {
-        ctx.world.spawn((
-            ae_plugin_api::Name(name.to_string()),
-            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
-            ae_plugin_api::Rotation::identity(),
-            ae_plugin_api::Scale::new(1.2, 1.2, 1.2),
-            ae_plugin_api::Shape::Sphere,
-            ae_plugin_api::Color::red(),
-            ae_plugin_api::RigidBody {
-                body_type: ae_plugin_api::RigidBodyType::Static,
-                mass: 0.0,
-                gravity_scale: 0.0,
-            },
-            ae_plugin_api::Collider {
-                shape: ae_plugin_api::ColliderShape::Sphere { radius: 0.6 },
-                friction: 0.5,
-                restitution: 0.2,
-                is_sensor: false,
-            },
-            ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Flesh, 0.5, 0.2),
-            ae_plugin_api::DestructibleTarget::new(100.0),
-        ));
-    }
-
-    // 4. Proximity Sensor & Sliding Door
-    ctx.world.spawn((
-        ae_plugin_api::Name("Proximity Sensor Zone".to_string()),
-        ae_plugin_api::Position::new(10.0, 0.55, -4.0),
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale::new(4.0, 0.1, 4.0),
-        ae_plugin_api::Shape::Cube,
-        ae_plugin_api::Color::green(),
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Box {
-                half_extents: [0.5, 10.0, 0.5],
-            },
-            friction: 0.0,
-            restitution: 0.0,
-            is_sensor: true,
-        },
-        ae_plugin_api::TriggerZone::new(),
-    ));
-
-    ctx.world.spawn((
-        ae_plugin_api::Name("Sliding Door".to_string()),
-        ae_plugin_api::Position::new(10.0, 2.0, -7.0),
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale::new(3.5, 3.0, 0.4),
-        ae_plugin_api::Shape::Cube,
-        ae_plugin_api::Color::soft_blue(),
-        ae_plugin_api::RigidBody {
-            body_type: ae_plugin_api::RigidBodyType::Kinematic,
-            mass: 0.0,
-            gravity_scale: 0.0,
-        },
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Box {
-                half_extents: [0.5, 0.5, 0.5],
-            },
-            friction: 0.7,
-            restitution: 0.0,
-            is_sensor: false,
-        },
-        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Metal, 0.7, 0.0),
-        ae_plugin_api::TriggerZone {
-            is_triggered: false,
-            speed: 5.0,
-            axis: [0.0, 1.0, 0.0],
-            original_position: [10.0, 2.0, -7.0],
-            target_position: [10.0, 6.0, -7.0],
-            ping_pong_forward: true,
-        },
-    ));
-
-    // 5. Rotating Collectible Crystals (Distinct Asymmetric Shapes & Vibrant Colors)
-    let crystal_configs = [
-        (
-            "Rotating Crystal Alpha (X-Pitch)",
-            [-8.0, 1.5, 2.0],
-            [1.0, 0.0, 0.0],
-            3.5,
-            ae_plugin_api::Color::new(1.0, 0.85, 0.1, 1.0), // Gold
-        ),
-        (
-            "Rotating Crystal Beta (Y-Yaw)",
-            [-8.0, 1.5, -3.0],
-            [0.0, 1.0, 0.0],
-            4.0,
-            ae_plugin_api::Color::new(0.1, 0.85, 1.0, 1.0), // Neon Cyan
-        ),
-        (
-            "Rotating Crystal Gamma (Z-Roll)",
-            [-8.0, 1.5, -8.0],
-            [0.0, 0.0, 1.0],
-            3.0,
-            ae_plugin_api::Color::new(1.0, 0.2, 0.85, 1.0), // Hot Magenta
-        ),
-    ];
-
-    for (name, pos, axis, speed, color) in crystal_configs {
-        ctx.world.spawn((
-            ae_plugin_api::Name(name.to_string()),
-            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
-            ae_plugin_api::Rotation::identity(),
-            ae_plugin_api::Scale::new(1.4, 0.35, 0.7),
-            ae_plugin_api::Shape::Cube,
-            color,
-            ae_plugin_api::Collider {
-                shape: ae_plugin_api::ColliderShape::Box {
-                    half_extents: [0.5, 0.5, 0.5],
-                },
-                friction: 0.0,
-                restitution: 0.0,
-                is_sensor: true,
-            },
-            ae_plugin_api::Rotator::new(speed, axis),
-        ));
-    }
-
-    // 6. Moving Waypoint Elevator (Vertical Passenger Elevator)
-    ctx.world.spawn((
-        ae_plugin_api::Name("Moving Waypoint Elevator".to_string()),
-        ae_plugin_api::Position::new(-15.0, 0.8, 4.0),
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale::new(4.0, 0.4, 4.0),
-        ae_plugin_api::Shape::Cube,
-        ae_plugin_api::Color::new(0.8, 0.4, 0.9, 1.0),
-        ae_plugin_api::RigidBody {
-            body_type: ae_plugin_api::RigidBodyType::Kinematic,
-            mass: 0.0,
-            gravity_scale: 0.0,
-        },
-        ae_plugin_api::Collider {
-            shape: ae_plugin_api::ColliderShape::Box {
-                half_extents: [0.5, 0.5, 0.5],
-            },
-            friction: 0.9,
-            restitution: 0.0,
-            is_sensor: false,
-        },
-        ae_plugin_api::PhysicsMaterial::new(ae_plugin_api::SurfaceType::Metal, 0.9, 0.0),
-        ae_plugin_api::MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
-    ));
-
-    // 7. Dynamic Bouncing Hazard Cubes
-    let hazard_positions = [
-        (
-            "Bouncing Cube Alpha",
-            [5.0, 5.0, 3.0],
-            ae_plugin_api::SurfaceType::Rubber,
-        ),
-        (
-            "Bouncing Cube Beta",
-            [7.0, 8.0, 4.0],
-            ae_plugin_api::SurfaceType::Wood,
-        ),
-    ];
-
-    for (name, pos, surface) in hazard_positions {
-        let mat = ae_plugin_api::PhysicsMaterial::from_preset(surface);
-        ctx.world.spawn((
-            ae_plugin_api::Name(name.to_string()),
-            ae_plugin_api::Position::new(pos[0], pos[1], pos[2]),
-            ae_plugin_api::Rotation::identity(),
-            ae_plugin_api::Scale::new(1.0, 1.0, 1.0),
-            ae_plugin_api::Shape::Cube,
-            ae_plugin_api::Color::new(1.0, 0.5, 0.1, 1.0),
-            ae_plugin_api::Velocity::zero(),
-            ae_plugin_api::RigidBody {
-                body_type: ae_plugin_api::RigidBodyType::Dynamic,
-                mass: 2.0,
-                gravity_scale: 1.0,
-            },
-            ae_plugin_api::Collider {
-                shape: ae_plugin_api::ColliderShape::Box {
-                    half_extents: [0.5, 0.5, 0.5],
-                },
-                friction: mat.friction,
-                restitution: mat.restitution,
-                is_sensor: false,
-            },
-            mat,
-        ));
-    }
-
+    let player_ent = spawn_phase1_sandbox(ctx.world);
     ctx.editor.select_single(Some(player_ent));
-
     log::info!("🎮 Spawned Phase 1 Interactive Test Sandbox into editor!");
 }
 
 /// Handles spawning standard UI primitive entities into the ECS world.
 pub fn handle_spawn_ui_element(ctx: &mut UiContext, ui_type: crate::ui::UiElementType) {
     let ent = ae_uidesign::spawn_ui_element(ctx.world, ui_type);
-
     ctx.editor.select_single(Some(ent));
 }
 
 /// Spawns a standard 2D Sprite entity at the origin and registers it in undo/redo history.
 pub fn handle_spawn_default_sprite(ctx: &mut UiContext) {
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name("New Sprite".to_string()),
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 2.0,
-            y: 2.0,
-            z: 1.0,
-        },
-        ae_2d::components::SpriteRenderer {
-            tint: [1.0, 1.0, 1.0, 1.0],
-            sorting_layer: 0,
-            order_in_layer: 0,
-            ..Default::default()
-        },
-    ));
-
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    let new_entity = spawn_default_sprite_entity(ctx.world);
+    record_spawn_undo_and_select(ctx, new_entity);
 }
 
 /// Spawns a 2D Player Sprite entity with `PlayerTag` component at the origin.
 pub fn handle_spawn_player_sprite(ctx: &mut UiContext) {
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name("Player Sprite".to_string()),
-        ae_plugin_api::PlayerTag,
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 2.0,
-            y: 2.0,
-            z: 1.0,
-        },
-        ae_2d::components::SpriteRenderer {
-            tint: [0.18, 0.80, 0.44, 1.0],
-            sorting_layer: 0,
-            order_in_layer: 0,
-            ..Default::default()
-        },
-    ));
-
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    let new_entity = spawn_player_sprite_entity(ctx.world);
+    record_spawn_undo_and_select(ctx, new_entity);
 }
 
 /// Spawns an empty 2D entity with spatial transform components at the origin.
 pub fn handle_spawn_empty_2d(ctx: &mut UiContext) {
-    let new_entity = ctx.world.spawn((
-        ae_plugin_api::Name("Empty 2D Object".to_string()),
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-    ));
-
-    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
-    ae_editor::history::push_undo(
-        ctx.editor,
-        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
-    );
-    ctx.editor.redo_stack.clear();
-    ctx.editor.select_single(Some(new_entity));
+    let new_entity = spawn_empty_2d_entity(ctx.world);
+    record_spawn_undo_and_select(ctx, new_entity);
 }

@@ -14,7 +14,6 @@ pub use processor::UiContext;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ae_core::transform::update_hierarchy_transforms;
     use ae_plugin_api::*;
     use cgmath::SquareMatrix;
@@ -60,14 +59,14 @@ mod tests {
         update_hierarchy_transforms(&mut world);
 
         // Process ParentEntity action logic
-        let child_world = processor::transform::get_world_matrix(&world, child);
-        let parent_world = processor::transform::get_world_matrix(&world, parent);
+        let child_world = ae_scene::get_world_matrix(&world, child);
+        let parent_world = ae_scene::get_world_matrix(&world, parent);
         let parent_inv = parent_world
             .invert()
             .expect("parent world matrix should be invertible");
 
         let new_local = parent_inv * child_world;
-        let (new_pos, new_rot, new_scale) = processor::transform::decompose_matrix(new_local);
+        let (new_pos, new_rot, new_scale) = ae_scene::decompose_matrix(new_local);
 
         world
             .insert_one(child, new_pos)

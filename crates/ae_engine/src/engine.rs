@@ -86,11 +86,11 @@ pub struct AeEngine {
     /// Per-cell CRC32 checksums from the most recent world load or partitioned directory save.
     pub last_saved_cell_crcs: std::collections::HashMap<ae_world::SpatialCellCoord, u32>,
     /// Periodic background Edit-mode auto-save state writing to `Saved/Autosaves/`.
-    pub autosave: crate::autosave::EditorAutosaveState,
+    pub autosave: ae_scene::EditorAutosaveState,
     /// Active Virtual File System provider (`DiskVfsProvider` in editor or `Pak*VfsProvider`).
     pub active_vfs: Option<Arc<dyn ae_world::VfsProvider>>,
     /// Runtime spatial chunk streaming coordinator and cross-cell GUID resolver.
-    pub streaming: Option<ae_runtime::streaming::RuntimeStreamingManager>,
+    pub streaming: Option<ae_scene::RuntimeStreamingManager>,
     /// Asynchronous project export progress and completion receiver.
     pub export_rx: Option<std::sync::mpsc::Receiver<ae_export::ExportPipelineEvent>>,
 }
@@ -365,7 +365,7 @@ impl AeEngine {
             saved_world_dir: None,
             active_world_guid: ae_world::GuidGenerator::new().next_entity_guid(),
             last_saved_cell_crcs: std::collections::HashMap::new(),
-            autosave: crate::autosave::EditorAutosaveState::default(),
+            autosave: ae_scene::EditorAutosaveState::default(),
             active_vfs: Some(active_vfs),
             streaming: None,
             export_rx: None,

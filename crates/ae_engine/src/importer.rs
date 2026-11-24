@@ -130,7 +130,7 @@ impl AssetLoader for PrefabAssetLoader {
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
-        match ae_editor::prefab::Prefab::load_from_file(path) {
+        match ae_scene::Prefab::load_from_file(path) {
             Ok(prefab) => {
                 let ent = prefab.instantiate(&mut engine.world, None);
                 engine.editor.select_single(Some(ent));
@@ -401,75 +401,21 @@ pub fn spawn_model(
     engine: &mut crate::engine::AeEngine,
     final_name: String,
     model_id: ae_renderer::asset::AssetHandle,
-    min: [f32; 3],
-    max: [f32; 3],
+    _min: [f32; 3],
+    _max: [f32; 3],
     path_str: &str,
 ) {
-    let auto_scale = ae_assets::compute_model_auto_scale(min, max);
-
-    let rotation = if ae_assets::is_fbx_model_path(path_str) {
-        ae_plugin_api::Rotation {
-            x: -std::f32::consts::FRAC_1_SQRT_2,
-            y: 0.0,
-            z: 0.0,
-            w: std::f32::consts::FRAC_1_SQRT_2,
-        }
-    } else {
-        ae_plugin_api::Rotation::identity()
-    };
-
-    let (bbox_min, bbox_max, default_tex) =
-        if let Some(model_asset) = engine.asset_manager.models.get(model_id) {
-            (
-                model_asset.min,
-                model_asset.max,
-                model_asset.default_texture,
-            )
-        } else {
-            ([-0.5; 3], [0.5; 3], None)
-        };
-
-    let new_entity = engine.world.spawn((
-        ae_plugin_api::Name(final_name),
-        ae_plugin_api::ModelId(model_id),
-        ae_plugin_api::BoundingBox {
-            min: bbox_min,
-            max: bbox_max,
+    let new_entity = ae_scene::spawn_model_entity(
+        &mut engine.world,
+        &engine.asset_manager,
+        ae_scene::ModelSpawnDesc {
+            model_id,
+            name_override: Some(final_name),
+            position: [0.0, 0.0, 0.0],
+            source_path_override: Some(path_str),
+            apply_fbx_axis_fix: true,
         },
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        rotation,
-        ae_plugin_api::Scale {
-            x: auto_scale,
-            y: auto_scale,
-            z: auto_scale,
-        },
-        ae_plugin_api::Velocity {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-    ));
-
-    if let Some(tex) = default_tex {
-        let _ = engine
-            .world
-            .insert_one(new_entity, ae_plugin_api::SpriteId(tex));
-    }
-
-    if let Some(model_asset) = engine.asset_manager.models.get(model_id)
-        && let Some(ref skel) = model_asset.skeleton
-    {
-        let _ = engine.world.insert_one(new_entity, skel.clone());
-        if !model_asset.animations.is_empty() {
-            let mut player = ae_animation::AnimationPlayer::default();
-            player.play(model_asset.animations[0].clone());
-            let _ = engine.world.insert_one(new_entity, player);
-        }
-    }
+    );
 
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(&engine.world, new_entity);
     engine
@@ -487,26 +433,15 @@ pub fn spawn_sprite(
     final_name: String,
     texture_id: ae_renderer::asset::AssetHandle,
 ) {
-    let new_entity = engine.world.spawn((
-        ae_plugin_api::Name(final_name),
-        ae_plugin_api::SpriteId(texture_id),
-        ae_plugin_api::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+    let new_entity = ae_scene::spawn_sprite_entity(
+        &mut engine.world,
+        &engine.asset_manager,
+        ae_scene::SpriteSpawnDesc {
+            texture_id,
+            name_override: Some(final_name),
+            position: [0.0, 0.0, 0.0],
         },
-        ae_plugin_api::Rotation::identity(),
-        ae_plugin_api::Scale {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-        ae_plugin_api::Velocity {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-    ));
+    );
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(&engine.world, new_entity);
     engine
         .editor

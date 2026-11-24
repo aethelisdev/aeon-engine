@@ -225,7 +225,7 @@ impl AeEngine {
             if ae_runtime::process_save_load_requests(&mut ae_runtime::SaveLoadDispatchContext {
                 save_games_dir: &save_dir,
                 world_guid: self.active_world_guid,
-                cell_size: crate::scene::DEFAULT_WORLD_CELL_SIZE,
+                cell_size: ae_scene::DEFAULT_WORLD_CELL_SIZE,
                 play_time_secs: self.time.total_time as u64,
                 world: &mut self.world,
                 event_bus: &mut self.event_bus,
@@ -234,18 +234,22 @@ impl AeEngine {
                 self.physics_sync_dirty = true;
             }
         } else if let Some(target_path) =
-            self.autosave
-                .poll_trigger(crate::autosave::AutosavePollContext {
-                    mode: self.mode,
-                    enabled: self.editor.config.autosave_enabled,
-                    interval_secs: self.editor.config.autosave_interval_secs,
-                    dt: self.time.delta_time,
-                    entity_count: self.world.len(),
-                    autosaves_root: None,
-                    saved_world_dir: self.saved_world_dir.as_deref(),
-                    active_scene_path: self.editor.active_scene_path.as_deref(),
-                })
-            && let Ok(doc) = crate::scene::capture_world_document(self)
+            self.autosave.poll_trigger(ae_scene::AutosavePollContext {
+                mode: self.mode,
+                enabled: self.editor.config.autosave_enabled,
+                interval_secs: self.editor.config.autosave_interval_secs,
+                dt: self.time.delta_time,
+                entity_count: self.world.len(),
+                autosaves_root: None,
+                saved_world_dir: self.saved_world_dir.as_deref(),
+                active_scene_path: self.editor.active_scene_path.as_deref(),
+            })
+            && let Ok(doc) = ae_scene::capture_world_document(
+                &mut self.world,
+                &self.asset_manager,
+                &mut self.active_world_guid,
+                self.dimension_mode.is_2d(),
+            )
         {
             self.autosave.dispatch_background_write(doc, target_path);
         }
@@ -337,7 +341,7 @@ impl AeEngine {
                 ],
                 4,
                 |world, asset_manager, entity, binding| {
-                    ae_runtime::streaming::bind_entity_assets_from_binding(
+                    ae_scene::bind_entity_assets_from_binding(
                         world,
                         render_state,
                         asset_manager,
