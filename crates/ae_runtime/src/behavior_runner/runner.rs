@@ -4,8 +4,8 @@
 //! Behavior execution loop orchestrating physics impacts, triggers, combat, and native behaviors.
 
 use ae_core::events::DynamicEventBus;
-use ae_core::input::InputManager;
 use ae_ecs::World;
+use ae_input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use ae_plugin_api::Position;
 

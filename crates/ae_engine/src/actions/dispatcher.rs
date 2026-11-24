@@ -55,7 +55,7 @@ fn dispatch_export_or_resume(engine: &mut AeEngine, action: &EngineUiAction) {
         if !engine.dimension_mode.is_2d() {
             engine.set_cursor_grab(true);
         }
-        engine.editor.mouse_delta = (0.0, 0.0);
+        engine.input.clear_mouse_delta();
     }
 }
 

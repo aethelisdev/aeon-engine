@@ -5,8 +5,8 @@
 use super::gizmo_drag::gizmo_screen_params;
 use super::viewport::{map_window_to_viewport, should_pass_to_3d};
 use crate::editor_state::EditorState;
-use crate::input::{InputManager, KeyCode};
 use crate::picking;
+use ae_input::{InputManager, KeyCode};
 use ae_plugin_api::{Position, Rotation, Scale};
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, SquareMatrix, Vector3};
 
@@ -55,11 +55,11 @@ pub fn on_left_click_pressed(
     if !is_edit_mode {
         return;
     }
-    if !should_pass_to_3d(editor, last_viewport_rect, scale_factor, is_point_over_ui) {
+    if !should_pass_to_3d(input, last_viewport_rect, scale_factor, is_point_over_ui) {
         return;
     }
 
-    let (mx, my) = editor.last_cursor_pos;
+    let (mx, my) = input.cursor_pos();
     let (local_mx, local_my, local_size) =
         map_window_to_viewport(mx, my, window_size, last_viewport_rect, scale_factor);
     let ray = match create_ray(camera, local_size, local_mx, local_my) {
@@ -341,7 +341,8 @@ pub fn try_select_entity(
 }
 
 /// Parameters for processing left-click release events in the viewport.
-pub struct LeftClickReleaseParams {
+pub struct LeftClickReleaseParams<'a> {
+    pub input: &'a ae_input::InputManager,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
@@ -354,9 +355,10 @@ pub fn on_left_click_released(
     camera: &ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
-    params: LeftClickReleaseParams,
+    params: LeftClickReleaseParams<'_>,
 ) {
     let LeftClickReleaseParams {
+        input,
         window_size,
         last_viewport_rect,
         scale_factor,
@@ -364,7 +366,7 @@ pub fn on_left_click_released(
     } = params;
 
     if editor.gizmo_dragging && is_edit_mode {
-        let (mx, my) = editor.last_cursor_pos;
+        let (mx, my) = input.cursor_pos();
         let (local_mx, local_my, local_size) =
             map_window_to_viewport(mx, my, window_size, last_viewport_rect, scale_factor);
         if let (Some(&sel), Some(ray)) = (

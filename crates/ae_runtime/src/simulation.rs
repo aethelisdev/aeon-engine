@@ -7,9 +7,9 @@
 use ae_core::events::{
     DynamicEventBus, LoadGameCompleted, LoadGameRequest, SaveGameCompleted, SaveGameRequest,
 };
-use ae_core::input::InputManager;
 use ae_core::transform::update_hierarchy_transforms;
 use ae_ecs::ComponentRegistry;
+use ae_input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use ae_plugin_api::{EntityGuid, PlayerTag, Position, TransformDirty};
 use ae_renderer::asset::AssetManager;
@@ -508,10 +508,7 @@ mod tests {
         assert!(!was_paused);
         assert!(!is_paused);
 
-        input.process_key_event(
-            ae_core::input::KeyCode::KeyP,
-            winit::event::ElementState::Pressed,
-        );
+        input.process_key_event(ae_input::KeyCode::KeyP, winit::event::ElementState::Pressed);
         let (was_paused, is_paused) = step_play_state_and_pause(
             &mut state_manager,
             &mut world,
@@ -531,14 +528,11 @@ mod tests {
 
         input.end_frame();
         input.process_key_event(
-            ae_core::input::KeyCode::KeyP,
+            ae_input::KeyCode::KeyP,
             winit::event::ElementState::Released,
         );
         input.end_frame();
-        input.process_key_event(
-            ae_core::input::KeyCode::KeyP,
-            winit::event::ElementState::Pressed,
-        );
+        input.process_key_event(ae_input::KeyCode::KeyP, winit::event::ElementState::Pressed);
         let (was_paused, is_paused) = step_play_state_and_pause(
             &mut state_manager,
             &mut world,

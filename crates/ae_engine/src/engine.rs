@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use ae_core::input::InputManager;
 use ae_core::time::Time;
 use ae_editor::editor_state::EditorState;
 use ae_editor::undo_redo::Command;
+use ae_input::InputManager;
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Light, Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity};
 use ae_renderer::render::RenderState;

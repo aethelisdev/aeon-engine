@@ -10,7 +10,8 @@
 use crate::engine::AeEngine;
 use ae_core::modules::EngineMode;
 use ae_editor_ui::ui::EngineUiAction;
-use winit::event::{ElementState, KeyEvent, MouseButton, WindowEvent};
+use ae_input::{ElementState, KeyCode, MouseButton};
+use winit::event::{KeyEvent, MouseScrollDelta, WindowEvent};
 use winit::keyboard::PhysicalKey;
 
 /// Represents which subsystem currently holds exclusive pointer capture.
@@ -82,8 +83,9 @@ impl InputArbiter {
                 self.handle_mouse_input(engine, *button, *state, consumed);
             }
             WindowEvent::CursorMoved { position, .. } => {
+                engine.input.process_cursor_moved(position.x, position.y);
                 if !consumed || matches!(self.pointer_capture, PointerCapture::Viewport(_)) {
-                    engine.handle_cursor_moved(position.x, position.y);
+                    engine.handle_cursor_moved();
                 }
             }
             WindowEvent::Focused(focused) => {
@@ -151,7 +153,7 @@ impl InputArbiter {
         let state = key_event.state;
 
         // F5: Toggle between Edit and Play mode
-        if key == winit::keyboard::KeyCode::F5 && state == ElementState::Pressed {
+        if key == KeyCode::F5 && state == ElementState::Pressed {
             self.pointer_capture = PointerCapture::None;
             let next_mode = if engine.mode == EngineMode::Play {
                 EngineMode::Edit
@@ -162,7 +164,7 @@ impl InputArbiter {
         }
 
         // Escape: In Play mode, cleanly return to Edit mode
-        if key == winit::keyboard::KeyCode::Escape
+        if key == KeyCode::Escape
             && state == ElementState::Pressed
             && engine.mode == EngineMode::Play
         {
@@ -172,7 +174,7 @@ impl InputArbiter {
 
         // Forward keys to gameplay if not consumed by UI and (Escape, in Play mode, or UI is not capturing keyboard input)
         if !consumed
-            && (key == winit::keyboard::KeyCode::Escape
+            && (key == KeyCode::Escape
                 || engine.mode == EngineMode::Play
                 || !engine.ui.wants_keyboard_input())
         {
@@ -181,19 +183,19 @@ impl InputArbiter {
     }
 
     /// Routes mouse wheel scroll events to 3D camera zoom if cursor is outside UI rects.
-    fn handle_mouse_wheel(
-        &self,
-        engine: &mut AeEngine,
-        delta: &winit::event::MouseScrollDelta,
-        consumed: bool,
-    ) {
+    fn handle_mouse_wheel(&self, engine: &mut AeEngine, delta: &MouseScrollDelta, consumed: bool) {
         if consumed || matches!(self.pointer_capture, PointerCapture::Ui(_)) {
             return;
         }
 
+        let (dx, dy) = match delta {
+            MouseScrollDelta::LineDelta(x, y) => (*x, *y),
+            MouseScrollDelta::PixelDelta(pos) => (pos.x as f32 * 0.02, pos.y as f32 * 0.02),
+        };
+        engine.input.process_mouse_wheel(dx, dy);
+
         if engine.mode == EngineMode::Play || !engine.ui.wants_pointer_input() {
-            let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-            engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
+            engine.handle_mouse_scroll(dy);
         }
     }
 
@@ -259,12 +261,10 @@ impl InputArbiter {
         }
     }
 
-    /// Resets corresponding editor button pressed flags to prevent lingering held state.
+    /// Resets active viewport look interaction when a right mouse release is consumed by UI.
     fn clear_editor_pressed_state(engine: &mut AeEngine, button: MouseButton) {
-        match button {
-            MouseButton::Left => engine.editor.left_mouse_pressed = false,
-            MouseButton::Right => engine.editor.right_mouse_pressed = false,
-            _ => {}
+        if button == MouseButton::Right {
+            engine.editor.viewport_camera_look_active = false;
         }
     }
 }

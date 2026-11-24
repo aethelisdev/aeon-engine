@@ -68,16 +68,10 @@ impl EditorConfig {
 /// selection, dragging state, interaction flags, multi-selection snapshots,
 /// scene backup for Play→Edit restore, and configurable preferences.
 pub struct EditorState {
-    /// Accumulated mouse delta for this frame (used for dragging).
-    pub mouse_delta: (f32, f32),
-    /// Whether the right mouse button is currently held down (Camera Look).
-    pub right_mouse_pressed: bool,
-    /// Whether the left mouse button is currently held down (Interaction).
-    pub left_mouse_pressed: bool,
+    /// Whether the 3D viewport owns an active right-mouse camera look or pan gesture.
+    pub viewport_camera_look_active: bool,
     /// Whether the user is currently interacting with a transform gizmo.
     pub gizmo_dragging: bool,
-    /// Last recorded cursor position (used for delta calculation).
-    pub last_cursor_pos: (f64, f64),
     /// Snapshots of entity properties captured before a manipulation begins for multi-select.
     pub current_edit_snapshots: HashMap<Entity, EntitySnapshot>,
     /// O(1) Quick lookup for selected entities to avoid O(N*M) during extraction.
@@ -141,11 +135,8 @@ pub struct EditorState {
 impl Default for EditorState {
     fn default() -> Self {
         Self {
-            mouse_delta: (0.0, 0.0),
-            right_mouse_pressed: false,
-            left_mouse_pressed: false,
+            viewport_camera_look_active: false,
             gizmo_dragging: false,
-            last_cursor_pos: (0.0, 0.0),
             current_edit_snapshots: HashMap::new(),
             selected_entities_set: HashSet::new(),
             scene_backup: HashMap::new(),

@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-pub mod action_map;
 pub mod actions;
 pub mod clipboard;
 pub mod editor_logger;
 pub mod editor_state;
 pub mod history;
-pub mod input;
 pub mod interactions;
 pub mod picking;
 pub mod shortcuts;

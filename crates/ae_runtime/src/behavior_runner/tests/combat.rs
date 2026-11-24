@@ -5,8 +5,8 @@
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
-use ae_core::input::InputManager;
 use ae_ecs::World;
+use ae_input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use ae_plugin_api::{
     Collider, ColliderShape, Color, DestructibleTarget, Position, RigidBody, RigidBodyType,
@@ -155,10 +155,7 @@ fn test_entities_without_character_action_do_not_shoot() {
     ));
 
     // Simulate Fire button press
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,
@@ -186,10 +183,7 @@ fn test_entities_without_character_action_do_not_shoot() {
         ae_plugin_api::CharacterAction::default(),
     ));
 
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,
@@ -230,10 +224,7 @@ fn test_character_action_cooldown_and_speed() {
     ));
 
     // First shot (timer = 0.0, ready to fire)
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,
@@ -263,10 +254,7 @@ fn test_character_action_cooldown_and_speed() {
 
     // Second shot immediately (cooldown active: 1.0 - 0.1 = 0.9s remaining)
     input.end_frame();
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,
@@ -288,7 +276,7 @@ fn test_character_action_cooldown_and_speed() {
 
     // Advance time by 1.0s and release key so next press is registered
     input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
+        ae_input::KeyCode::KeyF,
         winit::event::ElementState::Released,
     );
     input.end_frame();
@@ -302,10 +290,7 @@ fn test_character_action_cooldown_and_speed() {
     });
 
     // Third shot after cooldown has elapsed
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,
@@ -373,10 +358,7 @@ fn test_character_action_shoots_and_pushes_dynamic_cube() {
     physics.step(&mut world, |_| None, 0.016, &mut event_bus);
 
     // Fire weapon along +Z towards the cube
-    input.process_key_event(
-        ae_core::input::KeyCode::KeyF,
-        winit::event::ElementState::Pressed,
-    );
+    input.process_key_event(ae_input::KeyCode::KeyF, winit::event::ElementState::Pressed);
 
     update_gameplay_behaviors(BehaviorRunnerParams {
         world: &mut world,

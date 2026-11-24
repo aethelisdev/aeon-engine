@@ -1,0 +1,14 @@
+[package]
+name = "ae_input"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Three-state keyboard/mouse input state tracker and serializable action/axis mapping for Aeon Engine."
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+winit = { version = "0.30.13", features = ["serde"] }

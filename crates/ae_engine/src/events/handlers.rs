@@ -14,22 +14,11 @@ impl AeEngine {
     ///
     /// Drives smooth zoom and dolly movements for the active 3D perspective camera
     /// based on mouse wheel rotational steps or trackpad offsets.
-    pub fn handle_mouse_scroll(
-        &mut self,
-        delta: &winit::event::MouseScrollDelta,
-        _cursor_x: f64,
-        _cursor_y: f64,
-    ) {
+    pub fn handle_mouse_scroll(&mut self, scroll_amount: f32) {
         if self.mode != EngineMode::Edit {
             return;
         }
-        let scroll_amount = match delta {
-            winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
-            winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 * 0.02,
-        };
-        let boost = self
-            .input
-            .is_key_pressed(ae_core::input::KeyCode::ShiftLeft);
+        let boost = self.input.is_shift_pressed();
         ae_camera_controller::apply_scroll_zoom(
             &mut self.camera,
             scroll_amount,
@@ -42,7 +31,7 @@ impl AeEngine {
     ///
     /// Translates coordinates through the HighDPI scale factor and forwards
     /// them to gizmo manipulation, orbit navigation, and object picking.
-    pub fn handle_cursor_moved(&mut self, x: f64, y: f64) {
+    pub fn handle_cursor_moved(&mut self) {
         let window_size = (self.render_state.size.width, self.render_state.size.height);
         let scale_factor = self.ui.scale_factor();
         let last_viewport_rect = self.render_state.last_viewport_rect;
@@ -52,12 +41,11 @@ impl AeEngine {
             &mut self.transform_gizmo,
             &mut self.world,
             ae_editor::interactions::CursorMoveParams {
+                input: &self.input,
                 window_size,
                 last_viewport_rect,
                 scale_factor,
                 is_edit_mode: self.mode == EngineMode::Edit,
-                x,
-                y,
             },
         );
     }
@@ -133,15 +121,15 @@ impl AeEngine {
                     let center_y = h / 2.0;
                     let _ = window
                         .set_cursor_position(winit::dpi::PhysicalPosition::new(center_x, center_y));
-                    self.editor.last_cursor_pos = (center_x, center_y);
-                    self.editor.mouse_delta = (0.0, 0.0);
+                    self.input.set_cursor_pos(center_x, center_y);
+                    self.input.clear_mouse_delta();
                 }
             }
         } else if self.is_cursor_grabbed || self.mode == EngineMode::Edit {
             self.is_cursor_grabbed = false;
             window.set_cursor_visible(true);
             let _ = window.set_cursor_grab(winit::window::CursorGrabMode::None);
-            self.editor.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
         }
     }
 
@@ -184,14 +172,13 @@ impl AeEngine {
     /// Handles raw device events (such as hardware un-clamped MouseMotion) for camera control.
     pub fn handle_device_event(&mut self, event: &winit::event::DeviceEvent) {
         if let winit::event::DeviceEvent::MouseMotion { delta: (dx, dy) } = event
-            && (self.editor.right_mouse_pressed
+            && (self.editor.viewport_camera_look_active
                 || (self.mode == EngineMode::Play
                     && self.is_cursor_grabbed
                     && !self.state_manager.is_paused()
                     && !self.dimension_mode.is_2d()))
         {
-            self.editor.mouse_delta.0 += *dx as f32;
-            self.editor.mouse_delta.1 += *dy as f32;
+            self.input.add_mouse_delta(*dx as f32, *dy as f32);
         }
     }
 }

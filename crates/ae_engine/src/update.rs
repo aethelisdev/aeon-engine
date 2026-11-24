@@ -2,8 +2,8 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::engine::AeEngine;
-use ae_core::input::KeyCode;
 use ae_core::modules::EngineMode;
+use ae_input::KeyCode;
 
 impl AeEngine {
     /// Core per-frame update: ticks time, processes async imports, purges stale entities,
@@ -299,13 +299,13 @@ impl AeEngine {
         // Cursor grab synchronization with pause state
         if is_paused && !was_paused {
             self.set_cursor_grab(false);
-            self.editor.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
             self.input.clear_pressed_keys();
         } else if !is_paused && was_paused {
             if !self.dimension_mode.is_2d() {
                 self.set_cursor_grab(true);
             }
-            self.editor.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
         }
 
         // 3. Tick In-Game HUD subsystem
@@ -313,14 +313,14 @@ impl AeEngine {
             .update_from_events(&mut self.world, &mut self.event_bus);
 
         if is_paused {
-            self.editor.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
             return;
         }
 
         ae_camera_controller::update_follow_camera(
             &mut self.world,
             &mut self.camera,
-            &mut self.editor.mouse_delta,
+            self.input.mouse_delta_mut(),
             ae_camera_controller::FollowCameraConfig {
                 mouse_sensitivity: self.editor.config.mouse_sensitivity,
                 ..Default::default()
@@ -386,11 +386,11 @@ impl AeEngine {
                 up: self.input.is_key_pressed(KeyCode::KeyE),
                 down: self.input.is_key_pressed(KeyCode::KeyQ),
                 boost: self.input.is_key_pressed(KeyCode::ShiftLeft),
-                right_mouse_pressed: self.editor.right_mouse_pressed,
+                right_mouse_pressed: self.editor.viewport_camera_look_active,
             },
             self.time.delta_time,
         );
-        self.editor.mouse_delta = (0.0, 0.0);
+        self.input.clear_mouse_delta();
     }
 
     /// Dispatches queued UI actions to the engine (within profiler UI timing).

@@ -19,12 +19,12 @@ use ae_audio::AudioManager;
 use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
-use ae_core::input::{InputManager, KeyCode};
 use ae_core::modules::EngineModule;
 use ae_core::spatial::SpatialGrid;
 use ae_core::state::StateManager;
 use ae_core::time::Time;
 use ae_core::transform::update_hierarchy_transforms;
+use ae_input::{ActionMap, InputManager, KeyCode};
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Position, Scale};
 use ae_plugin_host::PluginManager;
@@ -48,7 +48,6 @@ pub struct RuntimeSession {
     camera: Camera,
     time: Time,
     input: InputManager,
-    mouse_delta: (f32, f32),
     mouse_sensitivity: f32,
     world: ae_ecs::World,
     asset_manager: AssetManager,
@@ -144,7 +143,7 @@ impl RuntimeSession {
         if let Ok(raw_input) = streaming.vfs().read_bytes("Config/input.json") {
             match std::str::from_utf8(&raw_input)
                 .map_err(|e| e.to_string())
-                .and_then(ae_core::action_map::ActionMap::from_json)
+                .and_then(ActionMap::from_json)
             {
                 Ok(action_map) => {
                     log::info!(
@@ -172,7 +171,6 @@ impl RuntimeSession {
             camera,
             time: Time::new(),
             input,
-            mouse_delta: (0.0, 0.0),
             mouse_sensitivity: 0.005,
             world,
             asset_manager,
@@ -227,13 +225,13 @@ impl RuntimeSession {
         );
         if is_paused && !was_paused {
             self.set_cursor_grab(false);
-            self.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
             self.input.clear_pressed_keys();
         } else if !is_paused && was_paused {
             if !self.world_info.is_2d {
                 self.set_cursor_grab(true);
             }
-            self.mouse_delta = (0.0, 0.0);
+            self.input.clear_mouse_delta();
         }
 
         if self.event_bus.is_module_enabled(EngineModule::Physics) {
@@ -281,7 +279,7 @@ impl RuntimeSession {
             update_follow_camera(
                 &mut self.world,
                 &mut self.camera,
-                &mut self.mouse_delta,
+                self.input.mouse_delta_mut(),
                 FollowCameraConfig {
                     mouse_sensitivity: self.mouse_sensitivity,
                     ..Default::default()
@@ -533,7 +531,7 @@ impl RuntimeSession {
                 if !is_2d {
                     self.set_cursor_grab(true);
                 }
-                self.mouse_delta = (0.0, 0.0);
+                self.input.clear_mouse_delta();
             }
             RuntimePauseAction::Exit => {
                 self.should_exit = true;
@@ -619,6 +617,18 @@ impl ApplicationHandler for DesktopPlayerApp {
                     session.input.process_key_event(code, event.state);
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                session.input.process_cursor_moved(position.x, position.y);
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let (dx, dy) = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => (x, y),
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                        (pos.x as f32 * 0.02, pos.y as f32 * 0.02)
+                    }
+                };
+                session.input.process_mouse_wheel(dx, dy);
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == winit::event::MouseButton::Left
                     && state == ElementState::Pressed
@@ -649,8 +659,9 @@ impl ApplicationHandler for DesktopPlayerApp {
         if let Some(session) = self.session.as_mut()
             && let DeviceEvent::MouseMotion { delta } = event
         {
-            session.mouse_delta.0 += delta.0 as f32;
-            session.mouse_delta.1 += delta.1 as f32;
+            session
+                .input
+                .add_mouse_delta(delta.0 as f32, delta.1 as f32);
         }
     }
 

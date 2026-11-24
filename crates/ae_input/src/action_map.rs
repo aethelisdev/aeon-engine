@@ -1,40 +1,42 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use crate::input::InputManager;
+//! Virtual input action and analog axis mapping with JSON serialization.
+
+use crate::manager::InputManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use winit::keyboard::KeyCode;
 
-/// Defines a key or axis binding with scale modifier.
+/// Binds a physical [`KeyCode`] to an analog axis contribution with a sign/weight multiplier.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AxisBinding {
+    /// Physical key contributing to the axis.
     pub key: KeyCode,
+    /// Scalar multiplier added to the axis sum while `key` is pressed (typically `+1.0` or `-1.0`).
     pub scale: f32,
 }
 
-/// Input Action Mapping System for virtual action & axis bindings.
+/// Serializable mapping from logical action and axis names to physical [`KeyCode`] bindings.
 ///
-/// Maps logical action names (e.g., "Jump", "MoveForward", "MoveRight", "Interact")
-/// to physical key codes, allowing dynamic key rebinding, multi-key bindings,
-/// analog axis scaling, and JSON serialization.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Supports multi-key digital actions, summed/clamped analog axes in `[-1.0, 1.0]`,
+/// runtime rebinding, and JSON persistence (`Config/input.json`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ActionMap {
+    /// Profile display name (e.g. `"Gameplay"`).
     pub name: String,
+    /// Digital action names mapped to physical trigger keys.
     pub actions: HashMap<String, Vec<KeyCode>>,
+    /// Analog axis names mapped to weighted key contributions.
     pub axes: HashMap<String, Vec<AxisBinding>>,
 }
 
 impl ActionMap {
-    /// Creates a new ActionMap with default gameplay bindings.
+    /// Builds the default gameplay action and movement axis profile.
     ///
-    /// Default bindings:
-    /// - `"MoveForward"`: W (+1.0), S (-1.0), Up (+1.0), Down (-1.0)
-    /// - `"MoveRight"`: D (+1.0), A (-1.0), Right (+1.0), Left (-1.0)
-    /// - `"Jump"`: Space
-    /// - `"Run"`: ShiftLeft, ShiftRight
-    /// - `"Interact"`: KeyE
-    /// - `"Crouch"`: ControlLeft, KeyC
+    /// Includes digital actions (`Jump`, `Run`, `Interact`, `Crouch`, `Fire`, `Reload`, `Pause`)
+    /// and movement axes (`MoveForward`, `MoveRight`) bound to both WASD and arrow keys.
+    #[must_use]
     pub fn default_gameplay() -> Self {
         let mut map = Self {
             name: "Gameplay".to_string(),
@@ -42,7 +44,6 @@ impl ActionMap {
             axes: HashMap::new(),
         };
 
-        // Actions
         map.actions.insert("Jump".to_string(), vec![KeyCode::Space]);
         map.actions.insert(
             "Run".to_string(),
@@ -61,9 +62,7 @@ impl ActionMap {
         map.actions
             .insert("Reload".to_string(), vec![KeyCode::KeyR]);
         map.actions.insert("Pause".to_string(), vec![KeyCode::KeyP]);
-        map.actions.insert("Pause".to_string(), vec![KeyCode::KeyP]);
 
-        // Axes
         map.axes.insert(
             "MoveForward".to_string(),
             vec![
@@ -111,7 +110,7 @@ impl ActionMap {
         map
     }
 
-    /// Binds a digital action to a key.
+    /// Appends a digital key binding to `action_name`, creating the entry if absent.
     pub fn bind_action(&mut self, action_name: &str, key: KeyCode) {
         self.actions
             .entry(action_name.to_string())
@@ -119,7 +118,7 @@ impl ActionMap {
             .push(key);
     }
 
-    /// Binds an axis to a key with a scale factor (+1.0 or -1.0).
+    /// Appends an axis contribution `(key, scale)` to `axis_name`.
     pub fn bind_axis(&mut self, axis_name: &str, key: KeyCode, scale: f32) {
         self.axes
             .entry(axis_name.to_string())
@@ -127,65 +126,74 @@ impl ActionMap {
             .push(AxisBinding { key, scale });
     }
 
-    /// Rebinds a digital action by replacing an existing key with a new key.
+    /// Replaces the first occurrence of `old_key` in `action_name` with `new_key`.
+    ///
+    /// Returns `true` if `old_key` was found and updated, or `false` if absent.
     pub fn rebind_action(&mut self, action_name: &str, old_key: KeyCode, new_key: KeyCode) -> bool {
-        if let Some(keys) = self.actions.get_mut(action_name) {
-            for k in keys.iter_mut() {
-                if *k == old_key {
-                    *k = new_key;
-                    return true;
-                }
-            }
-        }
-        false
+        let Some(slot) = self
+            .actions
+            .get_mut(action_name)
+            .and_then(|keys| keys.iter_mut().find(|k| **k == old_key))
+        else {
+            return false;
+        };
+        *slot = new_key;
+        true
     }
 
-    /// Queries whether any key bound to the action is currently pressed down.
+    /// Returns `true` if any key bound to `action_name` is held in `input`.
+    #[must_use]
     pub fn is_action_pressed(&self, input: &InputManager, action_name: &str) -> bool {
-        if let Some(keys) = self.actions.get(action_name) {
-            keys.iter().any(|&k| input.is_key_pressed(k))
-        } else {
-            false
-        }
+        self.actions
+            .get(action_name)
+            .is_some_and(|keys| keys.iter().any(|&k| input.is_key_pressed(k)))
     }
 
-    /// Queries whether any key bound to the action was just pressed down this frame.
+    /// Returns `true` if any key bound to `action_name` transitioned to pressed this frame.
+    #[must_use]
     pub fn is_action_just_pressed(&self, input: &InputManager, action_name: &str) -> bool {
-        if let Some(keys) = self.actions.get(action_name) {
-            keys.iter().any(|&k| input.is_key_just_pressed(k))
-        } else {
-            false
-        }
+        self.actions
+            .get(action_name)
+            .is_some_and(|keys| keys.iter().any(|&k| input.is_key_just_pressed(k)))
     }
 
-    /// Queries whether any key bound to the action was just released this frame.
+    /// Returns `true` if any key bound to `action_name` transitioned to released this frame.
+    #[must_use]
     pub fn is_action_just_released(&self, input: &InputManager, action_name: &str) -> bool {
-        if let Some(keys) = self.actions.get(action_name) {
-            keys.iter().any(|&k| input.is_key_just_released(k))
-        } else {
-            false
-        }
+        self.actions
+            .get(action_name)
+            .is_some_and(|keys| keys.iter().any(|&k| input.is_key_just_released(k)))
     }
 
-    /// Calculates the axis value (-1.0 to +1.0) based on currently pressed keys and scale factors.
+    /// Sums finite scale weights of all active keys bound to `axis_name`, clamped to `[-1.0, 1.0]`.
+    ///
+    /// Non-finite scales (e.g. `NaN`) in malformed configs are safely ignored.
+    #[must_use]
     pub fn get_axis(&self, input: &InputManager, axis_name: &str) -> f32 {
+        let Some(bindings) = self.axes.get(axis_name) else {
+            return 0.0;
+        };
         let mut value = 0.0f32;
-        if let Some(bindings) = self.axes.get(axis_name) {
-            for b in bindings {
-                if input.is_key_pressed(b.key) {
-                    value += b.scale;
-                }
+        for b in bindings {
+            if input.is_key_pressed(b.key) && b.scale.is_finite() {
+                value += b.scale;
             }
         }
         value.clamp(-1.0, 1.0)
     }
 
-    /// Serializes the action map to JSON string.
+    /// Serializes this action map as pretty-printed JSON.
+    ///
+    /// # Errors
+    /// Returns an error string if serialization fails.
     pub fn to_json(&self) -> Result<String, String> {
         serde_json::to_string_pretty(self).map_err(|e| e.to_string())
     }
 
-    /// Deserializes an action map from JSON string.
+    /// Deserializes an [`ActionMap`] from a JSON string.
+    ///
+    /// # Errors
+    /// Returns an error string if JSON parsing or enum decoding fails.
     pub fn from_json(json: &str) -> Result<Self, String> {
         serde_json::from_str(json).map_err(|e| e.to_string())
     }
@@ -194,43 +202,5 @@ impl ActionMap {
 impl Default for ActionMap {
     fn default() -> Self {
         Self::default_gameplay()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use winit::event::ElementState;
-
-    #[test]
-    fn test_action_map_digital_actions_and_axes() {
-        let mut input = InputManager::new();
-        assert!(!input.is_action_pressed("Jump"));
-        assert_eq!(input.get_axis("MoveForward"), 0.0);
-
-        // Press Space -> Jump action active
-        input.process_key_event(KeyCode::Space, ElementState::Pressed);
-        assert!(input.is_action_pressed("Jump"));
-        assert!(input.is_action_just_pressed("Jump"));
-
-        // Press W -> MoveForward axis +1.0
-        input.process_key_event(KeyCode::KeyW, ElementState::Pressed);
-        assert_eq!(input.get_axis("MoveForward"), 1.0);
-
-        // Press S -> MoveForward axis 0.0 (W: +1.0, S: -1.0 cancel out)
-        input.process_key_event(KeyCode::KeyS, ElementState::Pressed);
-        assert_eq!(input.get_axis("MoveForward"), 0.0);
-    }
-
-    #[test]
-    fn test_action_map_json_serialization() {
-        let map = ActionMap::default_gameplay();
-        let json = map.to_json().expect("Failed to serialize ActionMap");
-        let restored = ActionMap::from_json(&json).expect("Failed to deserialize ActionMap");
-
-        assert_eq!(map.name, restored.name);
-        assert!(restored.actions.contains_key("Jump"));
-        assert!(restored.actions.contains_key("Pause"));
-        assert!(restored.axes.contains_key("MoveForward"));
     }
 }

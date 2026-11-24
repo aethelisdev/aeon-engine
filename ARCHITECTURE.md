@@ -35,7 +35,8 @@ graph TD
         ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
         ae_ecs --> ae_camera_controller
         ae_plugin_api --> ae_camera_controller
-        ae_plugin_api --> ae_core["ae_core (InputManager, ActionMap, Events, State, Transforms)"]
+        ae_plugin_api --> ae_core["ae_core (Events, State, Transforms, Spatial, Time, Telemetry, HUD; Zero winit)"]
+        ae_input["ae_input (InputManager, ActionMap, AxisBinding, KeyCode, MouseButton)"]
         ae_ecs --> ae_core
         ae_plugin_api --> ae_world["ae_world (.aeworld, .aechunk, .aepak, .aesave, VFS, Cooked)"]
         ae_plugin_api --> ae_plugin_host["ae_plugin_host (Hot-Reload FFI Loader)"]
@@ -113,6 +114,7 @@ graph TD
         ae_scene --> ae_runtime["ae_runtime (Editor-Free Player & Simulation Core)"]
         ae_camera --> ae_runtime
         ae_camera_controller --> ae_runtime
+        ae_input --> ae_runtime
         ae_physics --> ae_runtime
         ae_audio --> ae_runtime
         ae_plugin_host --> ae_runtime
@@ -120,6 +122,7 @@ graph TD
         ae_camera --> ae_editor["ae_editor (Picking, Selection, Snapping, Undo/Redo; Zero wgpu)"]
         ae_camera_controller --> ae_editor
         ae_gizmos --> ae_editor
+        ae_input --> ae_editor
         ae_ecs --> ae_editor
         ae_editor --> ae_editor_ui["ae_editor_ui (Pure Declarative IDE Views & EngineUiAction)"]
         ae_camera --> ae_editor_ui
@@ -131,6 +134,7 @@ graph TD
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
         ae_camera --> ae_engine
         ae_camera_controller --> ae_engine
+        ae_input --> ae_engine
         ae_scene --> ae_engine
         ae_gizmos --> ae_engine
         ae_gizmos_render --> ae_engine
@@ -178,7 +182,8 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 ### 4.1. `ae_ecs`, `ae_plugin_api`, `ae_core` & `ae_plugin_host`
 * **`ae_ecs`:** Encapsulates the workspace ECS backend (`hecs` isolated inside this single crate), exposing `World`, `Entity`, `EntityBuilder`, `EntityCommandBuffer`, `EcsQuery`, scoped `inspect`/`mutate` access without `Ref<'_, T>` borrow guards, `ComponentRegistry` (`ComponentHandler`, `TypedComponentHandler`), and FNV-1a `component_type_hash`.
 * **`ae_plugin_api`:** Defines `EntityGuid`, `AssetGuid`, POD gameplay components (`LodGroup`, transform/physics/gameplay types), `engine_component_registry()`, `Resources`, `PluginContext` / `PluginContextFFI`, and standard events including `SaveGameRequest` / `LoadGameRequest` (`DynamicEventBus::{save_slot, load_slot}`).
-* **`ae_core`:** Houses pushdown `StateManager`, `SpatialGrid`, transform hierarchy propagation (`update_hierarchy_transforms`), shared `InputManager` / `ActionMap`, and `DynamicEventBus`.
+* **`ae_core`:** Houses pushdown `StateManager`, `SpatialGrid`, transform hierarchy propagation (`update_hierarchy_transforms`), `DynamicEventBus`, `Time`, telemetry, and runtime HUD types without any `winit` dependency.
+* **`ae_input`:** Standalone input crate (`[lints] workspace = true`) owning the three-state `InputManager` (`pressed`, `just_pressed`, `just_released`) for keyboard keys and mouse buttons alongside serializable `ActionMap` / `AxisBinding` (`Config/input.json`).
 * **`ae_camera` & `ae_camera_controller`:** `ae_camera` (free of `wgpu`, `ae_core`, `ae_ecs`, `ae_world`) owns `Camera`, `ProjectionMode`, `PerspectiveProjection`, `OrthographicProjection`, `OPENGL_TO_WGPU_MATRIX`, `Frustum`, POD `CameraUniform`, and `ViewportRect`/`Viewport`; `ae_camera_controller` unifies free-fly WASD/QE navigation, orthographic pan/zoom, target focus, and Play-mode orbit/follow tracking.
 * **`ae_plugin_host` & `game_logic`:** Supports hot-reloadable dynamic `cdylib` plugins in Editor workflows (`NativePluginBackend` via `libloading`) and dual `cdylib` + `rlib` compilation for static linkage in exported runtimes.
 

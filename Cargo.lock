@@ -141,7 +141,6 @@ dependencies = [
  "serde",
  "serde_json",
  "slotmap",
- "winit",
 ]
 
 [[package]]
@@ -163,6 +162,7 @@ dependencies = [
  "ae_core",
  "ae_ecs",
  "ae_gizmos",
+ "ae_input",
  "ae_plugin_api",
  "cgmath",
  "chrono",
@@ -222,6 +222,7 @@ dependencies = [
  "ae_export",
  "ae_gizmos",
  "ae_gizmos_render",
+ "ae_input",
  "ae_mcp",
  "ae_mesh",
  "ae_physics",
@@ -295,6 +296,15 @@ dependencies = [
  "image",
  "log",
  "wgpu",
+]
+
+[[package]]
+name = "ae_input"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "winit",
 ]
 
 [[package]]
@@ -406,6 +416,7 @@ dependencies = [
  "ae_camera_controller",
  "ae_core",
  "ae_ecs",
+ "ae_input",
  "ae_physics",
  "ae_plugin_api",
  "ae_plugin_host",

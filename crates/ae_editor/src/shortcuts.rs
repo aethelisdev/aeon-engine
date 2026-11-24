@@ -2,10 +2,8 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::editor_state::EditorState;
-use crate::input::InputManager;
 use ae_core::modules::EngineMode;
-use winit::event::MouseButton;
-use winit::keyboard::KeyCode;
+use ae_input::{InputManager, KeyCode, MouseButton};
 
 /// Output signals produced by editor keyboard shortcut evaluation.
 #[derive(Debug, Default)]
@@ -39,10 +37,8 @@ pub fn process_shortcuts(
     let mut result = ShortcutResult::default();
     editor.focus_rename = false;
 
-    let ctrl =
-        input.is_key_pressed(KeyCode::ControlLeft) || input.is_key_pressed(KeyCode::ControlRight);
-    let shift =
-        input.is_key_pressed(KeyCode::ShiftLeft) || input.is_key_pressed(KeyCode::ShiftRight);
+    let ctrl = input.is_ctrl_pressed();
+    let shift = input.is_shift_pressed();
 
     // --- CTRL SHORTCUTS ---
     if ctrl {

@@ -3,18 +3,17 @@
 use super::gizmo_drag::handle_gizmo_drag;
 use super::selection::{on_left_click_pressed, on_left_click_released};
 use crate::editor_state::EditorState;
-use crate::input::InputManager;
+use ae_input::InputManager;
 use ae_plugin_api::{GlobalTransform, Position, Rotation};
 use cgmath::{EuclideanSpace, Quaternion, Vector3};
 
 /// Parameters for handling cursor movement in the viewport.
-pub struct CursorMoveParams {
+pub struct CursorMoveParams<'a> {
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_edit_mode: bool,
-    pub x: f64,
-    pub y: f64,
+    pub input: &'a InputManager,
 }
 
 /// Handles cursor movement events — delegates to mouse-look and gizmo drag.
@@ -23,22 +22,20 @@ pub fn handle_cursor_moved(
     camera: &mut ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
-    params: CursorMoveParams,
+    params: CursorMoveParams<'_>,
 ) {
     let CursorMoveParams {
         window_size,
         last_viewport_rect,
         scale_factor,
         is_edit_mode,
-        x,
-        y,
+        input,
     } = params;
 
-    let dx = x - editor.last_cursor_pos.0;
-    let dy = y - editor.last_cursor_pos.1;
-    editor.last_cursor_pos = (x, y);
+    let (x, y) = input.cursor_pos();
+    let (dx, dy) = input.cursor_delta();
 
-    if editor.right_mouse_pressed && is_edit_mode {
+    if editor.viewport_camera_look_active && is_edit_mode {
         if camera.mode == ae_camera::ProjectionMode::Orthographic {
             let vp_h =
                 ((last_viewport_rect.max_y - last_viewport_rect.min_y) * scale_factor).max(1.0);
@@ -48,7 +45,10 @@ pub fn handle_cursor_moved(
         }
     }
 
-    if editor.gizmo_dragging && editor.left_mouse_pressed && is_edit_mode {
+    if editor.gizmo_dragging
+        && input.is_mouse_button_pressed(ae_input::MouseButton::Left)
+        && is_edit_mode
+    {
         let (local_x, local_y, local_size) =
             map_window_to_viewport(x, y, window_size, last_viewport_rect, scale_factor);
         handle_gizmo_drag(super::gizmo_drag::GizmoDragParams {
@@ -59,7 +59,7 @@ pub fn handle_cursor_moved(
             window_size: local_size,
             cursor_pos: (local_x as f64, local_y as f64),
         });
-    } else if is_edit_mode && !editor.right_mouse_pressed {
+    } else if is_edit_mode && !editor.viewport_camera_look_active {
         let logical_x = x as f32 / scale_factor;
         let logical_y = y as f32 / scale_factor;
         let is_inside_viewport = logical_x >= last_viewport_rect.min_x
@@ -148,22 +148,19 @@ pub fn handle_mouse_click(
         state,
     } = params;
 
-    let is_pressed = state == winit::event::ElementState::Pressed;
+    let is_pressed = state == ae_input::ElementState::Pressed;
 
-    if is_pressed && !should_pass_to_3d(editor, last_viewport_rect, scale_factor, is_point_over_ui)
-    {
-        editor.left_mouse_pressed = false;
-        editor.right_mouse_pressed = false;
+    if is_pressed && !should_pass_to_3d(input, last_viewport_rect, scale_factor, is_point_over_ui) {
+        editor.viewport_camera_look_active = false;
         return;
     }
 
-    if button == winit::event::MouseButton::Right {
-        editor.right_mouse_pressed = is_pressed;
+    if button == ae_input::MouseButton::Right {
+        editor.viewport_camera_look_active = is_pressed;
         return;
     }
 
-    if button == winit::event::MouseButton::Left {
-        editor.left_mouse_pressed = is_pressed;
+    if button == ae_input::MouseButton::Left {
         if is_pressed {
             on_left_click_pressed(
                 editor,
@@ -191,6 +188,7 @@ pub fn handle_mouse_click(
                     last_viewport_rect,
                     scale_factor,
                     is_edit_mode,
+                    input,
                 },
             );
         }
@@ -199,12 +197,12 @@ pub fn handle_mouse_click(
 
 /// Determines whether a mouse event should be forwarded to 3D viewport logic.
 pub fn should_pass_to_3d(
-    editor: &EditorState,
+    input: &InputManager,
     last_viewport_rect: ae_camera::ViewportRect,
     scale_factor: f32,
     is_point_over_ui: &dyn Fn([f32; 2]) -> bool,
 ) -> bool {
-    let (cx, cy) = editor.last_cursor_pos;
+    let (cx, cy) = input.cursor_pos();
     let logical_pos = [cx as f32 / scale_factor, cy as f32 / scale_factor];
 
     if is_point_over_ui(logical_pos) {
@@ -231,8 +229,7 @@ pub fn handle_focus_lost(
         gizmo_system.end_drag();
         editor.gizmo_dragging = false;
     }
-    editor.left_mouse_pressed = false;
-    editor.right_mouse_pressed = false;
+    editor.viewport_camera_look_active = false;
 }
 
 /// Translates screen-space window coordinates to localized physical viewport coordinates.

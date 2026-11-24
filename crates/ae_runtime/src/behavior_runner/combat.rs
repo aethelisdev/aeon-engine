@@ -4,8 +4,8 @@
 //! Character combat actions, weapon raycast shooting, kinetic impulses, and projectile spawning.
 
 use ae_core::events::{DynamicEventBus, RaycastHitEvent};
-use ae_core::input::InputManager;
 use ae_ecs::{Entity, World};
+use ae_input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use ae_plugin_api::{
     CharacterAction, Collider, ColliderShape, Color, EphemeralProjectile, Name, Position,
@@ -28,7 +28,7 @@ pub fn update_character_actions(
 
     let fire_pressed = input.is_action_just_pressed("Fire")
         || input.is_mouse_button_just_pressed(winit::event::MouseButton::Left)
-        || input.is_key_just_pressed(ae_core::input::KeyCode::KeyF);
+        || input.is_key_just_pressed(ae_input::KeyCode::KeyF);
 
     if fire_pressed {
         let mut projectiles_to_spawn = Vec::new();
