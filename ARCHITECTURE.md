@@ -102,13 +102,12 @@ graph TD
 
         ae_renderer --> ae_editor["ae_editor (Gizmos, Picking, Selection, Snapping, Undo/Redo)"]
         ae_ecs --> ae_editor
-        ae_editor --> ae_editor_ui["ae_editor_ui (Declarative IDE Views & Action Dispatch)"]
-        ae_scene --> ae_editor_ui
+        ae_editor --> ae_editor_ui["ae_editor_ui (Pure Declarative IDE Views & EngineUiAction)"]
         ae_export --> ae_editor_ui
         ae_runtime --> ae_editor_ui
         irisui --> ae_editor_ui
 
-        ae_runtime --> ae_engine["ae_engine (Full IDE Host)"]
+        ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
         ae_scene --> ae_engine
         ae_export --> ae_engine
         ae_editor_ui --> ae_engine
@@ -178,13 +177,13 @@ Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-anima
 
 ### 4.7. `irisui` & `ae_editor_ui`
 * **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
-* **`ae_editor` & `ae_editor_ui`:** 3D transform gizmos, raycast/ground picking (`picking`), selection, grid snapping, Undo/Redo snapshots, and pure declarative `UiScope` views with thin action processors delegating scene mutations to `ae_scene`.
+* **`ae_editor` & `ae_editor_ui`:** `ae_editor` owns 3D transform gizmos, raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
 
 ### 4.8. `ae_mcp` & `ae_export` & `ae_engine` & `ae_launcher`
 * **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).
 * **`ae_export`:** Dependency graph scanner (`dependency_graph`), parallel `Intermediate/<target>/` cooker (`CookedMesh`, `CookedTexture`, `CookedAudio`), `16`-byte aligned `game.aepak` packer, and Linux/Windows `ae_runtime` standalone bundler (`ae_export_cli` + Editor `File -> Export Project...` modal).
 * **`ae_launcher`:** Project hub creating and opening modular workspaces.
-* **`ae_engine`:** Full editor IDE host composing `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, `ae_uidesign`, optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), and orchestrating world save/load and Edit-mode `ae_scene::EditorAutosaveState` recovery writes.
+* **`ae_engine`:** Full editor IDE host composing `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, `ae_uidesign`, optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), host action dispatching (`actions`), and orchestrating world save/load and Edit-mode `ae_scene::EditorAutosaveState` recovery writes.
 
 ---
 
