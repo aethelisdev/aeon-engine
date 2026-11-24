@@ -6,8 +6,9 @@
 //! Provides path-safe loading, deduplication, and compilation of `.wgsl` shader files
 //! into the central `AssetManager.shaders` storage.
 
-use crate::asset::{AssetHandle, AssetManager, ShaderAsset, is_safe_path};
+use crate::asset::{AssetHandle, AssetManager, ShaderAsset};
 use crate::render::RenderState;
+use ae_mesh::is_safe_path;
 
 impl RenderState {
     /// Compiles a WGSL shader from raw source code and registers it into the `AssetManager`.

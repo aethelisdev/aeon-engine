@@ -1,0 +1,16 @@
+[package]
+name = "ae_mesh"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "GPU-free 3D mesh vertices, submeshes, procedural primitives, CPU skinning, bounds, and glTF 2.0 parsing for Aeon Engine."
+
+[lints]
+workspace = true
+
+[dependencies]
+ae_animation = { path = "../ae_animation" }
+ae_texture = { path = "../ae_texture" }
+bytemuck = { workspace = true }
+glam = { workspace = true }
+gltf = "1.4.1"

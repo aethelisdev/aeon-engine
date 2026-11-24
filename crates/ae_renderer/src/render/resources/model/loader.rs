@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! 3D Model parsing, GPU buffer upload, and asset deduplication logic.
+//! 3D Model GPU buffer upload and asset deduplication logic.
 
-use super::animation::parse_gltf_skin_and_animations;
-use super::geometry::parse_gltf_scene_geometry;
-use super::textures::extract_gltf_all_embedded_textures;
 use crate::render::RenderState;
 use crate::render::types::ModelAsset;
+use ae_mesh::{
+    ModelSubmesh, ParsedModelData, SubmeshAlphaMode, Vertex, is_safe_path, parse_gltf_bytes,
+    parse_gltf_file,
+};
 use wgpu::util::DeviceExt;
 
 impl RenderState {
@@ -16,7 +17,7 @@ impl RenderState {
     pub fn upload_model_data(
         &self,
         assets: &mut crate::asset::AssetManager,
-        data: crate::asset::ParsedModelData,
+        data: ParsedModelData,
     ) -> (crate::asset::AssetHandle, [f32; 3], [f32; 3]) {
         // If it was loaded while we were parsing
         if let Some(&id) = assets.model_path_map.get(&data.canonical_path) {
@@ -93,7 +94,7 @@ impl RenderState {
             return Ok((id, cooked.min, cooked.max));
         }
         let vertices = cooked
-            .vertices_as::<crate::render::types::Vertex>()
+            .vertices_as::<Vertex>()
             .map_err(|e| format!("CookedMesh vertex layout mismatch: {e}"))?;
         let indices = cooked
             .indices_as_u32()
@@ -118,19 +119,15 @@ impl RenderState {
         let submeshes = cooked
             .submeshes
             .iter()
-            .map(|sub| crate::render::types::ModelSubmesh {
+            .map(|sub| ModelSubmesh {
                 start_index: sub.start_index,
                 index_count: sub.index_count,
                 texture_index: sub.texture_index.map(|i| i as usize),
                 base_color: sub.base_color,
                 alpha_mode: match sub.alpha_mode {
-                    ae_world::CookedAlphaMode::Opaque => {
-                        crate::render::types::SubmeshAlphaMode::Opaque
-                    }
-                    ae_world::CookedAlphaMode::Mask => crate::render::types::SubmeshAlphaMode::Mask,
-                    ae_world::CookedAlphaMode::Blend => {
-                        crate::render::types::SubmeshAlphaMode::Blend
-                    }
+                    ae_world::CookedAlphaMode::Opaque => SubmeshAlphaMode::Opaque,
+                    ae_world::CookedAlphaMode::Mask => SubmeshAlphaMode::Mask,
+                    ae_world::CookedAlphaMode::Blend => SubmeshAlphaMode::Blend,
                 },
                 alpha_cutoff: sub.alpha_cutoff,
                 metallic_factor: sub.metallic_factor,
@@ -205,7 +202,7 @@ impl RenderState {
         assets: &mut crate::asset::AssetManager,
         path: &str,
     ) -> (crate::asset::AssetHandle, [f32; 3], [f32; 3]) {
-        if !crate::asset::is_safe_path(path) {
+        if !is_safe_path(path) {
             core::hint::cold_path();
             log::error!("[SECURITY ERROR] Blocked unsafe model load path: {}", path);
             return (crate::asset::AssetHandle::default(), [0.0; 3], [0.0; 3]);
@@ -238,137 +235,13 @@ impl RenderState {
             return (id, min, max);
         }
 
-        let import_result = gltf::import(path);
-        let (document, buffers, images) = match import_result {
-            Ok(res) => res,
+        match parse_gltf_file(path, String::new()) {
+            Ok(data) => self.upload_model_data(assets, data),
             Err(e) => {
                 core::hint::cold_path();
-                log::error!("Failed to load GLTF Model file {}: {:?}", path, e);
-                return (crate::asset::AssetHandle::default(), [0.0; 3], [0.0; 3]);
+                log::error!("{}", e);
+                (crate::asset::AssetHandle::default(), [0.0; 3], [0.0; 3])
             }
-        };
-
-        let (skeleton, animations) = parse_gltf_skin_and_animations(&document, &buffers);
-        let embedded_textures = extract_gltf_all_embedded_textures(&document, &images);
-        let default_texture = embedded_textures.first().cloned();
-
-        let parsed_geom =
-            parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
-
-        let data = crate::asset::ParsedModelData {
-            all_vertices: parsed_geom.all_vertices,
-            all_indices: parsed_geom.all_indices,
-            raw_positions: parsed_geom.raw_positions,
-            raw_skin_vertices: parsed_geom.raw_skin_vertices,
-            min: parsed_geom.min,
-            max: parsed_geom.max,
-            canonical_path,
-            original_path: path.to_owned(),
-            final_name: String::new(),
-            skeleton,
-            animations,
-            default_texture,
-            embedded_textures,
-            submeshes: parsed_geom.submeshes,
-        };
-
-        self.upload_model_data(assets, data)
-    }
-}
-
-/// Thread-safe GLTF parser for async import pipeline. Extracts vertices, indices,
-/// normals, colors, and computes AABB bounds with full scene graph node hierarchy transforms.
-pub fn parse_gltf_file(
-    path: &str,
-    final_name: String,
-) -> Result<crate::asset::ParsedModelData, String> {
-    if !crate::asset::is_safe_path(path) {
-        core::hint::cold_path();
-        return Err(format!(
-            "Security Error: Blocked unsafe GLTF path: {}",
-            path
-        ));
-    }
-
-    let canonical_path = match std::fs::canonicalize(path) {
-        Ok(p) => p,
-        Err(e) => {
-            core::hint::cold_path();
-            return Err(format!(
-                "Failed to canonicalize model path '{}': {}",
-                path, e
-            ));
         }
-    };
-
-    let import_result = gltf::import(path);
-    let (document, buffers, images) = match import_result {
-        Ok(res) => res,
-        Err(e) => {
-            core::hint::cold_path();
-            return Err(format!("Failed to load GLTF Model file {}: {:?}", path, e));
-        }
-    };
-
-    Ok(assemble_parsed_gltf_data(
-        &document,
-        &buffers,
-        &images,
-        canonical_path,
-        path,
-        final_name,
-    ))
-}
-
-/// Parses an in-memory `.glb` or self-contained `.gltf` byte slice for VFS model loading.
-///
-/// # Errors
-/// Returns an error string if `gltf::import_slice` rejects the payload.
-pub fn parse_gltf_bytes(
-    bytes: &[u8],
-    canonical_key: std::path::PathBuf,
-    original_path: &str,
-    final_name: String,
-) -> Result<crate::asset::ParsedModelData, String> {
-    let (document, buffers, images) = gltf::import_slice(bytes)
-        .map_err(|e| format!("Failed to decode GLTF bytes for '{original_path}': {e:?}"))?;
-    Ok(assemble_parsed_gltf_data(
-        &document,
-        &buffers,
-        &images,
-        canonical_key,
-        original_path,
-        final_name,
-    ))
-}
-
-fn assemble_parsed_gltf_data(
-    document: &gltf::Document,
-    buffers: &[gltf::buffer::Data],
-    images: &[gltf::image::Data],
-    canonical_path: std::path::PathBuf,
-    original_path: &str,
-    final_name: String,
-) -> crate::asset::ParsedModelData {
-    let (skeleton, animations) = parse_gltf_skin_and_animations(document, buffers);
-    let embedded_textures = extract_gltf_all_embedded_textures(document, images);
-    let default_texture = embedded_textures.first().cloned();
-    let parsed_geom = parse_gltf_scene_geometry(document, buffers, images, skeleton.is_some());
-
-    crate::asset::ParsedModelData {
-        all_vertices: parsed_geom.all_vertices,
-        all_indices: parsed_geom.all_indices,
-        raw_positions: parsed_geom.raw_positions,
-        raw_skin_vertices: parsed_geom.raw_skin_vertices,
-        min: parsed_geom.min,
-        max: parsed_geom.max,
-        canonical_path,
-        original_path: original_path.to_owned(),
-        final_name,
-        skeleton,
-        animations,
-        default_texture,
-        embedded_textures,
-        submeshes: parsed_geom.submeshes,
     }
 }

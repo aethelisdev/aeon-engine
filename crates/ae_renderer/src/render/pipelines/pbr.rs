@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::{DEPTH_FORMAT, Instance, Vertex};
+use crate::render::types::{DEPTH_FORMAT, Instance, vertex_buffer_layout};
 
 /// Struct holding all PBR rendering pipeline variants (CCW standard, CW mirrored, cutout, transparent, wireframe).
 pub(crate) struct PbrPipelines {
@@ -52,7 +52,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -93,7 +93,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -134,7 +134,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -175,7 +175,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -216,7 +216,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -256,7 +256,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {

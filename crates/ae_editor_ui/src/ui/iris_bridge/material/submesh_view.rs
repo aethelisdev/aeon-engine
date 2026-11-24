@@ -8,8 +8,8 @@
 
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_WORLD};
 use crate::ui::types::EngineUiAction;
+use ae_mesh::{ModelSubmesh, SubmeshAlphaMode};
 use ae_renderer::asset::{AssetHandle, AssetStorage};
-use ae_renderer::render::types::{ModelSubmesh, SubmeshAlphaMode};
 use ae_renderer::render::{ModelAsset, TextureAsset};
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;

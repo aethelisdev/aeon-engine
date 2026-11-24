@@ -8,9 +8,9 @@
 
 use crate::render::engine::state::{RenderOptions, RenderState};
 use crate::render::types::{
-    FrameRenderStats, INSTANCE_SIZE, Instance, ModelAsset, ModelSubmesh, OverlayRenderer,
-    RenderInstanceItem, SubmeshAlphaMode,
+    FrameRenderStats, INSTANCE_SIZE, Instance, ModelAsset, OverlayRenderer, RenderInstanceItem,
 };
+use ae_mesh::{ModelSubmesh, SubmeshAlphaMode};
 
 /// Prepared batch of model instances referencing cached GPU buffers and precomputed offsets.
 #[derive(Copy, Clone, Debug, Default)]

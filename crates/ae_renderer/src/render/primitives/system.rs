@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::data::{CUBE_VERTICES, GRID_QUAD_VERTICES, QUAD_VERTICES, VERTICES};
-use super::generators::{generate_capsule, generate_cylinder, generate_sphere, generate_torus};
+use ae_mesh::{
+    CUBE_VERTICES, GRID_QUAD_VERTICES, QUAD_VERTICES, VERTICES, generate_capsule,
+    generate_cylinder, generate_sphere, generate_torus,
+};
 use wgpu::util::DeviceExt;
 
 /// Encapsulates static geometry buffers and dynamic instance chunks to decouple them from the main RenderState.

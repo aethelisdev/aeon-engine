@@ -3,91 +3,66 @@
 
 //! # Vertex & Instance GPU Data Layouts
 //!
-//! Defines memory representations and WGPU vertex buffer layouts for 3D meshes, 2D billboards, and GPU instances.
+//! Defines WGPU vertex buffer layouts for 3D meshes and sprites from `ae_mesh`,
+//! alongside per-instance GPU transformation buffers.
 
-/// PBR mesh vertex: position, vertex color, surface normal, and UV coordinates.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-    pub position: [f32; 3],
-    pub color: [f32; 3],
-    pub normal: [f32; 3],
-    pub uv: [f32; 2],
-}
+use ae_mesh::{SpriteVertex, Vertex};
 
-impl Vertex {
-    pub const fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
-                    shader_location: 8,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        }
+/// Returns the static WGPU vertex buffer layout for [`ae_mesh::Vertex`].
+#[must_use]
+pub const fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
+                shader_location: 8,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+        ],
     }
 }
 
-/// Sprite/billboard vertex: position, UV coordinates, and surface normal.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SpriteVertex {
-    pub position: [f32; 3],
-    pub uv: [f32; 2],
-    pub normal: [f32; 3],
-}
-
-impl SpriteVertex {
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<SpriteVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
+/// Returns the static WGPU vertex buffer layout for [`ae_mesh::SpriteVertex`].
+#[must_use]
+pub const fn sprite_vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<SpriteVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+        ],
     }
-}
-
-/// Vertex skinning bind information (bind position, normal, joint indices and weights).
-#[derive(Debug, Clone, Copy)]
-pub struct SkinVertex {
-    pub bind_position: [f32; 3],
-    pub bind_normal: [f32; 3],
-    pub joint_indices: [u32; 4],
-    pub joint_weights: [f32; 4],
 }
 
 /// Per-instance data: 4×4 model matrix + RGBA color (80 bytes per instance).

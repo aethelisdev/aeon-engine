@@ -12,8 +12,10 @@ pub mod vertex;
 pub mod viewport;
 
 //  re-exports across engine and renderer
-pub use assets::{ModelAsset, ModelSubmesh, SubmeshAlphaMode, TextureAsset};
+pub use assets::{ModelAsset, TextureAsset};
 pub use scene::RenderScene;
 pub use uniforms::{DEPTH_FORMAT, LightSpaceUniform, LightUniform, SkyUniform};
-pub use vertex::{INSTANCE_SIZE, Instance, RenderInstanceItem, SkinVertex, SpriteVertex, Vertex};
+pub use vertex::{
+    INSTANCE_SIZE, Instance, RenderInstanceItem, sprite_vertex_buffer_layout, vertex_buffer_layout,
+};
 pub use viewport::{FrameRenderStats, OverlayRenderer, RenderError};

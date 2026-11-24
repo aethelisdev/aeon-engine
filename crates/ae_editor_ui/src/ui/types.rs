@@ -98,7 +98,7 @@ pub enum EngineUiAction {
     SetModelSubmeshAlphaMode(
         ae_renderer::asset::AssetHandle,
         usize,
-        ae_renderer::render::types::SubmeshAlphaMode,
+        ae_mesh::SubmeshAlphaMode,
     ),
     SetModelSubmeshTexture(ae_renderer::asset::AssetHandle, usize, String),
     /// Opens the OS file dialog to pick and assign a texture for a 3D model submesh slot.

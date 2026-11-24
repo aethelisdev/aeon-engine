@@ -1,22 +1,95 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! GLTF scene graph and primitive mesh geometry parsing.
+//! glTF 2.0 scene graph traversal and primitive mesh geometry extraction.
 
-use crate::render::types::{SkinVertex, Vertex};
+use crate::submesh::{ModelSubmesh, SubmeshAlphaMode};
+use crate::vertex::{SkinVertex, Vertex};
+use std::path::Path;
 
-/// Result of extracting primitive geometry and submeshes from a GLTF scene graph.
+/// Extracted full scene geometry, submesh slices, skinning attributes, and AABB bounds.
+#[derive(Debug, Clone)]
 pub struct ParsedGltfGeometry {
+    /// Flattened object-space vertices across all scene meshes and primitives.
     pub all_vertices: Vec<Vertex>,
+    /// Triangle index stream referencing `all_vertices`.
     pub all_indices: Vec<u32>,
+    /// Raw positions parallel to `all_vertices` for physics mesh generation.
     pub raw_positions: Vec<[f32; 3]>,
+    /// Optional per-vertex skinning bind attributes when `has_skeleton` is set.
     pub raw_skin_vertices: Vec<SkinVertex>,
-    pub submeshes: Vec<crate::render::types::ModelSubmesh>,
+    /// Contiguous submesh draw ranges and PBR surface parameters.
+    pub submeshes: Vec<ModelSubmesh>,
+    /// Minimum corner `[x, y, z]` of the extracted geometry AABB.
     pub min: [f32; 3],
+    /// Maximum corner `[x, y, z]` of the extracted geometry AABB.
     pub max: [f32; 3],
 }
 
-/// Traverses GLTF scene node hierarchy and extracts all primitive geometry with world node transforms applied.
+/// Lightweight raw mesh geometry (positions, normals, triangle indices) without
+/// animations, materials, or textures, intended for thumbnail rasterizers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawMeshGeometry {
+    /// Vertex positions `[x, y, z]`.
+    pub vertices: Vec<[f32; 3]>,
+    /// Vertex normals `[nx, ny, nz]` matching `vertices.len()`.
+    pub normals: Vec<[f32; 3]>,
+    /// Triangle indices referencing `vertices`.
+    pub indices: Vec<u32>,
+}
+
+/// Extracts raw positions, normals, and triangle indices from a `.gltf` or `.glb` file on disk.
+///
+/// Returns `None` if the extension is not `.gltf`/`.glb`, loading fails, or the model
+/// contains zero vertex positions.
+#[must_use]
+pub fn parse_gltf_raw_geometry(path: &Path) -> Option<RawMeshGeometry> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    if ext != "gltf" && ext != "glb" {
+        return None;
+    }
+
+    let (doc, buffers, _) = gltf::import(path).ok()?;
+    let mut vertices = Vec::new();
+    let mut normals = Vec::new();
+    let mut indices = Vec::new();
+
+    for mesh in doc.meshes() {
+        for primitive in mesh.primitives() {
+            let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
+            let base_idx = vertices.len() as u32;
+
+            if let Some(pos_iter) = reader.read_positions() {
+                vertices.extend(pos_iter);
+            }
+            if let Some(norm_iter) = reader.read_normals() {
+                normals.extend(norm_iter);
+            }
+            if let Some(idx_iter) = reader.read_indices() {
+                indices.extend(idx_iter.into_u32().map(|idx| base_idx + idx));
+            }
+        }
+    }
+
+    if vertices.is_empty() {
+        return None;
+    }
+
+    normals.resize(vertices.len(), [0.0, 1.0, 0.0]);
+    if indices.is_empty() {
+        indices.extend(0..vertices.len() as u32);
+    }
+
+    Some(RawMeshGeometry {
+        vertices,
+        normals,
+        indices,
+    })
+}
+
+/// Traverses a glTF scene node hierarchy and extracts all primitive geometry with
+/// world node transforms baked into static primitives.
+#[must_use]
 pub fn parse_gltf_scene_geometry(
     document: &gltf::Document,
     buffers: &[gltf::buffer::Data],
@@ -84,7 +157,6 @@ pub fn parse_gltf_scene_geometry(
     }
 }
 
-/// Context and buffer references for extracting GLTF primitive meshes and node hierarchies.
 struct GltfGeometryContext<'a> {
     buffers: &'a [gltf::buffer::Data],
     images: &'a [gltf::image::Data],
@@ -92,7 +164,7 @@ struct GltfGeometryContext<'a> {
     all_indices: &'a mut Vec<u32>,
     raw_positions: &'a mut Vec<[f32; 3]>,
     raw_skin_vertices: &'a mut Vec<SkinVertex>,
-    submeshes: &'a mut Vec<crate::render::types::ModelSubmesh>,
+    submeshes: &'a mut Vec<ModelSubmesh>,
     min: &'a mut [f32; 3],
     max: &'a mut [f32; 3],
     has_skeleton: bool,
@@ -117,6 +189,32 @@ fn traverse_gltf_node(
     }
 }
 
+fn resolve_alpha_mode(
+    gltf_mode: gltf::material::AlphaMode,
+    has_transparent_pixels: bool,
+    is_skinned: bool,
+) -> SubmeshAlphaMode {
+    match gltf_mode {
+        gltf::material::AlphaMode::Opaque => {
+            if has_transparent_pixels && !is_skinned {
+                SubmeshAlphaMode::Mask
+            } else {
+                SubmeshAlphaMode::Opaque
+            }
+        }
+        gltf::material::AlphaMode::Mask => SubmeshAlphaMode::Mask,
+        gltf::material::AlphaMode::Blend => {
+            if is_skinned && !has_transparent_pixels {
+                SubmeshAlphaMode::Opaque
+            } else if has_transparent_pixels {
+                SubmeshAlphaMode::Mask
+            } else {
+                SubmeshAlphaMode::Blend
+            }
+        }
+    }
+}
+
 fn process_gltf_primitive_mesh(
     mesh: &gltf::Mesh,
     node_index: usize,
@@ -129,23 +227,6 @@ fn process_gltf_primitive_mesh(
     } else {
         glam::Mat3::IDENTITY
     };
-    let GltfGeometryContext {
-        buffers,
-        images,
-        all_vertices,
-        all_indices,
-        raw_positions,
-        raw_skin_vertices,
-        submeshes,
-        min,
-        max,
-        has_skeleton,
-        has_real_skin,
-        is_node_hierarchy,
-    } = ctx;
-    let has_skeleton = *has_skeleton;
-    let has_real_skin = *has_real_skin;
-    let is_node_hierarchy = *is_node_hierarchy;
 
     for primitive in mesh.primitives() {
         let mat = primitive.material();
@@ -157,55 +238,29 @@ fn process_gltf_primitive_mesh(
             .base_color_texture()
             .map(|t| t.texture().source().index());
 
-        let has_transparent_pixels =
-            texture_index
-                .and_then(|idx| images.get(idx))
-                .is_some_and(|img| {
-                    if img.format == gltf::image::Format::R8G8B8A8 {
-                        img.pixels.as_chunks::<4>().0.iter().any(|c| c[3] < 245)
-                    } else {
-                        false
-                    }
-                });
+        let has_transparent_pixels = texture_index
+            .and_then(|idx| ctx.images.get(idx))
+            .is_some_and(|img| {
+                img.format == gltf::image::Format::R8G8B8A8
+                    && img.pixels.as_chunks::<4>().0.iter().any(|c| c[3] < 245)
+            });
 
-        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-        let pos_iter = match reader.read_positions() {
-            Some(iter) => iter,
-            None => continue,
+        let reader = primitive.reader(|buffer| Some(&ctx.buffers[buffer.index()]));
+        let Some(pos_iter) = reader.read_positions() else {
+            continue;
         };
         let mut norm_iter = reader.read_normals();
         let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
         let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
-
         let mut joint_iter = reader.read_joints(0).map(|j| j.into_u16());
         let mut weight_iter = reader.read_weights(0).map(|w| w.into_f32());
 
-        let has_explicit_skin = joint_iter.is_some() && weight_iter.is_some();
-        let is_skinned = has_explicit_skin && has_real_skin;
-
-        let alpha_mode = match mat.alpha_mode() {
-            gltf::material::AlphaMode::Opaque => {
-                if has_transparent_pixels && !is_skinned {
-                    crate::render::types::SubmeshAlphaMode::Mask
-                } else {
-                    crate::render::types::SubmeshAlphaMode::Opaque
-                }
-            }
-            gltf::material::AlphaMode::Mask => crate::render::types::SubmeshAlphaMode::Mask,
-            gltf::material::AlphaMode::Blend => {
-                if is_skinned && !has_transparent_pixels {
-                    crate::render::types::SubmeshAlphaMode::Opaque
-                } else if has_transparent_pixels {
-                    crate::render::types::SubmeshAlphaMode::Mask
-                } else {
-                    crate::render::types::SubmeshAlphaMode::Blend
-                }
-            }
-        };
+        let is_skinned = joint_iter.is_some() && weight_iter.is_some() && ctx.has_real_skin;
+        let alpha_mode = resolve_alpha_mode(mat.alpha_mode(), has_transparent_pixels, is_skinned);
         let alpha_cutoff = mat.alpha_cutoff().unwrap_or(0.5);
 
-        let start_vertex = all_vertices.len() as u32;
-        let start_index = all_indices.len() as u32;
+        let start_vertex = ctx.all_vertices.len() as u32;
+        let start_index = ctx.all_indices.len() as u32;
 
         for raw_pos in pos_iter {
             let raw_norm = norm_iter
@@ -241,46 +296,46 @@ fn process_gltf_primitive_mesh(
                     let raw_w = w_it.next().unwrap_or([0.0, 0.0, 0.0, 0.0]);
                     (
                         [
-                            raw_j[0] as u32,
-                            raw_j[1] as u32,
-                            raw_j[2] as u32,
-                            raw_j[3] as u32,
+                            u32::from(raw_j[0]),
+                            u32::from(raw_j[1]),
+                            u32::from(raw_j[2]),
+                            u32::from(raw_j[3]),
                         ],
                         raw_w,
                     )
                 } else {
                     ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0])
                 }
-            } else if is_node_hierarchy {
+            } else if ctx.is_node_hierarchy {
                 ([node_index as u32, 0, 0, 0], [1.0, 0.0, 0.0, 0.0])
             } else {
                 ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0])
             };
 
-            for i in 0..3 {
-                if final_pos[i] < min[i] {
-                    min[i] = final_pos[i];
+            for ((mn, mx), &p) in ctx.min.iter_mut().zip(ctx.max.iter_mut()).zip(&final_pos) {
+                if p < *mn {
+                    *mn = p;
                 }
-                if final_pos[i] > max[i] {
-                    max[i] = final_pos[i];
+                if p > *mx {
+                    *mx = p;
                 }
             }
 
-            all_vertices.push(Vertex {
+            ctx.all_vertices.push(Vertex {
                 position: final_pos,
                 color,
                 normal: final_norm,
                 uv,
             });
-            raw_positions.push(final_pos);
+            ctx.raw_positions.push(final_pos);
 
-            if has_skeleton {
+            if ctx.has_skeleton {
                 let (bind_pos, bind_norm) = if is_skinned {
                     (raw_pos, raw_norm)
                 } else {
                     (final_pos, final_norm)
                 };
-                raw_skin_vertices.push(SkinVertex {
+                ctx.raw_skin_vertices.push(SkinVertex {
                     bind_position: bind_pos,
                     bind_normal: bind_norm,
                     joint_indices: j_indices,
@@ -291,13 +346,13 @@ fn process_gltf_primitive_mesh(
 
         if let Some(indices) = reader.read_indices() {
             for idx in indices.into_u32() {
-                all_indices.push(start_vertex + idx);
+                ctx.all_indices.push(start_vertex + idx);
             }
         }
 
-        let index_count = (all_indices.len() as u32) - start_index;
+        let index_count = (ctx.all_indices.len() as u32) - start_index;
         if index_count > 0 {
-            submeshes.push(crate::render::types::ModelSubmesh {
+            ctx.submeshes.push(ModelSubmesh {
                 start_index,
                 index_count,
                 texture_index,

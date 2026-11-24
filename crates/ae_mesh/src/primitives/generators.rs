@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::Vertex;
+use crate::vertex::Vertex;
 
 /// Generates a parametric UV Sphere mesh with smooth normals.
 ///
 /// latitude_bands and longitude_bands determine resolution (smoothness).
 pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex> {
+    if latitude_bands == 0 || longitude_bands == 0 {
+        return Vec::new();
+    }
     let mut vertices = Vec::new();
     let mut raw_vertices = Vec::new();
 
@@ -59,6 +62,9 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
 ///
 /// segments determines circle resolution. Fits in a unit box (radius=0.5, height=1.0).
 pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
+    if segments == 0 {
+        return Vec::new();
+    }
     let mut vertices = Vec::new();
 
     let top_center = [0.0, 0.5, 0.0];
@@ -166,6 +172,9 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
 
 /// Generates a parametric Capsule mesh (hemispheres on top and bottom of a cylinder).
 pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
+    if segments == 0 || rings == 0 {
+        return Vec::new();
+    }
     let mut vertices = Vec::new();
     let mut raw_vertices = Vec::new();
 
@@ -283,6 +292,9 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
 
 /// Generates a parametric Torus mesh.
 pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex> {
+    if radial_segments == 0 || tubular_segments == 0 {
+        return Vec::new();
+    }
     let mut vertices = Vec::new();
     let mut raw_vertices = Vec::new();
 

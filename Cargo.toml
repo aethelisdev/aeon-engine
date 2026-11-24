@@ -5,6 +5,7 @@ members = [
     "crates/ae_ecs",
     "crates/ae_gizmos",
     "crates/ae_gizmos_render",
+    "crates/ae_mesh",
     "crates/ae_scene",
     "crates/ae_assets",
     "crates/ae_core",
@@ -95,6 +96,7 @@ ae_camera_controller = { path = "crates/ae_camera_controller" }
 ae_ecs = { path = "crates/ae_ecs" }
 ae_gizmos = { path = "crates/ae_gizmos" }
 ae_gizmos_render = { path = "crates/ae_gizmos_render" }
+ae_mesh = { path = "crates/ae_mesh" }
 ae_scene = { path = "crates/ae_scene" }
 ae_assets = { path = "crates/ae_assets" }
 ae_mcp = { path = "crates/ae_mcp" }

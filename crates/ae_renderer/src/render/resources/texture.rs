@@ -585,10 +585,3 @@ pub fn upload_raw_texture(
         height: cpu_data.height,
     }
 }
-
-/// Parses a texture file from disk using `ae_texture` CPU parser and returns an `image::RgbaImage`.
-pub fn parse_texture_file(path: &str) -> Result<image::RgbaImage, String> {
-    let cpu_data = ae_texture::parse_texture_file(path, ae_texture::ColorSpace::Srgb)?;
-    image::RgbaImage::from_raw(cpu_data.width, cpu_data.height, cpu_data.bytes)
-        .ok_or_else(|| format!("Failed to create RgbaImage from raw bytes for '{}'", path))
-}

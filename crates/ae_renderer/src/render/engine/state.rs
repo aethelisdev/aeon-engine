@@ -124,7 +124,7 @@ impl RenderState {
         }
 
         // 2. Mesh & Index Buffers VRAM
-        let vertex_size = std::mem::size_of::<crate::render::types::Vertex>();
+        let vertex_size = std::mem::size_of::<ae_mesh::Vertex>();
         let index_size = std::mem::size_of::<u32>();
 
         let mut mesh_index_bytes: usize = 0;

@@ -33,8 +33,7 @@ pub struct AeEngine {
     pub previous_mode: EngineMode,
     pub editor: EditorState,
     pub asset_receivers: Vec<std::sync::mpsc::Receiver<Result<std::path::PathBuf, String>>>,
-    pub model_receivers:
-        Vec<std::sync::mpsc::Receiver<Result<ae_renderer::asset::ParsedModelData, String>>>,
+    pub model_receivers: Vec<std::sync::mpsc::Receiver<Result<ae_mesh::ParsedModelData, String>>>,
     pub dialog_receivers: Vec<std::sync::mpsc::Receiver<std::path::PathBuf>>,
     /// Tracks active mouse cursor grab status to prevent duplicate Win32 `ShowCursor` calls.
     pub is_cursor_grabbed: bool,

@@ -222,7 +222,7 @@ pub(crate) fn create_outline_pipelines(
             module: &mask_shader,
             entry_point: Some("vs_main"),
             buffers: &[
-                Some(crate::render::Vertex::desc()),
+                Some(crate::render::types::vertex_buffer_layout()),
                 Some(crate::render::types::Instance::desc()),
             ],
             compilation_options: wgpu::PipelineCompilationOptions::default(),

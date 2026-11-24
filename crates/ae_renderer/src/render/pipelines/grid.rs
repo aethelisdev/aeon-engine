@@ -29,7 +29,7 @@ pub(crate) fn create_grid_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(crate::render::types::Vertex::desc())],
+            buffers: &[Some(crate::render::types::vertex_buffer_layout())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {

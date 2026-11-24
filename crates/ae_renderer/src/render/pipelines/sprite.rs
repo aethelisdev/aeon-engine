@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::{DEPTH_FORMAT, Instance, SpriteVertex};
+use crate::render::types::{DEPTH_FORMAT, Instance, sprite_vertex_buffer_layout};
 
 /// Creates the transparent Sprite/Quad overlay rendering pipeline modernized for Wgpu 23+ (v2026 stable).
 ///
@@ -32,7 +32,7 @@ pub(crate) fn create_sprite_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Some(SpriteVertex::desc()), Some(Instance::desc())],
+            buffers: &[Some(sprite_vertex_buffer_layout()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {

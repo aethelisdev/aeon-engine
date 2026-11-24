@@ -7,8 +7,7 @@
 use crate::dependency_graph::{DependencyGraph, DiscoveredAsset};
 use crate::error::{ExportError, ExportResult};
 use ae_audio::audio_manager::decode_audio_bytes_to_cooked;
-use ae_renderer::render::resources::model::loader::parse_gltf_bytes;
-use ae_renderer::render::types::SubmeshAlphaMode;
+use ae_mesh::{ParsedModelData, SubmeshAlphaMode, Vertex, parse_gltf_bytes};
 use ae_texture::loader::{cpu_texture_to_cooked, parse_texture_bytes};
 use ae_world::{
     AlignedBuffer, AssetGuid, AssetKind, CookedAlphaMode, CookedMesh, CookedSubmesh, PakBuilder,
@@ -248,7 +247,7 @@ fn encode_cooked_asset(
     }
 }
 
-fn parsed_model_to_cooked(parsed: &ae_renderer::asset::ParsedModelData) -> CookedMesh {
+fn parsed_model_to_cooked(parsed: &ParsedModelData) -> CookedMesh {
     let submeshes = parsed
         .submeshes
         .iter()
@@ -272,7 +271,7 @@ fn parsed_model_to_cooked(parsed: &ae_renderer::asset::ParsedModelData) -> Cooke
     CookedMesh {
         min: parsed.min,
         max: parsed.max,
-        vertex_stride: std::mem::size_of::<ae_renderer::render::types::Vertex>() as u32,
+        vertex_stride: std::mem::size_of::<Vertex>() as u32,
         vertex_count: parsed.all_vertices.len() as u32,
         index_count: parsed.all_indices.len() as u32,
         submeshes,

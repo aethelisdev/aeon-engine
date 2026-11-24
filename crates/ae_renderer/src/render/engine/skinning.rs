@@ -20,51 +20,11 @@ impl RenderState {
                 return;
             }
 
-            for (i, skin_v) in model.raw_skin_vertices.iter().enumerate() {
-                let j0 = skin_v.joint_indices[0] as usize;
-                let j1 = skin_v.joint_indices[1] as usize;
-                let j2 = skin_v.joint_indices[2] as usize;
-                let j3 = skin_v.joint_indices[3] as usize;
-
-                let m0 = palette
-                    .matrices
-                    .get(j0)
-                    .map_or(glam::Mat4::IDENTITY, |m| m.to_mat4());
-                let m1 = palette
-                    .matrices
-                    .get(j1)
-                    .map_or(glam::Mat4::IDENTITY, |m| m.to_mat4());
-                let m2 = palette
-                    .matrices
-                    .get(j2)
-                    .map_or(glam::Mat4::IDENTITY, |m| m.to_mat4());
-                let m3 = palette
-                    .matrices
-                    .get(j3)
-                    .map_or(glam::Mat4::IDENTITY, |m| m.to_mat4());
-
-                let w0 = skin_v.joint_weights[0];
-                let w1 = skin_v.joint_weights[1];
-                let w2 = skin_v.joint_weights[2];
-                let w3 = skin_v.joint_weights[3];
-
-                let total_w = w0.algebraic_add(w1).algebraic_add(w2).algebraic_add(w3);
-                if total_w < 0.001 {
-                    continue;
-                }
-
-                let skin_mat = m0 * w0 + m1 * w1 + m2 * w2 + m3 * w3;
-
-                let pos = skin_mat.transform_point3(glam::Vec3::from_array(skin_v.bind_position));
-                let norm = skin_mat
-                    .transform_vector3(glam::Vec3::from_array(skin_v.bind_normal))
-                    .normalize_or_zero();
-
-                if i < model.gpu_vertices.len() {
-                    model.gpu_vertices[i].position = pos.to_array();
-                    model.gpu_vertices[i].normal = norm.to_array();
-                }
-            }
+            ae_mesh::apply_skinning_palette(
+                &model.raw_skin_vertices,
+                palette,
+                &mut model.gpu_vertices,
+            );
 
             self.queue.write_buffer(
                 &model.vertex_buffer,

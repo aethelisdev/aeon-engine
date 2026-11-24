@@ -3,9 +3,9 @@
 
 //! # GPU Render Asset Data Models
 //!
-//! Structures for uploaded GPU textures, 3D model geometries, submesh materials, and bounding computations.
+//! Structures for uploaded GPU textures and 3D model buffers paired with `ae_mesh` payloads.
 
-use crate::render::types::vertex::{SkinVertex, Vertex};
+use ae_mesh::{ModelSubmesh, SkinVertex, Vertex, compute_aabb_bounding_radius};
 
 /// GPU-uploaded texture with its bind group, canonical source path, and dimensions.
 pub struct TextureAsset {
@@ -17,47 +17,6 @@ pub struct TextureAsset {
     pub width: u32,
     /// Height of the texture image in pixels.
     pub height: u32,
-}
-
-/// Submesh alpha blending and testing mode (glTF 2.0 standard).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SubmeshAlphaMode {
-    /// Fully opaque rendering with depth writes enabled (no discard).
-    Opaque,
-    /// Masked/Cutout rendering with depth writes enabled (discards pixels where alpha < cutoff).
-    Mask,
-    /// Alpha-blended rendering over background geometry (depth writes disabled).
-    Blend,
-}
-
-/// Submesh index range with its material, PBR surface factors, and texture binding information.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModelSubmesh {
-    pub start_index: u32,
-    pub index_count: u32,
-    pub texture_index: Option<usize>,
-    pub base_color: [f32; 4],
-    pub alpha_mode: SubmeshAlphaMode,
-    pub alpha_cutoff: f32,
-    pub metallic_factor: f32,
-    pub roughness_factor: f32,
-    pub uv_scale: [f32; 2],
-}
-
-impl Default for ModelSubmesh {
-    fn default() -> Self {
-        Self {
-            start_index: 0,
-            index_count: 0,
-            texture_index: None,
-            base_color: [1.0, 1.0, 1.0, 1.0],
-            alpha_mode: SubmeshAlphaMode::Opaque,
-            alpha_cutoff: 0.5,
-            metallic_factor: 0.0,
-            roughness_factor: 0.5,
-            uv_scale: [1.0, 1.0],
-        }
-    }
 }
 
 /// GPU-uploaded 3D model asset with vertex/index buffers, AABB bounds,
@@ -97,16 +56,6 @@ impl ModelAsset {
     /// Falls back to `max(origin_distances)` for backward compatibility with
     /// origin-centered models. Minimum clamped to `1.0` to prevent zero-radius culling.
     pub fn bounding_radius(&self) -> f32 {
-        // AABB center-to-corner half-diagonal: correct for all model origins
-        let cx = (self.min[0] + self.max[0]) * 0.5;
-        let cy = (self.min[1] + self.max[1]) * 0.5;
-        let cz = (self.min[2] + self.max[2]) * 0.5;
-        let hx = self.max[0] - cx;
-        let hy = self.max[1] - cy;
-        let hz = self.max[2] - cz;
-        let r_half_diag = (hx * hx + hy * hy + hz * hz).sqrt();
-        // Distance from origin to AABB center + half-diagonal covers the full extent
-        let center_dist = (cx * cx + cy * cy + cz * cz).sqrt();
-        (center_dist + r_half_diag).max(1.0)
+        compute_aabb_bounding_radius(self.min, self.max)
     }
 }

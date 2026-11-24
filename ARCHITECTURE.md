@@ -56,10 +56,19 @@ graph TD
         ae_animation --> ae_renderer
         ae_world --> ae_renderer
         ae_ecs --> ae_renderer
+        ae_camera --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
+        ae_animation --> ae_mesh["ae_mesh (Vertex, Submesh, Primitives, Skinning, Bounds, glTF 2.0; Zero wgpu)"]
+        ae_texture --> ae_mesh
+        ae_mesh --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
+        ae_camera --> ae_renderer
+        ae_animation --> ae_renderer
+        ae_world --> ae_renderer
+        ae_ecs --> ae_renderer
         ae_gizmos --> ae_gizmos_render["ae_gizmos_render (GizmoRenderer, DebugRenderer, BillboardSystem)"]
         ae_renderer --> ae_gizmos_render
         ae_audio --> ae_gizmos_render
-        ae_renderer --> ae_assets["ae_assets (Scanner, File Ops, Ingestion, Thumbnails, Pipeline)"]
+        ae_mesh --> ae_assets["ae_assets (Scanner, File Ops, Ingestion, Thumbnails, Pipeline)"]
+        ae_renderer --> ae_assets
         ae_world --> ae_assets
         ae_core --> ae_assets
     end
@@ -92,7 +101,7 @@ graph TD
     end
 
     subgraph Tooling["Export, Inspection & Project Management"]
-        ae_renderer --> ae_export["ae_export (Cooker, .aepak Packer & Standalone Bundler)"]
+        ae_mesh --> ae_export["ae_export (Cooker, .aepak Packer & Standalone Bundler; Zero wgpu)"]
         ae_world --> ae_export
         irisui --> ae_mcp["ae_mcp (Inspect Server & Overlay)"]
         ae_world --> ae_launcher["ae_launcher (Project Hub)"]
@@ -184,9 +193,10 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 * **`ae_physics`:** Wraps Rapier3D with retained collider scale mapping (`entity_to_collider_scale`), kinematic character control (KCC), and collision/trigger event emission.
 * **`ae_audio`:** Spatial 3D audio mixing via `rodio`, reading directly from `VfsProvider` byte streams or zero-parse `CookedAudio` PCM buffers.
 
-### 4.5. `ae_renderer`, `ae_texture`, `ae_gizmos` & `ae_gizmos_render`
+### 4.5. `ae_renderer`, `ae_mesh`, `ae_texture`, `ae_gizmos` & `ae_gizmos_render`
+* **`ae_mesh`:** GPU-free 3D geometry crate (`[lints] workspace = true`, zero `wgpu`) owning POD `Vertex`/`SpriteVertex`/`SkinVertex`, `SubmeshAlphaMode`/`ModelSubmesh`, `ParsedModelData`, `compute_aabb_bounding_radius`, `apply_skinning_palette`, static/procedural primitives (`CUBE_VERTICES`, `PYRAMID_VERTICES`, `generate_sphere`/`cylinder`/`capsule`/`torus`), and glTF 2.0 parsing.
 * **`ae_texture`:** CPU pixel/mipmap decoding and VFS/GUID loading (`parse_texture_bytes`, `load_texture_from_vfs`, `CookedTexture` conversion).
-* **`ae_renderer`:** WGPU forward PBR pipeline (4-cascade CSM shadows, sky atmosphere, MSAA/post-process, `FloatingOrigin` double-precision camera offset helpers, `AssetManager` chunk reference counting, and VFS mesh/texture/shader loaders).
+* **`ae_renderer`:** WGPU forward PBR pipeline (4-cascade CSM shadows, sky atmosphere, MSAA/post-process, GPU `GeometrySystem` & `ModelAsset` upload, `FloatingOrigin` double-precision camera offset helpers, `AssetManager` chunk reference counting, and VFS loaders; zero `gltf` dependency).
 * **`ae_gizmos`:** GPU-independent gizmo crate (`TransformGizmo` interaction/math/picking/geometry, collider wireframe generators `DebugShapes`, `BillboardVertex`/`BillboardUniform`/`BillboardIconType`, and 3D viewport compass `SceneNavigationGizmo`/`SceneViewSnap`) with zero `wgpu` dependency.
 * **`ae_gizmos_render`:** WGPU `OverlayRenderer` crate hosting `GizmoRenderer`, `DebugRenderer`, and `BillboardSystem`/`BillboardPipeline` alongside `gizmo.wgsl`, `debug_line.wgsl`, and `billboard.wgsl`.
 

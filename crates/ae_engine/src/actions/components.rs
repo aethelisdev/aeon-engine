@@ -252,7 +252,7 @@ pub fn handle_set_model_submesh_alpha_mode(
     engine: &mut AeEngine,
     model_handle: ae_renderer::asset::AssetHandle,
     submesh_index: usize,
-    mode: ae_renderer::render::types::SubmeshAlphaMode,
+    mode: ae_mesh::SubmeshAlphaMode,
 ) {
     if let Some(model) = engine.asset_manager.models.get_mut(model_handle)
         && let Some(submesh) = model.submeshes.get_mut(submesh_index)

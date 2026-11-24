@@ -586,8 +586,7 @@ impl ShadowSystem {
                         pass.draw_indexed(0..m.num_indices, 0, 0..c);
                     } else {
                         for submesh in &m.submeshes {
-                            if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Opaque
-                            {
+                            if submesh.alpha_mode == ae_mesh::SubmeshAlphaMode::Opaque {
                                 pass.draw_indexed(
                                     submesh.start_index
                                         ..(submesh.start_index + submesh.index_count),
@@ -605,7 +604,7 @@ impl ShadowSystem {
                 model_instance_data.get(&handle).map_or(0, |v| v.len()) > 0
                     && m.submeshes
                         .iter()
-                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                        .any(|s| s.alpha_mode == ae_mesh::SubmeshAlphaMode::Mask)
             });
 
             if has_any_cutout {
@@ -615,7 +614,7 @@ impl ShadowSystem {
                         && !insts.is_empty()
                         && m.submeshes
                             .iter()
-                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                            .any(|s| s.alpha_mode == ae_mesh::SubmeshAlphaMode::Mask)
                     {
                         let start_offset = *model_starts.get(&handle).unwrap_or(&0);
                         let mut cur = 0;
@@ -640,9 +639,7 @@ impl ShadowSystem {
                                 wgpu::IndexFormat::Uint32,
                             );
                             for submesh in &m.submeshes {
-                                if submesh.alpha_mode
-                                    == crate::render::types::SubmeshAlphaMode::Mask
-                                {
+                                if submesh.alpha_mode == ae_mesh::SubmeshAlphaMode::Mask {
                                     let bg = if let Some(custom_tex) = override_tex {
                                         if let Some(tex_idx) = submesh.texture_index {
                                             if tex_idx > 0 && m.embedded_textures.len() > 1 {

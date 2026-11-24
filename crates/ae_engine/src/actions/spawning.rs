@@ -87,7 +87,7 @@ pub fn handle_spawn_model_path_at(
         return Ok(());
     }
 
-    match ae_renderer::render::resources::parse_gltf_file(&path_str, final_name) {
+    match ae_mesh::parse_gltf_file(&path_str, final_name) {
         Ok(parsed_data) => {
             let (model_id, _min, _max) = engine
                 .render_state

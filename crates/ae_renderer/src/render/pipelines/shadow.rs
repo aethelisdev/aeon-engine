@@ -22,7 +22,7 @@ pub(crate) fn create_shadow_pipeline(
             module: &shader,
             entry_point: Some("vs_shadow"),
             buffers: &[
-                Some(crate::render::types::Vertex::desc()),
+                Some(crate::render::types::vertex_buffer_layout()),
                 Some(crate::render::types::Instance::desc()),
             ],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -76,7 +76,7 @@ pub(crate) fn create_shadow_cutout_pipeline(
             module: &shader,
             entry_point: Some("vs_shadow_cutout"),
             buffers: &[
-                Some(crate::render::types::Vertex::desc()),
+                Some(crate::render::types::vertex_buffer_layout()),
                 Some(crate::render::types::Instance::desc()),
             ],
             compilation_options: wgpu::PipelineCompilationOptions::default(),

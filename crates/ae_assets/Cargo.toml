@@ -9,8 +9,10 @@ workspace = true
 
 [dependencies]
 ae_core = { path = "../ae_core" }
+ae_mesh = { workspace = true }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_renderer = { path = "../ae_renderer" }
+ae_texture = { path = "../ae_texture" }
 ae_world = { workspace = true }
 gltf = "1.4.1"
 image = "0.25.10"

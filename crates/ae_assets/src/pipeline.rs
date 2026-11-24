@@ -7,7 +7,7 @@
 //! FBX2glTF conversion spawning, and mesh normalization helpers decoupled from runtime state.
 
 use super::scanner::is_world_file_3d;
-use ae_renderer::asset::{ParsedModelData, is_safe_path};
+use ae_mesh::{ParsedModelData, is_safe_path, parse_gltf_file};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 
@@ -59,7 +59,7 @@ pub fn spawn_gltf_parse(
 ) -> Receiver<Result<ParsedModelData, String>> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::spawn(move || {
-        let result = ae_renderer::render::resources::parse_gltf_file(&path, final_name);
+        let result = parse_gltf_file(&path, final_name);
         let _ = tx.send(result);
     });
     rx

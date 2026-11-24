@@ -230,7 +230,7 @@ impl AssetManager {
             models_bytes += model.raw_vertices.len() * std::mem::size_of::<[f32; 3]>();
             models_bytes += model.raw_indices.len() * std::mem::size_of::<u32>();
             // Add some overhead for VGPU buffers (approximate duplicate)
-            models_bytes += model.raw_vertices.len() * std::mem::size_of::<crate::render::Vertex>();
+            models_bytes += model.raw_vertices.len() * std::mem::size_of::<ae_mesh::Vertex>();
             models_bytes += model.raw_indices.len() * std::mem::size_of::<u32>();
         }
 
@@ -303,69 +303,16 @@ impl AssetManager {
     }
 }
 
-/// Intermediate result of async glTF/GLB file parsing.
-///
-/// Contains all vertex/index data ready for GPU upload, AABB bounds for
-/// auto-scaling and culling, the canonical disk path for deduplication,
-/// and the display name for the ECS entity.
-pub struct ParsedModelData {
-    pub all_vertices: Vec<crate::render::types::Vertex>,
-    pub all_indices: Vec<u32>,
-    pub raw_positions: Vec<[f32; 3]>,
-    pub raw_skin_vertices: Vec<crate::render::types::SkinVertex>,
-    pub min: [f32; 3],
-    pub max: [f32; 3],
-    pub canonical_path: std::path::PathBuf,
-    pub original_path: String,
-    pub final_name: String,
-    pub skeleton: Option<ae_animation::Skeleton>,
-    pub animations: Vec<ae_animation::AnimationClip>,
-    pub default_texture: Option<ae_texture::CpuTextureData>,
-    pub embedded_textures: Vec<ae_texture::CpuTextureData>,
-    pub submeshes: Vec<crate::render::types::ModelSubmesh>,
-}
-
-/// Verifies if a given file path is secure for the engine to load.
-///
-/// Performs multi-layered validation to block relative path traversal,
-/// UNC network paths, protocol schemes, and null bytes.
-pub fn is_safe_path(path: &str) -> bool {
-    let trimmed = path.trim();
-    if trimmed.starts_with("\\\\") {
-        return false;
-    }
-    if trimmed.contains("://") {
-        return false;
-    }
-    if trimmed.contains('\0') {
-        return false;
-    }
-    let p = std::path::Path::new(trimmed);
-    for component in p.components() {
-        if component == std::path::Component::ParentDir {
-            return false;
-        }
-    }
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_asset_manager_initialization_and_path_security() {
+    fn test_asset_manager_initialization() {
         let manager = AssetManager::new();
         assert_eq!(manager.shaders.len(), 0);
         assert_eq!(manager.models.len(), 0);
         assert_eq!(manager.textures.len(), 0);
-
-        assert!(is_safe_path("shaders/custom_sky.wgsl"));
-        assert!(is_safe_path("assets/materials/pbr.wgsl"));
-        assert!(!is_safe_path("../etc/passwd"));
-        assert!(!is_safe_path("shaders/../../root.wgsl"));
-        assert!(!is_safe_path("\\\\remote\\share\\shader.wgsl"));
-        assert!(!is_safe_path("http://evil.com/shader.wgsl"));
     }
 
     #[test]

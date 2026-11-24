@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::{SpriteVertex, Vertex};
+use crate::vertex::{SpriteVertex, Vertex};
 
 /// Default 3D Pyramid (Triangle primitive) mesh vertices (18 vertices, 4 side faces + 1 bottom quad).
-pub const VERTICES: &[Vertex] = &[
+pub const PYRAMID_VERTICES: &[Vertex] = &[
     // Front face (Z+)
     Vertex {
         position: [0.0, 0.5, 0.0],
@@ -419,3 +419,6 @@ pub const GRID_QUAD_VERTICES: &[Vertex] = &[
         uv: [0.0, 1.0],
     },
 ];
+
+/// Alias for [`PYRAMID_VERTICES`].
+pub const VERTICES: &[Vertex] = PYRAMID_VERTICES;

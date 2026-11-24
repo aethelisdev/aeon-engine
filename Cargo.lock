@@ -88,8 +88,10 @@ name = "ae_assets"
 version = "0.9.0"
 dependencies = [
  "ae_core",
+ "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
+ "ae_texture",
  "ae_world",
  "gltf",
  "image",
@@ -185,6 +187,7 @@ dependencies = [
  "ae_editor",
  "ae_export",
  "ae_gizmos",
+ "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
  "ae_runtime",
@@ -221,6 +224,7 @@ dependencies = [
  "ae_gizmos",
  "ae_gizmos_render",
  "ae_mcp",
+ "ae_mesh",
  "ae_physics",
  "ae_plugin_api",
  "ae_plugin_host",
@@ -256,7 +260,7 @@ name = "ae_export"
 version = "0.1.0"
 dependencies = [
  "ae_audio",
- "ae_renderer",
+ "ae_mesh",
  "ae_texture",
  "ae_world",
  "bytemuck",
@@ -325,6 +329,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_mesh"
+version = "0.1.0"
+dependencies = [
+ "ae_animation",
+ "ae_texture",
+ "bytemuck",
+ "glam 0.33.12",
+ "gltf",
+]
+
+[[package]]
 name = "ae_physics"
 version = "0.9.0"
 dependencies = [
@@ -364,13 +379,13 @@ dependencies = [
  "ae_camera",
  "ae_core",
  "ae_ecs",
+ "ae_mesh",
  "ae_plugin_api",
  "ae_texture",
  "ae_world",
  "bytemuck",
  "cgmath",
  "glam 0.33.12",
- "gltf",
  "image",
  "irisui",
  "log",

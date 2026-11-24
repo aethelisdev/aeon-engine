@@ -37,74 +37,9 @@ fn rasterize_image_thumbnail(path: &Path, width: u32, height: u32) -> Option<Vec
     Some(thumbnail.to_rgba8().into_raw())
 }
 
-/// Raw vertex, normal, and index data extracted for 3D thumbnail rendering.
-struct RawModelGeometry {
-    vertices: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    indices: Vec<u32>,
-}
-
-/// Extracts vertex, normal, and index geometry from GLTF/GLB models.
-fn extract_model_geometry(path: &Path) -> Option<RawModelGeometry> {
-    let ext = path.extension()?.to_str()?.to_lowercase();
-    if ext != "gltf" && ext != "glb" {
-        return None;
-    }
-
-    let (doc, buffers, _) = gltf::import(path).ok()?;
-    let mut all_verts = Vec::new();
-    let mut all_normals = Vec::new();
-    let mut all_indices = Vec::new();
-
-    for mesh in doc.meshes() {
-        for primitive in mesh.primitives() {
-            let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
-            let base_idx = all_verts.len() as u32;
-
-            if let Some(pos_iter) = reader.read_positions() {
-                for pos in pos_iter {
-                    all_verts.push(pos);
-                }
-            }
-
-            if let Some(norm_iter) = reader.read_normals() {
-                for norm in norm_iter {
-                    all_normals.push(norm);
-                }
-            }
-
-            if let Some(idx_iter) = reader.read_indices() {
-                for idx in idx_iter.into_u32() {
-                    all_indices.push(base_idx + idx);
-                }
-            }
-        }
-    }
-
-    if all_verts.is_empty() {
-        return None;
-    }
-
-    while all_normals.len() < all_verts.len() {
-        all_normals.push([0.0, 1.0, 0.0]);
-    }
-
-    if all_indices.is_empty() {
-        for i in 0..all_verts.len() as u32 {
-            all_indices.push(i);
-        }
-    }
-
-    Some(RawModelGeometry {
-        vertices: all_verts,
-        normals: all_normals,
-        indices: all_indices,
-    })
-}
-
 /// Software depth-buffered rasterizer for 3D model thumbnails.
 fn rasterize_model_thumbnail(path: &Path, width: usize, height: usize) -> Option<Vec<u8>> {
-    let geom = extract_model_geometry(path)?;
+    let geom = ae_mesh::parse_gltf_raw_geometry(path)?;
     if geom.vertices.is_empty() {
         return None;
     }

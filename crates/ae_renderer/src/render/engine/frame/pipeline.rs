@@ -416,7 +416,7 @@ impl RenderState {
                 let has_blend_submeshes = model
                     .submeshes
                     .iter()
-                    .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend);
+                    .any(|s| s.alpha_mode == ae_mesh::SubmeshAlphaMode::Blend);
 
                 if has_blend_submeshes {
                     for (inst_idx, item) in insts.iter().enumerate() {
@@ -426,7 +426,7 @@ impl RenderState {
                         let dist_sq = dx * dx + dy * dy + dz * dz;
 
                         for (submesh_index, submesh) in model.submeshes.iter().enumerate() {
-                            if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend {
+                            if submesh.alpha_mode == ae_mesh::SubmeshAlphaMode::Blend {
                                 self.frame_scratch.transparent_model_draws.push(
                                     forward::TransparentSubmeshDraw {
                                         distance_sq: dist_sq,

@@ -6,9 +6,8 @@
 //! Collects unique asset dependencies (`SceneAssetBinding`) from decoded world records
 //! and parses GLTF geometry and RGBA texture payloads in parallel across `rayon` threads.
 
+use ae_mesh::{ParsedModelData, is_safe_path, parse_gltf_file};
 use ae_plugin_api::EntityGuid;
-use ae_renderer::asset::{ParsedModelData, is_safe_path};
-use ae_renderer::render::resources::{parse_gltf_file, parse_texture_file};
 use ae_world::{
     EntityRecord, SCENE_ASSET_BINDING_TYPE, SceneAssetBinding, SpatialCellCoord,
     component_type_hash,
@@ -141,8 +140,12 @@ pub fn spawn_scene_asset_parse(
             .map(|path| {
                 let canonical = std::fs::canonicalize(&path)
                     .map_err(|e| format!("Failed to canonicalize texture path '{path}': {e}"));
-                let res = canonical
-                    .and_then(|c_path| parse_texture_file(&path).map(|rgba| (c_path, rgba)));
+                let res = canonical.and_then(|c_path| {
+                    let cpu = ae_texture::parse_texture_file(&path, ae_texture::ColorSpace::Srgb)?;
+                    image::RgbaImage::from_raw(cpu.width, cpu.height, cpu.bytes)
+                        .map(|rgba| (c_path, rgba))
+                        .ok_or_else(|| format!("Failed to construct RgbaImage for '{path}'"))
+                });
                 (path, res)
             })
             .collect();
