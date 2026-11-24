@@ -1,0 +1,22 @@
+[package]
+name = "ae_ui"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - In-game ECS UI layout resolver, gameplay HUD, pause menu state, Iris HUD builder, and standalone runtime HUD overlay"
+
+[dependencies]
+ae_core = { path = "../ae_core" }
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+ae_renderer = { path = "../ae_renderer" }
+irisui-core = { workspace = true }
+irisui-layout = { workspace = true }
+irisui-text = { workspace = true }
+irisui-wgpu = { workspace = true }
+irisui-widgets = { workspace = true, default-features = false }
+log = { workspace = true }
+wgpu = "30.0.2"
+
+[lints]
+workspace = true

@@ -23,7 +23,7 @@ ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
 ae_uidesign = { path = "../ae_uidesign" }
-ae_runtime = { path = "../ae_runtime" }
+ae_ui = { workspace = true }
 ae_assets = { workspace = true }
 image = { version = "0.25.10", default-features = false, features = [
     "png",

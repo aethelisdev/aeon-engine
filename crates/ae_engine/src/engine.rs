@@ -64,7 +64,7 @@ pub struct AeEngine {
     /// Stack-based Game State Machine for high-level flow and mode transitions.
     pub state_manager: ae_core::state::StateManager,
     /// In-Game HUD subsystem manager (Health Bar, Score Counter, Reticle).
-    pub in_game_hud: ae_runtime::hud::InGameHudState,
+    pub in_game_hud: ae_ui::InGameHudState,
     /// Active dimension mode governing engine operational state and memory isolation.
     pub dimension_mode: ae_2d::mode::ActiveDimensionMode,
     /// 2D Sprite batching and rendering pipeline system (allocated ONLY when in 2D mode).
@@ -357,7 +357,7 @@ impl AeEngine {
             texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
             state_manager: ae_core::state::StateManager::new(),
-            in_game_hud: ae_runtime::hud::InGameHudState::new(),
+            in_game_hud: ae_ui::InGameHudState::new(),
             dimension_mode,
             sprite_2d_system,
             input_arbiter: crate::events::InputArbiter::new(),

@@ -13,8 +13,8 @@ use super::types::{
 };
 use crate::ui::panel_layout::PanelId;
 use crate::ui::types::EngineUiAction;
-use ae_core::ui::{UiDrawCommand, UiLayoutResolver, UiTextAlignment};
 use ae_plugin_api::{UiAnchor, UiElement};
+use ae_ui::{UiDrawCommand, UiLayoutResolver, UiTextAlignment};
 use irisui::dock::DeferredNotifier;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;

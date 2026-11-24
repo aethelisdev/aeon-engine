@@ -18,7 +18,7 @@ use irisui::workbench::ActionBus;
 #[inline]
 fn world_is_paused(world: &World) -> bool {
     world
-        .query::<&ae_core::ui::PauseMenuUiTag>()
+        .query::<&ae_ui::PauseMenuUiTag>()
         .iter()
         .next()
         .is_some()
@@ -102,7 +102,7 @@ pub fn build_play_hud(
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     if world_is_paused(world) {
-        ae_runtime::hud::build_in_game_pause_menu(scope, viewport_rect, "⏹  Exit to Editor");
+        ae_ui::build_in_game_pause_menu(scope, viewport_rect, "⏹  Exit to Editor");
         if scope.is_tag_clicked(TAG_PLAY_RESUME) {
             action_bus.emit(EngineUiAction::ResumeGame);
         }
@@ -112,7 +112,7 @@ pub fn build_play_hud(
         return;
     }
 
-    ae_runtime::hud::build_ingame_ecs_ui(scope, world, viewport_rect, cursor_pos);
+    ae_ui::build_ingame_ecs_ui(scope, world, viewport_rect, cursor_pos);
 
     scope.when(world_has_character_action(world, selected_entity), |s| {
         s.immediate_canvas_with(
@@ -248,7 +248,7 @@ mod tests {
             ae_plugin_api::PlayerTag,
             ae_plugin_api::CharacterAction::default(),
         ));
-        let _pause_tag = world.spawn((ae_core::ui::PauseMenuUiTag,));
+        let _pause_tag = world.spawn((ae_ui::PauseMenuUiTag,));
 
         let viewport_rect = Rect::new(100.0, 50.0, 800.0, 600.0);
         let mut tree = UiTree::new();

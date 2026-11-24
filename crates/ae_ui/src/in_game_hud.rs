@@ -6,20 +6,24 @@
 //! Bridges gameplay events (`DamageEvent`, `HealEvent`, `ScoreEvent`) to user-defined
 //! ECS UI entities tagged with `PlayerHealthBarTag` and `ScoreDisplayTag`.
 
-use ae_core::events::DynamicEventBus;
+use ae_core::events::{DamageEvent, DynamicEventBus, HealEvent, ScoreEvent};
 use ae_ecs::World;
-use ae_plugin_api::{PlayerHealthBarTag, ScoreDisplayTag, UiProgressBar, UiText};
+use ae_plugin_api::{PlayerHealthBarTag, PlayerTag, ScoreDisplayTag, UiProgressBar, UiText};
 
 /// State tracker for active in-game HUD session.
 #[derive(Default)]
 pub struct InGameHudState {
+    /// Current accumulated player score.
     pub current_score: i32,
+    /// Current player health value synchronized with HUD bars.
     pub player_health: f32,
+    /// Maximum player health upper bound.
     pub player_max_health: f32,
 }
 
 impl InGameHudState {
     /// Creates a new HUD state with full health and 0 score.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             current_score: 0,
@@ -28,25 +32,22 @@ impl InGameHudState {
         }
     }
 
-    /// Resets health and score counters.
+    /// Resets health and score counters and synchronizes existing HUD widgets in `world`.
     pub fn reset(&mut self, world: &mut World) {
         self.current_score = 0;
         self.player_health = self.player_max_health;
 
-        // Reset any health bars in the scene back to full
         for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
             bar.value = bar.max;
         }
-        // Reset any score text in the scene back to 0
         for (_, text) in world.query_mut::<(&ScoreDisplayTag, &mut UiText)>() {
             text.text = format!("SCORE: {:05}", self.current_score);
         }
     }
 
-    /// Processes incoming gameplay events and updates corresponding user-created HUD elements.
+    /// Processes incoming gameplay events and updates corresponding HUD entities.
     pub fn update_from_events(&mut self, world: &mut World, event_bus: &mut DynamicEventBus) {
-        // 1. Process Score Events
-        if let Some(events) = event_bus.receive::<ae_core::events::ScoreEvent>() {
+        if let Some(events) = event_bus.receive::<ScoreEvent>() {
             for ev in events {
                 self.current_score = (self.current_score + ev.delta).max(0);
                 for (_, text) in world.query_mut::<(&ScoreDisplayTag, &mut UiText)>() {
@@ -55,41 +56,36 @@ impl InGameHudState {
             }
         }
 
-        // 2. Process Damage Events - applies to Player Health Bar when Player is damaged
-        if let Some(events) = event_bus.receive::<ae_core::events::DamageEvent>() {
+        if let Some(events) = event_bus.receive::<DamageEvent>() {
             for ev in events {
-                let is_player_target = world.has::<ae_plugin_api::PlayerTag>(ev.target);
-                if is_player_target {
-                    self.player_health = (self.player_health - ev.amount).max(0.0);
-                    for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
-                        bar.value = self.player_health;
-                        // Color transitions: Green -> Yellow -> Red
-                        let fraction = bar.fraction();
-                        if fraction < 0.3 {
-                            bar.fill_color = [0.9, 0.2, 0.2, 1.0]; // Red
-                        } else if fraction < 0.6 {
-                            bar.fill_color = [0.9, 0.75, 0.2, 1.0]; // Yellow
-                        } else {
-                            bar.fill_color = [0.2, 0.85, 0.35, 1.0]; // Green
-                        }
-                    }
+                if !world.has::<PlayerTag>(ev.target) {
+                    continue;
+                }
+                self.player_health = (self.player_health - ev.amount).max(0.0);
+                for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
+                    bar.value = self.player_health;
+                    let fraction = bar.fraction();
+                    bar.fill_color = if fraction < 0.3 {
+                        [0.9, 0.2, 0.2, 1.0]
+                    } else if fraction < 0.6 {
+                        [0.9, 0.75, 0.2, 1.0]
+                    } else {
+                        [0.2, 0.85, 0.35, 1.0]
+                    };
                 }
             }
         }
 
-        // 3. Process Heal Events
-        if let Some(events) = event_bus.receive::<ae_core::events::HealEvent>() {
+        if let Some(events) = event_bus.receive::<HealEvent>() {
             for ev in events {
-                let is_player_target = world.has::<ae_plugin_api::PlayerTag>(ev.target);
-                if is_player_target {
-                    self.player_health =
-                        (self.player_health + ev.amount).min(self.player_max_health);
-                    for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
-                        bar.value = self.player_health;
-                        let fraction = bar.fraction();
-                        if fraction >= 0.6 {
-                            bar.fill_color = [0.2, 0.85, 0.35, 1.0];
-                        }
+                if !world.has::<PlayerTag>(ev.target) {
+                    continue;
+                }
+                self.player_health = (self.player_health + ev.amount).min(self.player_max_health);
+                for (_, bar) in world.query_mut::<(&PlayerHealthBarTag, &mut UiProgressBar)>() {
+                    bar.value = self.player_health;
+                    if bar.fraction() >= 0.6 {
+                        bar.fill_color = [0.2, 0.85, 0.35, 1.0];
                     }
                 }
             }
@@ -100,17 +96,17 @@ impl InGameHudState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ui::{UiAnchor, UiElement};
     use ae_ecs::World;
+    use ae_plugin_api::{UiAnchor, UiElement};
 
     #[test]
-    fn test_in_game_hud_event_reactions() {
+    fn test_in_game_hud_event_reactions_and_clamping() {
         let mut world = World::new();
         let mut event_bus = DynamicEventBus::new();
         let mut hud = InGameHudState::new();
 
-        // Spawn a user-created health bar and score display
-        let player = world.spawn((ae_plugin_api::PlayerTag,));
+        let player = world.spawn((PlayerTag,));
+        let enemy = world.spawn(());
 
         let health_bar_ent = world.spawn((
             PlayerHealthBarTag,
@@ -129,17 +125,26 @@ mod tests {
             UiText::new("SCORE: 00000", 16.0),
         ));
 
-        // Emit damage event to player
-        event_bus.send(ae_core::events::DamageEvent {
+        // Non-player damage must not affect player health bar
+        event_bus.send(DamageEvent {
+            source: None,
+            target: enemy,
+            amount: 50.0,
+            hit_point: None,
+            hit_normal: None,
+        });
+        event_bus.send(DamageEvent {
             source: None,
             target: player,
             amount: 40.0,
             hit_point: None,
             hit_normal: None,
         });
-
-        // Emit score event
-        event_bus.send(ae_core::events::ScoreEvent {
+        event_bus.send(ScoreEvent {
+            delta: -10,
+            new_total: 0,
+        });
+        event_bus.send(ScoreEvent {
             delta: 250,
             new_total: 250,
         });
@@ -151,12 +156,12 @@ mod tests {
 
         let bar_val = world
             .inspect::<UiProgressBar, _>(health_bar_ent, |b| b.value)
-            .unwrap();
+            .expect("bar value");
         assert_eq!(bar_val, 60.0);
 
         let score_text = world
             .inspect::<UiText, _>(score_ent, |t| t.text.clone())
-            .unwrap();
+            .expect("score text");
         assert_eq!(score_text, "SCORE: 00250");
     }
 }

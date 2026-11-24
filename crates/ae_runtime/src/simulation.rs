@@ -388,7 +388,7 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
 }
 
 /// Ticks the runtime [`GameStateManager`](ae_core::state::GameStateManager) and toggles
-/// [`InGamePauseState`](crate::hud::InGamePauseState) when the `"Pause"` action is just pressed.
+/// [`InGamePauseState`](ae_ui::InGamePauseState) when the `"Pause"` action is just pressed.
 ///
 /// Returns `(was_paused, is_paused)` so callers can synchronize cursor grab and skip
 /// gameplay camera/simulation updates while paused.
@@ -409,7 +409,7 @@ pub fn step_play_state_and_pause(
         if state_manager.is_paused() {
             state_manager.pop();
         } else {
-            state_manager.push(crate::hud::InGamePauseState::new());
+            state_manager.push(ae_ui::InGamePauseState::new());
         }
         let mut toggle_cmd = ae_ecs::EntityCommandBuffer::new();
         state_manager.update(world, event_bus, &mut toggle_cmd, 0.0);
@@ -520,7 +520,7 @@ mod tests {
         assert!(is_paused);
         assert!(
             world
-                .query::<&ae_core::ui::PauseMenuUiTag>()
+                .query::<&ae_ui::PauseMenuUiTag>()
                 .iter()
                 .next()
                 .is_some()
@@ -544,7 +544,7 @@ mod tests {
         assert!(!is_paused);
         assert!(
             world
-                .query::<&ae_core::ui::PauseMenuUiTag>()
+                .query::<&ae_ui::PauseMenuUiTag>()
                 .iter()
                 .next()
                 .is_none()

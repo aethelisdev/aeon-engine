@@ -44,7 +44,7 @@ impl TreeDataSource for SceneHierarchySource<'_> {
     fn collect_nodes(&self, collector: &mut TreeNodeCollector<Self::Id>) {
         collector.reserve(self.0.len() as usize);
         for ent_ref in self.0.iter() {
-            if ent_ref.has::<ae_core::ui::PauseMenuUiTag>() {
+            if ent_ref.has::<ae_ui::PauseMenuUiTag>() {
                 continue;
             }
             collector.push_node(

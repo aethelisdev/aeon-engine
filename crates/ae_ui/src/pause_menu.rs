@@ -3,18 +3,20 @@
 
 //! In-Game Pause Menu Overlay & State Machine Integration.
 //!
-//! Provides a centered, clean pause overlay with Resume and Exit buttons.
-//! Automatically cleans up transient UI entities upon exit.
+//! Spawns centered pause UI entities tagged with [`PauseMenuUiTag`] on entry and
+//! despawns them cleanly upon resuming gameplay.
 
+use crate::layout::PauseMenuUiTag;
 use ae_core::state::{GameState, StateContext, StateTransition};
-use ae_core::ui::{PauseMenuUiTag, UiAnchor, UiButton, UiElement, UiText, UiTextAlignment};
+use ae_plugin_api::{UiAnchor, UiButton, UiElement, UiText, UiTextAlignment};
 
-/// Dedicated GameState for the In-Game Pause overlay.
+/// Dedicated `GameState` for the In-Game Pause overlay.
 #[derive(Default)]
 pub struct InGamePauseState;
 
 impl InGamePauseState {
-    /// Creates a new InGamePauseState instance.
+    /// Creates a new `InGamePauseState` instance.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -26,9 +28,8 @@ impl GameState for InGamePauseState {
     }
 
     fn on_enter(&mut self, ctx: &mut StateContext<'_>) {
-        log::info!("⏸️ [PauseState] Game Paused! Spawning Pause Menu UI...");
+        log::info!("[PauseState] Game Paused! Spawning Pause Menu UI...");
 
-        // 1. Spawns Pause Title text
         ctx.commands.spawn_with(|w| {
             w.spawn((
                 PauseMenuUiTag,
@@ -47,7 +48,6 @@ impl GameState for InGamePauseState {
             ))
         });
 
-        // 2. Resume Button
         ctx.commands.spawn_with(|w| {
             w.spawn((
                 PauseMenuUiTag,
@@ -64,7 +64,6 @@ impl GameState for InGamePauseState {
             ))
         });
 
-        // 3. Exit to Editor Button
         ctx.commands.spawn_with(|w| {
             w.spawn((
                 PauseMenuUiTag,
@@ -87,7 +86,7 @@ impl GameState for InGamePauseState {
     }
 
     fn on_exit(&mut self, ctx: &mut StateContext<'_>) {
-        log::info!("▶️ [PauseState] Resuming gameplay...");
+        log::info!("[PauseState] Resuming gameplay...");
         let mut to_despawn = Vec::new();
         for (ent, _tag) in ctx
             .world

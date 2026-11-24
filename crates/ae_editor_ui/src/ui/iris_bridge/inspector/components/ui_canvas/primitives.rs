@@ -11,7 +11,7 @@
 //! - `UiButton`: Interactive button with enable/disable checkbox
 //! - `UiImage`: Sprite image display with slice mode label
 
-use ae_core::ui::UiTextAlignment;
+use ae_ui::UiTextAlignment;
 use irisui::prelude::*;
 
 /// Maps [`UiTextAlignment`] enum variant to combo dropdown selection index.
@@ -386,7 +386,7 @@ mod tests {
         let root = WidgetId::default();
         let mut world = ae_ecs::World::new();
         let entity = world.spawn((ae_plugin_api::UiImage {
-            slice_mode: ae_core::ui::UiSliceMode::NineSlice,
+            slice_mode: ae_ui::UiSliceMode::NineSlice,
             ..Default::default()
         },));
 

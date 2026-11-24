@@ -237,7 +237,7 @@ mod tests {
             ae_plugin_api::PlayerTag,
             ae_plugin_api::CharacterAction::default(),
         ));
-        let _pause = world.spawn((ae_core::ui::PauseMenuUiTag,));
+        let _pause = world.spawn((ae_ui::PauseMenuUiTag,));
         let editor_state = EditorState::default();
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root creation failed");

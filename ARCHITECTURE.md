@@ -114,7 +114,11 @@ graph TD
     end
 
     subgraph Runtime_And_Hosts["Runtime Core & Application Hosts"]
-        ae_scene --> ae_runtime["ae_runtime (Editor-Free Player & Simulation Core)"]
+        ae_scene --> ae_runtime["ae_runtime (Editor-Free Player & Simulation Core; Zero irisui)"]
+        ae_ui["ae_ui (In-Game UI Layout, HUD State, Pause Menu, RuntimeHudOverlay; Zero winit)"] --> ae_runtime
+        ae_core --> ae_ui
+        ae_renderer --> ae_ui
+        irisui --> ae_ui
         ae_camera --> ae_runtime
         ae_camera_controller --> ae_runtime
         ae_input --> ae_runtime
@@ -122,19 +126,21 @@ graph TD
         ae_audio --> ae_runtime
         ae_plugin_host --> ae_runtime
 
-        ae_camera --> ae_editor["ae_editor (Picking, Selection, Snapping, Undo/Redo; Zero wgpu)"]
+        ae_camera --> ae_editor["ae_editor (Picking, Selection, Snapping, Undo/Redo; Zero wgpu/winit)"]
         ae_camera_controller --> ae_editor
         ae_gizmos --> ae_editor
         ae_input --> ae_editor
+        ae_transform --> ae_editor
         ae_ecs --> ae_editor
         ae_editor --> ae_editor_ui["ae_editor_ui (Pure Declarative IDE Views & EngineUiAction)"]
         ae_camera --> ae_editor_ui
         ae_gizmos --> ae_editor_ui
         ae_export --> ae_editor_ui
-        ae_runtime --> ae_editor_ui
+        ae_ui --> ae_editor_ui
         irisui --> ae_editor_ui
 
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
+        ae_ui --> ae_engine
         ae_camera --> ae_engine
         ae_camera_controller --> ae_engine
         ae_input --> ae_engine

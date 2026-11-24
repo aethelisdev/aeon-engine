@@ -5,7 +5,6 @@
 //! or workspace folders using the shared [`crate::simulation`] runtime loop.
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use crate::hud::{InGameHudState, RuntimeHudOverlay, RuntimePauseAction};
 use crate::simulation::{
     SaveLoadDispatchContext, process_save_load_requests, step_play_state_and_pause,
     update_skeletal_animations,
@@ -36,6 +35,7 @@ use ae_transform::{
     SpatialGrid, compose_2d_model_matrix, integrate_unconstrained_velocities,
     update_hierarchy_transforms,
 };
+use ae_ui::{InGameHudState, RuntimeHudOverlay, RuntimePauseAction};
 use std::collections::HashSet;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -592,7 +592,6 @@ impl ApplicationHandler for DesktopPlayerApp {
             return;
         };
         let is_paused = session.state_manager.is_paused();
-        session.hud_overlay.handle_window_event(&event, is_paused);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -615,6 +614,9 @@ impl ApplicationHandler for DesktopPlayerApp {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
+                session
+                    .hud_overlay
+                    .handle_pointer_moved(position.x, position.y, is_paused);
                 session.input.process_cursor_moved(position.x, position.y);
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -627,6 +629,11 @@ impl ApplicationHandler for DesktopPlayerApp {
                 session.input.process_mouse_wheel(dx, dy);
             }
             WindowEvent::MouseInput { state, button, .. } => {
+                if button == winit::event::MouseButton::Left {
+                    session
+                        .hud_overlay
+                        .handle_left_mouse_input(state == ElementState::Pressed, is_paused);
+                }
                 if button == winit::event::MouseButton::Left
                     && state == ElementState::Pressed
                     && !session.is_cursor_grabbed

@@ -24,6 +24,7 @@ ae_input = { workspace = true }
 ae_mesh = { workspace = true }
 ae_scene = { workspace = true }
 ae_transform = { workspace = true }
+ae_ui = { workspace = true }
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
 irisui = { workspace = true }

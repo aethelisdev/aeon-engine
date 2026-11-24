@@ -186,7 +186,7 @@ dependencies = [
  "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
- "ae_runtime",
+ "ae_ui",
  "ae_uidesign",
  "ae_world",
  "cgmath",
@@ -230,6 +230,7 @@ dependencies = [
  "ae_scene",
  "ae_texture",
  "ae_transform",
+ "ae_ui",
  "ae_uidesign",
  "ae_world",
  "bytemuck",
@@ -425,16 +426,12 @@ dependencies = [
  "ae_scene",
  "ae_texture",
  "ae_transform",
+ "ae_ui",
  "ae_world",
  "bytemuck",
  "cgmath",
  "env_logger",
  "game_logic",
- "irisui-core",
- "irisui-layout",
- "irisui-text",
- "irisui-wgpu",
- "irisui-widgets",
  "jemallocator",
  "log",
  "pollster 1.0.1",
@@ -489,6 +486,23 @@ dependencies = [
  "cgmath",
  "glam 0.33.12",
  "log",
+]
+
+[[package]]
+name = "ae_ui"
+version = "0.1.0"
+dependencies = [
+ "ae_core",
+ "ae_ecs",
+ "ae_plugin_api",
+ "ae_renderer",
+ "irisui-core",
+ "irisui-layout",
+ "irisui-text",
+ "irisui-wgpu",
+ "irisui-widgets",
+ "log",
+ "wgpu",
 ]
 
 [[package]]

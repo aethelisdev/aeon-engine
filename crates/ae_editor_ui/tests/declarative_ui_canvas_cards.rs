@@ -101,7 +101,7 @@ fn test_ui_text_card_declarative_structure() {
     let entity = world.spawn((ae_plugin_api::UiText {
         text: "Hello Aeon".to_string(),
         font_size: 16.0,
-        alignment: ae_core::ui::UiTextAlignment::Center,
+        alignment: ae_ui::UiTextAlignment::Center,
         ..Default::default()
     },));
     let mut tree = UiTree::new();
@@ -193,7 +193,7 @@ fn test_ui_button_card_declarative_structure() {
 fn test_ui_image_card_declarative_structure() {
     let mut world = ae_ecs::World::new();
     let entity = world.spawn((ae_plugin_api::UiImage {
-        slice_mode: ae_core::ui::UiSliceMode::Stretch,
+        slice_mode: ae_ui::UiSliceMode::Stretch,
         ..Default::default()
     },));
     let mut tree = UiTree::new();
