@@ -46,7 +46,7 @@ pub const fn component_name_to_tag(name: &str) -> u64 {
 /// Resolves a numeric menu item tag into its canonical component type name.
 #[must_use]
 pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
-    BUILTIN_COMPONENT_MENU_CATALOG
+    BUILTIN_COMPONENTS
         .iter()
         .find(|e| component_name_to_tag(e.component_name) == tag)
         .map(|e| e.component_name)
@@ -62,7 +62,7 @@ pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
 /// Returns whether a component type name is already handled by a built-in inspector handler.
 #[inline]
 fn is_built_in_inspector_component(type_name: &str) -> bool {
-    BUILTIN_COMPONENT_MENU_CATALOG
+    BUILTIN_COMPONENTS
         .iter()
         .any(|e| e.component_name == type_name)
 }
@@ -108,9 +108,9 @@ fn category_has_available(
                     && entity.is_none_or(|ent| !h.has_component(world, ent))
             })
     } else {
-        BUILTIN_COMPONENT_MENU_CATALOG
+        BUILTIN_COMPONENTS
             .iter()
-            .filter(|e| e.category == cat)
+            .filter(|e| e.category == cat.to_builtin())
             .any(|e| entity.is_none_or(|ent| !(e.has_component)(world, ent)))
     }
 }
@@ -147,17 +147,16 @@ fn get_category_child_items(
     if cat == ComponentCategory::CustomDynamic {
         get_custom_dynamic_child_items(world, entity)
     } else {
-        BUILTIN_COMPONENT_MENU_CATALOG
+        BUILTIN_COMPONENTS
             .iter()
             .filter(|e| {
-                e.category == cat && entity.is_none_or(|ent| !(e.has_component)(world, ent))
+                e.category == cat.to_builtin()
+                    && entity.is_none_or(|ent| !(e.has_component)(world, ent))
             })
             .map(|e| {
                 CascadingMenuItem::item_with_icon(
                     e.display_title,
-                    e.atlas_icon
-                        .map(CascadingMenuIcon::Texture)
-                        .unwrap_or(CascadingMenuIcon::Text(e.icon)),
+                    menu_icon_for_component(e.component_name),
                     component_name_to_tag(e.component_name),
                 )
             })
@@ -424,7 +423,7 @@ mod tests {
                     );
                     let name = resolved.unwrap();
                     if cat_item.tag != ComponentCategory::CustomDynamic.to_tag() {
-                        let entry = find_builtin_component_entry(name);
+                        let entry = find_builtin_component(name);
                         assert!(
                             entry.is_some(),
                             "Built-in component '{}' must exist in SSOT catalog",
@@ -446,7 +445,7 @@ mod tests {
         }
 
         // 2. Attach a component and verify it is autonomously filtered out from the menu
-        let rb_entry = find_builtin_component_entry("RigidBody").expect("RigidBody entry");
+        let rb_entry = find_builtin_component("RigidBody").expect("RigidBody entry");
         (rb_entry.spawn_default)(&mut world, entity);
 
         let filtered_items = get_add_component_menu_items(&world, Some(entity));

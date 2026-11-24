@@ -76,6 +76,7 @@ pub fn handle_update_editor_config(
     cfg: ae_editor::editor_state::EditorConfig,
 ) {
     engine.editor.config = cfg;
+    engine.time.set_fixed_hz(engine.editor.config.physics_hz);
     log::info!(
         "⚙ Updated editor config: undo_limit={}, physics_hz={:.0} Hz",
         engine.editor.config.max_undo_history,

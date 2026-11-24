@@ -14,6 +14,8 @@
 //! - [`animation`]: Sprite sheet and flipbook sequence controllers.
 //! - [`prelude`]: Commonly used 2D components, systems, and builders.
 
+pub mod overlay;
+
 pub use ae_2d_animation as animation;
 pub use ae_2d_core as core;
 pub use ae_2d_core::{camera, components, mode};
@@ -30,6 +32,7 @@ pub use ae_2d_physics::{BodyType2D, Collider2D, ColliderShape2D, Physics2DWorld,
 pub use ae_2d_render::{
     Sprite2DPipeline, SpriteBatch, SpriteBatcher, SpriteInstance, SpriteVertex,
 };
+pub use overlay::{Sprite2DOverlay, Sprite2DSystem, collect_world_sprites, configure_2d_camera};
 
 /// Convenient common imports for 2D development with Aeon Engine.
 pub mod prelude {

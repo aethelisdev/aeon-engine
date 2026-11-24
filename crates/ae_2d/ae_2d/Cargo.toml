@@ -11,6 +11,15 @@ ae-2d-core = { workspace = true }
 ae-2d-render = { workspace = true }
 ae-2d-animation = { workspace = true }
 ae-2d-physics = { workspace = true }
+ae_camera = { workspace = true }
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../../ae_plugin_api" }
+ae_renderer = { path = "../../ae_renderer" }
+ae_texture = { path = "../../ae_texture" }
+ae_transform = { workspace = true }
+cgmath = "0.18"
+slotmap = { version = "1.1.1", features = ["serde"] }
+wgpu = "30.0.2"
 
 [lints]
 workspace = true

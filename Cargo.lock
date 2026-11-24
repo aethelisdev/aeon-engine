@@ -72,6 +72,15 @@ dependencies = [
  "ae-2d-core",
  "ae-2d-physics",
  "ae-2d-render",
+ "ae_camera",
+ "ae_ecs",
+ "ae_plugin_api",
+ "ae_renderer",
+ "ae_texture",
+ "ae_transform",
+ "cgmath",
+ "slotmap",
+ "wgpu",
 ]
 
 [[package]]
@@ -193,6 +202,7 @@ dependencies = [
  "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
+ "ae_scene",
  "ae_ui",
  "ae_uidesign",
  "ae_world",
@@ -501,6 +511,7 @@ dependencies = [
  "ae_2d",
  "ae_animation",
  "ae_assets",
+ "ae_audio",
  "ae_core",
  "ae_ecs",
  "ae_light",

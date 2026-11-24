@@ -6,6 +6,8 @@
 //! transform reparenting, and background Edit-mode autosave.
 
 pub mod autosave;
+pub mod builtin_components;
+pub mod defaults;
 pub mod loader;
 pub mod prefab;
 pub mod serialization;
@@ -16,6 +18,10 @@ pub use autosave::{
     AUTOSAVE_ROTATING_SLOTS, AutosavePollContext, DEFAULT_AUTOSAVE_INTERVAL_SECS,
     EditorAutosaveState, resolve_autosave_target, write_autosave_if_changed,
 };
+pub use builtin_components::{
+    BUILTIN_COMPONENTS, BuiltinComponentCategory, BuiltinComponentSpec, find_builtin_component,
+};
+pub use defaults::{spawn_default_2d_scene, spawn_default_3d_scene};
 pub use loader::{
     AppliedWorldLoad, PrefixedWorldVfs, apply_loaded_scene_data, begin_async_scene_load,
     decode_world_document_from_vfs, prepare_world_load_request, spawn_world_records,

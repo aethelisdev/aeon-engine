@@ -131,7 +131,7 @@ pub fn handle_spawn_phase1_test_sandbox(engine: &mut AeEngine) {
 }
 
 /// Spawns a UI design canvas element and selects it.
-pub fn handle_spawn_ui_element(engine: &mut AeEngine, ui_type: ae_editor_ui::ui::UiElementType) {
+pub fn handle_spawn_ui_element(engine: &mut AeEngine, ui_type: ae_uidesign::UiElementType) {
     let ent = ae_uidesign::spawn_ui_element(&mut engine.world, ui_type);
     engine.editor.select_single(Some(ent));
 }

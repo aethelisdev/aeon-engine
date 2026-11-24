@@ -13,29 +13,23 @@ use crate::static_plugin::attach_static_game_logic;
 use crate::world_loader::{
     LoadedRuntimeWorld, RuntimeLaunchArgs, discover_vfs_and_entry, load_world_into_runtime,
 };
-use ae_2d::mode::ActiveDimensionMode;
+use ae_2d::{ActiveDimensionMode, Sprite2DSystem, configure_2d_camera};
 use ae_audio::AudioManager;
-use ae_camera::{Camera, ProjectionMode, ViewportRect};
+use ae_camera::{Camera, ViewportRect};
 use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::modules::EngineModule;
 use ae_input::{ActionMap, InputManager, KeyCode};
 use ae_light::LightUniform;
 use ae_physics::PhysicsWorld;
-use ae_plugin_api::{Position, Scale};
 use ae_plugin_host::PluginManager;
-use ae_renderer::asset::{AssetHandle, AssetManager, AssetStorage};
+use ae_renderer::asset::AssetManager;
 use ae_renderer::render::types::RenderScene;
-use ae_renderer::render::{
-    OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
-};
+use ae_renderer::render::{OverlayRenderer, RenderFrameParams, RenderOptions, RenderState};
 use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use ae_state::StateManager;
 use ae_time::{FramePacer, Time};
-use ae_transform::{
-    SpatialGrid, compose_2d_model_matrix, integrate_unconstrained_velocities,
-    update_hierarchy_transforms,
-};
+use ae_transform::{SpatialGrid, integrate_unconstrained_velocities, update_hierarchy_transforms};
 use ae_ui::{InGameHudState, RuntimeHudOverlay, RuntimePauseAction};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -64,10 +58,7 @@ pub struct RuntimeSession {
     hud_overlay: RuntimeHudOverlay,
     plugin_manager: PluginManager,
     dimension_mode: ActiveDimensionMode,
-    sprite_2d: Option<(
-        ae_2d::renderer::Sprite2DPipeline,
-        ae_2d::renderer::SpriteBatcher,
-    )>,
+    sprite_2d: Option<Sprite2DSystem>,
     streaming: RuntimeStreamingManager,
     world_info: LoadedRuntimeWorld,
     physics_sync_dirty: bool,
@@ -117,24 +108,12 @@ impl RuntimeSession {
         };
 
         let sprite_2d = if world_info.is_2d {
-            let pipeline = ae_2d::renderer::Sprite2DPipeline::new(
-                &render_state.device,
-                render_state.config.format,
-                None,
-                1,
-            );
-            let batcher = ae_2d::renderer::SpriteBatcher::new(
+            configure_2d_camera(&mut camera);
+            Some(Sprite2DSystem::new(
                 &render_state.device,
                 &render_state.queue,
-                &pipeline,
-            );
-            camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
-            camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
-            camera.yaw = cgmath::Deg(-90.0).into();
-            camera.pitch = cgmath::Deg(0.0).into();
-            camera.mode = ProjectionMode::Orthographic;
-            camera.ortho_scale = 10.0;
-            Some((pipeline, batcher))
+                render_state.config.format,
+            ))
         } else {
             None
         };
@@ -416,54 +395,17 @@ impl RuntimeSession {
             });
         }
 
-        let mut sprite_overlay = None;
-        if render_enabled
-            && is_2d
-            && let Some((pipeline, batcher)) = &mut self.sprite_2d
-        {
-            batcher.begin_frame();
-            let view_proj = self.camera.build_view_projection_matrix();
-            batcher.update_camera(&self.render_state.queue, &view_proj);
-            for (pos, scale, sprite, hidden_opt) in self
-                .world
-                .query::<(
-                    &Position,
-                    &Scale,
-                    &ae_2d::components::SpriteRenderer,
-                    Option<&ae_plugin_api::Hidden>,
-                )>()
-                .iter()
-            {
-                if hidden_opt.is_some() {
-                    continue;
-                }
-                let tex_id = sprite
-                    .texture
-                    .map(|t| {
-                        use slotmap::Key;
-                        t.data().as_ffi() as u32
-                    })
-                    .unwrap_or(0);
-                let key = ae_2d::components::SpriteSortKey::from_layer_order_texture(
-                    sprite.sorting_layer,
-                    sprite.order_in_layer,
-                    tex_id,
-                );
-                let model = compose_2d_model_matrix(*pos, scale.x, scale.y);
-                let instance = ae_2d::renderer::SpriteInstance {
-                    model_matrix: model.into(),
-                    uv_rect: sprite.uv_rect,
-                    tint: sprite.tint,
-                };
-                batcher.push_instance(key, instance);
-            }
-            batcher.finish_and_upload(&self.render_state.device, &self.render_state.queue);
-            sprite_overlay = Some(RuntimeSprite2DOverlay {
-                pipeline,
-                batcher,
-                textures: &self.asset_manager.textures,
-            });
-        }
+        let sprite_overlay = (render_enabled && is_2d).then_some(()).and_then(|()| {
+            self.sprite_2d.as_mut().map(|sprite_sys| {
+                sprite_sys.prepare_overlay(
+                    &self.render_state.device,
+                    &self.render_state.queue,
+                    &self.world,
+                    &self.camera,
+                    &self.asset_manager.textures,
+                )
+            })
+        });
 
         let mut overlays: Vec<&dyn OverlayRenderer> = Vec::new();
         if let Some(ref ov) = sprite_overlay {
@@ -528,21 +470,6 @@ impl RuntimeSession {
             }
             RuntimePauseAction::None => {}
         }
-    }
-}
-
-struct RuntimeSprite2DOverlay<'a> {
-    pipeline: &'a ae_2d::renderer::Sprite2DPipeline,
-    batcher: &'a ae_2d::renderer::SpriteBatcher,
-    textures: &'a AssetStorage<TextureAsset>,
-}
-
-impl OverlayRenderer for RuntimeSprite2DOverlay<'_> {
-    fn draw_overlay<'b>(&'b self, _queue: &wgpu::Queue, pass: &mut wgpu::RenderPass<'b>) {
-        self.batcher.render(pass, self.pipeline, |id| {
-            let handle = AssetHandle::from(slotmap::KeyData::from_ffi(id as u64));
-            self.textures.get(handle).map(|t| &t.bind_group)
-        });
     }
 }
 

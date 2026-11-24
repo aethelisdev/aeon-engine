@@ -4,7 +4,6 @@
 //! Host scene/prefab dialog orchestration and viewport drag-and-drop asset ingestion.
 
 use crate::engine::AeEngine;
-use ae_editor_ui::ui::PanelId;
 use ae_editor_ui::ui::types::DroppedFileTarget;
 
 /// Opens an OS model/texture import dialog when `editor-dialogs` is enabled.
@@ -171,7 +170,156 @@ pub fn handle_import_dropped_files(
             irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
         );
     }
-    let _ = PanelId::Assets;
+}
+
+fn resolve_pending_world_path(
+    pending: &mut Option<std::path::PathBuf>,
+    active_scene_path: Option<&std::path::PathBuf>,
+) -> std::path::PathBuf {
+    pending
+        .take()
+        .or_else(|| active_scene_path.cloned())
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL)
+        })
+}
+
+fn poll_pending_scene_save(engine: &mut AeEngine) {
+    if !engine.editor.should_save_scene {
+        return;
+    }
+    engine.editor.should_save_scene = false;
+    let path = resolve_pending_world_path(
+        &mut engine.editor.pending_save_path,
+        engine.editor.active_scene_path.as_ref(),
+    );
+    let path_str = path.to_string_lossy().into_owned();
+    match ae_scene::save_partitioned_world(
+        &mut engine.world,
+        &engine.asset_manager,
+        &mut engine.active_world_guid,
+        ae_scene::WorldSaveRequest {
+            filepath: &path,
+            is_2d: engine.dimension_mode.is_2d(),
+            prev_saved_world_dir: engine.saved_world_dir.as_deref(),
+            prev_cell_crcs: &engine.last_saved_cell_crcs,
+        },
+    ) {
+        Ok(saved) => {
+            engine.saved_world_dir = Some(saved.saved_world_dir);
+            engine.last_saved_cell_crcs = saved.cell_crcs;
+            engine.editor.active_scene_path = Some(saved.manifest_path);
+            engine.autosave.reset_timer();
+            engine.ui.set_status_message(
+                format!("Scene saved to {path_str}"),
+                irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+            );
+        }
+        Err(e) => {
+            engine
+                .ui
+                .set_status_message(format!("Save Error: {e}"), irisui::prelude::Color::RED);
+        }
+    }
+}
+
+fn poll_pending_scene_load(engine: &mut AeEngine) {
+    if !engine.editor.should_load_scene {
+        return;
+    }
+    engine.editor.should_load_scene = false;
+    let path = resolve_pending_world_path(
+        &mut engine.editor.pending_load_path,
+        engine.editor.active_scene_path.as_ref(),
+    );
+    match ae_scene::begin_async_scene_load(&path, engine.dimension_mode.is_2d()) {
+        Ok(rx) => {
+            engine.editor.is_loading_assets = true;
+            engine.scene_rx = Some(rx);
+            engine.ui.set_status_message(
+                "Loading world: parsing assets in background...",
+                irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+            );
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                log::error!("{e}");
+                let ui_msg = if engine.dimension_mode.is_2d() {
+                    "Cannot load 3D world in 2D mode! Switch to 3D mode."
+                } else {
+                    "Cannot load 2D world in 3D mode! Switch to 2D mode."
+                };
+                engine
+                    .ui
+                    .set_status_message(ui_msg, irisui::prelude::Color::RED);
+            } else {
+                engine
+                    .ui
+                    .set_status_message(format!("Load Error: {e}"), irisui::prelude::Color::RED);
+            }
+            engine.editor.is_loading_assets = false;
+        }
+    }
+}
+
+fn poll_async_scene_load_result(engine: &mut AeEngine) {
+    let Some(rx) = engine.scene_rx.as_ref() else {
+        return;
+    };
+    let Ok(result) = rx.try_recv() else {
+        return;
+    };
+    engine.scene_rx = None;
+    match result {
+        Ok(scene_data) => {
+            engine.physics_world.clear();
+            engine.editor.selected_entities.clear();
+            engine.editor.undo_stack.clear();
+            engine.editor.redo_stack.clear();
+            engine.autosave.reset_timer();
+
+            let applied = ae_scene::apply_loaded_scene_data(
+                scene_data,
+                &mut engine.world,
+                &engine.render_state,
+                &mut engine.asset_manager,
+                engine.active_vfs.as_deref(),
+            );
+            engine.saved_world_dir = applied.saved_world_dir;
+            engine.active_world_guid = applied.world_guid;
+            engine.last_saved_cell_crcs = applied.cell_crcs;
+            engine.streaming = applied.streaming;
+
+            engine
+                .physics_world
+                .sync_ecs_to_physics(&mut engine.world, |handle| {
+                    engine
+                        .asset_manager
+                        .get_physics_mesh_data(handle)
+                        .map(|(v, i)| (v.as_slice(), i.as_slice()))
+                });
+            engine.editor.is_loading_assets = false;
+            engine.ui.set_status_message(
+                "World loaded successfully!",
+                irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+            );
+            log::info!("Async binary world load processed cleanly.");
+        }
+        Err(e) => {
+            engine.editor.is_loading_assets = false;
+            engine.ui.set_status_message(
+                format!("Async world load failed: {e}"),
+                irisui::prelude::Color::RED,
+            );
+        }
+    }
+}
+
+/// Processes queued editor world save/load requests and polls async world loading completion.
+pub fn process_pending_scene_io(engine: &mut AeEngine) {
+    poll_pending_scene_save(engine);
+    poll_pending_scene_load(engine);
+    poll_async_scene_load_result(engine);
 }
 
 /// Opens an OS file dialog to instantiate an `.aeprefab` archive.

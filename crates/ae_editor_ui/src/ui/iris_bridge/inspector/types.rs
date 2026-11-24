@@ -90,6 +90,22 @@ impl ComponentCategory {
         }
     }
 
+    /// Converts this UI category into the authoritative [`ae_scene::BuiltinComponentCategory`].
+    #[inline]
+    #[must_use]
+    pub const fn to_builtin(self) -> ae_scene::BuiltinComponentCategory {
+        match self {
+            Self::Animation => ae_scene::BuiltinComponentCategory::Animation,
+            Self::Audio => ae_scene::BuiltinComponentCategory::Audio,
+            Self::Gameplay => ae_scene::BuiltinComponentCategory::Gameplay,
+            Self::Hierarchy => ae_scene::BuiltinComponentCategory::Hierarchy,
+            Self::Physics => ae_scene::BuiltinComponentCategory::Physics,
+            Self::Rendering => ae_scene::BuiltinComponentCategory::Rendering,
+            Self::UiHud => ae_scene::BuiltinComponentCategory::UiHud,
+            Self::CustomDynamic => ae_scene::BuiltinComponentCategory::CustomDynamic,
+        }
+    }
+
     /// Reconstructs the component category from a widget tag if it represents a branch.
     #[inline]
     pub const fn from_tag(tag: u64) -> Option<Self> {

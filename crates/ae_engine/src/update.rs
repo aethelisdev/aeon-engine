@@ -178,25 +178,13 @@ impl AeEngine {
         }
         self.poll_async_export();
 
-        if self.editor.enable_live_editor_updates {
-            // Live Update Path: hot-reload enabled, active file watches
-            self.plugin_manager.hot_reload_enabled = true;
-            self.plugin_manager.tick(
-                &mut self.world,
-                &mut self.resources,
-                &mut self.event_bus,
-                self.time.delta_time,
-            );
-        } else {
-            // Fallback Path: Static runtime, zero hot-reload checks, maximum memory stability
-            self.plugin_manager.hot_reload_enabled = false;
-            self.plugin_manager.tick(
-                &mut self.world,
-                &mut self.resources,
-                &mut self.event_bus,
-                self.time.delta_time,
-            );
-        }
+        self.plugin_manager.hot_reload_enabled = self.editor.enable_live_editor_updates;
+        self.plugin_manager.tick(
+            &mut self.world,
+            &mut self.resources,
+            &mut self.event_bus,
+            self.time.delta_time,
+        );
 
         // --- 3D SPATIAL AUDIO ENGINE UPDATE ---
         let is_audio_enabled = self

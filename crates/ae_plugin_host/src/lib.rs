@@ -289,6 +289,54 @@ impl PluginManager {
         Ok(())
     }
 
+    /// Discovers and loads a workspace dynamic plugin library (`plugin_name`, e.g. `"game_logic"`).
+    ///
+    /// Searches the current executable directory (and its `deps/` subfolder) first, falling back to
+    /// `target/{debug|release}` relative to the working directory. Canonicalizes resolved paths
+    /// and enforces that the library resides strictly under the expected target directory.
+    pub fn load_workspace_native_plugin(&mut self, plugin_name: &str) {
+        let lib_filename = ae_plugin_api::platform_lib_filename(plugin_name);
+        let profile = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        };
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(Path::to_path_buf));
+
+        let Some((plugin_path, target_base)) = resolve_native_plugin_candidate(
+            &lib_filename,
+            profile,
+            exe_dir.as_deref(),
+            Path::new("target"),
+        ) else {
+            log::warn!(
+                "Native plugin '{}' not found at target/{}/{}. Run `cargo build -p {}` first.",
+                plugin_name,
+                profile,
+                lib_filename,
+                plugin_name,
+            );
+            return;
+        };
+
+        if !plugin_path.starts_with(&target_base) {
+            core::hint::cold_path();
+            log::error!(
+                "[SECURITY] Plugin path escapes target directory: {:?}",
+                plugin_path
+            );
+            return;
+        }
+
+        let staging_dir = target_base.join("plugins");
+        if let Err(e) = self.load_native_plugin(plugin_path, staging_dir) {
+            core::hint::cold_path();
+            log::error!("Failed to load native plugin '{}': {}", plugin_name, e);
+        }
+    }
+
     /// Called each frame by the engine. Checks for hot reload and calls plugin updates.
     pub fn tick(
         &mut self,
@@ -342,5 +390,70 @@ impl PluginManager {
 impl Default for PluginManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn find_plugin_in_dir(
+    candidate_dir: &Path,
+    lib_filename: &str,
+    base_dir: &Path,
+) -> Option<(PathBuf, PathBuf)> {
+    let direct = candidate_dir.join(lib_filename);
+    if direct.exists() {
+        return std::fs::canonicalize(&direct)
+            .ok()
+            .zip(std::fs::canonicalize(base_dir).ok());
+    }
+    let deps = candidate_dir.join("deps").join(lib_filename);
+    if deps.exists() {
+        return std::fs::canonicalize(&deps)
+            .ok()
+            .zip(std::fs::canonicalize(base_dir).ok());
+    }
+    None
+}
+
+/// Resolves `(canonical_plugin_path, canonical_base_dir)` from `exe_dir` or `target_root/{profile}`.
+fn resolve_native_plugin_candidate(
+    lib_filename: &str,
+    profile: &str,
+    exe_dir: Option<&Path>,
+    target_root: &Path,
+) -> Option<(PathBuf, PathBuf)> {
+    if let Some(dir) = exe_dir
+        && let Some(found) = find_plugin_in_dir(dir, lib_filename, dir)
+    {
+        return Some(found);
+    }
+
+    let profile_dir = target_root.join(profile);
+    find_plugin_in_dir(&profile_dir, lib_filename, target_root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_native_plugin_candidate_handles_missing_paths_and_finds_existing_file() {
+        let missing_dir = std::env::temp_dir().join("ae_plugin_host_missing_dir_xyz");
+        assert!(
+            resolve_native_plugin_candidate("missing.so", "debug", None, &missing_dir).is_none()
+        );
+
+        let temp_root = std::env::temp_dir().join("ae_plugin_host_discovery_test");
+        let _ = std::fs::remove_dir_all(&temp_root);
+        let profile_deps = temp_root.join("debug").join("deps");
+        std::fs::create_dir_all(&profile_deps).expect("create temp target dir");
+        let dummy_lib = profile_deps.join("dummy_plugin.so");
+        std::fs::write(&dummy_lib, b"").expect("write dummy lib");
+
+        let (resolved_lib, resolved_base) =
+            resolve_native_plugin_candidate("dummy_plugin.so", "debug", None, &temp_root)
+                .expect("should resolve dummy plugin in deps");
+        assert!(resolved_lib.starts_with(&resolved_base));
+        assert!(resolved_lib.ends_with("dummy_plugin.so"));
+
+        let _ = std::fs::remove_dir_all(&temp_root);
     }
 }

@@ -51,9 +51,7 @@ fn sync_collider_capsule_to_controller(world: &mut World, entity: Entity) {
 
 /// Attaches a default built-in or registry-backed ECS component by type name.
 pub fn handle_add_component(world: &mut World, entity: Entity, type_name: &str) {
-    if let Some(entry) =
-        ae_editor_ui::ui::iris_bridge::inspector::add_menu::find_builtin_component_entry(type_name)
-    {
+    if let Some(entry) = ae_scene::find_builtin_component(type_name) {
         (entry.spawn_default)(world, entity);
         log::info!(
             "➕ Added built-in component '{}' to entity {:?}",
@@ -90,9 +88,7 @@ pub fn handle_add_component(world: &mut World, entity: Entity, type_name: &str) 
 
 /// Removes a built-in or registry-backed ECS component from `entity` by type name.
 pub fn handle_remove_component(world: &mut World, entity: Entity, type_name: &str) {
-    if let Some(entry) =
-        ae_editor_ui::ui::iris_bridge::inspector::add_menu::find_builtin_component_entry(type_name)
-    {
+    if let Some(entry) = ae_scene::find_builtin_component(type_name) {
         if (entry.remove_component)(world, entity) {
             log::info!(
                 "🗑 Removed built-in component '{}' from entity {:?}",

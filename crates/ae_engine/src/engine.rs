@@ -4,9 +4,7 @@
 use ae_editor::editor_state::EditorState;
 use ae_editor::undo_redo::Command;
 use ae_input::InputManager;
-use ae_light::Light;
 use ae_physics::PhysicsWorld;
-use ae_plugin_api::{Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity};
 use ae_renderer::render::RenderState;
 use ae_time::Time;
 use std::sync::Arc;
@@ -69,10 +67,7 @@ pub struct AeEngine {
     /// Active dimension mode governing engine operational state and memory isolation.
     pub dimension_mode: ae_2d::mode::ActiveDimensionMode,
     /// 2D Sprite batching and rendering pipeline system (allocated ONLY when in 2D mode).
-    pub sprite_2d_system: Option<(
-        ae_2d::renderer::Sprite2DPipeline,
-        ae_2d::renderer::SpriteBatcher,
-    )>,
+    pub sprite_2d_system: Option<ae_2d::Sprite2DSystem>,
     /// Window event and pointer capture arbitration state machine.
     pub input_arbiter: crate::events::InputArbiter,
     /// Window event state and HighDPI coordinate translation coordinator.
@@ -138,164 +133,20 @@ impl AeEngine {
         );
 
         let dimension_mode = cli_args.mode;
-        let sprite_2d_system = if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
-            let pipeline = ae_2d::renderer::Sprite2DPipeline::new(
-                &render_state.device,
-                render_state.config.format,
-                None,
-                1,
-            );
-            let batcher = ae_2d::renderer::SpriteBatcher::new(
-                &render_state.device,
-                &render_state.queue,
-                &pipeline,
-            );
-            Some((pipeline, batcher))
-        } else {
-            None
-        };
+        let sprite_2d_system =
+            (dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D).then(|| {
+                ae_2d::Sprite2DSystem::new(
+                    &render_state.device,
+                    &render_state.queue,
+                    render_state.config.format,
+                )
+            });
 
         let mut world = ae_ecs::World::new();
-
         if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
-            world.spawn((
-                Name("Player Sprite".to_string()),
-                ae_plugin_api::PlayerTag,
-                Position {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                Rotation::identity(),
-                Scale {
-                    x: 2.0,
-                    y: 2.0,
-                    z: 1.0,
-                },
-                ae_2d::components::SpriteRenderer {
-                    tint: [0.18, 0.8, 0.44, 1.0],
-                    sorting_layer: 0,
-                    order_in_layer: 0,
-                    ..Default::default()
-                },
-            ));
-
-            world.spawn((
-                Name("Background Tile".to_string()),
-                Position {
-                    x: 0.0,
-                    y: 0.0,
-                    z: -1.0,
-                },
-                Rotation::identity(),
-                Scale {
-                    x: 10.0,
-                    y: 6.0,
-                    z: 1.0,
-                },
-                ae_2d::components::SpriteRenderer {
-                    tint: [0.1, 0.12, 0.16, 1.0],
-                    sorting_layer: -1,
-                    order_in_layer: 0,
-                    ..Default::default()
-                },
-            ));
+            ae_scene::spawn_default_2d_scene(&mut world);
         } else {
-            // Default Scene setup: Static Ground Plane + Physics Dynamic Cube + Sun Light
-            world.spawn((
-                Name("Ground Plane".to_string()),
-                Shape::Cube,
-                Position {
-                    x: 0.0,
-                    y: -0.5,
-                    z: 0.0,
-                },
-                Rotation::identity(),
-                Scale {
-                    x: 50.0,
-                    y: 1.0,
-                    z: 50.0,
-                },
-                ae_plugin_api::Color {
-                    r: 0.2,
-                    g: 0.25,
-                    b: 0.3,
-                    a: 1.0,
-                },
-                Velocity {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                ae_plugin_api::RigidBody {
-                    body_type: ae_plugin_api::RigidBodyType::Static,
-                    mass: 0.0,
-                    gravity_scale: 0.0,
-                },
-                ae_plugin_api::Collider {
-                    shape: ae_plugin_api::ColliderShape::Box {
-                        half_extents: [0.5, 0.5, 0.5],
-                    },
-                    friction: 0.7,
-                    restitution: 0.0,
-                    is_sensor: false,
-                },
-            ));
-
-            world.spawn((
-                PlayerTag,
-                Name("Dynamic Cube".to_string()),
-                Shape::Cube,
-                Position {
-                    x: 0.0,
-                    y: 5.0,
-                    z: 0.0,
-                },
-                Rotation::identity(),
-                Scale {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                },
-                ae_plugin_api::Color::soft_blue(),
-                Velocity {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                ae_plugin_api::RigidBody {
-                    body_type: ae_plugin_api::RigidBodyType::Dynamic,
-                    mass: 1.0,
-                    gravity_scale: 1.0,
-                },
-                ae_plugin_api::Collider {
-                    shape: ae_plugin_api::ColliderShape::Box {
-                        half_extents: [0.5, 0.5, 0.5],
-                    },
-                    friction: 0.7,
-                    restitution: 0.0,
-                    is_sensor: false,
-                },
-            ));
-
-            world.spawn((
-                Name("Sun".to_string()),
-                Light {
-                    position: [5.0, 15.0, 5.0],
-                    color: [1.0, 1.0, 0.9],
-                },
-                Position {
-                    x: 5.0,
-                    y: 15.0,
-                    z: 5.0,
-                },
-                Rotation::identity(),
-                Scale {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                },
-            ));
+            ae_scene::spawn_default_3d_scene(&mut world);
         }
 
         let debug_renderer = ae_gizmos_render::DebugRenderer::new(
@@ -377,84 +228,16 @@ impl AeEngine {
         let is_2d = dimension_mode.is_2d();
         engine.editor.is_2d = is_2d;
         if is_2d {
-            engine.camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
-            engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
-            engine.camera.yaw = cgmath::Deg(-90.0).into();
-            engine.camera.pitch = cgmath::Deg(0.0).into();
-            engine.camera.mode = ae_camera::ProjectionMode::Orthographic;
-            engine.camera.ortho_scale = 10.0;
+            ae_2d::configure_2d_camera(&mut engine.camera);
         }
 
         // Align physics fixed time step with EditorConfig frequency
         engine.time.set_fixed_hz(engine.editor.config.physics_hz);
 
-        // Load the game logic plugin
-        let lib_filename = ae_plugin_api::platform_lib_filename("game_logic");
-        let profile = if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        };
-
-        let mut plugin_path_opt = None;
-        let mut target_base_opt = None;
-
-        // 1. Try current executable's folder (handles custom cargo target-dir redirection)
-        if let Ok(current_exe) = std::env::current_exe()
-            && let Some(exe_dir) = current_exe.parent()
-        {
-            let plugin_exe_dir = exe_dir.join(&lib_filename);
-            let plugin_exe_deps = exe_dir.join("deps").join(&lib_filename);
-            if plugin_exe_dir.exists() {
-                plugin_path_opt = std::fs::canonicalize(&plugin_exe_dir).ok();
-                target_base_opt = std::fs::canonicalize(exe_dir).ok();
-            } else if plugin_exe_deps.exists() {
-                plugin_path_opt = std::fs::canonicalize(&plugin_exe_deps).ok();
-                target_base_opt = std::fs::canonicalize(exe_dir).ok();
-            }
-        }
-
-        // 2. Fallback to target folder relative to CWD
-        let plugin_rel = std::path::PathBuf::from(format!("target/{}/{}", profile, lib_filename));
-        let plugin_rel_deps =
-            std::path::PathBuf::from(format!("target/{}/deps/{}", profile, lib_filename));
-        if plugin_path_opt.is_none() {
-            if plugin_rel.exists() {
-                plugin_path_opt = std::fs::canonicalize(&plugin_rel).ok();
-                target_base_opt = std::fs::canonicalize("target").ok();
-            } else if plugin_rel_deps.exists() {
-                plugin_path_opt = std::fs::canonicalize(&plugin_rel_deps).ok();
-                target_base_opt = std::fs::canonicalize("target").ok();
-            }
-        }
-
-        match (plugin_path_opt, target_base_opt) {
-            (Some(plugin_path), Some(target_base)) => {
-                // Verify the canonicalized plugin path is inside the expected target/ base directory
-                if !plugin_path.starts_with(&target_base) {
-                    core::hint::cold_path();
-                    log::error!(
-                        "[SECURITY] Plugin path escapes target/ directory: {:?}",
-                        plugin_path
-                    );
-                } else {
-                    let staging_dir = target_base.join("plugins");
-                    if let Err(e) = engine
-                        .plugin_manager
-                        .load_native_plugin(plugin_path, staging_dir)
-                    {
-                        core::hint::cold_path();
-                        log::error!("Failed to load game logic plugin: {}", e);
-                    }
-                }
-            }
-            _ => {
-                log::warn!(
-                    "Game logic plugin not found at {:?}. Run `cargo build -p game_logic` first.",
-                    plugin_rel
-                );
-            }
-        }
+        // Discover and load native game logic plugin from executable/target directory
+        engine
+            .plugin_manager
+            .load_workspace_native_plugin("game_logic");
 
         Ok(engine)
     }
