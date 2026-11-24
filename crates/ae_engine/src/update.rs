@@ -384,60 +384,12 @@ impl AeEngine {
     /// Dispatches queued UI actions to the engine (within profiler UI timing).
     pub fn process_ui_actions(&mut self, actions: Vec<ae_editor_ui::ui::EngineUiAction>) {
         self.profiler.begin_ui();
-        for action in &actions {
-            if let ae_editor_ui::ui::EngineUiAction::StartProjectExport(req) = action
-                && self.export_rx.is_none()
-            {
-                let mut resolved_req = req.clone();
-                if resolved_req.selected_worlds.is_empty() {
-                    if let Some(ref world_dir) = self.saved_world_dir {
-                        let manifest = world_dir.join("world.aeworld");
-                        if manifest.is_file() {
-                            resolved_req.selected_worlds.push(manifest);
-                        }
-                    } else if let Some(ref scene_path) = self.editor.active_scene_path
-                        && scene_path.is_file()
-                    {
-                        resolved_req.selected_worlds.push(scene_path.clone());
-                    }
-                }
-                self.ui.export_modal_mut().begin(&resolved_req.output_dir);
-                self.export_rx = Some(ae_export::spawn_export_pipeline(resolved_req));
-            }
-            if let ae_editor_ui::ui::EngineUiAction::ResumeGame = action
-                && self.state_manager.is_paused()
-            {
-                self.state_manager.pop();
-                let mut pop_cmd = ae_ecs::EntityCommandBuffer::new();
-                self.state_manager
-                    .update(&mut self.world, &mut self.event_bus, &mut pop_cmd, 0.0);
-                pop_cmd.apply(&mut self.world);
-                if !self.dimension_mode.is_2d() {
-                    self.set_cursor_grab(true);
-                }
-                self.editor.mouse_delta = (0.0, 0.0);
-            }
-        }
-
         let old_mode = self.previous_mode;
-        let mut ctx = ae_editor_ui::ui_processor::UiContext {
-            mode: &mut self.mode,
-            world: &mut self.world,
-            editor: &mut self.editor,
-            ui: &mut self.ui,
-            asset_manager: &mut self.asset_manager,
-            camera: &mut self.camera,
-            time: &mut self.time,
-            event_bus: &mut self.event_bus,
-            render_state: &mut self.render_state,
-            dialog_receivers: &mut self.dialog_receivers,
-        };
-        ae_editor_ui::ui_processor::process_ui_actions(&mut ctx, actions);
+        crate::actions::process_ui_actions(self, actions);
         if self.mode != old_mode {
             self.in_game_hud.reset(&mut self.world);
             self.state_manager = ae_core::state::StateManager::new();
             self.previous_mode = self.mode;
-            // Immediate physics world re-sync to reset dynamic Rapier simulation bodies & velocities
             self.physics_world
                 .sync_ecs_to_physics(&mut self.world, |handle| {
                     self.asset_manager

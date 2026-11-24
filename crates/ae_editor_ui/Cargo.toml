@@ -6,7 +6,6 @@ description = "Aeon Engine - Editor native Iris UI panels, docking, and overlays
 
 [dependencies]
 ae_ecs = { workspace = true }
-ae_scene = { workspace = true }
 log = "0.4.33"
 rfd = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -22,7 +21,6 @@ ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
 ae_uidesign = { path = "../ae_uidesign" }
 ae_runtime = { path = "../ae_runtime" }
-ae_2d = { workspace = true }
 ae_assets = { workspace = true }
 image = { version = "0.25.10", default-features = false, features = [
     "png",

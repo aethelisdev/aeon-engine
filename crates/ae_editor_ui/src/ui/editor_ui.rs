@@ -328,6 +328,48 @@ impl EngineUi {
         self.host.tag_redraw(PanelId::Hierarchy);
     }
 
+    /// Activates or brings `panel` into focus within the workbench dock tree.
+    pub fn open_or_focus_panel(&mut self, panel: PanelId) {
+        self.host.open_or_focus_panel(panel);
+    }
+
+    /// Toggles `panel` visibility in the workbench dock tree.
+    pub fn toggle_panel(&mut self, panel: PanelId) {
+        self.host.toggle_panel(panel);
+    }
+
+    /// Resets the workbench dock tree to the default editor layout.
+    pub fn reset_dock_layout(&mut self) {
+        self.host
+            .reset_dock_state(crate::ui::panel_layout::create_default_dock_state());
+    }
+
+    /// Marks `panel` dirty for redraw on the next UI pass.
+    pub fn tag_panel_redraw(&mut self, panel: PanelId) {
+        self.host.tag_redraw(panel);
+    }
+
+    /// Clears transient asset/designer/modal interaction states before entering Play mode.
+    pub fn prepare_for_play_mode(&mut self) {
+        self.open_or_focus_panel(PanelId::Viewport);
+        self.asset_browser.selected_asset = None;
+        self.clear_asset_preview_modal();
+        self.host.close_modal();
+        self.asset_browser.drag_payload = None;
+        self.ui_designer_state.drag_state = None;
+    }
+
+    /// Clears cached Asset Browser items after file drops or filesystem mutations and redraws the panel.
+    pub fn refresh_asset_browser(&mut self, clear_selected_matching: Option<&std::path::Path>) {
+        if clear_selected_matching.is_some()
+            && self.asset_browser.selected_asset.as_deref() == clear_selected_matching
+        {
+            self.asset_browser.selected_asset = None;
+        }
+        self.asset_browser.cached_items.clear();
+        self.host.tag_redraw(PanelId::Assets);
+    }
+
     /// Returns a concise read-only telemetry summary of the retained UI without exposing `UiTree`.
     #[must_use]
     pub fn ui_inspection_summary(&self) -> irisui::workbench::UiInspectionSummary {
