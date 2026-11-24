@@ -43,9 +43,9 @@ pub struct FrameRenderStats {
 }
 
 impl FrameRenderStats {
-    /// Converts `FrameRenderStats` into an `ae_core::telemetry::DrawCallBreakdown` struct.
-    pub fn to_breakdown(&self) -> ae_core::telemetry::DrawCallBreakdown {
-        ae_core::telemetry::DrawCallBreakdown {
+    /// Converts `FrameRenderStats` into an `ae_diagnostic::DrawCallBreakdown` struct.
+    pub fn to_breakdown(&self) -> ae_diagnostic::DrawCallBreakdown {
+        ae_diagnostic::DrawCallBreakdown {
             total_draw_calls: self.draw_calls,
             batched_draw_calls: self.batched_draw_calls,
             instanced_draw_calls: self.instanced_draw_calls,

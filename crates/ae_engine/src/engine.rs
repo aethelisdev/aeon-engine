@@ -50,7 +50,7 @@ pub struct AeEngine {
     pub resources: ae_core::Resources,
     pub event_bus: ae_core::events::DynamicEventBus,
     pub spatial_grid: ae_transform::SpatialGrid,
-    pub profiler: crate::profiler::Profiler,
+    pub profiler: ae_diagnostic::Profiler,
     /// Decoupled Rapier3D physics simulation engine world.
     pub physics_world: PhysicsWorld,
     /// Hardware-accelerated 3D spatial audio engine manager.
@@ -351,7 +351,7 @@ impl AeEngine {
             resources: ae_core::Resources::new(),
             event_bus: ae_core::events::DynamicEventBus::new(),
             spatial_grid: ae_transform::SpatialGrid::new(200.0), // 200-unit default cell size for spatial grid culling
-            profiler: crate::profiler::Profiler::new(),
+            profiler: ae_diagnostic::Profiler::new(),
             physics_world: PhysicsWorld::new(),
             audio_manager,
             texture_watcher: ae_texture::TextureFileWatcher::new(),

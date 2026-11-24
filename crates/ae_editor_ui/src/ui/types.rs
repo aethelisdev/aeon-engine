@@ -276,17 +276,17 @@ pub struct EditorTelemetrySnapshot {
     /// Total frame duration in milliseconds.
     pub profiler_frame_ms: f32,
     /// Detailed CPU thread synchronization timings breakdown.
-    pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
+    pub cpu_timings: ae_diagnostic::CpuSyncTimings,
     /// Detailed CPU command recording timings per render pass.
-    pub pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
+    pub pass_recording_timings: ae_diagnostic::RenderPassRecordingTimings,
     /// 240-frame rolling frame duration history ring buffer.
-    pub frame_pacing: ae_core::telemetry::FrameRingBuffer<240>,
+    pub frame_pacing: ae_diagnostic::FrameRingBuffer<240>,
     /// Precalculated statistical pacing metrics (`1% Low`, `0.1% Low`, jitter).
-    pub frame_pacing_stats: ae_core::telemetry::FramePacingStats,
+    pub frame_pacing_stats: ae_diagnostic::FramePacingStats,
     /// Draw call and batching breakdown counters.
-    pub draw_call_stats: ae_core::telemetry::DrawCallBreakdown,
+    pub draw_call_stats: ae_diagnostic::DrawCallBreakdown,
     /// Granular Video RAM (VRAM) usage breakdown.
-    pub vram_stats: ae_core::telemetry::VramStats,
+    pub vram_stats: ae_diagnostic::VramStats,
     /// Resident model memory usage in megabytes.
     pub memory_models_mb: f32,
     /// Resident texture memory usage in megabytes.

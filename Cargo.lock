@@ -141,6 +141,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_diagnostic"
+version = "0.1.0"
+
+[[package]]
 name = "ae_ecs"
 version = "0.9.0"
 dependencies = [
@@ -179,6 +183,7 @@ dependencies = [
  "ae_audio",
  "ae_camera",
  "ae_core",
+ "ae_diagnostic",
  "ae_ecs",
  "ae_editor",
  "ae_export",
@@ -213,6 +218,7 @@ dependencies = [
  "ae_camera",
  "ae_camera_controller",
  "ae_core",
+ "ae_diagnostic",
  "ae_ecs",
  "ae_editor",
  "ae_editor_ui",
@@ -388,6 +394,7 @@ dependencies = [
  "ae_animation",
  "ae_camera",
  "ae_core",
+ "ae_diagnostic",
  "ae_ecs",
  "ae_mesh",
  "ae_plugin_api",

@@ -98,7 +98,7 @@ pub struct RenderState {
     /// Live rendering and geometry metrics collected during the last frame.
     pub last_render_stats: crate::render::types::FrameRenderStats,
     /// Measured CPU command buffer recording and pass orchestration timings for the last completed frame.
-    pub last_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
+    pub last_recording_timings: ae_diagnostic::RenderPassRecordingTimings,
     /// Physical GPU adapter information (name, backend, device type, driver).
     pub adapter_info: wgpu::AdapterInfo,
     /// Persistent frame scratch buffers for zero-allocation rendering in hot paths.
@@ -113,7 +113,7 @@ impl RenderState {
     pub fn get_vram_breakdown(
         &self,
         asset_manager: &crate::asset::AssetManager,
-    ) -> ae_core::telemetry::VramStats {
+    ) -> ae_diagnostic::VramStats {
         // 1. Textures VRAM
         let mut texture_bytes: usize = 4; // default white texture
         for (_, tex) in asset_manager.textures.iter() {
@@ -168,7 +168,7 @@ impl RenderState {
         let dynamic_uniform_vram_mb = dynamic_uniform_bytes as f32 * bytes_to_mb;
         let total_vram_mb = texture_vram_mb + mesh_index_vram_mb + dynamic_uniform_vram_mb;
 
-        ae_core::telemetry::VramStats {
+        ae_diagnostic::VramStats {
             texture_vram_mb,
             mesh_index_vram_mb,
             dynamic_uniform_vram_mb,

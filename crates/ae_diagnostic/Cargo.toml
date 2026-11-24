@@ -1,0 +1,11 @@
+[package]
+name = "ae_diagnostic"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - Zero-dependency frame pacing, CPU/GPU telemetry structures, and wall-clock Profiler"
+
+[dependencies]
+
+[lints]
+workspace = true

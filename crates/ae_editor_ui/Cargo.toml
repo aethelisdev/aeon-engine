@@ -6,6 +6,7 @@ description = "Aeon Engine - Editor native Iris UI panels, docking, and overlays
 
 [dependencies]
 ae_camera = { workspace = true }
+ae_diagnostic = { workspace = true }
 ae_ecs = { workspace = true }
 ae_gizmos = { workspace = true }
 ae_mesh = { workspace = true }

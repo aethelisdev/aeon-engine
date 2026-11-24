@@ -15,7 +15,7 @@ use crate::ui::iris_bridge::stats::types::{
     StatsPanelState, is_stats_tag,
 };
 use crate::ui::types::{EditorTelemetrySnapshot, EngineUiAction};
-use ae_core::telemetry::{CpuSyncTimings, FramePacingStats, FrameRingBuffer};
+use ae_diagnostic::{CpuSyncTimings, FramePacingStats, FrameRingBuffer};
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 

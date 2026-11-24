@@ -6,6 +6,7 @@ description = "Aeon Engine - WGPU rendering pipeline"
 
 [dependencies]
 ae_camera = { workspace = true }
+ae_diagnostic = { workspace = true }
 ae_mesh = { workspace = true }
 ae_transform = { workspace = true }
 winit = "0.30.13"

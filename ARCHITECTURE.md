@@ -35,7 +35,8 @@ graph TD
         ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
         ae_ecs --> ae_camera_controller
         ae_plugin_api --> ae_camera_controller
-        ae_plugin_api --> ae_core["ae_core (Events, State, Time, Telemetry, HUD; Zero winit/cgmath/glam)"]
+        ae_plugin_api --> ae_core["ae_core (Events, State, Time, Behaviors; Zero winit/cgmath/glam)"]
+        ae_diagnostic["ae_diagnostic (Profiler, FrameRingBuffer, Timings, DrawCallBreakdown, VramStats)"]
         ae_plugin_api --> ae_transform["ae_transform (TRS Matrix, Conversions, Hierarchy, Reparent, SpatialGrid)"]
         ae_ecs --> ae_transform
         ae_input["ae_input (InputManager, ActionMap, AxisBinding, KeyCode, MouseButton)"]
@@ -55,7 +56,8 @@ graph TD
         ae_core --> ae_animation["ae_animation (3D Skeletal)"]
         ae_ecs --> ae_animation
         ae_camera --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
-        ae_camera --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
+        ae_camera --> ae_renderer
+        ae_diagnostic --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
         ae_world --> ae_renderer
         ae_ecs --> ae_renderer
@@ -64,6 +66,7 @@ graph TD
         ae_texture --> ae_mesh
         ae_mesh --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_camera --> ae_renderer
+        ae_diagnostic --> ae_renderer
         ae_animation --> ae_renderer
         ae_world --> ae_renderer
         ae_ecs --> ae_renderer
@@ -137,10 +140,12 @@ graph TD
         ae_gizmos --> ae_editor_ui
         ae_export --> ae_editor_ui
         ae_ui --> ae_editor_ui
+        ae_diagnostic --> ae_editor_ui
         irisui --> ae_editor_ui
 
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
         ae_ui --> ae_engine
+        ae_diagnostic --> ae_engine
         ae_camera --> ae_engine
         ae_camera_controller --> ae_engine
         ae_input --> ae_engine

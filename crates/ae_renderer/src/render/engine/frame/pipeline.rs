@@ -642,7 +642,7 @@ impl RenderState {
             + main_opaque_pass_record_ms
             + post_process_pass_record_ms
             + ui_pass_record_ms;
-        self.last_recording_timings = ae_core::telemetry::RenderPassRecordingTimings {
+        self.last_recording_timings = ae_diagnostic::RenderPassRecordingTimings {
             shadow_pass_record_ms,
             main_opaque_pass_record_ms,
             post_process_pass_record_ms,
@@ -754,7 +754,7 @@ impl RenderState {
         let ui_pass_record_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
 
         let total_record_ms = main_opaque_pass_record_ms + ui_pass_record_ms;
-        self.last_recording_timings = ae_core::telemetry::RenderPassRecordingTimings {
+        self.last_recording_timings = ae_diagnostic::RenderPassRecordingTimings {
             shadow_pass_record_ms: 0.0,
             main_opaque_pass_record_ms,
             post_process_pass_record_ms: 0.0,

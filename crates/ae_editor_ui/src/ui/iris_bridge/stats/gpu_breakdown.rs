@@ -7,7 +7,7 @@
 //! and pass durations purely using [`UiScope`] without intermediate `let`s or heap `format!`.
 
 use super::cpu_breakdown::{build_timing_row, write_ms_fixed2};
-use ae_core::telemetry::RenderPassRecordingTimings;
+use ae_diagnostic::RenderPassRecordingTimings;
 use irisui::prelude::*;
 
 #[inline]

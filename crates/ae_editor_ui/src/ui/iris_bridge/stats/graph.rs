@@ -10,7 +10,7 @@ use super::types::{
     STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_JITTER, STATS_TAG_LOW_01, STATS_TAG_LOW_1,
     STATS_TAG_SUMMARY,
 };
-use ae_core::telemetry::{FramePacingStats, FrameRingBuffer};
+use ae_diagnostic::{FramePacingStats, FrameRingBuffer};
 use irisui::prelude::*;
 use irisui::widgets::canvas::ChartDrawer;
 use std::fmt::Write;

@@ -11,7 +11,7 @@ use super::types::{
     STATS_TAG_CPU_BALANCE, STATS_TAG_CPU_ECS, STATS_TAG_CPU_PHYSICS, STATS_TAG_CPU_RENDER,
     STATS_TAG_CPU_TOTAL, STATS_TAG_CPU_UI, STATS_TAG_CPU_WAIT,
 };
-use ae_core::telemetry::CpuSyncTimings;
+use ae_diagnostic::CpuSyncTimings;
 use irisui::prelude::*;
 use std::fmt::Write;
 

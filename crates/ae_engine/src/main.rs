@@ -14,7 +14,6 @@ pub mod mcp_host;
 /// and delegates all event processing to `AeEngine`. Implements `ApplicationHandler` for
 /// the modern winit 0.30+ callback-based architecture.
 mod importer;
-pub mod profiler;
 pub mod render_pass;
 pub mod update;
 use std::sync::Arc;

@@ -6,7 +6,7 @@
 //! Exposes parameter structures, semantic [`UiTag`] identifiers, and panel state
 //! for the pure declarative [`UiScope`] Stats & Profiler panel.
 
-use ae_core::telemetry::FrameRingBuffer;
+use ae_diagnostic::FrameRingBuffer;
 use irisui::prelude::*;
 
 // ── Semantic 64-bit Tags ──────────────────────────────────────────────────

@@ -6,7 +6,7 @@
 //! Renders the geometry metrics card and VRAM allocation distribution card
 //! purely using zero-`let`, zero-heap [`UiScope`] and [`StackString`] primitives.
 
-use ae_core::telemetry::{DrawCallBreakdown, VramStats};
+use ae_diagnostic::{DrawCallBreakdown, VramStats};
 use irisui::prelude::*;
 use std::fmt::Write;
 
@@ -115,7 +115,7 @@ pub fn build_vram_breakdown_content(scope: &mut UiScope<'_>, vram_stats: &VramSt
 
 fn build_vram_with_total(
     scope: &mut UiScope<'_>,
-    vram: &ae_core::telemetry::VramStats,
+    vram: &ae_diagnostic::VramStats,
     total_vram_mb: f32,
 ) {
     scope.container(Style::new().flex_col().gap(4.0), |s| {

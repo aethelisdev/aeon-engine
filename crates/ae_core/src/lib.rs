@@ -4,7 +4,6 @@ pub mod behavior;
 pub mod events;
 pub mod modules;
 pub mod state;
-pub mod telemetry;
 pub mod time;
 
 pub use ae_plugin_api::Resources;
