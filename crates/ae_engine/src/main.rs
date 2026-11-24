@@ -49,7 +49,7 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 struct AeApp {
     cli_args: cli::CliArgs,
     engine: Option<AeEngine>,
-    last_frame_time: std::time::Instant,
+    frame_pacer: ae_time::FramePacer,
 }
 
 impl AeApp {
@@ -57,7 +57,7 @@ impl AeApp {
         Self {
             cli_args,
             engine: None,
-            last_frame_time: std::time::Instant::now(),
+            frame_pacer: ae_time::FramePacer::new(),
         }
     }
 }
@@ -170,7 +170,7 @@ impl ApplicationHandler for AeApp {
             };
             window.set_visible(true);
             self.engine = Some(engine);
-            self.last_frame_time = std::time::Instant::now();
+            self.frame_pacer.reset();
         }
     }
 
@@ -215,36 +215,12 @@ impl ApplicationHandler for AeApp {
     /// In limited modes (60/120 FPS), a high-precision spin-sleep timing pacer is applied before rendering.
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(engine) = self.engine.as_mut() {
-            let fps_limit = engine.render_state.graphics_settings.fps_limit;
-
-            match fps_limit {
-                ae_renderer::graphics_settings::FpsLimit::Limit60
-                | ae_renderer::graphics_settings::FpsLimit::Limit120 => {
-                    let target_fps = match fps_limit {
-                        ae_renderer::graphics_settings::FpsLimit::Limit60 => 60.0,
-                        ae_renderer::graphics_settings::FpsLimit::Limit120 => 120.0,
-                        _ => unreachable!(),
-                    };
-                    let target_duration = std::time::Duration::from_secs_f32(1.0 / target_fps);
-
-                    // Enforce frame pacing unconditionally (including during OS file drag hover)
-                    // so ControlFlow::Poll never spins uncapped when hovering files over the window
-                    if let Some(remaining) =
-                        compute_frame_pacing_sleep(self.last_frame_time.elapsed(), target_duration)
-                    {
-                        spin_sleep::sleep(remaining);
-                    }
-
-                    // New frame cycle begins exactly at this point (after sleep)
-                    self.last_frame_time = std::time::Instant::now();
-                    self.update_and_render(event_loop);
-                }
-                ae_renderer::graphics_settings::FpsLimit::Uncapped => {
-                    // In uncapped mode, update timer immediately and render to prevent input/render latency.
-                    self.last_frame_time = std::time::Instant::now();
-                    self.update_and_render(event_loop);
-                }
+            let target_fps = engine.render_state.graphics_settings.fps_limit.target_hz();
+            if let Some(remaining) = self.frame_pacer.remaining_sleep_for_fps(target_fps) {
+                spin_sleep::sleep(remaining);
             }
+            self.frame_pacer.reset();
+            self.update_and_render(event_loop);
         }
     }
 }
@@ -490,51 +466,5 @@ fn main() {
     let mut app = AeApp::new(cli_args);
     if let Err(err) = event_loop.run_app(&mut app) {
         log::error!("[AeonEngine] Event loop terminated with error: {err}");
-    }
-}
-
-/// Computes the remaining frame pacing sleep duration for a capped frame rate limit.
-///
-/// Returns `Some(target_duration - elapsed)` whenever `elapsed < target_duration` and
-/// `target_duration` is positive, ensuring capped 60/120 FPS modes do not unlock and
-/// spin under continuous polling loops.
-#[must_use]
-fn compute_frame_pacing_sleep(
-    elapsed: std::time::Duration,
-    target_duration: std::time::Duration,
-) -> Option<std::time::Duration> {
-    if !target_duration.is_zero() && elapsed < target_duration {
-        Some(target_duration - elapsed)
-    } else {
-        None
-    }
-}
-
-#[cfg(test)]
-mod frame_pacing_tests {
-    use super::compute_frame_pacing_sleep;
-    use std::time::Duration;
-
-    #[test]
-    fn test_compute_frame_pacing_sleep_returns_remaining_budget_for_120_fps() {
-        let target_120 = Duration::from_secs_f32(1.0 / 120.0);
-        let elapsed = Duration::from_millis(2);
-        let remaining = compute_frame_pacing_sleep(elapsed, target_120)
-            .expect("120 FPS budget with 2ms elapsed must sleep for remaining frame budget");
-        assert_eq!(remaining, target_120 - elapsed);
-    }
-
-    #[test]
-    fn test_compute_frame_pacing_sleep_rejects_expired_and_zero_budgets() {
-        let target_120 = Duration::from_secs_f32(1.0 / 120.0);
-        assert_eq!(compute_frame_pacing_sleep(target_120, target_120), None);
-        assert_eq!(
-            compute_frame_pacing_sleep(Duration::from_millis(16), target_120),
-            None
-        );
-        assert_eq!(
-            compute_frame_pacing_sleep(Duration::from_millis(1), Duration::ZERO),
-            None
-        );
     }
 }

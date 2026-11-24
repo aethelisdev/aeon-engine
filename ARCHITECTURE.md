@@ -35,9 +35,10 @@ graph TD
         ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
         ae_ecs --> ae_camera_controller
         ae_plugin_api --> ae_camera_controller
-        ae_plugin_api --> ae_core["ae_core (Events, Time, Behaviors; Zero winit/cgmath/glam)"]
+        ae_plugin_api --> ae_core["ae_core (Events, Modules, Behaviors; Zero winit/cgmath/glam)"]
         ae_plugin_api --> ae_state["ae_state (GameState, StateManager, StateTransition)"]
         ae_ecs --> ae_state
+        ae_time["ae_time (Time, Fixed-Timestep Accumulator, FramePacer; Zero External Deps)"]
         ae_diagnostic["ae_diagnostic (Profiler, FrameRingBuffer, Timings, DrawCallBreakdown, VramStats)"]
         ae_plugin_api --> ae_transform["ae_transform (TRS Matrix, Conversions, Hierarchy, Reparent, SpatialGrid)"]
         ae_ecs --> ae_transform
@@ -126,6 +127,7 @@ graph TD
         ae_renderer --> ae_ui
         irisui --> ae_ui
         ae_state --> ae_runtime
+        ae_time --> ae_runtime
         ae_camera --> ae_runtime
         ae_camera_controller --> ae_runtime
         ae_input --> ae_runtime
@@ -150,6 +152,7 @@ graph TD
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
         ae_ui --> ae_engine
         ae_state --> ae_engine
+        ae_time --> ae_engine
         ae_diagnostic --> ae_engine
         ae_camera --> ae_engine
         ae_camera_controller --> ae_engine

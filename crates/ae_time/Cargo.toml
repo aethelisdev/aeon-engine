@@ -1,0 +1,11 @@
+[package]
+name = "ae_time"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - Zero-dependency monotonic simulation clock, fixed-timestep accumulator, and frame pacing"
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -19,7 +19,6 @@ use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::modules::EngineModule;
-use ae_core::time::Time;
 use ae_input::{ActionMap, InputManager, KeyCode};
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Position, Scale};
@@ -31,6 +30,7 @@ use ae_renderer::render::{
 };
 use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use ae_state::StateManager;
+use ae_time::{FramePacer, Time};
 use ae_transform::{
     SpatialGrid, compose_2d_model_matrix, integrate_unconstrained_velocities,
     update_hierarchy_transforms,
@@ -557,7 +557,7 @@ struct DesktopPlayerApp {
     args: RuntimeLaunchArgs,
     embedded_pak: Option<&'static [u8]>,
     session: Option<RuntimeSession>,
-    last_frame_time: std::time::Instant,
+    frame_pacer: FramePacer,
 }
 
 impl ApplicationHandler for DesktopPlayerApp {
@@ -671,24 +671,11 @@ impl ApplicationHandler for DesktopPlayerApp {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(session) = self.session.as_ref() {
-            match session.render_state.graphics_settings.fps_limit {
-                ae_renderer::graphics_settings::FpsLimit::Limit60 => {
-                    let target = std::time::Duration::from_secs_f32(1.0 / 60.0);
-                    let elapsed = self.last_frame_time.elapsed();
-                    if elapsed < target {
-                        spin_sleep::sleep(target - elapsed);
-                    }
-                }
-                ae_renderer::graphics_settings::FpsLimit::Limit120 => {
-                    let target = std::time::Duration::from_secs_f32(1.0 / 120.0);
-                    let elapsed = self.last_frame_time.elapsed();
-                    if elapsed < target {
-                        spin_sleep::sleep(target - elapsed);
-                    }
-                }
-                ae_renderer::graphics_settings::FpsLimit::Uncapped => {}
+            let target_fps = session.render_state.graphics_settings.fps_limit.target_hz();
+            if let Some(remaining) = self.frame_pacer.remaining_sleep_for_fps(target_fps) {
+                spin_sleep::sleep(remaining);
             }
-            self.last_frame_time = std::time::Instant::now();
+            self.frame_pacer.reset();
             session.window.request_redraw();
         }
     }
@@ -708,7 +695,7 @@ pub fn run_desktop_player(
         args,
         embedded_pak,
         session: None,
-        last_frame_time: std::time::Instant::now(),
+        frame_pacer: FramePacer::new(),
     };
     event_loop
         .run_app(&mut app)

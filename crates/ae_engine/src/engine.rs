@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use ae_core::time::Time;
 use ae_editor::editor_state::EditorState;
 use ae_editor::undo_redo::Command;
 use ae_input::InputManager;
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Light, Name, PlayerTag, Position, Rotation, Scale, Shape, Velocity};
 use ae_renderer::render::RenderState;
+use ae_time::Time;
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -385,7 +385,7 @@ impl AeEngine {
         }
 
         // Align physics fixed time step with EditorConfig frequency
-        engine.time.fixed_time_step = 1.0 / engine.editor.config.physics_hz;
+        engine.time.set_fixed_hz(engine.editor.config.physics_hz);
 
         // Load the game logic plugin
         let lib_filename = ae_plugin_api::platform_lib_filename("game_logic");

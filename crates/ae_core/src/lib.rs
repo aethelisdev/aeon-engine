@@ -3,7 +3,6 @@
 pub mod behavior;
 pub mod events;
 pub mod modules;
-pub mod time;
 
 pub use ae_plugin_api::Resources;
 pub use behavior::{Behavior, BehaviorContext, NativeBehavior};

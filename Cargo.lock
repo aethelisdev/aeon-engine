@@ -236,6 +236,7 @@ dependencies = [
  "ae_scene",
  "ae_state",
  "ae_texture",
+ "ae_time",
  "ae_transform",
  "ae_ui",
  "ae_uidesign",
@@ -434,6 +435,7 @@ dependencies = [
  "ae_scene",
  "ae_state",
  "ae_texture",
+ "ae_time",
  "ae_transform",
  "ae_ui",
  "ae_world",
@@ -493,6 +495,10 @@ dependencies = [
  "log",
  "slotmap",
 ]
+
+[[package]]
+name = "ae_time"
+version = "0.1.0"
 
 [[package]]
 name = "ae_transform"

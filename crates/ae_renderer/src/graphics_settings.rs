@@ -76,6 +76,16 @@ impl FpsLimit {
             FpsLimit::Uncapped => "Uncapped",
         }
     }
+
+    /// Returns the target frame-rate cap in Hertz, or `None` when uncapped.
+    #[must_use]
+    pub const fn target_hz(self) -> Option<f32> {
+        match self {
+            FpsLimit::Limit60 => Some(60.0),
+            FpsLimit::Limit120 => Some(120.0),
+            FpsLimit::Uncapped => None,
+        }
+    }
 }
 
 /// Atmospheric sky rendering quality levels.
