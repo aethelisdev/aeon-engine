@@ -32,7 +32,7 @@ pub fn step_player_movement(
     input: &InputManager,
     world: &mut ae_ecs::World,
     physics_world: &mut PhysicsWorld,
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     is_2d: bool,
     dt: f32,
 ) {
@@ -124,91 +124,6 @@ pub fn step_player_movement(
         );
         physics_world.move_character(world, ent, translation, dt);
     }
-}
-
-/// Updates Play-mode camera tracking (orthographic 2D follow or 3D orbit rig) without editor state.
-///
-/// Consumes `mouse_delta` and zeroes it out after applying rotation.
-pub fn update_play_camera(
-    world: &mut ae_ecs::World,
-    camera: &mut ae_core::camera::Camera,
-    mouse_delta: &mut (f32, f32),
-    mouse_sensitivity: f32,
-) {
-    if camera.mode == ae_core::camera::ProjectionMode::Orthographic {
-        camera.yaw = cgmath::Rad(-std::f32::consts::FRAC_PI_2);
-        camera.pitch = cgmath::Rad(0.0);
-        *mouse_delta = (0.0, 0.0);
-
-        if let Some(target_pos) = find_play_target_pos(world, false) {
-            camera.position.x = target_pos.x;
-            camera.position.y = target_pos.y;
-            camera.position.z = 10.0;
-            camera.target.x = target_pos.x;
-            camera.target.y = target_pos.y;
-            camera.target.z = 0.0;
-        } else {
-            camera.target = camera.position + camera.get_forward();
-        }
-        return;
-    }
-
-    let (dx, dy) = *mouse_delta;
-    if dx.abs() > 0.001 || dy.abs() > 0.001 {
-        let sensitivity = mouse_sensitivity * 0.7;
-        camera.yaw += cgmath::Rad(dx * sensitivity);
-        camera.pitch -= cgmath::Rad(dy * sensitivity);
-
-        let max_pitch = cgmath::Rad(std::f32::consts::FRAC_PI_2 * 0.83);
-        if camera.pitch > max_pitch {
-            camera.pitch = max_pitch;
-        } else if camera.pitch < -max_pitch {
-            camera.pitch = -max_pitch;
-        }
-    }
-    *mouse_delta = (0.0, 0.0);
-
-    if let Some(mut target_pos) = find_play_target_pos(world, true) {
-        target_pos.y += 1.5;
-        let forward = camera.get_forward();
-        let arm_distance = 6.0_f32;
-        camera.position = target_pos - forward * arm_distance;
-        camera.target = target_pos;
-    } else {
-        camera.target = camera.position + camera.get_forward();
-    }
-}
-
-fn find_play_target_pos(
-    world: &mut ae_ecs::World,
-    prefer_controller: bool,
-) -> Option<cgmath::Point3<f32>> {
-    if prefer_controller {
-        if let Some(pos) = query_controller_pos(world) {
-            return Some(pos);
-        }
-        return query_player_tag_pos(world);
-    }
-    if let Some(pos) = query_player_tag_pos(world) {
-        return Some(pos);
-    }
-    query_controller_pos(world)
-}
-
-fn query_player_tag_pos(world: &mut ae_ecs::World) -> Option<cgmath::Point3<f32>> {
-    world
-        .query_mut::<(&PlayerTag, &Position)>()
-        .into_iter()
-        .next()
-        .map(|(_, pos)| cgmath::Point3::new(pos.x, pos.y, pos.z))
-}
-
-fn query_controller_pos(world: &mut ae_ecs::World) -> Option<cgmath::Point3<f32>> {
-    world
-        .query_mut::<(&ae_plugin_api::CharacterController, &Position)>()
-        .into_iter()
-        .next()
-        .map(|(_, pos)| cgmath::Point3::new(pos.x, pos.y, pos.z))
 }
 
 /// Evaluates active skeletal animation clips and pushes GPU skinning bone matrices.

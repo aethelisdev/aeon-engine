@@ -49,6 +49,19 @@ impl Default for EditorConfig {
     }
 }
 
+impl EditorConfig {
+    /// Converts editor camera preferences into an [`ae_camera_controller::EditorCameraConfig`].
+    #[must_use]
+    pub fn camera_config(&self) -> ae_camera_controller::EditorCameraConfig {
+        ae_camera_controller::EditorCameraConfig {
+            base_speed: self.camera_base_speed,
+            shift_multiplier: self.camera_shift_multiplier,
+            scroll_speed: self.camera_scroll_speed,
+            mouse_sensitivity: self.mouse_sensitivity,
+        }
+    }
+}
+
 /// Aeon Engine — Editor State
 ///
 /// Isolates all logic and state specific to the level editor interface:
@@ -72,7 +85,7 @@ pub struct EditorState {
     /// A full scene backup used to restore state when exiting Play Mode.
     pub scene_backup: HashMap<Entity, EntitySnapshot>,
     /// Camera backup to restore editor camera transform when exiting Play Mode.
-    pub camera_backup: Option<ae_core::camera::Camera>,
+    pub camera_backup: Option<ae_camera::Camera>,
     /// Multi-selection: list of selected entities.
     pub selected_entities: Vec<Entity>,
     /// Store original positions for multi-selection drag.

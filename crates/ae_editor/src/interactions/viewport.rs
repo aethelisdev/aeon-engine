@@ -10,7 +10,7 @@ use cgmath::{EuclideanSpace, Quaternion, Vector3};
 /// Parameters for handling cursor movement in the viewport.
 pub struct CursorMoveParams {
     pub window_size: (u32, u32),
-    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_edit_mode: bool,
     pub x: f64,
@@ -20,7 +20,7 @@ pub struct CursorMoveParams {
 /// Handles cursor movement events — delegates to mouse-look and gizmo drag.
 pub fn handle_cursor_moved(
     editor: &mut EditorState,
-    camera: &mut ae_core::camera::Camera,
+    camera: &mut ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: CursorMoveParams,
@@ -39,16 +39,12 @@ pub fn handle_cursor_moved(
     editor.last_cursor_pos = (x, y);
 
     if editor.right_mouse_pressed && is_edit_mode {
-        if camera.mode == ae_core::camera::ProjectionMode::Orthographic {
+        if camera.mode == ae_camera::ProjectionMode::Orthographic {
             let vp_h =
                 ((last_viewport_rect.max_y - last_viewport_rect.min_y) * scale_factor).max(1.0);
-            let world_per_pixel = camera.ortho_scale / vp_h;
-            camera.position.x -= (dx as f32) * world_per_pixel;
-            camera.position.y += (dy as f32) * world_per_pixel;
-            camera.target.x = camera.position.x;
-            camera.target.y = camera.position.y;
+            ae_camera_controller::pan_orthographic_camera(camera, dx, dy, vp_h);
         } else {
-            crate::modes::handle_mouse_look(camera, editor, dx, dy);
+            ae_camera_controller::apply_mouse_look(camera, dx, dy, editor.config.mouse_sensitivity);
         }
     }
 
@@ -123,7 +119,7 @@ pub fn handle_cursor_moved(
 pub struct MouseClickParams<'a> {
     pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
     pub window_size: (u32, u32),
-    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_point_over_ui: &'a dyn Fn([f32; 2]) -> bool,
     pub is_edit_mode: bool,
@@ -135,7 +131,7 @@ pub struct MouseClickParams<'a> {
 /// Routes mouse button press/release events to the appropriate handler.
 pub fn handle_mouse_click(
     editor: &mut EditorState,
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: MouseClickParams<'_>,
@@ -204,7 +200,7 @@ pub fn handle_mouse_click(
 /// Determines whether a mouse event should be forwarded to 3D viewport logic.
 pub fn should_pass_to_3d(
     editor: &EditorState,
-    last_viewport_rect: ae_renderer::render::ViewportRect,
+    last_viewport_rect: ae_camera::ViewportRect,
     scale_factor: f32,
     is_point_over_ui: &dyn Fn([f32; 2]) -> bool,
 ) -> bool {
@@ -244,7 +240,7 @@ pub fn map_window_to_viewport(
     mx: f64,
     my: f64,
     window_size: (u32, u32),
-    last_viewport_rect: ae_renderer::render::ViewportRect,
+    last_viewport_rect: ae_camera::ViewportRect,
     scale_factor: f32,
 ) -> (f32, f32, (u32, u32)) {
     let rect = last_viewport_rect;
@@ -270,7 +266,7 @@ pub fn map_window_to_viewport(
 
 #[cfg(test)]
 mod tests {
-    use ae_core::camera::{Camera, ProjectionMode};
+    use ae_camera::{Camera, ProjectionMode};
 
     /// Verifies that right-click dragging while in Orthographic mode preserves
     /// `ProjectionMode::Orthographic` and updates camera planar position.

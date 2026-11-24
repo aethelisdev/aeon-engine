@@ -1,42 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Viewport & Frame Telemetry Metrics
+//! # Frame Telemetry & Overlay Rendering Interfaces
 //!
-//! Viewport rectangle hit-testing, generic overlay rendering interfaces, and per-frame draw call telemetry.
-
-/// ViewportRect represents screen boundaries of the 3D Viewport.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct ViewportRect {
-    pub min_x: f32,
-    pub min_y: f32,
-    pub max_x: f32,
-    pub max_y: f32,
-}
-
-impl ViewportRect {
-    /// Returns true if logical coordinates (x, y) fall strictly inside the viewport boundaries.
-    #[inline]
-    pub fn contains(&self, x: f32, y: f32) -> bool {
-        x >= self.min_x && x <= self.max_x && y >= self.min_y && y <= self.max_y
-    }
-}
-
-/// Viewport descriptor for sub-region rendering.
-#[derive(Debug, Clone, Copy)]
-pub struct Viewport {
-    pub position: [f32; 2],
-    pub size: [f32; 2],
-}
-
-impl Default for Viewport {
-    fn default() -> Self {
-        Self {
-            position: [0.0, 0.0],
-            size: [800.0, 600.0],
-        }
-    }
-}
+//! Generic overlay rendering interface and per-frame draw call telemetry.
 
 /// Generic overlay renderer trait for drawing editor overlays into the main render pass.
 ///

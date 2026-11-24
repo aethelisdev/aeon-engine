@@ -8,7 +8,7 @@ pub struct SceneUniforms {
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_buffer: wgpu::Buffer,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera_uniform: crate::camera::CameraUniform,
+    pub camera_uniform: ae_camera::CameraUniform,
 
     pub light_bind_group: wgpu::BindGroup,
     pub light_buffer: wgpu::Buffer,
@@ -26,8 +26,8 @@ pub struct SceneUniforms {
 
 impl SceneUniforms {
     /// Initializes all uniform buffers and bind group layouts for camera, light, sky, and textures.
-    pub fn new(device: &wgpu::Device, camera: &crate::camera::Camera) -> Self {
-        let mut camera_uniform = crate::camera::CameraUniform::new();
+    pub fn new(device: &wgpu::Device, camera: &ae_camera::Camera) -> Self {
+        let mut camera_uniform = ae_camera::CameraUniform::new();
         camera_uniform.update_view_proj(camera);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -192,7 +192,7 @@ impl SceneUniforms {
     }
 
     /// Updates the camera uniform buffer with the current view-projection matrix.
-    pub fn update(&mut self, queue: &wgpu::Queue, camera: &crate::camera::Camera) {
+    pub fn update(&mut self, queue: &wgpu::Queue, camera: &ae_camera::Camera) {
         self.camera_uniform.update_view_proj(camera);
         queue.write_buffer(
             &self.camera_buffer,

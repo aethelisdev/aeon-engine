@@ -4,8 +4,8 @@ use std::sync::Arc;
 use winit::window::Window;
 
 use super::frame::forward::{PreparedModelBatch, TransparentSubmeshDraw};
-use crate::render::types::ViewportRect;
 use crate::render::viewport_texture::ViewportTexture;
+use ae_camera::ViewportRect;
 
 /// Persistent per-frame scratch buffers reused across renders to eliminate heap allocations in the hot path.
 #[derive(Default)]

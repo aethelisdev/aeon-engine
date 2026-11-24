@@ -101,20 +101,20 @@ pub fn handle_set_live_editor_updates(engine: &mut AeEngine, val: bool) {
 }
 
 /// Updates editor viewport camera projection mode.
-pub fn handle_set_camera_mode(engine: &mut AeEngine, mode: ae_renderer::camera::ProjectionMode) {
+pub fn handle_set_camera_mode(engine: &mut AeEngine, mode: ae_camera::ProjectionMode) {
     engine.camera.mode = mode;
 }
 
 /// Toggles viewport camera projection mode between perspective and orthographic.
 pub fn handle_toggle_camera_projection(engine: &mut AeEngine) {
     match engine.camera.mode {
-        ae_renderer::camera::ProjectionMode::Perspective => {
-            engine.camera.mode = ae_renderer::camera::ProjectionMode::Orthographic;
+        ae_camera::ProjectionMode::Perspective => {
+            engine.camera.mode = ae_camera::ProjectionMode::Orthographic;
             engine.camera.pitch = cgmath::Rad(0.0);
             engine.camera.yaw = cgmath::Rad(-std::f32::consts::FRAC_PI_2);
         }
-        ae_renderer::camera::ProjectionMode::Orthographic => {
-            engine.camera.mode = ae_renderer::camera::ProjectionMode::Perspective;
+        ae_camera::ProjectionMode::Orthographic => {
+            engine.camera.mode = ae_camera::ProjectionMode::Perspective;
             if engine.camera.pitch.0.abs() < 0.05 {
                 engine.camera.pitch = cgmath::Rad(-0.35);
                 engine.camera.yaw = cgmath::Rad(-0.60);
@@ -129,7 +129,7 @@ pub fn handle_set_camera_transform(
     pitch: cgmath::Rad<f32>,
     yaw: cgmath::Rad<f32>,
     pos: cgmath::Point3<f32>,
-    mode: Option<ae_renderer::camera::ProjectionMode>,
+    mode: Option<ae_camera::ProjectionMode>,
 ) {
     engine.camera.pitch = pitch;
     engine.camera.yaw = yaw;

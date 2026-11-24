@@ -228,7 +228,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
 #[test]
 fn test_asset_drag_overlay_construction() {
     use ae_assets::types::{AssetCategory, AssetDragPayload};
-    use ae_renderer::camera::Camera;
+    use ae_camera::Camera;
 
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
@@ -249,7 +249,7 @@ fn test_asset_drag_overlay_construction() {
         fovy: 45.0,
         znear: 0.1,
         zfar: 1000.0,
-        mode: ae_renderer::camera::ProjectionMode::Perspective,
+        mode: ae_camera::ProjectionMode::Perspective,
         ortho_scale: 10.0,
         target: cgmath::Point3::new(0.0, 0.0, 0.0),
     };

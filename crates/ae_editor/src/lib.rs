@@ -8,7 +8,6 @@ pub mod editor_state;
 pub mod history;
 pub mod input;
 pub mod interactions;
-pub mod modes;
 pub mod picking;
 pub mod shortcuts;
 pub mod snapping;

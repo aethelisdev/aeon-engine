@@ -148,7 +148,7 @@ fn resolve_component_icon(ent_ref: &ae_ecs::EntityRef<'_>, is_selected: bool) ->
             EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected))
         })
         .or_else(|| {
-            (ent_ref.has::<ae_audio::AudioListener>() || ent_ref.has::<ae_core::camera::Camera>())
+            (ent_ref.has::<ae_audio::AudioListener>() || ent_ref.has::<ae_camera::Camera>())
                 .then(|| EntityIcon::Texture(ICON_CAMERA, accent_or_slate(is_selected)))
         })
         .or_else(|| {

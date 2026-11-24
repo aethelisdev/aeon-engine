@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use super::RenderState;
-use crate::camera::Camera;
 use crate::graphics_settings::{FpsLimit, GraphicsSettings};
+use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use cgmath::InnerSpace;
 use std::sync::Arc;
 use winit::window::Window;
@@ -159,7 +159,7 @@ impl RenderState {
             fovy: 45.0,
             znear: 0.1,
             zfar: 2000.0,
-            mode: crate::camera::ProjectionMode::Perspective,
+            mode: ProjectionMode::Perspective,
             ortho_scale: 15.0,
             target: cgmath::Point3::new(0.0, 0.0, 0.0),
         };
@@ -225,7 +225,7 @@ impl RenderState {
             shadow,
             outline,
             graphics_settings,
-            last_viewport_rect: super::ViewportRect::default(),
+            last_viewport_rect: ViewportRect::default(),
             supported_present_modes,
             last_present_wait_secs: 0.0,
             last_render_stats: super::types::FrameRenderStats::default(),

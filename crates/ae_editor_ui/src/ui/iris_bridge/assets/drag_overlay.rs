@@ -9,7 +9,7 @@
 use super::components::resolve_category_color;
 use crate::ui::types::EngineUiAction;
 use ae_assets::types::{AssetBrowserState, AssetCategory, AssetDragPayload};
-use ae_renderer::camera::Camera;
+use ae_camera::Camera;
 use irisui::prelude::{Point, Rect, UiScope, ViewportDropOverlay};
 
 /// Constructs topmost floating overlays for an active asset drag operation via [`UiScope::viewport_drop_overlay`].
@@ -167,7 +167,7 @@ pub fn resolve_viewport_drop_action(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_renderer::camera::ProjectionMode;
+    use ae_camera::ProjectionMode;
     use cgmath::{Deg, Point3, Rad};
 
     fn make_test_camera(pos: [f32; 3], pitch_deg: f32, yaw_deg: f32) -> Camera {

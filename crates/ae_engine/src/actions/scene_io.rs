@@ -34,7 +34,7 @@ pub fn handle_open_model_dialog(engine: &mut AeEngine) {
 pub fn resolve_viewport_drop_world_pos(
     target: DroppedFileTarget,
     viewport_rect: irisui::prelude::Rect,
-    camera: &ae_renderer::camera::Camera,
+    camera: &ae_camera::Camera,
 ) -> Option<[f32; 3]> {
     if !viewport_rect.width.is_finite()
         || !viewport_rect.height.is_finite()
@@ -292,8 +292,8 @@ pub fn handle_instantiate_prefab(engine: &mut AeEngine, path: std::path::PathBuf
 #[cfg(test)]
 mod tests {
     use super::resolve_viewport_drop_world_pos;
+    use ae_camera::{Camera, ProjectionMode};
     use ae_editor_ui::ui::types::DroppedFileTarget;
-    use ae_renderer::camera::{Camera, ProjectionMode};
     use cgmath::{Deg, Point3, Rad};
     use irisui::prelude::Rect;
 

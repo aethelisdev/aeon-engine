@@ -12,7 +12,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, SquareMatrix, Vecto
 
 /// Creates a picking ray from screen-space mouse coordinates.
 pub fn create_ray(
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     window_size: (u32, u32),
     mx: f32,
     my: f32,
@@ -27,7 +27,7 @@ pub fn create_ray(
 pub struct LeftClickPressParams<'a> {
     pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
     pub window_size: (u32, u32),
-    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_point_over_ui: &'a dyn Fn([f32; 2]) -> bool,
     pub is_edit_mode: bool,
@@ -37,7 +37,7 @@ pub struct LeftClickPressParams<'a> {
 /// Handles left-click press in Edit Mode — initiates gizmo drag or entity selection.
 pub fn on_left_click_pressed(
     editor: &mut EditorState,
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: LeftClickPressParams<'_>,
@@ -343,7 +343,7 @@ pub fn try_select_entity(
 /// Parameters for processing left-click release events in the viewport.
 pub struct LeftClickReleaseParams {
     pub window_size: (u32, u32),
-    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_edit_mode: bool,
 }
@@ -351,7 +351,7 @@ pub struct LeftClickReleaseParams {
 /// Handles left-click release — finalizes gizmo drag and commits undo history.
 pub fn on_left_click_released(
     editor: &mut EditorState,
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     gizmo_system: &mut ae_gizmos::TransformGizmo,
     world: &mut ae_ecs::World,
     params: LeftClickReleaseParams,

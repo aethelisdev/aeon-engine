@@ -37,6 +37,7 @@ dependencies = [
 name = "ae-2d-core"
 version = "0.1.0"
 dependencies = [
+ "ae_camera",
  "ae_core",
  "ae_ecs",
  "ae_plugin_api",
@@ -123,6 +124,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_camera"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cgmath",
+]
+
+[[package]]
+name = "ae_camera_controller"
+version = "0.1.0"
+dependencies = [
+ "ae_camera",
+ "ae_ecs",
+ "ae_plugin_api",
+ "cgmath",
+]
+
+[[package]]
 name = "ae_core"
 version = "0.9.0"
 dependencies = [
@@ -152,11 +171,12 @@ dependencies = [
 name = "ae_editor"
 version = "0.9.0"
 dependencies = [
+ "ae_camera",
+ "ae_camera_controller",
  "ae_core",
  "ae_ecs",
  "ae_gizmos",
  "ae_plugin_api",
- "ae_renderer",
  "cgmath",
  "chrono",
  "log",
@@ -173,6 +193,7 @@ dependencies = [
  "ae_animation",
  "ae_assets",
  "ae_audio",
+ "ae_camera",
  "ae_core",
  "ae_ecs",
  "ae_editor",
@@ -204,6 +225,8 @@ dependencies = [
  "ae_animation",
  "ae_assets",
  "ae_audio",
+ "ae_camera",
+ "ae_camera_controller",
  "ae_core",
  "ae_ecs",
  "ae_editor",
@@ -265,7 +288,7 @@ dependencies = [
 name = "ae_gizmos"
 version = "0.1.0"
 dependencies = [
- "ae_core",
+ "ae_camera",
  "bytemuck",
  "cgmath",
 ]
@@ -353,6 +376,7 @@ name = "ae_renderer"
 version = "0.9.0"
 dependencies = [
  "ae_animation",
+ "ae_camera",
  "ae_core",
  "ae_ecs",
  "ae_plugin_api",
@@ -379,6 +403,8 @@ dependencies = [
  "ae_2d",
  "ae_animation",
  "ae_audio",
+ "ae_camera",
+ "ae_camera_controller",
  "ae_core",
  "ae_ecs",
  "ae_physics",

@@ -1,0 +1,12 @@
+[package]
+name = "ae_camera"
+version = "0.1.0"
+edition = "2024"
+description = "Aeon Engine - GPU-free camera types, projections, frustum culling, viewport bounds, and camera uniforms"
+
+[dependencies]
+cgmath = "0.18"
+bytemuck = { workspace = true }
+
+[lints]
+workspace = true

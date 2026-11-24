@@ -262,8 +262,7 @@ impl AeEngine {
             return;
         }
 
-        ae_editor::modes::fixed_update_play_mode(
-            &self.input,
+        ae_core::transform::integrate_unconstrained_velocities(
             &mut self.world,
             self.time.fixed_time_step,
         );
@@ -318,11 +317,14 @@ impl AeEngine {
             return;
         }
 
-        ae_runtime::update_play_camera(
+        ae_camera_controller::update_follow_camera(
             &mut self.world,
             &mut self.camera,
             &mut self.editor.mouse_delta,
-            self.editor.config.mouse_sensitivity,
+            ae_camera_controller::FollowCameraConfig {
+                mouse_sensitivity: self.editor.config.mouse_sensitivity,
+                ..Default::default()
+            },
         );
 
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
@@ -373,12 +375,22 @@ impl AeEngine {
     }
 
     pub fn update_edit_mode(&mut self) {
-        ae_editor::modes::update_edit_mode(
-            &mut self.editor,
+        ae_camera_controller::step_free_camera(
             &mut self.camera,
-            &self.input,
+            self.editor.config.camera_config(),
+            ae_camera_controller::FreeCameraInput {
+                forward: self.input.is_key_pressed(KeyCode::KeyW),
+                backward: self.input.is_key_pressed(KeyCode::KeyS),
+                left: self.input.is_key_pressed(KeyCode::KeyA),
+                right: self.input.is_key_pressed(KeyCode::KeyD),
+                up: self.input.is_key_pressed(KeyCode::KeyE),
+                down: self.input.is_key_pressed(KeyCode::KeyQ),
+                boost: self.input.is_key_pressed(KeyCode::ShiftLeft),
+                right_mouse_pressed: self.editor.right_mouse_pressed,
+            },
             self.time.delta_time,
         );
+        self.editor.mouse_delta = (0.0, 0.0);
     }
 
     /// Dispatches queued UI actions to the engine (within profiler UI timing).
@@ -416,7 +428,14 @@ impl AeEngine {
     }
 
     pub fn focus_selected(&mut self) {
-        ae_editor::interactions::focus_selected(&mut self.camera, &self.editor, &self.world);
+        if let Some(&entity) = self.editor.selected_entities.first() {
+            ae_camera_controller::focus_camera_on_entity(
+                &mut self.camera,
+                &self.world,
+                entity,
+                5.0,
+            );
+        }
     }
 
     fn poll_async_export(&mut self) {

@@ -1,0 +1,14 @@
+[package]
+name = "ae_camera_controller"
+version = "0.1.0"
+edition = "2024"
+description = "Aeon Engine - Free-fly editor navigation, orthographic pan/zoom, entity focusing, and play-mode follow camera controllers"
+
+[dependencies]
+ae_camera = { workspace = true }
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+cgmath = "0.18"
+
+[lints]
+workspace = true

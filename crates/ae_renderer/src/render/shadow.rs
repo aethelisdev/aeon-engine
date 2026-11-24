@@ -367,7 +367,7 @@ impl ShadowSystem {
         &mut self,
         queue: &wgpu::Queue,
         graphics_settings: &crate::graphics_settings::GraphicsSettings,
-        camera: &crate::camera::Camera,
+        camera: &ae_camera::Camera,
         light_dir: cgmath::Vector3<f32>,
     ) {
         let light_dir = if light_dir.magnitude2() < 1e-6 {
@@ -382,7 +382,7 @@ impl ShadowSystem {
         let cam_forward = camera.get_forward();
 
         // WGPU depth correction
-        let corr = ae_core::camera::OPENGL_TO_WGPU_MATRIX;
+        let corr = ae_camera::OPENGL_TO_WGPU_MATRIX;
 
         for i in 0..4 {
             if i >= cascades {

@@ -7,7 +7,7 @@
 //! [`UiScope::live_canvas_anchored`] (`CanvasOrigin::NodeTopLeft`) and stack-formatted text.
 
 use super::types::TAG_CAMERA_HUD;
-use ae_renderer::camera::Camera;
+use ae_camera::Camera;
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
 use std::fmt::Write as _;

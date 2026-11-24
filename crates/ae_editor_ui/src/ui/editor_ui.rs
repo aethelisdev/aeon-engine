@@ -66,10 +66,7 @@ impl EngineUi {
     }
 
     /// Executes one full retained UI update and WGPU render pass, returning the resolved 3D viewport rect.
-    pub fn render(
-        &mut self,
-        params: EditorUiRenderParams<'_>,
-    ) -> ae_renderer::render::ViewportRect {
+    pub fn render(&mut self, params: EditorUiRenderParams<'_>) -> ae_camera::ViewportRect {
         self.fps = params.fps;
         self.host
             .set_loading_progress(params.editor_state.is_loading_assets, || {
@@ -119,7 +116,7 @@ impl EngineUi {
         &mut self,
         view_panel_mask: u64,
         mut params: EditorUiRenderParams<'_>,
-    ) -> ae_renderer::render::ViewportRect {
+    ) -> ae_camera::ViewportRect {
         drop(
             self.host.render_frame_with(
                 WorkbenchHostFrameParams {
@@ -169,7 +166,7 @@ impl EngineUi {
         self.host
             .dispatch_actions(|_, action| params.ui_actions.push(action));
         self.last_viewport_rect = self.host.last_viewport_rect();
-        ae_renderer::render::ViewportRect {
+        ae_camera::ViewportRect {
             min_x: self.last_viewport_rect.x,
             min_y: self.last_viewport_rect.y,
             max_x: self.last_viewport_rect.right(),

@@ -8,7 +8,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Quaternion, Rad, Rotation3, Vector3};
 /// Parameters for processing gizmo drag interactions.
 pub struct GizmoDragParams<'a> {
     pub editor: &'a mut EditorState,
-    pub camera: &'a ae_core::camera::Camera,
+    pub camera: &'a ae_camera::Camera,
     pub gizmo_system: &'a mut ae_gizmos::TransformGizmo,
     pub world: &'a mut ae_ecs::World,
     pub window_size: (u32, u32),
@@ -192,7 +192,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
 
 /// Builds a `GizmoScreenParams` struct from the current state.
 pub fn gizmo_screen_params(
-    camera: &ae_core::camera::Camera,
+    camera: &ae_camera::Camera,
     window_size: (u32, u32),
 ) -> ae_gizmos::GizmoScreenParams {
     ae_gizmos::GizmoScreenParams {

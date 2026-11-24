@@ -60,7 +60,7 @@ pub struct GizmoScreenParams {
     /// Interactive raycast pick tolerance radius in pixels.
     pub pick_radius_px: f32,
     /// Active camera projection mode (Perspective vs Orthographic).
-    pub camera_mode: ae_core::camera::ProjectionMode,
+    pub camera_mode: ae_camera::ProjectionMode,
     /// Orthographic vertical span scale in world units.
     pub ortho_scale: f32,
 }
@@ -70,15 +70,13 @@ impl GizmoScreenParams {
     pub fn axis_length_world(&self, camera_distance: f32) -> f32 {
         let h = self.viewport_height_px.max(1.0);
         match self.camera_mode {
-            ae_core::camera::ProjectionMode::Perspective => {
+            ae_camera::ProjectionMode::Perspective => {
                 let d = camera_distance.max(1e-6);
                 let fovy_rad = self.camera_fovy_deg.to_radians();
                 let tan_half_fov = (fovy_rad * 0.5).tan();
                 self.axis_length_px * 2.0 * d * tan_half_fov / h
             }
-            ae_core::camera::ProjectionMode::Orthographic => {
-                self.axis_length_px * self.ortho_scale / h
-            }
+            ae_camera::ProjectionMode::Orthographic => self.axis_length_px * self.ortho_scale / h,
         }
     }
 
@@ -86,15 +84,13 @@ impl GizmoScreenParams {
     pub fn pick_radius_world(&self, camera_distance: f32) -> f32 {
         let h = self.viewport_height_px.max(1.0);
         match self.camera_mode {
-            ae_core::camera::ProjectionMode::Perspective => {
+            ae_camera::ProjectionMode::Perspective => {
                 let d = camera_distance.max(1e-6);
                 let fovy_rad = self.camera_fovy_deg.to_radians();
                 let tan_half_fov = (fovy_rad * 0.5).tan();
                 self.pick_radius_px * 2.0 * d * tan_half_fov / h
             }
-            ae_core::camera::ProjectionMode::Orthographic => {
-                self.pick_radius_px * self.ortho_scale / h
-            }
+            ae_camera::ProjectionMode::Orthographic => self.pick_radius_px * self.ortho_scale / h,
         }
     }
 }
@@ -228,7 +224,7 @@ impl TransformGizmo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::camera::ProjectionMode;
+    use ae_camera::ProjectionMode;
 
     #[test]
     fn test_handle_allowed_matrix_and_select_rejection() {

@@ -5,6 +5,8 @@ edition = "2024"
 description = "Aeon Engine - Editor utilities, camera, gizmo, snapping, and undo/redo"
 
 [dependencies]
+ae_camera = { workspace = true }
+ae_camera_controller = { workspace = true }
 ae_ecs = { workspace = true }
 ae_gizmos = { workspace = true }
 cgmath = "0.18"
@@ -15,7 +17,6 @@ serde_json = "1.0.145"
 postcard = { workspace = true }
 ae_core = { path = "../ae_core" }
 ae_plugin_api = { path = "../ae_plugin_api" }
-ae_renderer = { path = "../ae_renderer" }
 chrono = "0.4.45"
 
 [lints]

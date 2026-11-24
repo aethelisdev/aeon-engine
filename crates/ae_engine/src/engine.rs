@@ -22,7 +22,7 @@ pub use ae_core::modules::EngineMode;
 pub struct AeEngine {
     pub render_state: RenderState,
     pub ui: ae_editor_ui::ui::EngineUi,
-    pub camera: ae_renderer::camera::Camera,
+    pub camera: ae_camera::Camera,
     pub transform_gizmo: ae_gizmos::TransformGizmo,
     pub gizmo_renderer: ae_gizmos_render::GizmoRenderer,
     pub billboard_system: ae_gizmos_render::BillboardSystem,
@@ -381,7 +381,7 @@ impl AeEngine {
             engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
             engine.camera.yaw = cgmath::Deg(-90.0).into();
             engine.camera.pitch = cgmath::Deg(0.0).into();
-            engine.camera.mode = ae_core::camera::ProjectionMode::Orthographic;
+            engine.camera.mode = ae_camera::ProjectionMode::Orthographic;
             engine.camera.ortho_scale = 10.0;
         }
 

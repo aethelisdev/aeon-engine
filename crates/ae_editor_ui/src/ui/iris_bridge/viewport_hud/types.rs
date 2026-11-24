@@ -6,8 +6,8 @@
 //! Provides semantic [`UiTag`] constants, parameter descriptors, and live-cache
 //! state for the Iris UI Viewport HUD subsystem without intermediate action queues.
 
+use ae_camera::{Camera, ProjectionMode};
 pub use ae_gizmos::SceneViewSnap;
-use ae_renderer::camera::{Camera, ProjectionMode};
 use irisui::prelude::*;
 
 /// Semantic tag for the Viewport Camera Mode dropdown trigger button.

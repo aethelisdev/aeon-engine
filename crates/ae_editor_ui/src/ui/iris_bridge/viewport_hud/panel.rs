@@ -15,7 +15,7 @@ use super::types::ViewportHudState;
 use crate::ui::iris_bridge::viewport_texture::VIEWPORT_TEXTURE_ID;
 use crate::ui::panel_registry::EditorPanelContext;
 use crate::ui::types::{EditorFrameData, EngineUiAction};
-use ae_renderer::camera::Camera;
+use ae_camera::Camera;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
@@ -141,11 +141,11 @@ mod tests {
         TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
         TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE,
     };
+    use ae_camera::{Camera, ProjectionMode};
     use ae_ecs::World;
     use ae_editor::editor_state::EditorState;
     use ae_editor::snapping::SnapSettings;
     use ae_gizmos::GizmoMode;
-    use ae_renderer::camera::{Camera, ProjectionMode};
 
     fn make_test_camera() -> Camera {
         Camera {

@@ -5,8 +5,9 @@
 
 use super::forward;
 use crate::render::engine::state::{RenderOptions, RenderState};
-use crate::render::types::{FrameRenderStats, OverlayRenderer, RenderError, ViewportRect};
+use crate::render::types::{FrameRenderStats, OverlayRenderer, RenderError};
 use crate::render::viewport_texture::ViewportTexture;
+use ae_camera::{Camera, ViewportRect};
 use winit::window::Window;
 
 /// Granularity in pixels for viewport texture bucket allocation to prevent GPU target thrashing during interactive resizing.
@@ -40,7 +41,7 @@ pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
 /// Parameters for executing a single frame rendering pipeline pass.
 pub struct RenderFrameParams<'a> {
     pub scene: crate::render::types::RenderScene,
-    pub camera: &'a ae_core::camera::Camera,
+    pub camera: &'a Camera,
     /// Scene-space overlays rendered inside the main forward pass with depth testing.
     pub overlays: &'a [&'a dyn OverlayRenderer],
     /// Post-tonemap screen-space overlays (gizmos, editor HUD) rendered directly onto target_view.

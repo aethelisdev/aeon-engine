@@ -15,6 +15,8 @@ wgpu = "30.0.2"
 pollster = { workspace = true }
 env_logger = "0.11.11"
 log = "0.4.33"
+ae_camera = { workspace = true }
+ae_camera_controller = { workspace = true }
 ae_ecs = { workspace = true }
 ae_gizmos = { workspace = true }
 ae_gizmos_render = { workspace = true }

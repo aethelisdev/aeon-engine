@@ -20,12 +20,21 @@ impl AeEngine {
         _cursor_x: f64,
         _cursor_y: f64,
     ) {
-        ae_editor::interactions::handle_mouse_scroll(
+        if self.mode != EngineMode::Edit {
+            return;
+        }
+        let scroll_amount = match delta {
+            winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
+            winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 * 0.02,
+        };
+        let boost = self
+            .input
+            .is_key_pressed(ae_core::input::KeyCode::ShiftLeft);
+        ae_camera_controller::apply_scroll_zoom(
             &mut self.camera,
-            &self.editor,
-            &self.input,
-            self.mode == EngineMode::Edit,
-            delta,
+            scroll_amount,
+            boost,
+            self.editor.config.camera_config(),
         );
     }
 

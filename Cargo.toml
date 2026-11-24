@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/ae_camera",
+    "crates/ae_camera_controller",
     "crates/ae_ecs",
     "crates/ae_gizmos",
     "crates/ae_gizmos_render",
@@ -89,6 +91,8 @@ ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }
 ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
 ae_2d = { path = "crates/ae_2d/ae_2d" }
+ae_camera = { path = "crates/ae_camera" }
+ae_camera_controller = { path = "crates/ae_camera_controller" }
 ae_ecs = { path = "crates/ae_ecs" }
 ae_gizmos = { path = "crates/ae_gizmos" }
 ae_gizmos_render = { path = "crates/ae_gizmos_render" }

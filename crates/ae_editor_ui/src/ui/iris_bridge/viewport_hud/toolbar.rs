@@ -21,10 +21,10 @@ use crate::ui::iris_bridge::icons::{
     ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_SNAP_GRID, ICON_TRANSLATE, ICON_WORLD,
 };
 use crate::ui::types::EngineUiAction;
+use ae_camera::Camera;
 use ae_editor::editor_state::EditorState;
 use ae_editor::snapping::{SnapMode, SnapSettings};
 use ae_gizmos::{GizmoMode, GizmoSpace};
-use ae_renderer::camera::Camera;
 use irisui::prelude::*;
 use irisui::workbench::ActionBus;
 
@@ -248,9 +248,9 @@ pub fn snap_size_label(size: f32) -> &'static str {
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::viewport_hud::TAG_VIEWPORT_CAMERA_MODE;
+    use ae_camera::{Camera, ProjectionMode};
     use ae_editor::snapping::SnapSettings;
     use ae_gizmos::GizmoMode;
-    use ae_renderer::camera::{Camera, ProjectionMode};
 
     fn make_camera(mode: ProjectionMode) -> Camera {
         Camera {

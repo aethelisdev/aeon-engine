@@ -11,8 +11,8 @@ use super::types::{
     TAG_POPUP_SNAP_GRID_GROUP,
 };
 use crate::ui::types::EngineUiAction;
+use ae_camera::{Camera, ProjectionMode};
 use ae_editor::snapping::SnapSettings;
-use ae_renderer::camera::{Camera, ProjectionMode};
 use irisui::prelude::AnchoredSelectOption;
 
 /// Option rows displayed inside the Viewport Camera Mode dropdown.
@@ -144,11 +144,11 @@ mod tests {
     use crate::ui::iris_bridge::viewport_hud::types::{
         TAG_SNAP_GRID_DROPDOWN, TAG_VIEWPORT_CAMERA_MODE, with_test_frame_data,
     };
+    use ae_camera::{Camera, ProjectionMode};
     use ae_ecs::World;
     use ae_editor::editor_state::EditorState;
     use ae_editor::snapping::SnapSettings;
     use ae_gizmos::GizmoMode;
-    use ae_renderer::camera::{Camera, ProjectionMode};
     use irisui::prelude::*;
     use irisui::workbench::ActionBus;
 

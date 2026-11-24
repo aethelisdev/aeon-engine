@@ -5,7 +5,7 @@ edition = "2024"
 description = "Aeon Engine - Transform gizmo math, debug wireframe shapes, billboard data, and viewport navigation compass"
 
 [dependencies]
-ae_core = { path = "../ae_core" }
+ae_camera = { workspace = true }
 cgmath = "0.18"
 bytemuck = { workspace = true }
 

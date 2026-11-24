@@ -8,7 +8,7 @@ use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
 use crate::hud::{InGameHudState, RuntimeHudOverlay, RuntimePauseAction};
 use crate::simulation::{
     SaveLoadDispatchContext, process_save_load_requests, step_play_state_and_pause,
-    update_play_camera, update_skeletal_animations,
+    update_skeletal_animations,
 };
 use crate::static_plugin::attach_static_game_logic;
 use crate::world_loader::{
@@ -16,7 +16,8 @@ use crate::world_loader::{
 };
 use ae_2d::mode::ActiveDimensionMode;
 use ae_audio::AudioManager;
-use ae_core::camera::{Camera, ProjectionMode};
+use ae_camera::{Camera, ProjectionMode, ViewportRect};
+use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::input::{InputManager, KeyCode};
 use ae_core::modules::EngineModule;
@@ -30,7 +31,7 @@ use ae_plugin_host::PluginManager;
 use ae_renderer::asset::{AssetHandle, AssetManager, AssetStorage};
 use ae_renderer::render::types::{LightUniform, RenderScene};
 use ae_renderer::render::{
-    OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset, ViewportRect,
+    OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
 };
 use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use std::collections::HashSet;
@@ -277,11 +278,14 @@ impl RuntimeSession {
         }
 
         if !self.state_manager.is_paused() {
-            update_play_camera(
+            update_follow_camera(
                 &mut self.world,
                 &mut self.camera,
                 &mut self.mouse_delta,
-                self.mouse_sensitivity,
+                FollowCameraConfig {
+                    mouse_sensitivity: self.mouse_sensitivity,
+                    ..Default::default()
+                },
             );
             self.spatial_grid.sync(&self.world);
 

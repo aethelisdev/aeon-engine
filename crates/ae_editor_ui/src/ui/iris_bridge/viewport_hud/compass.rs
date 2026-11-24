@@ -8,8 +8,8 @@
 //! oriented GPU SDF line segments (`canvas.draw_line`).
 
 use super::types::TAG_COMPASS_CANVAS;
+use ae_camera::Camera;
 use ae_gizmos::SceneNavigationGizmo;
-use ae_renderer::camera::Camera;
 use irisui::prelude::*;
 use irisui::widgets::canvas::ImmediateCanvas;
 
@@ -147,7 +147,7 @@ pub fn update_compass_canvas(scope: &mut UiScope<'_>, camera: &Camera) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_renderer::camera::{Camera, ProjectionMode};
+    use ae_camera::{Camera, ProjectionMode};
 
     fn make_test_camera() -> Camera {
         Camera {

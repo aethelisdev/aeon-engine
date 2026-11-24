@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use ae_core::camera::OrthographicProjection;
+use ae_camera::OrthographicProjection;
 use ae_ecs::Entity;
 use cgmath::{Deg, Matrix4, Vector3};
 use glam::Vec2;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// 2D Camera component providing 2D world-to-screen projection, zoom, and smooth target tracking.
 ///
-/// Wraps `ae_core::camera::OrthographicProjection` directly, ensuring zero duplication of projection
+/// Wraps `ae_camera::OrthographicProjection` directly, ensuring zero duplication of projection
 /// matrix math while maintaining standard 2D camera controls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Camera2D {
@@ -78,13 +78,13 @@ impl Camera2D {
         self
     }
 
-    /// Calculates the view-projection matrix combining `ae_core::camera::OrthographicProjection`
+    /// Calculates the view-projection matrix combining `ae_camera::OrthographicProjection`
     /// with the camera's 2D world position, roll angle, and zoom.
     pub fn build_view_projection(&self, position: Vec2, aspect: f32) -> Matrix4<f32> {
         let safe_zoom = self.zoom.max(0.0001);
         let effective_ortho_scale = self.ortho_size / safe_zoom;
 
-        // Directly reuse ae_core::camera::OrthographicProjection
+        // Directly reuse ae_camera::OrthographicProjection
         let proj = OrthographicProjection::build_matrix(
             effective_ortho_scale,
             aspect,

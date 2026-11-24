@@ -5,6 +5,7 @@ edition = "2024"
 description = "Aeon Engine - WGPU rendering pipeline"
 
 [dependencies]
+ae_camera = { workspace = true }
 winit = "0.30.13"
 wgpu = "30.0.2"
 log = "0.4.33"

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 pub mod action_map;
 pub mod behavior;
-pub mod camera;
 pub mod events;
 pub mod input;
 pub mod math;

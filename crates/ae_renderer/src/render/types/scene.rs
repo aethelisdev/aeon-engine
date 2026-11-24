@@ -36,10 +36,10 @@ impl RenderScene {
     /// player tag guarantees, and ground safeguards.
     fn collect_visible_entities(
         world: &ae_ecs::World,
-        camera: &crate::camera::Camera,
+        camera: &ae_camera::Camera,
         selected_entities: &std::collections::HashSet<ae_ecs::Entity>,
         spatial_grid: &ae_core::spatial::SpatialGrid,
-        frustum: &crate::math::frustum::Frustum,
+        frustum: &ae_camera::Frustum,
     ) -> Vec<ae_ecs::Entity> {
         let mut visible_entities = Vec::new();
         if spatial_grid.cells.is_empty() {
@@ -140,7 +140,7 @@ impl RenderScene {
     /// Falls back to O(N) flat traversal if the spatial grid is empty or entity count is below 150K.
     pub fn extract(
         world: &ae_ecs::World,
-        camera: &crate::camera::Camera,
+        camera: &ae_camera::Camera,
         _asset_manager: &crate::asset::AssetManager,
         selected_entities: &std::collections::HashSet<ae_ecs::Entity>,
         active_entity: Option<ae_ecs::Entity>,
@@ -180,7 +180,7 @@ impl RenderScene {
 
         // Use dedicated culling matrix (shorter zfar=400) to aggressively cull distant objects
         // on the CPU. The actual render matrix uses zfar=2000 for visual depth quality.
-        let frustum = crate::math::frustum::Frustum::from_matrix(camera.build_culling_matrix());
+        let frustum = ae_camera::Frustum::from_matrix(camera.build_culling_matrix());
         let use_fallback = spatial_grid.cells.is_empty();
 
         let visible_entities = if !use_fallback {

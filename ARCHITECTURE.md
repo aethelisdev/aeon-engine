@@ -31,6 +31,10 @@ The workspace comprises modular crates organized into six architectural layers:
 graph TD
     subgraph Foundation["Foundation, ECS & Persistence Layer"]
         ae_ecs["ae_ecs (Backend-Isolated ECS & ComponentRegistry)"] --> ae_plugin_api["ae_plugin_api (GUIDs, POD Components, Plugin FFI ABI)"]
+        ae_camera["ae_camera (Camera, Projections, Frustum, CameraUniform, ViewportRect)"]
+        ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
+        ae_ecs --> ae_camera_controller
+        ae_plugin_api --> ae_camera_controller
         ae_plugin_api --> ae_core["ae_core (InputManager, ActionMap, Events, State, Transforms)"]
         ae_ecs --> ae_core
         ae_plugin_api --> ae_world["ae_world (.aeworld, .aechunk, .aepak, .aesave, VFS, Cooked)"]
@@ -49,8 +53,8 @@ graph TD
         ae_ecs --> ae_physics
         ae_core --> ae_animation["ae_animation (3D Skeletal)"]
         ae_ecs --> ae_animation
-        ae_core --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
-        ae_texture --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
+        ae_camera --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
+        ae_camera --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
         ae_world --> ae_renderer
         ae_ecs --> ae_renderer
@@ -63,7 +67,8 @@ graph TD
     end
 
     subgraph Pipeline2D["2D Engine Subsystem (ae_2d)"]
-        ae_core --> ae_2d_core["ae-2d-core (2D Camera, Transform, Sorting)"]
+        ae_camera --> ae_2d_core["ae-2d-core (2D Camera, Transform, Sorting)"]
+        ae_core --> ae_2d_core
         ae_texture --> ae_2d_core
         ae_2d_core --> ae_2d_render["ae-2d-render (Instanced Sprite Batcher)"]
         ae_2d_core --> ae_2d_physics["ae-2d-physics (Rapier2D Simulation)"]
@@ -100,20 +105,26 @@ graph TD
 
     subgraph Runtime_And_Hosts["Runtime Core & Application Hosts"]
         ae_scene --> ae_runtime["ae_runtime (Editor-Free Player & Simulation Core)"]
+        ae_camera --> ae_runtime
+        ae_camera_controller --> ae_runtime
         ae_physics --> ae_runtime
         ae_audio --> ae_runtime
         ae_plugin_host --> ae_runtime
 
-        ae_gizmos --> ae_editor["ae_editor (Camera, Picking, Selection, Snapping, Undo/Redo)"]
-        ae_renderer --> ae_editor
+        ae_camera --> ae_editor["ae_editor (Picking, Selection, Snapping, Undo/Redo; Zero wgpu)"]
+        ae_camera_controller --> ae_editor
+        ae_gizmos --> ae_editor
         ae_ecs --> ae_editor
         ae_editor --> ae_editor_ui["ae_editor_ui (Pure Declarative IDE Views & EngineUiAction)"]
+        ae_camera --> ae_editor_ui
         ae_gizmos --> ae_editor_ui
         ae_export --> ae_editor_ui
         ae_runtime --> ae_editor_ui
         irisui --> ae_editor_ui
 
         ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
+        ae_camera --> ae_engine
+        ae_camera_controller --> ae_engine
         ae_scene --> ae_engine
         ae_gizmos --> ae_engine
         ae_gizmos_render --> ae_engine
@@ -161,7 +172,8 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 ### 4.1. `ae_ecs`, `ae_plugin_api`, `ae_core` & `ae_plugin_host`
 * **`ae_ecs`:** Encapsulates the workspace ECS backend (`hecs` isolated inside this single crate), exposing `World`, `Entity`, `EntityBuilder`, `EntityCommandBuffer`, `EcsQuery`, scoped `inspect`/`mutate` access without `Ref<'_, T>` borrow guards, `ComponentRegistry` (`ComponentHandler`, `TypedComponentHandler`), and FNV-1a `component_type_hash`.
 * **`ae_plugin_api`:** Defines `EntityGuid`, `AssetGuid`, POD gameplay components (`LodGroup`, transform/physics/gameplay types), `engine_component_registry()`, `Resources`, `PluginContext` / `PluginContextFFI`, and standard events including `SaveGameRequest` / `LoadGameRequest` (`DynamicEventBus::{save_slot, load_slot}`).
-* **`ae_core`:** Houses pushdown `StateManager`, `SpatialGrid`, `Camera`, transform hierarchy propagation (`update_hierarchy_transforms`), shared `InputManager` / `ActionMap`, and `DynamicEventBus`.
+* **`ae_core`:** Houses pushdown `StateManager`, `SpatialGrid`, transform hierarchy propagation (`update_hierarchy_transforms`), shared `InputManager` / `ActionMap`, and `DynamicEventBus`.
+* **`ae_camera` & `ae_camera_controller`:** `ae_camera` (free of `wgpu`, `ae_core`, `ae_ecs`, `ae_world`) owns `Camera`, `ProjectionMode`, `PerspectiveProjection`, `OrthographicProjection`, `OPENGL_TO_WGPU_MATRIX`, `Frustum`, POD `CameraUniform`, and `ViewportRect`/`Viewport`; `ae_camera_controller` unifies free-fly WASD/QE navigation, orthographic pan/zoom, target focus, and Play-mode orbit/follow tracking.
 * **`ae_plugin_host` & `game_logic`:** Supports hot-reloadable dynamic `cdylib` plugins in Editor workflows (`NativePluginBackend` via `libloading`) and dual `cdylib` + `rlib` compilation for static linkage in exported runtimes.
 
 ### 4.2. `ae_world` & `ae_assets`
@@ -187,7 +199,7 @@ Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-anima
 
 ### 4.7. `irisui` & `ae_editor_ui`
 * **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
-* **`ae_editor` & `ae_editor_ui`:** `ae_editor` (free of `wgpu`) owns editor camera controls, raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
+* **`ae_editor` & `ae_editor_ui`:** `ae_editor` (free of `wgpu` and `ae_renderer`) owns raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
 
 ### 4.8. `ae_mcp` & `ae_export` & `ae_engine` & `ae_launcher`
 * **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).

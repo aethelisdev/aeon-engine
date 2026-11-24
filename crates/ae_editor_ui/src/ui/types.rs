@@ -64,13 +64,13 @@ pub enum EngineUiAction {
     SetGridEnabled(bool),
     SetGizmoMode(ae_gizmos::GizmoMode),
     ToggleGizmoSpace,
-    SetCameraMode(ae_renderer::camera::ProjectionMode),
+    SetCameraMode(ae_camera::ProjectionMode),
     ToggleCameraProjection,
     SetCameraTransform {
         pitch: cgmath::Rad<f32>,
         yaw: cgmath::Rad<f32>,
         position: cgmath::Point3<f32>,
-        mode: Option<ae_renderer::camera::ProjectionMode>,
+        mode: Option<ae_camera::ProjectionMode>,
     },
 
     // --- INSPECTOR MODIFICATION ACTIONS ---
@@ -335,7 +335,7 @@ pub struct EditorUiRenderParams<'a> {
     /// Authoritative editor state (selection, tools, overlays, revisions).
     pub editor_state: &'a ae_editor::editor_state::EditorState,
     /// Active editor or gameplay viewport camera.
-    pub camera: &'a ae_renderer::camera::Camera,
+    pub camera: &'a ae_camera::Camera,
     /// Resident 3D model storage pool.
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     /// Resident 2D texture storage pool.
@@ -367,7 +367,7 @@ pub struct EditorFrameData<'frame> {
     /// Computed 3D viewport dock region in logical coordinates.
     pub viewport_rect: irisui::prelude::Rect,
     /// Active camera parameters for HUD and drop raycasting.
-    pub camera: &'frame ae_renderer::camera::Camera,
+    pub camera: &'frame ae_camera::Camera,
     /// Authoritative ECS world.
     pub world: &'frame ae_ecs::World,
     /// Authoritative editor state (selection, gizmo, wireframe, grid, revision).

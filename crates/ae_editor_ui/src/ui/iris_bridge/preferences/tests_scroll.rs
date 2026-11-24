@@ -13,10 +13,10 @@ use crate::ui::types::{
     EditorFrameData, EditorTelemetrySnapshot, EngineUiAction, ExportDialogState,
 };
 use ae_assets::AssetBrowserState;
+use ae_camera::{Camera, ProjectionMode};
 use ae_editor::editor_state::{EditorConfig, EditorState};
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::asset::AssetStorage;
-use ae_renderer::camera::{Camera, ProjectionMode};
 use ae_renderer::graphics_settings::GraphicsSettings;
 use ae_uidesign::UiDesignerState;
 use irisui::prelude::*;
