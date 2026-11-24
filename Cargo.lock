@@ -234,6 +234,7 @@ dependencies = [
  "ae_renderer",
  "ae_runtime",
  "ae_scene",
+ "ae_state",
  "ae_texture",
  "ae_transform",
  "ae_ui",
@@ -431,6 +432,7 @@ dependencies = [
  "ae_plugin_host",
  "ae_renderer",
  "ae_scene",
+ "ae_state",
  "ae_texture",
  "ae_transform",
  "ae_ui",
@@ -474,6 +476,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_state"
+version = "0.1.0"
+dependencies = [
+ "ae_ecs",
+ "ae_plugin_api",
+]
+
+[[package]]
 name = "ae_texture"
 version = "0.9.0"
 dependencies = [
@@ -503,6 +513,7 @@ dependencies = [
  "ae_ecs",
  "ae_plugin_api",
  "ae_renderer",
+ "ae_state",
  "irisui-core",
  "irisui-layout",
  "irisui-text",

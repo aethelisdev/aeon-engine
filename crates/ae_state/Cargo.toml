@@ -1,0 +1,13 @@
+[package]
+name = "ae_state"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - Pushdown automaton game state machine, lifecycle traits, and transition types"
+
+[dependencies]
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+
+[lints]
+workspace = true

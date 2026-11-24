@@ -4,8 +4,8 @@
 //! Unit tests for pushdown automaton GameState flow and lifecycle callbacks.
 
 use ae_core::events::DynamicEventBus;
-use ae_core::state::{GameState, StateContext, StateManager, StateTransition};
 use ae_ecs::World;
+use ae_state::{GameState, StateContext, StateManager, StateTransition};
 
 struct TestLevelState {
     score: u32,

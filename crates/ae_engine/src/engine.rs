@@ -62,7 +62,7 @@ pub struct AeEngine {
     /// Cleared after the sync runs. Prevents O(N) ECS scans every frame when nothing changed.
     pub physics_sync_dirty: bool,
     /// Stack-based Game State Machine for high-level flow and mode transitions.
-    pub state_manager: ae_core::state::StateManager,
+    pub state_manager: ae_state::StateManager,
     /// In-Game HUD subsystem manager (Health Bar, Score Counter, Reticle).
     pub in_game_hud: ae_ui::InGameHudState,
     /// Active dimension mode governing engine operational state and memory isolation.
@@ -356,7 +356,7 @@ impl AeEngine {
             audio_manager,
             texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
-            state_manager: ae_core::state::StateManager::new(),
+            state_manager: ae_state::StateManager::new(),
             in_game_hud: ae_ui::InGameHudState::new(),
             dimension_mode,
             sprite_2d_system,

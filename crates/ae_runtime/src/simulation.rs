@@ -387,13 +387,13 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
     world_changed
 }
 
-/// Ticks the runtime [`GameStateManager`](ae_core::state::GameStateManager) and toggles
+/// Ticks the runtime [`StateManager`](ae_state::StateManager) and toggles
 /// [`InGamePauseState`](ae_ui::InGamePauseState) when the `"Pause"` action is just pressed.
 ///
 /// Returns `(was_paused, is_paused)` so callers can synchronize cursor grab and skip
 /// gameplay camera/simulation updates while paused.
 pub fn step_play_state_and_pause(
-    state_manager: &mut ae_core::state::StateManager,
+    state_manager: &mut ae_state::StateManager,
     world: &mut ae_ecs::World,
     event_bus: &mut DynamicEventBus,
     input: &InputManager,
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn test_step_play_state_and_pause_toggles_pause_via_action_map() {
-        let mut state_manager = ae_core::state::StateManager::new();
+        let mut state_manager = ae_state::StateManager::new();
         let mut world = ae_ecs::World::new();
         let mut event_bus = DynamicEventBus::new();
         let mut input = InputManager::new();

@@ -19,7 +19,6 @@ use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::modules::EngineModule;
-use ae_core::state::StateManager;
 use ae_core::time::Time;
 use ae_input::{ActionMap, InputManager, KeyCode};
 use ae_physics::PhysicsWorld;
@@ -31,6 +30,7 @@ use ae_renderer::render::{
     OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
 };
 use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
+use ae_state::StateManager;
 use ae_transform::{
     SpatialGrid, compose_2d_model_matrix, integrate_unconstrained_velocities,
     update_hierarchy_transforms,

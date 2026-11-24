@@ -7,8 +7,8 @@
 //! despawns them cleanly upon resuming gameplay.
 
 use crate::layout::PauseMenuUiTag;
-use ae_core::state::{GameState, StateContext, StateTransition};
 use ae_plugin_api::{UiAnchor, UiButton, UiElement, UiText, UiTextAlignment};
+use ae_state::{GameState, StateContext, StateTransition};
 
 /// Dedicated `GameState` for the In-Game Pause overlay.
 #[derive(Default)]
@@ -25,6 +25,10 @@ impl InGamePauseState {
 impl GameState for InGamePauseState {
     fn name(&self) -> &'static str {
         "InGamePauseMenu"
+    }
+
+    fn is_pause_state(&self) -> bool {
+        true
     }
 
     fn on_enter(&mut self, ctx: &mut StateContext<'_>) {

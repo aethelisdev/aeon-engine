@@ -400,7 +400,7 @@ impl AeEngine {
         crate::actions::process_ui_actions(self, actions);
         if self.mode != old_mode {
             self.in_game_hud.reset(&mut self.world);
-            self.state_manager = ae_core::state::StateManager::new();
+            self.state_manager = ae_state::StateManager::new();
             self.previous_mode = self.mode;
             self.physics_world
                 .sync_ecs_to_physics(&mut self.world, |handle| {
