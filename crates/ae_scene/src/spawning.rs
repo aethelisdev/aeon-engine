@@ -11,8 +11,9 @@ use ae_assets::{compute_model_auto_scale, is_fbx_model_path};
 use ae_ecs::{Entity, World};
 use ae_plugin_api::{
     BoundingBox, CharacterAction, CharacterController, Collider, ColliderShape, Color,
-    DestructibleTarget, MovingPlatform, Name, PhysicsMaterial, PlayerTag, Position, RigidBody,
-    RigidBodyType, Rotation, Rotator, Scale, Shape, SpriteId, SurfaceType, TriggerZone, Velocity,
+    DestructibleTarget, LodGroup, ModelId, MovingPlatform, Name, PhysicsMaterial, PlayerTag,
+    Position, RigidBody, RigidBodyType, Rotation, Rotator, Scale, Shape, SpriteId, SurfaceType,
+    TriggerZone, Velocity,
 };
 use ae_renderer::asset::{AssetHandle, AssetManager};
 use std::path::Path;
@@ -558,9 +559,110 @@ pub fn spawn_phase1_sandbox(world: &mut World) -> Entity {
     player_ent
 }
 
+/// Collects all referenced model and texture [`AssetHandle`] sets across live [`ModelId`],
+/// [`SpriteId`], and [`LodGroup`] components in `world`.
+#[must_use]
+pub fn collect_used_asset_handles(
+    world: &World,
+) -> (
+    std::collections::HashSet<AssetHandle>,
+    std::collections::HashSet<AssetHandle>,
+) {
+    let mut used_models = std::collections::HashSet::new();
+    let mut used_textures = std::collections::HashSet::new();
+
+    for (_ent, model_id) in world.query::<(Entity, &ModelId)>().iter() {
+        used_models.insert(model_id.0);
+    }
+    for (_ent, sprite_id) in world.query::<(Entity, &SpriteId)>().iter() {
+        used_textures.insert(sprite_id.0);
+    }
+    for (_ent, lod) in world.query::<(Entity, &LodGroup)>().iter() {
+        used_models.insert(lod.lod_0);
+        if let Some(h) = lod.lod_1 {
+            used_models.insert(h);
+        }
+        if let Some(h) = lod.lod_2 {
+            used_models.insert(h);
+        }
+    }
+
+    (used_models, used_textures)
+}
+
+/// Sweeps [`AssetManager`] slots and removes models and textures that are no longer referenced
+/// by any live [`ModelId`], [`SpriteId`], or [`LodGroup`] component in `world`.
+///
+/// Returns `(removed_models, removed_textures)`.
+pub fn garbage_collect_unused_assets(
+    world: &World,
+    asset_manager: &mut AssetManager,
+) -> (usize, usize) {
+    let (used_models, used_textures) = collect_used_asset_handles(world);
+
+    let unused_models: Vec<_> = asset_manager
+        .models
+        .iter()
+        .map(|(handle, _)| handle)
+        .filter(|h| !used_models.contains(h))
+        .collect();
+    let removed_models = unused_models.len();
+    for handle in unused_models {
+        asset_manager.models.remove(handle);
+    }
+
+    let unused_textures: Vec<_> = asset_manager
+        .textures
+        .iter()
+        .map(|(handle, _)| handle)
+        .filter(|h| !used_textures.contains(h))
+        .collect();
+    let removed_textures = unused_textures.len();
+    for handle in unused_textures {
+        asset_manager.textures.remove(handle);
+    }
+
+    (removed_models, removed_textures)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ae_renderer::asset::AssetStorage;
+
+    #[test]
+    fn test_collect_used_asset_handles_covers_models_sprites_and_lods() {
+        let mut handle_pool = AssetStorage::<()>::new();
+        let m_primary = handle_pool.insert(());
+        let m_lod0 = handle_pool.insert(());
+        let m_lod1 = handle_pool.insert(());
+        let m_unused = handle_pool.insert(());
+        let tex_live = handle_pool.insert(());
+
+        let mut world = World::new();
+        assert_eq!(
+            garbage_collect_unused_assets(&world, &mut AssetManager::new()),
+            (0, 0)
+        );
+
+        world.spawn((ModelId(m_primary), SpriteId(tex_live)));
+        world.spawn((LodGroup {
+            lod_0: m_lod0,
+            lod_1: Some(m_lod1),
+            lod_2: None,
+            threshold_1: 15.0,
+            threshold_2: 45.0,
+        },));
+
+        let (used_models, used_textures) = collect_used_asset_handles(&world);
+        assert!(used_models.contains(&m_primary));
+        assert!(used_models.contains(&m_lod0));
+        assert!(used_models.contains(&m_lod1));
+        assert!(!used_models.contains(&m_unused));
+        assert!(used_textures.contains(&tex_live));
+        assert_eq!(used_models.len(), 3);
+        assert_eq!(used_textures.len(), 1);
+    }
 
     #[test]
     fn test_resolve_asset_display_name_handles_scene_folder_and_empty_path() {

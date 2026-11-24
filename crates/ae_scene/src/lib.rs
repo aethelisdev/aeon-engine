@@ -31,9 +31,10 @@ pub use serialization::{
     ensure_world_entity_guids, save_partitioned_world,
 };
 pub use spawning::{
-    ModelSpawnDesc, SpriteSpawnDesc, resolve_asset_display_name, spawn_default_sprite_entity,
-    spawn_empty_2d_entity, spawn_model_entity, spawn_phase1_sandbox, spawn_player_sprite_entity,
-    spawn_shape_entity, spawn_sprite_entity, spawn_stress_test_cubes,
+    ModelSpawnDesc, SpriteSpawnDesc, collect_used_asset_handles, garbage_collect_unused_assets,
+    resolve_asset_display_name, spawn_default_sprite_entity, spawn_empty_2d_entity,
+    spawn_model_entity, spawn_phase1_sandbox, spawn_player_sprite_entity, spawn_shape_entity,
+    spawn_sprite_entity, spawn_stress_test_cubes,
 };
 pub use streaming::{
     RuntimeStreamingManager, StreamingStepReport, bind_entity_assets_from_binding,
