@@ -10,6 +10,8 @@ irisui-core = { workspace = true }
 irisui-text = { workspace = true }
 wgpu = { workspace = true }
 bytemuck = { workspace = true }
-glam = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+
+[lints]
+workspace = true

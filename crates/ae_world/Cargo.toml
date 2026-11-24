@@ -17,4 +17,3 @@ lz4_flex = { workspace = true }
 crc32fast = { workspace = true }
 rayon = "1.12.0"
 thiserror = { workspace = true }
-log = { workspace = true }

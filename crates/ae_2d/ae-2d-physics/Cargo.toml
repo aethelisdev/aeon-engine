@@ -7,9 +7,6 @@ description = "High-performance Rapier2D physics simulation and collision system
 license = "MPL-2.0"
 
 [dependencies]
-ae-2d-core = { path = "../ae-2d-core" }
-ae_core = { path = "../../ae_core" }
-ae_ecs = { workspace = true }
 rapier2d = "0.36.1"
 glam = { workspace = true }
 log = "0.4.33"

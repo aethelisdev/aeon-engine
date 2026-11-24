@@ -7,7 +7,10 @@ description = "High-performance, instanced 2D sprite rendering and 2D game subsy
 license = "MPL-2.0"
 
 [dependencies]
-ae-2d-core = { path = "../ae-2d-core" }
-ae-2d-render = { path = "../ae-2d-render" }
-ae-2d-animation = { path = "../ae-2d-animation" }
-ae-2d-physics = { path = "../ae-2d-physics" }
+ae-2d-core = { workspace = true }
+ae-2d-render = { workspace = true }
+ae-2d-animation = { workspace = true }
+ae-2d-physics = { workspace = true }
+
+[lints]
+workspace = true

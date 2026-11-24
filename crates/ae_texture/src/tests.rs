@@ -118,7 +118,7 @@ mod unit_tests {
         let mut path_map = TexturePathMap::new();
 
         let tex = FallbackTextureGenerator::white_1x1();
-        let handle = storage.insert(tex.clone());
+        let handle = storage.insert(tex);
         let path = std::path::PathBuf::from("/canonical/white.png");
 
         path_map.insert(path.clone(), handle);

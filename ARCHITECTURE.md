@@ -42,10 +42,8 @@ graph TD
         ae_plugin_api --> game_logic["game_logic (cdylib + rlib)"]
         ae_plugin_api --> ae_texture
         ae_world --> ae_texture
-        ae_core --> ae_audio
         ae_world --> ae_audio
         ae_plugin_api --> ae_uidesign
-        ae_core --> ae_uidesign
     end
 
     subgraph Pipeline3D["3D Engine, Gizmos, Assets & Scene Layer"]
@@ -68,8 +66,6 @@ graph TD
 
     subgraph Pipeline2D["2D Engine Subsystem (ae_2d)"]
         ae_camera --> ae_2d_core["ae-2d-core (2D Camera, Transform, Sorting)"]
-        ae_core --> ae_2d_core
-        ae_texture --> ae_2d_core
         ae_2d_core --> ae_2d_render["ae-2d-render (Instanced Sprite Batcher)"]
         ae_2d_core --> ae_2d_physics["ae-2d-physics (Rapier2D Simulation)"]
         ae_2d_core --> ae_2d_anim["ae-2d-animation (Flipbook & Sprite Sheet)"]

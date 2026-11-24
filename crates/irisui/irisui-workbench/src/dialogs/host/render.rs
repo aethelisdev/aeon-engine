@@ -68,8 +68,8 @@ fn render_stacked_dialogs<Action: 'static + Send + Sync>(
 
     // Render underlying background dialogs if any (non-interactive display only)
     if stack_len > 1 {
-        for idx in 0..(stack_len - 1) {
-            render_background_dialog(&mut host.dialog_stack[idx], scope, viewport);
+        for dialog in host.dialog_stack.iter_mut().take(stack_len - 1) {
+            render_background_dialog(dialog, scope, viewport);
         }
     }
 

@@ -7,6 +7,7 @@ description = "Sprite flipbook and sprite sheet animation system for Aeon Engine
 license = "MPL-2.0"
 
 [dependencies]
-ae-2d-core = { path = "../ae-2d-core" }
-glam = { workspace = true }
 serde = { version = "1.0.228", features = ["derive"] }
+
+[lints]
+workspace = true

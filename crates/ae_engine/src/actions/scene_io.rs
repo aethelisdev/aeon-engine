@@ -131,11 +131,7 @@ pub fn handle_import_dropped_files(
 
             match ext.as_str() {
                 "gltf" | "glb" => {
-                    match super::spawning::handle_spawn_model_path_at(
-                        engine,
-                        path.clone(),
-                        world_pos,
-                    ) {
+                    match super::spawning::handle_spawn_model_path_at(engine, path, world_pos) {
                         Ok(()) => engine.ui.set_status_message(
                             format!(
                                 "Spawned 3D model at ({:.1}, {:.1}, {:.1})",
@@ -150,7 +146,7 @@ pub fn handle_import_dropped_files(
                     }
                 }
                 "png" | "jpg" | "jpeg" => {
-                    super::spawning::handle_spawn_sprite_path_at(engine, path.clone(), world_pos);
+                    super::spawning::handle_spawn_sprite_path_at(engine, path, world_pos);
                     engine.ui.set_status_message(
                         format!(
                             "Spawned sprite at ({:.1}, {:.1}, {:.1})",

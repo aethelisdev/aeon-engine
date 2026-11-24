@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 slotmap = { workspace = true }
 bitflags = { workspace = true }
-glam = { workspace = true }
 bytemuck = { workspace = true }
 thiserror = { workspace = true }
 

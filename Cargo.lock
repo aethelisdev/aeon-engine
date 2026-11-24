@@ -28,8 +28,6 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 name = "ae-2d-animation"
 version = "0.1.0"
 dependencies = [
- "ae-2d-core",
- "glam 0.33.12",
  "serde",
 ]
 
@@ -38,10 +36,8 @@ name = "ae-2d-core"
 version = "0.1.0"
 dependencies = [
  "ae_camera",
- "ae_core",
  "ae_ecs",
  "ae_plugin_api",
- "ae_texture",
  "cgmath",
  "glam 0.33.12",
  "serde",
@@ -51,9 +47,6 @@ dependencies = [
 name = "ae-2d-physics"
 version = "0.1.0"
 dependencies = [
- "ae-2d-core",
- "ae_core",
- "ae_ecs",
  "glam 0.33.12",
  "log",
  "rapier2d",
@@ -64,8 +57,6 @@ name = "ae-2d-render"
 version = "0.1.0"
 dependencies = [
  "ae-2d-core",
- "ae_core",
- "ae_texture",
  "bytemuck",
  "cgmath",
  "glam 0.33.12",
@@ -87,11 +78,8 @@ dependencies = [
 name = "ae_animation"
 version = "0.9.0"
 dependencies = [
- "ae_core",
- "ae_ecs",
  "bytemuck",
  "glam 0.33.12",
- "log",
  "serde",
 ]
 
@@ -113,7 +101,6 @@ dependencies = [
 name = "ae_audio"
 version = "0.9.0"
 dependencies = [
- "ae_core",
  "ae_ecs",
  "ae_plugin_api",
  "ae_world",
@@ -150,7 +137,6 @@ dependencies = [
  "cgmath",
  "glam 0.33.12",
  "log",
- "rayon",
  "serde",
  "serde_json",
  "slotmap",
@@ -253,7 +239,6 @@ dependencies = [
  "irisui",
  "jemallocator",
  "log",
- "mint",
  "pollster 1.0.1",
  "postcard",
  "rayon",
@@ -470,10 +455,8 @@ dependencies = [
 name = "ae_uidesign"
 version = "0.9.0"
 dependencies = [
- "ae_core",
  "ae_ecs",
  "ae_plugin_api",
- "log",
  "serde",
  "serde_json",
 ]
@@ -485,7 +468,6 @@ dependencies = [
  "ae_plugin_api",
  "bytemuck",
  "crc32fast",
- "log",
  "lz4_flex",
  "postcard",
  "rayon",
@@ -2069,7 +2051,6 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
- "glam 0.33.12",
  "slotmap",
  "thiserror 2.0.21",
 ]
@@ -2091,7 +2072,6 @@ name = "irisui-layout"
 version = "0.1.0-alpha.1"
 dependencies = [
  "irisui-core",
- "log",
  "taffy",
  "thiserror 2.0.21",
 ]
@@ -2114,7 +2094,6 @@ name = "irisui-wgpu"
 version = "0.1.0-alpha.1"
 dependencies = [
  "bytemuck",
- "glam 0.33.12",
  "irisui-core",
  "irisui-text",
  "log",
@@ -2568,12 +2547,6 @@ dependencies = [
  "adler2",
  "simd-adler32",
 ]
-
-[[package]]
-name = "mint"
-version = "0.5.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "moxcms"

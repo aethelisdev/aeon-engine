@@ -220,7 +220,7 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                 // Locate the active tab in this floating window
                 let active_tab_opt = win.tree.iter().find_map(|(_, node)| {
                     if let DockNode::Leaf { tabs, active_tab } = node {
-                        tabs.get(*active_tab).cloned()
+                        tabs.get(*active_tab).copied()
                     } else {
                         None
                     }

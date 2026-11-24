@@ -56,7 +56,7 @@ fn test_drag_drop_payload_dynamic_and_typed() {
     };
 
     // 1. Create erased payload
-    let mut payload = DragDropPayload::new(original_data.clone(), "Player Model", "AssetBrowser");
+    let mut payload = DragDropPayload::new(original_data, "Player Model", "AssetBrowser");
 
     assert_eq!(payload.preview_label(), "Player Model");
     assert_eq!(payload.source_panel(), "AssetBrowser");
@@ -226,7 +226,7 @@ fn test_drag_drop_controller_workflow_and_payload_cloning() {
     )
     .with_badge("3D", Color::rgba(0.0, 0.9, 1.0, 1.0));
 
-    let erased = payload.clone().into_erased();
+    let erased = payload.into_erased();
     assert_eq!(erased.badge_text(), Some("3D"));
     assert_eq!(erased.badge_color(), Some(Color::rgba(0.0, 0.9, 1.0, 1.0)));
     assert_eq!(erased.preview_label(), "robot.gltf");

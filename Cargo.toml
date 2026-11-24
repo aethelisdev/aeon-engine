@@ -44,7 +44,6 @@ default-members = ["crates/ae_launcher"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
 

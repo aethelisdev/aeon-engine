@@ -200,7 +200,7 @@ fn test_dialog_host_open_custom() {
     let mut bus = ActionBus::new();
 
     let rendered = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let rendered_clone = rendered.clone();
+    let rendered_clone = std::sync::Arc::clone(&rendered);
     host.open_custom(
         "Custom Dialog",
         (500.0, 300.0),

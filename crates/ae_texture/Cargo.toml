@@ -12,3 +12,6 @@ log = "0.4"
 slotmap = "1.0"
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_world = { workspace = true }
+
+[lints]
+workspace = true

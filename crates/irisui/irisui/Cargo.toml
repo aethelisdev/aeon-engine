@@ -14,3 +14,6 @@ irisui-widgets = { workspace = true }
 irisui-dock = { workspace = true }
 irisui-winit = { workspace = true }
 irisui-workbench = { workspace = true }
+
+[lints]
+workspace = true

@@ -9,4 +9,6 @@ license.workspace = true
 irisui-core = { workspace = true }
 taffy = { workspace = true }
 thiserror = { workspace = true }
-log = { workspace = true }
+
+[lints]
+workspace = true

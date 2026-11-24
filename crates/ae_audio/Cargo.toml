@@ -6,7 +6,6 @@ license = "MPL-2.0"
 description = "Spatial 3D Audio Subsystem for Aeon Engine"
 
 [dependencies]
-ae_core = { path = "../ae_core" }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_ecs = { workspace = true }
 ae_world = { workspace = true }
