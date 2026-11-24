@@ -13,6 +13,7 @@ use std::sync::OnceLock;
 /// Registers all core built-in engine components into `registry`.
 pub fn register_engine_components(registry: &mut ComponentRegistry) {
     use crate::{components::*, identity::EntityGuid};
+    use ae_light::Light;
 
     registry.register_with_default::<EntityGuid>("EntityGuid", EntityGuid::default);
     registry.register_with_default::<Position>("Position", Position::default);

@@ -5,8 +5,9 @@
 
 use crate::engine::AeEngine;
 use ae_ecs::{Component, Entity, World};
+use ae_light::Light;
 use ae_plugin_api::{
-    CharacterController, Collider, ColliderShape, Color, Hidden, Light, LodGroup, Name, Position,
+    CharacterController, Collider, ColliderShape, Color, Hidden, LodGroup, Name, Position,
     Rotation, Scale, SpriteId, TransformDirty, Velocity,
 };
 use serde::de::DeserializeOwned;

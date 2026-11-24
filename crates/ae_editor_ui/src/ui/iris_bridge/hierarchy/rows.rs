@@ -144,7 +144,7 @@ fn resolve_entity_icon(
 
 fn resolve_component_icon(ent_ref: &ae_ecs::EntityRef<'_>, is_selected: bool) -> EntityIcon {
     ent_ref
-        .inspect::<ae_plugin_api::Light, _>(|light| {
+        .inspect::<ae_light::Light, _>(|light| {
             EntityIcon::Texture(ICON_LIGHT, light_icon_tint(light.color, is_selected))
         })
         .or_else(|| {

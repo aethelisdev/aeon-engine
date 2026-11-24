@@ -3,9 +3,10 @@
 
 use crate::editor_state::EditorState;
 use crate::undo_redo::{Command, EntitySnapshot};
+use ae_light::Light;
 use ae_plugin_api::{
-    BoundingBox, Children, Color, GlobalTransform, Light, ModelId, Name, Parent, PlayerTag,
-    Position, Rotation, Scale, Shape, SpriteId, Velocity,
+    BoundingBox, Children, Color, GlobalTransform, ModelId, Name, Parent, PlayerTag, Position,
+    Rotation, Scale, Shape, SpriteId, Velocity,
 };
 
 /// Deletes all currently selected entities from the ECS world.

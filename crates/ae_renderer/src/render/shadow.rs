@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::LightSpaceUniform;
-use cgmath::{InnerSpace, SquareMatrix};
+use ae_light::{LightSpaceUniform, compute_cascade_light_space};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -370,75 +369,22 @@ impl ShadowSystem {
         camera: &ae_camera::Camera,
         light_dir: cgmath::Vector3<f32>,
     ) {
-        let light_dir = if light_dir.magnitude2() < 1e-6 {
-            cgmath::Vector3::unit_y()
-        } else {
-            light_dir.normalize()
-        };
-        let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
-        let splits = graphics_settings.shadow_cascade_splits; // Configurable View-Z distances
-
-        let cam_pos = cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
-        let cam_forward = camera.get_forward();
-
-        // WGPU depth correction
-        let corr = ae_camera::OPENGL_TO_WGPU_MATRIX;
-
-        for i in 0..4 {
-            if i >= cascades {
-                self.light_space_uniform.matrices[i] = cgmath::Matrix4::identity().into();
-                self.light_space_uniform.cascade_splits[i] = 10000.0;
-                continue;
-            }
-
-            let center_dist = if i == 0 {
-                splits[i] * 0.5
-            } else {
-                (splits[i] + splits[i - 1]) * 0.5
-            };
-            let cascade_center = cam_pos + cam_forward * center_dist;
-
-            // Cascade bounding sphere radius: half the cascade depth range, scaled by 1.5×
-            // safety margin to prevent shadow edge clipping during camera rotation.
-            let radius = if i == 0 {
-                splits[i]
-            } else {
-                (splits[i] - splits[i - 1]) * 0.5
-            } * 1.5;
-
-            let light_pos_target = cascade_center + light_dir * radius * 2.0;
-            let up_vector = if light_dir.y.abs() > 0.99 {
-                cgmath::Vector3::unit_z()
-            } else {
-                cgmath::Vector3::unit_y()
-            };
-            let light_view = cgmath::Matrix4::look_at_rh(
-                cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
-                cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
-                up_vector,
-            );
-
-            let light_proj = cgmath::ortho(-radius, radius, -radius, radius, 0.1, radius * 5.0);
-
-            let m: [[f32; 4]; 4] = (corr * light_proj * light_view).into();
-            self.light_space_uniform.matrices[i] = m;
-            self.light_space_uniform.cascade_splits[i] = splits[i];
-
+        let next_uniform =
+            compute_cascade_light_space(&graphics_settings.to_cascade_config(), camera, light_dir);
+        for (i, matrix) in next_uniform
+            .matrices
+            .iter()
+            .take(next_uniform.cascade_count as usize)
+            .enumerate()
+        {
             queue.write_buffer(
                 &self.shadow_matrix_buffers[i],
                 0,
-                bytemuck::cast_slice(&[m]),
+                bytemuck::cast_slice(&[*matrix]),
             );
         }
 
-        self.light_space_uniform.shadow_enabled = if graphics_settings.shadow_enabled {
-            1
-        } else {
-            0
-        };
-        self.light_space_uniform.shadow_bias = graphics_settings.shadow_bias;
-        self.light_space_uniform.pcf_radius = graphics_settings.shadow_pcf.radius();
-        self.light_space_uniform.cascade_count = cascades as u32;
+        self.light_space_uniform = next_uniform;
         queue.write_buffer(
             &self.light_space_buffer,
             0,
@@ -689,89 +635,5 @@ impl ShadowSystem {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cgmath::InnerSpace;
-    /// Tests that computing shadow cascades with a vertical light vector does not generate NaN values.
-    #[test]
-    fn test_shadow_cascade_vertical_light_no_nan() {
-        let light_dir: cgmath::Vector3<f32> = cgmath::Vector3::new(0.0, 1.0, 0.0);
-        let up_vector = if light_dir.y.abs() > 0.99 {
-            cgmath::Vector3::unit_z()
-        } else {
-            cgmath::Vector3::unit_y()
-        };
-
-        let cascade_center = cgmath::Vector3::new(0.0, 0.0, 0.0);
-        let radius = 10.0_f32;
-        let light_pos_target = cascade_center + light_dir * radius * 2.0;
-
-        let light_view = cgmath::Matrix4::look_at_rh(
-            cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
-            cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
-            up_vector,
-        );
-
-        let mat_arr: [[f32; 4]; 4] = light_view.into();
-        for row in &mat_arr {
-            for val in row {
-                assert!(!val.is_nan(), "Light view matrix element is NaN!");
-            }
-        }
-    }
-
-    /// Tests that computing shadow cascades with a zero light vector falls back safely and does not generate NaN values.
-    #[test]
-    fn test_shadow_cascade_zero_light_no_nan() {
-        let light_dir: cgmath::Vector3<f32> = cgmath::Vector3::new(0.0, 0.0, 0.0);
-        let safe_light_dir = if light_dir.magnitude2() < 1e-6 {
-            cgmath::Vector3::unit_y()
-        } else {
-            light_dir.normalize()
-        };
-        let up_vector = if safe_light_dir.y.abs() > 0.99 {
-            cgmath::Vector3::unit_z()
-        } else {
-            cgmath::Vector3::unit_y()
-        };
-
-        let cascade_center = cgmath::Vector3::new(0.0, 0.0, 0.0);
-        let radius = 10.0_f32;
-        let light_pos_target = cascade_center + safe_light_dir * radius * 2.0;
-
-        let light_view = cgmath::Matrix4::look_at_rh(
-            cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
-            cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
-            up_vector,
-        );
-
-        let mat_arr: [[f32; 4]; 4] = light_view.into();
-        for row in &mat_arr {
-            for val in row {
-                assert!(
-                    !val.is_nan(),
-                    "Light view matrix element with zero light dir is NaN!"
-                );
-            }
-        }
-    }
-
-    /// Verifies that `LightSpaceUniform` has a 16-byte aligned size matching the GPU WGSL layout (288 bytes).
-    #[test]
-    fn test_light_space_uniform_size_and_alignment() {
-        assert_eq!(
-            std::mem::size_of::<LightSpaceUniform>(),
-            288,
-            "LightSpaceUniform must be exactly 288 bytes to match shader.wgsl layout"
-        );
-        assert_eq!(
-            std::mem::size_of::<LightSpaceUniform>() % 16,
-            0,
-            "LightSpaceUniform must be 16-byte aligned for WebGPU uniform buffers"
-        );
     }
 }

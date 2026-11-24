@@ -100,13 +100,8 @@ impl RenderState {
     /// Avoids repeating redundant perceptual powf(2.2) conversions across render passes.
     #[inline]
     pub fn environment_clear_color(&self) -> wgpu::Color {
-        let env = self.graphics_settings.environment_color;
-        wgpu::Color {
-            r: (env[0] as f64).powf(2.2),
-            g: (env[1] as f64).powf(2.2),
-            b: (env[2] as f64).powf(2.2),
-            a: 1.0,
-        }
+        let [r, g, b] = ae_light::linear_clear_rgb(self.graphics_settings.environment_color);
+        wgpu::Color { r, g, b, a: 1.0 }
     }
 
     /// Acquires the next swapchain surface texture, handling surface loss and reconfiguration.

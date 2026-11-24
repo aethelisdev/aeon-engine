@@ -1,0 +1,15 @@
+[package]
+name = "ae_light"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - GPU-free lighting components, shadow cascade math, procedural atmosphere/fog evaluation, and aligned GPU uniform layouts"
+
+[dependencies]
+ae_camera = { workspace = true }
+bytemuck = { workspace = true }
+cgmath = "0.18"
+serde = { workspace = true }
+
+[lints]
+workspace = true

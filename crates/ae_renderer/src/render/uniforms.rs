@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::render::types::LightUniform;
+use ae_light::{LightUniform, SkyUniform, evaluate_environment};
 use wgpu::util::DeviceExt;
 
 /// Central uniform buffer manager for camera, lighting, sky, and texture bind groups.
@@ -20,7 +20,7 @@ pub struct SceneUniforms {
     pub sky_bind_group: wgpu::BindGroup,
     pub sky_buffer: wgpu::Buffer,
     pub sky_bind_group_layout: wgpu::BindGroupLayout,
-    pub sky_uniform: crate::render::types::SkyUniform,
+    pub sky_uniform: SkyUniform,
     pub start_time: std::time::Instant,
 }
 
@@ -61,15 +61,7 @@ impl SceneUniforms {
         });
 
         // --- LIGHTING SETUP ---
-        let light_uniform = LightUniform {
-            direction: [0.0, 1.0, 0.0],
-            grid_scale: 1.0,
-            color: [1.0, 1.0, 1.0],
-            _padding2: 0,
-            ambient_color: [0.1, 0.1, 0.1],
-            _padding3: 0,
-            fog_params: [0.0; 4],
-        };
+        let light_uniform = LightUniform::default();
 
         let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Light Buffer"),
@@ -124,24 +116,7 @@ impl SceneUniforms {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let sky_uniform = crate::render::types::SkyUniform {
-            sun_direction: [0.0, 1.0, 0.0, 0.0],
-            sun_color: [1.0, 1.0, 1.0, 100.0],
-            horizon_color: [0.5, 0.6, 0.7, 0.0],
-            zenith_color: [0.1, 0.2, 0.4, 0.0],
-            atmosphere_density: 1.0,
-            ozone_density: 1.0,
-            sun_disc_size: 1.0,
-            sun_glow_strength: 1.0,
-            cloud_coverage: 0.45,
-            cloud_density: 1.0,
-            cloud_speed: 1.0,
-            cloud_evolution: 1.0,
-            cloud_altitude: 1500.0,
-            cloud_thickness: 3000.0,
-            time: 0.0,
-            sky_quality_mode: 2,
-        };
+        let sky_uniform = SkyUniform::default();
 
         let sky_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Sky Buffer"),
@@ -210,84 +185,20 @@ impl SceneUniforms {
         queue: &wgpu::Queue,
         settings: &crate::graphics_settings::GraphicsSettings,
     ) {
-        // --- 1. Compute Shared Vector (Source of Truth) ---
-        // Pitch/Yaw converted to a normalized vector pointing TOWARDS the sun.
-        let pitch = settings.sun_pitch;
-        let yaw = settings.sun_yaw;
-        let sun_x = pitch.cos() * yaw.sin();
-        let sun_y = pitch.sin();
-        let sun_z = pitch.cos() * yaw.cos();
-        let sun_dir = [sun_x, sun_y, sun_z];
-
-        // --- 2. Update Sky Uniform ---
-        self.sky_uniform.sun_direction = [sun_x, sun_y, sun_z, 0.0];
-
-        let env_r = settings.environment_color[0];
-        let env_g = settings.environment_color[1];
-        let env_b = settings.environment_color[2];
-
-        // Atmospheric Rayleigh and Mie color balance
-        self.sky_uniform.horizon_color = [env_r * 0.55, env_g * 0.72, env_b * 0.90, 1.0];
-        self.sky_uniform.zenith_color = [env_r * 0.08, env_g * 0.22, env_b * 0.58, 1.0];
-        self.sky_uniform.sun_color = [1.0, 0.95, 0.8, 100.0]; // HDR intensity in w
-
-        self.sky_uniform.atmosphere_density = settings.atmosphere_density;
-        self.sky_uniform.ozone_density = settings.ozone_density;
-        self.sky_uniform.sun_disc_size = settings.sun_disc_size;
-        self.sky_uniform.sun_glow_strength = settings.sun_glow_strength;
-        self.sky_uniform.cloud_coverage = settings.cloud_coverage;
-        self.sky_uniform.cloud_density = settings.cloud_density;
-        self.sky_uniform.cloud_speed = settings.cloud_speed;
-        self.sky_uniform.cloud_evolution = settings.cloud_evolution;
-        self.sky_uniform.cloud_altitude = settings.cloud_altitude;
-        self.sky_uniform.cloud_thickness = settings.cloud_thickness;
-        self.sky_uniform.time = self.start_time.elapsed().as_secs_f32();
-        self.sky_uniform.sky_quality_mode = settings.sky_quality as u32;
+        let env_config = settings.to_environment_light_config();
+        let eval = evaluate_environment(
+            &env_config,
+            self.start_time.elapsed().as_secs_f32(),
+            self.light_uniform.grid_scale,
+        );
+        self.sky_uniform = eval.sky;
+        self.light_uniform = eval.light;
 
         queue.write_buffer(
             &self.sky_buffer,
             0,
             bytemuck::cast_slice(&[self.sky_uniform]),
         );
-
-        // --- 3. Update PBR Scene Light Uniform ---
-        self.light_uniform.direction = sun_dir;
-
-        // Calculate physics-esque sunset transition
-        let elevation = sun_y.max(0.0);
-        let noon_color = [1.0, 0.95, 0.9];
-        let sunset_color = [1.0, 0.4, 0.1];
-
-        let blend = elevation.powf(0.5); // Fast color transition near horizon
-
-        // Direct sun color (Balanced 1.05 multiplier for natural non-overexposed lighting)
-        self.light_uniform.color = [
-            (noon_color[0] * blend + sunset_color[0] * (1.0 - blend)) * 1.05,
-            (noon_color[1] * blend + sunset_color[1] * (1.0 - blend)) * 1.05,
-            (noon_color[2] * blend + sunset_color[2] * (1.0 - blend)) * 1.05,
-        ];
-
-        // Soft ambient environment light (derived from sky mood, but bright enough for clear PBR visibility)
-        let ambient_intensity = 0.2 + elevation * 0.4; // Bright enough to fill in deep shadows cleanly
-        self.light_uniform.ambient_color = [
-            env_r * ambient_intensity,
-            env_g * ambient_intensity,
-            (env_b * 1.2) * ambient_intensity,
-        ];
-
-        // --- 4. Atmospheric Fog ---
-        let fog_dist = if settings.fog_enabled {
-            settings.fog_distance
-        } else {
-            0.0
-        };
-        self.light_uniform.fog_params = [
-            self.sky_uniform.horizon_color[0],
-            self.sky_uniform.horizon_color[1],
-            self.sky_uniform.horizon_color[2],
-            fog_dist,
-        ];
-
         queue.write_buffer(
             &self.light_buffer,
             0,

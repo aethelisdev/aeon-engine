@@ -5,8 +5,8 @@
 //!
 //! Extracts visible entities from the ECS World into GPU-ready instances, applying spatial-partitioned frustum culling.
 
-use crate::render::types::uniforms::LightUniform;
 use crate::render::types::vertex::{Instance, RenderInstanceItem};
+use ae_light::LightUniform;
 
 /// Abstract representation of the scene to decouple RenderState from ECS.
 ///
@@ -147,15 +147,7 @@ impl RenderScene {
         spatial_grid: &ae_transform::SpatialGrid,
     ) -> Self {
         // Will be overwritten by GraphicsSettings global sun state during Main Pass
-        let light_uniform = LightUniform {
-            direction: [0.0, 1.0, 0.0],
-            grid_scale: 1.0,
-            color: [1.0, 1.0, 1.0],
-            _padding2: 0,
-            ambient_color: [0.1, 0.1, 0.15],
-            _padding3: 0,
-            fog_params: [0.0; 4],
-        };
+        let light_uniform = LightUniform::default();
 
         let total_ents = world.len() as usize;
         let mut triangle_instances = Vec::with_capacity(total_ents.max(4));

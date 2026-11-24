@@ -164,6 +164,7 @@ dependencies = [
  "ae_ecs",
  "ae_gizmos",
  "ae_input",
+ "ae_light",
  "ae_plugin_api",
  "ae_transform",
  "cgmath",
@@ -188,6 +189,7 @@ dependencies = [
  "ae_editor",
  "ae_export",
  "ae_gizmos",
+ "ae_light",
  "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
@@ -226,6 +228,7 @@ dependencies = [
  "ae_gizmos",
  "ae_gizmos_render",
  "ae_input",
+ "ae_light",
  "ae_mcp",
  "ae_mesh",
  "ae_physics",
@@ -296,6 +299,7 @@ dependencies = [
  "ae_audio",
  "ae_ecs",
  "ae_gizmos",
+ "ae_light",
  "ae_plugin_api",
  "ae_renderer",
  "ae_transform",
@@ -331,6 +335,16 @@ dependencies = [
  "serde_json",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "ae_light"
+version = "0.1.0"
+dependencies = [
+ "ae_camera",
+ "bytemuck",
+ "cgmath",
+ "serde",
 ]
 
 [[package]]
@@ -374,6 +388,7 @@ name = "ae_plugin_api"
 version = "0.9.0"
 dependencies = [
  "ae_ecs",
+ "ae_light",
  "cgmath",
  "serde",
  "slotmap",
@@ -398,6 +413,7 @@ dependencies = [
  "ae_core",
  "ae_diagnostic",
  "ae_ecs",
+ "ae_light",
  "ae_mesh",
  "ae_plugin_api",
  "ae_texture",
@@ -428,6 +444,7 @@ dependencies = [
  "ae_core",
  "ae_ecs",
  "ae_input",
+ "ae_light",
  "ae_physics",
  "ae_plugin_api",
  "ae_plugin_host",
@@ -463,6 +480,7 @@ dependencies = [
  "ae_assets",
  "ae_core",
  "ae_ecs",
+ "ae_light",
  "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",

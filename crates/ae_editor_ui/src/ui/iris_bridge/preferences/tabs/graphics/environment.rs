@@ -8,7 +8,8 @@
 
 use super::types::SKY_OPTIONS;
 use crate::ui::iris_bridge::preferences::tabs::PREF_COMBO_LAYOUT;
-use ae_renderer::graphics_settings::{GraphicsSettings, SkyQuality};
+use ae_light::SkyQuality;
+use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
 use irisui::widgets::declarative::scope::PropertySliderOptions;
 

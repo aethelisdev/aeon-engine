@@ -232,9 +232,9 @@ pub const BUILTIN_COMPONENT_MENU_CATALOG: &[ComponentMenuEntry] = &[
         category: ComponentCategory::Rendering,
         icon: "💡",
         atlas_icon: Some(ICON_LIGHT),
-        has_component: has_comp::<ae_plugin_api::Light>,
-        spawn_default: spawn_comp::<ae_plugin_api::Light>,
-        remove_component: remove_comp::<ae_plugin_api::Light>,
+        has_component: has_comp::<ae_light::Light>,
+        spawn_default: spawn_comp::<ae_light::Light>,
+        remove_component: remove_comp::<ae_light::Light>,
     },
     ComponentMenuEntry {
         component_name: "ModelId",

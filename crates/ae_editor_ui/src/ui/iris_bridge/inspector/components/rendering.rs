@@ -13,7 +13,7 @@ use irisui::prelude::*;
 /// Encapsulates position offset and RGB illumination color scrubbers with zero intermediate variable plumbing.
 pub fn draw_light_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
     world
-        .mutate::<ae_plugin_api::Light, _>(entity, |light| {
+        .mutate::<ae_light::Light, _>(entity, |light| {
             scope.card_panel("LightCard", |card| {
                 card.card_header_desc(
                     UiScope::comp_card_desc(
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn test_light_render_and_in_place_mutation() {
         let mut world = ae_ecs::World::new();
-        let entity = world.spawn((ae_plugin_api::Light {
+        let entity = world.spawn((ae_light::Light {
             position: [0.0, 5.0, 0.0],
             color: [1.0, 0.8, 0.6],
         },));
@@ -153,14 +153,14 @@ mod tests {
 
         // Test in-place mutation
         {
-            let l = world.get_mut::<ae_plugin_api::Light>(entity).unwrap();
+            let l = world.get_mut::<ae_light::Light>(entity).unwrap();
             l.position[1] = 8.5;
             l.color[0] = 0.5;
             l.color[1] = 0.4;
         }
 
         {
-            let l = world.get_copied::<ae_plugin_api::Light>(entity).unwrap();
+            let l = world.get_copied::<ae_light::Light>(entity).unwrap();
             assert_eq!(l.position[1], 8.5);
             assert_eq!(l.color[0], 0.5);
             assert_eq!(l.color[1], 0.4);
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn test_draw_light_card_standalone() {
         let mut world = ae_ecs::World::new();
-        let entity = world.spawn((ae_plugin_api::Light::default(),));
+        let entity = world.spawn((ae_light::Light::default(),));
         let mut tree = UiTree::new();
         let root = WidgetId::default();
         let mut scope = UiScope::new(&mut tree, root);

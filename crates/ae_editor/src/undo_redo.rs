@@ -8,7 +8,8 @@
 #![deny(clippy::unwrap_used)]
 
 use ae_ecs::ComponentRegistry;
-use ae_plugin_api::{Color, Light, Name, Position, Rotation, Scale};
+use ae_light::Light;
+use ae_plugin_api::{Color, Name, Position, Rotation, Scale};
 use serde::{Deserialize, Serialize};
 
 /// Serialized component entry stored within an `EntitySnapshot`.

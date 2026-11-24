@@ -422,7 +422,7 @@ mod tests {
         let mut world = ae_ecs::World::new();
         let entity = world.spawn((
             ae_plugin_api::RigidBody::default(),
-            ae_plugin_api::Light::default(),
+            ae_light::Light::default(),
         ));
 
         {

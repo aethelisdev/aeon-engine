@@ -3,7 +3,8 @@
 
 use crate::engine::AeEngine;
 use ae_core::modules::EngineMode;
-use ae_plugin_api::{Light, Position};
+use ae_light::{Light, LightUniform};
+use ae_plugin_api::Position;
 use cgmath::InnerSpace;
 
 impl AeEngine {
@@ -12,15 +13,7 @@ impl AeEngine {
     pub fn extract_render_scene(&self) -> ae_renderer::render::types::RenderScene {
         if self.dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
             return ae_renderer::render::types::RenderScene {
-                light_uniform: ae_renderer::render::types::LightUniform {
-                    direction: [0.0, 1.0, 0.0],
-                    grid_scale: 1.0,
-                    color: [1.0, 1.0, 1.0],
-                    _padding2: 0,
-                    ambient_color: [0.1, 0.1, 0.15],
-                    _padding3: 0,
-                    fog_params: [0.0; 4],
-                },
+                light_uniform: LightUniform::default(),
                 triangle_instances: Vec::new(),
                 cube_instances: Vec::new(),
                 sphere_instances: Vec::new(),
@@ -213,15 +206,7 @@ impl AeEngine {
             self.extract_render_scene()
         } else {
             ae_renderer::render::types::RenderScene {
-                light_uniform: ae_renderer::render::types::LightUniform {
-                    direction: [0.0, 1.0, 0.0],
-                    grid_scale: 1.0,
-                    color: [1.0, 1.0, 1.0],
-                    _padding2: 0,
-                    ambient_color: [0.1, 0.1, 0.15],
-                    _padding3: 0,
-                    fog_params: [0.0; 4],
-                },
+                light_uniform: LightUniform::default(),
                 triangle_instances: Vec::new(),
                 cube_instances: Vec::new(),
                 sphere_instances: Vec::new(),

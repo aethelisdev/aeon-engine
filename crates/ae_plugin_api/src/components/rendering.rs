@@ -104,22 +104,6 @@ impl Default for Color {
     }
 }
 
-/// Point light component with position and RGB color.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Light {
-    pub position: [f32; 3],
-    pub color: [f32; 3],
-}
-
-impl Default for Light {
-    fn default() -> Self {
-        Self {
-            position: [0.0, 0.0, 0.0],
-            color: [1.0, 1.0, 1.0],
-        }
-    }
-}
-
 /// Built-in geometric shape type for primitive entity rendering.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Shape {

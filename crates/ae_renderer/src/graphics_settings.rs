@@ -1,61 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// Shadow map resolution tiers controlling texture size and quality.
-///
-/// Higher resolutions produce sharper shadows but consume more GPU memory.
-/// The `as_u32()` method returns the texture dimension directly.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum ShadowResolution {
-    Low = 512,
-    Medium = 1024,
-    High = 2048,
-    Ultra = 4096,
-}
-
-impl ShadowResolution {
-    pub fn as_u32(self) -> u32 {
-        self as u32
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            ShadowResolution::Low => "Low (512)",
-            ShadowResolution::Medium => "Medium (1024)",
-            ShadowResolution::High => "High (2048)",
-            ShadowResolution::Ultra => "Ultra (4096)",
-        }
-    }
-}
-
-/// Percentage Closer Filtering quality for shadow edge softness.
-///
-/// Controls the PCF kernel size in the shadow shader. Higher quality
-/// produces softer shadow edges at the cost of more texture samples.
-/// The `radius()` method returns the half-kernel size for the shader.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum PcfQuality {
-    Off,       // No filtering - sharp but aliased
-    Soft,      // 3x3 kernel
-    UltraSoft, // 5x5 kernel
-}
-
-impl PcfQuality {
-    pub fn radius(self) -> i32 {
-        match self {
-            PcfQuality::Off => 0,
-            PcfQuality::Soft => 1,
-            PcfQuality::UltraSoft => 2,
-        }
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            PcfQuality::Off => "Off (Sharp)",
-            PcfQuality::Soft => "3x3 Soft",
-            PcfQuality::UltraSoft => "5x5 Ultra Soft",
-        }
-    }
-}
+use ae_light::{
+    CascadeShadowConfig, EnvironmentLightConfig, PcfQuality, ShadowResolution, SkyQuality,
+};
 
 /// Frame rate limit options for the render loop.
 ///
@@ -84,31 +31,6 @@ impl FpsLimit {
             FpsLimit::Limit60 => Some(60.0),
             FpsLimit::Limit120 => Some(120.0),
             FpsLimit::Uncapped => None,
-        }
-    }
-}
-
-/// Atmospheric sky rendering quality levels.
-///
-/// Controls the complexity of the sky shader: from a simple gradient
-/// to a physically-based Rayleigh/Mie scattering model.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum SkyQuality {
-    Low = 0,
-    Medium = 1,
-    High = 2,
-    Panoramic = 3,
-    Volumetric = 4,
-}
-
-impl SkyQuality {
-    pub fn label(self) -> &'static str {
-        match self {
-            SkyQuality::Low => "Low (Gradient)",
-            SkyQuality::Medium => "Medium (Fast HDR)",
-            SkyQuality::High => "High (Atmospheric 2.5D)",
-            SkyQuality::Panoramic => "2D Panoramic (Planned)",
-            SkyQuality::Volumetric => "3D Volumetric (Planned)",
         }
     }
 }
@@ -190,6 +112,44 @@ impl Default for GraphicsSettings {
 
             fog_enabled: true,
             fog_distance: 800.0,
+        }
+    }
+}
+
+impl GraphicsSettings {
+    /// Extracts the CPU shadow cascade configuration for [`ae_light::compute_cascade_light_space`].
+    #[must_use]
+    pub const fn to_cascade_config(&self) -> CascadeShadowConfig {
+        CascadeShadowConfig {
+            enabled: self.shadow_enabled,
+            resolution: self.shadow_resolution,
+            pcf: self.shadow_pcf,
+            bias: self.shadow_bias,
+            cascade_count: self.shadow_cascades,
+            cascade_splits: self.shadow_cascade_splits,
+        }
+    }
+
+    /// Extracts environment, sun, cloud, and fog parameters for [`ae_light::evaluate_environment`].
+    #[must_use]
+    pub const fn to_environment_light_config(&self) -> EnvironmentLightConfig {
+        EnvironmentLightConfig {
+            environment_color: self.environment_color,
+            sky_quality: self.sky_quality,
+            sun_pitch: self.sun_pitch,
+            sun_yaw: self.sun_yaw,
+            atmosphere_density: self.atmosphere_density,
+            ozone_density: self.ozone_density,
+            sun_disc_size: self.sun_disc_size,
+            sun_glow_strength: self.sun_glow_strength,
+            cloud_coverage: self.cloud_coverage,
+            cloud_density: self.cloud_density,
+            cloud_speed: self.cloud_speed,
+            cloud_evolution: self.cloud_evolution,
+            cloud_altitude: self.cloud_altitude,
+            cloud_thickness: self.cloud_thickness,
+            fog_enabled: self.fog_enabled,
+            fog_distance: self.fog_distance,
         }
     }
 }

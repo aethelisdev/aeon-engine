@@ -9,6 +9,7 @@ ae_camera = { workspace = true }
 ae_diagnostic = { workspace = true }
 ae_ecs = { workspace = true }
 ae_gizmos = { workspace = true }
+ae_light = { workspace = true }
 ae_mesh = { workspace = true }
 log = "0.4.33"
 rfd = "0.17.2"

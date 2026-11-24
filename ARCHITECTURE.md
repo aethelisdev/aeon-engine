@@ -32,6 +32,8 @@ graph TD
     subgraph Foundation["Foundation, ECS & Persistence Layer"]
         ae_ecs["ae_ecs (Backend-Isolated ECS & ComponentRegistry)"] --> ae_plugin_api["ae_plugin_api (GUIDs, POD Components, Plugin FFI ABI)"]
         ae_camera["ae_camera (Camera, Projections, Frustum, CameraUniform, ViewportRect)"]
+        ae_camera --> ae_light["ae_light (Light, Shadow/Sky Tiers, CSM Cascade Math, Atmosphere/Fog, Uniforms; Zero wgpu)"]
+        ae_light --> ae_plugin_api
         ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
         ae_ecs --> ae_camera_controller
         ae_plugin_api --> ae_camera_controller
@@ -60,6 +62,7 @@ graph TD
         ae_ecs --> ae_animation
         ae_camera --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
         ae_camera --> ae_renderer
+        ae_light --> ae_renderer
         ae_diagnostic --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
         ae_world --> ae_renderer

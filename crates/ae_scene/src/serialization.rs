@@ -7,7 +7,8 @@
 //! using [`ComponentRegistry`] payloads and saves only modified spatial chunks via CRC32 diffing.
 
 use ae_ecs::{ComponentRegistry, Entity, World};
-use ae_plugin_api::{EntityGuid, Light, LodGroup, ModelId, Parent, PlayerTag, Position, SpriteId};
+use ae_light::Light;
+use ae_plugin_api::{EntityGuid, LodGroup, ModelId, Parent, PlayerTag, Position, SpriteId};
 use ae_renderer::asset::AssetManager;
 use ae_world::{
     AssetKind, ComponentRecord, EntityRecord, GuidGenerator, SCENE_ASSET_BINDING_TYPE,

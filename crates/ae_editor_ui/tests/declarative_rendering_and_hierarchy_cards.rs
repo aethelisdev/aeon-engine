@@ -18,7 +18,7 @@ use irisui::prelude::*;
 #[test]
 fn test_light_card_declarative_structure() {
     let mut world = ae_ecs::World::new();
-    let entity = world.spawn((ae_plugin_api::Light {
+    let entity = world.spawn((ae_light::Light {
         position: [0.0, 5.0, 0.0],
         color: [1.0, 0.8, 0.6],
     },));

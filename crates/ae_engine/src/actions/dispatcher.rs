@@ -219,22 +219,21 @@ pub fn process_ui_actions(engine: &mut AeEngine, actions: Vec<EngineUiAction>) {
                 if old != color {
                     let old_light = engine
                         .world
-                        .get_copied::<ae_plugin_api::Light>(ent)
-                        .map(|l| ae_plugin_api::Light {
+                        .get_copied::<ae_light::Light>(ent)
+                        .map(|l| ae_light::Light {
                             position: l.position,
                             color: old,
                         })
-                        .unwrap_or(ae_plugin_api::Light {
+                        .unwrap_or(ae_light::Light {
                             position: [0.0, 0.0, 0.0],
                             color: old,
                         });
-                    let new_light = engine
-                        .world
-                        .get_copied::<ae_plugin_api::Light>(ent)
-                        .unwrap_or(ae_plugin_api::Light {
+                    let new_light = engine.world.get_copied::<ae_light::Light>(ent).unwrap_or(
+                        ae_light::Light {
                             position: [0.0, 0.0, 0.0],
                             color,
-                        });
+                        },
+                    );
                     ae_editor::history::push_undo(
                         &mut engine.editor,
                         ae_editor::undo_redo::Command::Modify(

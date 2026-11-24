@@ -20,11 +20,12 @@ use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::modules::EngineModule;
 use ae_input::{ActionMap, InputManager, KeyCode};
+use ae_light::LightUniform;
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Position, Scale};
 use ae_plugin_host::PluginManager;
 use ae_renderer::asset::{AssetHandle, AssetManager, AssetStorage};
-use ae_renderer::render::types::{LightUniform, RenderScene};
+use ae_renderer::render::types::RenderScene;
 use ae_renderer::render::{
     OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
 };
@@ -393,15 +394,7 @@ impl RuntimeSession {
             )
         } else {
             RenderScene {
-                light_uniform: LightUniform {
-                    direction: [0.0, 1.0, 0.0],
-                    grid_scale: 1.0,
-                    color: [1.0, 1.0, 1.0],
-                    _padding2: 0,
-                    ambient_color: [0.1, 0.1, 0.15],
-                    _padding3: 0,
-                    fog_params: [0.0; 4],
-                },
+                light_uniform: LightUniform::default(),
                 triangle_instances: Vec::new(),
                 cube_instances: Vec::new(),
                 sphere_instances: Vec::new(),

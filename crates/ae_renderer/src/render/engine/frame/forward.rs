@@ -245,13 +245,7 @@ impl RenderState {
             (&self.post_process.scene_texture_view, None)
         };
 
-        let env_color = self.graphics_settings.environment_color;
-        let clear_rgb = wgpu::Color {
-            r: (env_color[0] as f64).powf(2.2),
-            g: (env_color[1] as f64).powf(2.2),
-            b: (env_color[2] as f64).powf(2.2),
-            a: 1.0,
-        };
+        let clear_rgb = self.environment_clear_color();
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Main Forward Pass"),

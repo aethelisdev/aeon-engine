@@ -5,7 +5,8 @@
 //!
 //! Option constants and descriptors for the Graphics settings tab.
 
-use ae_renderer::graphics_settings::{FpsLimit, PcfQuality, ShadowResolution, SkyQuality};
+use ae_light::{PcfQuality, ShadowResolution, SkyQuality};
+use ae_renderer::graphics_settings::FpsLimit;
 
 /// Pre-configured shadow resolution options.
 pub const SHADOW_RES_OPTIONS: [ShadowResolution; 4] = [

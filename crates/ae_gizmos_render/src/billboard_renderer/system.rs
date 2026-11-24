@@ -132,7 +132,7 @@ impl BillboardSystem {
                 continue;
             }
 
-            let is_light = params.world.has::<ae_plugin_api::Light>(ent);
+            let is_light = params.world.has::<ae_light::Light>(ent);
             let is_audio_source = params.world.has::<ae_audio::AudioSource>(ent);
             let is_audio_listener = params.world.has::<ae_audio::AudioListener>(ent);
 
