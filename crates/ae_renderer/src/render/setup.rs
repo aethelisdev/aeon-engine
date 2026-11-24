@@ -173,7 +173,7 @@ impl RenderState {
             &uniforms.texture_bind_group_layout,
         );
 
-        let post_process = crate::render::post_process::PostProcessSystem::new(
+        let post_process = ae_post_process::PostProcessSystem::new(
             &device,
             &config,
             initial_msaa,
@@ -193,10 +193,12 @@ impl RenderState {
             },
         );
 
-        let outline = crate::render::pipelines::outline::SelectionOutlinePass::new(
+        let outline = ae_post_process::SelectionOutlinePass::new(
             &device,
             post_process.scene_format,
             &uniforms.camera_bind_group_layout,
+            crate::render::types::vertex_buffer_layout(),
+            crate::render::types::Instance::desc(),
         );
 
         let default_white_cpu = ae_texture::FallbackTextureGenerator::white_1x1();

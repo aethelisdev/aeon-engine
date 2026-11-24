@@ -236,14 +236,7 @@ impl RenderState {
     ) -> FrameRenderStats {
         let mut stats = FrameRenderStats::default();
 
-        let (color_view, resolve_target) = if self.post_process.msaa_samples > 1 {
-            (
-                &self.post_process.multisampled_framebuffer,
-                Some(&self.post_process.scene_texture_view),
-            )
-        } else {
-            (&self.post_process.scene_texture_view, None)
-        };
+        let (color_view, resolve_target, depth_view) = self.post_process.forward_targets();
 
         let clear_rgb = self.environment_clear_color();
 
@@ -259,7 +252,7 @@ impl RenderState {
                 depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.post_process.depth_texture_view,
+                view: depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,

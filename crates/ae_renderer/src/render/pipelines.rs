@@ -3,10 +3,8 @@
 
 //! Render pipelines coordinator and shader stages.
 
-pub mod bloom;
 pub mod grid;
 pub mod manager;
-pub mod outline;
 pub mod pbr;
 pub mod shadow;
 pub mod sky;

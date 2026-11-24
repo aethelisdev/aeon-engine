@@ -20,6 +20,7 @@ members = [
     "crates/ae_renderer",
     "crates/ae_plugin_api",
     "crates/ae_plugin_host",
+    "crates/ae_post_process",
     "crates/ae_editor",
     "crates/ae_editor_ui",
     "crates/game_logic",
@@ -107,6 +108,7 @@ ae_gizmos_render = { path = "crates/ae_gizmos_render" }
 ae_input = { path = "crates/ae_input" }
 ae_light = { path = "crates/ae_light" }
 ae_mesh = { path = "crates/ae_mesh" }
+ae_post_process = { path = "crates/ae_post_process" }
 ae_scene = { path = "crates/ae_scene" }
 ae_state = { path = "crates/ae_state" }
 ae_time = { path = "crates/ae_time" }

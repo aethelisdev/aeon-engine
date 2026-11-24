@@ -1,21 +1,87 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Selection Outline Render Pipeline and GPU Resource Manager.
+//! Screen-space selection silhouette outline pipeline, GPU targets, and mask pass recorder.
 
 use wgpu::util::DeviceExt;
 
-/// Outline uniforms passed into the composite WGSL shader.
+/// Outline uniforms passed into `outline_composite.wgsl` (`48`-byte WebGPU alignment).
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct OutlineUniforms {
+    /// Target viewport width and height in pixels.
     pub viewport_size: [f32; 2],
+    /// Explicit 16-byte WebGPU uniform padding.
     pub _padding: [f32; 2],
+    /// Primary selection silhouette RGBA color.
     pub primary_color: [f32; 4],
+    /// Secondary selection silhouette RGBA color.
     pub secondary_color: [f32; 4],
 }
 
-/// Selection Outline rendering system managing mask generation and screen-space silhouette edge detection.
+impl Default for OutlineUniforms {
+    fn default() -> Self {
+        Self {
+            viewport_size: [1280.0, 720.0],
+            _padding: [0.0, 0.0],
+            primary_color: [1.0, 0.82, 0.15, 1.0],
+            secondary_color: [1.0, 0.50, 0.05, 0.95],
+        }
+    }
+}
+
+/// Zero-allocation pass recorder allowing callers to submit mesh geometries into the selection mask pass
+/// without coupling `ae_post_process` to scene/asset storage types.
+pub struct OutlineMaskPassRecorder<'a, 'enc> {
+    pass: wgpu::RenderPass<'enc>,
+    device: &'a wgpu::Device,
+}
+
+impl<'a, 'enc> OutlineMaskPassRecorder<'a, 'enc> {
+    /// Draws a non-indexed vertex buffer for one selected entity instance (`80`-byte instance payload).
+    pub fn draw_vertices(
+        &mut self,
+        vertex_buffer: &'a wgpu::Buffer,
+        vertex_count: u32,
+        instance_bytes: &[u8],
+    ) {
+        let single_inst_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Selected Single Instance Buffer"),
+                contents: instance_bytes,
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        self.pass.set_vertex_buffer(1, single_inst_buf.slice(..));
+        self.pass.draw(0..vertex_count, 0..1);
+    }
+
+    /// Draws an indexed vertex buffer (`Uint32` indices) for one selected model instance.
+    pub fn draw_indexed(
+        &mut self,
+        vertex_buffer: &'a wgpu::Buffer,
+        index_buffer: &'a wgpu::Buffer,
+        index_count: u32,
+        instance_bytes: &[u8],
+    ) {
+        let single_inst_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Selected Model Instance Buffer"),
+                contents: instance_bytes,
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        self.pass.set_vertex_buffer(1, single_inst_buf.slice(..));
+        self.pass
+            .set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        self.pass.draw_indexed(0..index_count, 0, 0..1);
+    }
+}
+
+/// Selection outline rendering system managing off-screen `Rg16Float` silhouette mask
+/// generation and 16-tap anti-aliased edge composite passes.
 pub struct SelectionOutlinePass {
     pub mask_pipeline: wgpu::RenderPipeline,
     pub composite_pipeline: wgpu::RenderPipeline,
@@ -32,11 +98,13 @@ pub struct SelectionOutlinePass {
 }
 
 impl SelectionOutlinePass {
-    /// Creates a new SelectionOutlinePass instance with dedicated bind group layouts and shaders.
+    /// Creates a `SelectionOutlinePass` using caller-supplied mesh and instance vertex layouts.
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         camera_bgl: &wgpu::BindGroupLayout,
+        mesh_vertex_layout: wgpu::VertexBufferLayout<'_>,
+        instance_vertex_layout: wgpu::VertexBufferLayout<'_>,
     ) -> Self {
         let outline_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -76,14 +144,11 @@ impl SelectionOutlinePass {
             surface_format,
             camera_bgl,
             &outline_bind_group_layout,
+            mesh_vertex_layout,
+            instance_vertex_layout,
         );
 
-        let initial_uniforms = OutlineUniforms {
-            viewport_size: [1280.0, 720.0],
-            _padding: [0.0, 0.0],
-            primary_color: [1.0, 0.82, 0.15, 1.0], // Bright Gold (Active/Primary Selection)
-            secondary_color: [1.0, 0.50, 0.05, 0.95], // Warm Orange (Secondary Multi-Selection)
-        };
+        let initial_uniforms = OutlineUniforms::default();
         let outline_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Outline Uniform Buffer"),
             contents: bytemuck::cast_slice(&[initial_uniforms]),
@@ -117,7 +182,7 @@ impl SelectionOutlinePass {
         }
     }
 
-    /// Resizes the selection mask render targets and recreates bind groups matching viewport dimensions.
+    /// Resizes selection mask targets and updates composite uniform dimensions.
     pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         if width == 0 || height == 0 || (self.width == width && self.height == height) {
             return;
@@ -127,9 +192,7 @@ impl SelectionOutlinePass {
 
         let uniforms = OutlineUniforms {
             viewport_size: [width as f32, height as f32],
-            _padding: [0.0, 0.0],
-            primary_color: [1.0, 0.82, 0.15, 1.0], // Bright Gold (Active/Primary Selection)
-            secondary_color: [1.0, 0.50, 0.05, 0.95], // Warm Orange (Secondary Multi-Selection)
+            ..Default::default()
         };
         queue.write_buffer(
             &self.outline_uniform_buffer,
@@ -194,20 +257,95 @@ impl SelectionOutlinePass {
         self.mask_depth_view = Some(depth_view);
         self.composite_bind_group = Some(composite_bind_group);
     }
+
+    /// Executes selection mask generation via `record_masks` followed by silhouette compositing.
+    pub fn execute_pass<'a>(
+        &self,
+        device: &'a wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        target_view: &wgpu::TextureView,
+        camera_bind_group: &'a wgpu::BindGroup,
+        has_selection: bool,
+        record_masks: impl FnOnce(&mut OutlineMaskPassRecorder<'a, '_>),
+    ) {
+        if !has_selection {
+            return;
+        }
+        let (Some(mask_view), Some(depth_view), Some(composite_bg)) = (
+            self.mask_view.as_ref(),
+            self.mask_depth_view.as_ref(),
+            self.composite_bind_group.as_ref(),
+        ) else {
+            return;
+        };
+
+        {
+            let mut mask_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Selection Mask Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: mask_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            mask_pass.set_pipeline(&self.mask_pipeline);
+            mask_pass.set_bind_group(0, camera_bind_group, &[]);
+            let mut recorder = OutlineMaskPassRecorder {
+                pass: mask_pass,
+                device,
+            };
+            record_masks(&mut recorder);
+        }
+
+        let mut composite_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Outline Composite Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        composite_pass.set_pipeline(&self.composite_pipeline);
+        composite_pass.set_bind_group(0, composite_bg, &[]);
+        composite_pass.draw(0..3, 0..1);
+    }
 }
 
-/// Creates the Selection Outline pipelines for high-quality
-/// screen-space silhouette edge detection with depth discontinuity support.
-pub(crate) fn create_outline_pipelines(
+fn create_outline_pipelines(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
     camera_bind_group_layout: &wgpu::BindGroupLayout,
     outline_bind_group_layout: &wgpu::BindGroupLayout,
+    mesh_vertex_layout: wgpu::VertexBufferLayout<'_>,
+    instance_vertex_layout: wgpu::VertexBufferLayout<'_>,
 ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
     let mask_shader =
-        device.create_shader_module(wgpu::include_wgsl!("../../shaders/selection_mask.wgsl"));
+        device.create_shader_module(wgpu::include_wgsl!("shaders/selection_mask.wgsl"));
     let composite_shader =
-        device.create_shader_module(wgpu::include_wgsl!("../../shaders/outline_composite.wgsl"));
+        device.create_shader_module(wgpu::include_wgsl!("shaders/outline_composite.wgsl"));
 
     let mask_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Selection Mask Pipeline Layout"),
@@ -221,10 +359,7 @@ pub(crate) fn create_outline_pipelines(
         vertex: wgpu::VertexState {
             module: &mask_shader,
             entry_point: Some("vs_main"),
-            buffers: &[
-                Some(crate::render::types::vertex_buffer_layout()),
-                Some(crate::render::types::Instance::desc()),
-            ],
+            buffers: &[Some(mesh_vertex_layout), Some(instance_vertex_layout)],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -288,4 +423,15 @@ pub(crate) fn create_outline_pipelines(
     });
 
     (mask_pipeline, composite_pipeline)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OutlineUniforms;
+
+    #[test]
+    fn test_outline_uniforms_16_byte_alignment() {
+        assert_eq!(std::mem::size_of::<OutlineUniforms>(), 48);
+        assert_eq!(std::mem::size_of::<OutlineUniforms>() % 16, 0);
+    }
 }

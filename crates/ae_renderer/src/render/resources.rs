@@ -5,9 +5,7 @@
 
 pub mod model;
 pub mod shader;
-pub mod targets;
 pub mod texture;
 
 pub use model::*;
-pub use targets::*;
 pub use texture::*;

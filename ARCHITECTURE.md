@@ -63,6 +63,7 @@ graph TD
         ae_camera --> ae_gizmos["ae_gizmos (TransformGizmo, DebugShapes, Billboard Data, Compass)"]
         ae_camera --> ae_renderer
         ae_light --> ae_renderer
+        ae_post_process["ae_post_process (Bloom, Tonemapping, MSAA Targets, Selection Outline)"] --> ae_renderer
         ae_diagnostic --> ae_renderer["ae_renderer (AeonGPU, CSM, PBR, VFS, FloatingOrigin)"]
         ae_animation --> ae_renderer
         ae_world --> ae_renderer

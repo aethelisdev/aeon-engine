@@ -77,9 +77,9 @@ pub struct RenderState {
     pub geometry: crate::render::primitives::GeometrySystem,
     pub default_white_texture: crate::render::TextureAsset,
 
-    pub post_process: crate::render::post_process::PostProcessSystem,
+    pub post_process: ae_post_process::PostProcessSystem,
     pub shadow: crate::render::shadow::ShadowSystem,
-    pub outline: crate::render::pipelines::outline::SelectionOutlinePass,
+    pub outline: ae_post_process::SelectionOutlinePass,
 
     // Settings
     pub graphics_settings: crate::graphics_settings::GraphicsSettings,
@@ -153,14 +153,12 @@ impl RenderState {
         dynamic_uniform_bytes += 1024; // Scene uniforms
         // Shadow depth texture (2048x2048 D32Float = 16MB) + shadow cascade uniform
         dynamic_uniform_bytes += 2048 * 2048 * 4 + 512;
-        // Post-process framebuffer targets & MSAA
-        let vp_w = self.size.width.max(1) as usize;
-        let vp_h = self.size.height.max(1) as usize;
-        dynamic_uniform_bytes += vp_w * vp_h * 4 * 2; // Scene texture + Depth texture
-        if self.graphics_settings.msaa_samples > 1 {
-            dynamic_uniform_bytes += vp_w * vp_h * 4 * self.graphics_settings.msaa_samples as usize;
-        }
-        dynamic_uniform_bytes += (vp_w * vp_h * 4) / 2; // Bloom downsample mip chain
+        // Post-process framebuffer targets, MSAA, and bloom mip chain
+        dynamic_uniform_bytes += ae_post_process::estimate_post_process_vram_bytes(
+            self.size.width,
+            self.size.height,
+            self.graphics_settings.msaa_samples,
+        );
 
         let bytes_to_mb = 1.0 / (1024.0 * 1024.0);
         let texture_vram_mb = texture_bytes as f32 * bytes_to_mb;

@@ -405,6 +405,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_post_process"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "wgpu",
+]
+
+[[package]]
 name = "ae_renderer"
 version = "0.9.0"
 dependencies = [
@@ -416,6 +424,7 @@ dependencies = [
  "ae_light",
  "ae_mesh",
  "ae_plugin_api",
+ "ae_post_process",
  "ae_texture",
  "ae_transform",
  "ae_world",

@@ -1,0 +1,13 @@
+[package]
+name = "ae_post_process"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - Bloom, tonemapping, MSAA render targets, and screen-space selection silhouette outline passes"
+
+[dependencies]
+bytemuck = { workspace = true }
+wgpu = { workspace = true }
+
+[lints]
+workspace = true

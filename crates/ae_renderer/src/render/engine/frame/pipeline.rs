@@ -470,11 +470,8 @@ impl RenderState {
         );
 
         // Write bloom intensity uniform
-        self.queue.write_buffer(
-            &self.post_process.bloom_params_buffer,
-            0,
-            bytemuck::cast_slice(&[self.graphics_settings.bloom_intensity]),
-        );
+        self.post_process
+            .set_bloom_intensity(&self.queue, self.graphics_settings.bloom_intensity);
 
         let mut encoder = self
             .device

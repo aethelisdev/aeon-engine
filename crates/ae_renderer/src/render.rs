@@ -5,7 +5,6 @@
 
 pub mod engine;
 pub mod pipelines;
-pub mod post_process;
 pub mod primitives;
 pub mod resources;
 pub mod setup;
