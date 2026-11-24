@@ -262,7 +262,7 @@ impl AeEngine {
             return;
         }
 
-        ae_core::transform::integrate_unconstrained_velocities(
+        ae_transform::integrate_unconstrained_velocities(
             &mut self.world,
             self.time.fixed_time_step,
         );
@@ -354,7 +354,7 @@ impl AeEngine {
                 },
             );
             if report.spawned_entities > 0 || report.despawned_entities > 0 {
-                ae_core::transform::update_hierarchy_transforms(&mut self.world);
+                ae_transform::update_hierarchy_transforms(&mut self.world);
                 self.physics_sync_dirty = true;
             }
             self.streaming = Some(streaming);

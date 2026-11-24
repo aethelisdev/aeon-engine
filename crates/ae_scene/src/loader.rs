@@ -7,11 +7,11 @@
 use crate::serialization::DEFAULT_WORLD_CELL_SIZE;
 use crate::streaming::{RuntimeStreamingManager, bind_entity_assets_from_binding};
 use ae_assets::{PendingSceneData, SceneAssetParseRequest};
-use ae_core::transform::update_hierarchy_transforms;
 use ae_ecs::{Entity, World, component_type_hash};
 use ae_plugin_api::{Children, EntityGuid, Parent, TransformDirty};
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
+use ae_transform::update_hierarchy_transforms;
 use ae_world::{
     AlignedBuffer, AssetGuid, EntityRecord, GuidGenerator, PartitionCell, SCENE_ASSET_BINDING_TYPE,
     SceneAssetBinding, SpatialCellCoord, VfsProvider, WORLD_MANIFEST_FILENAME, WorldDocument,

@@ -7,7 +7,6 @@
 use ae_core::events::{
     DynamicEventBus, LoadGameCompleted, LoadGameRequest, SaveGameCompleted, SaveGameRequest,
 };
-use ae_core::transform::update_hierarchy_transforms;
 use ae_ecs::ComponentRegistry;
 use ae_input::InputManager;
 use ae_physics::world::PhysicsWorld;
@@ -15,6 +14,7 @@ use ae_plugin_api::{EntityGuid, PlayerTag, Position, TransformDirty};
 use ae_renderer::asset::AssetManager;
 use ae_renderer::render::RenderState;
 use ae_scene::RuntimeStreamingManager;
+use ae_transform::update_hierarchy_transforms;
 use ae_world::{
     ComponentRecord, EntityRecord, SaveSlotMetadata, SpatialCellCoord, WorldDeltaSnapshot,
     atomic_write_save, load_save_with_fallback,

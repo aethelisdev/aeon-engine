@@ -4,7 +4,6 @@
 //! Editor-free runtime world loader resolving `.aepak` archives, `aeon_project.json` entry
 //! worlds, and partitioned `cells/*.aechunk` directories through [`ae_world::VfsProvider`].
 
-use ae_core::transform::update_hierarchy_transforms;
 use ae_ecs::component_type_hash;
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::EntityGuid;
@@ -13,6 +12,7 @@ use ae_renderer::render::RenderState;
 use ae_scene::{
     PrefixedWorldVfs, RuntimeStreamingManager, decode_world_document_from_vfs, spawn_world_records,
 };
+use ae_transform::update_hierarchy_transforms;
 use ae_world::{
     DiskVfsProvider, PakFileVfsProvider, PakMemoryVfsProvider, ProjectWorkspaceLayout,
     SCENE_ASSET_BINDING_TYPE, SpatialCellCoord, VfsProvider, WORLD_MANIFEST_FILENAME,

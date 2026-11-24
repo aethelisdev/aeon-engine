@@ -250,21 +250,7 @@ impl DebugRenderer {
             if hidden_opt.is_some() && !selected_entities.contains(&entity) {
                 continue;
             }
-            let model = if let Some(gt) = global_transform {
-                gt.0
-            } else {
-                let p = cgmath::Vector3::new(pos.x, pos.y, pos.z);
-                let q = rot
-                    .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                    .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
-                let s = scale
-                    .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
-                    .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
-
-                cgmath::Matrix4::from_translation(p)
-                    * cgmath::Matrix4::from(q)
-                    * cgmath::Matrix4::from_nonuniform_scale(s.x, s.y, s.z)
-            };
+            let model = ae_transform::resolve_world_matrix(global_transform, Some(pos), rot, scale);
 
             match col.shape {
                 ae_plugin_api::ColliderShape::Box { half_extents } => {
@@ -369,21 +355,7 @@ impl DebugRenderer {
             if collider_opt.is_some() {
                 continue;
             }
-            let model = if let Some(gt) = global_transform {
-                gt.0
-            } else {
-                let p = cgmath::Vector3::new(pos.x, pos.y, pos.z);
-                let q = rot
-                    .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                    .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
-                let s = scale
-                    .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
-                    .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
-
-                cgmath::Matrix4::from_translation(p)
-                    * cgmath::Matrix4::from(q)
-                    * cgmath::Matrix4::from_nonuniform_scale(s.x, s.y, s.z)
-            };
+            let model = ae_transform::resolve_world_matrix(global_transform, Some(pos), rot, scale);
             let capsule_model = model
                 * cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, ctrl.center_y, 0.0));
             DebugShapes::generate_capsule_lines(

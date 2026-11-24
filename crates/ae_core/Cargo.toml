@@ -6,9 +6,6 @@ description = "Aeon Engine - Minimal core runtime"
 
 [dependencies]
 ae_ecs = { workspace = true }
-cgmath = "0.18"
-glam = { workspace = true }
-log = "0.4.33"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 slotmap = { version = "1.1.1", features = ["serde"] }

@@ -119,36 +119,6 @@ pub fn intersect_aabb(ray: &Ray, min: [f32; 3], max: [f32; 3]) -> Option<f32> {
     }
 }
 
-/// Utility to generate a Model Matrix from ECS components.
-///
-/// Prioritizes `GlobalTransform` if present (ensuring correct world-space raycasting for parent-child hierarchies),
-/// falling back to local `Position`, `Rotation`, and `Scale` components.
-pub fn compute_model_matrix(
-    gt: Option<&ae_plugin_api::GlobalTransform>,
-    pos: Option<&ae_plugin_api::Position>,
-    rot: Option<&ae_plugin_api::Rotation>,
-    scale: Option<&ae_plugin_api::Scale>,
-) -> Matrix4<f32> {
-    if let Some(global_tf) = gt {
-        global_tf.0
-    } else {
-        let mut model = Matrix4::identity();
-        if let Some(p) = pos {
-            model = model * Matrix4::from_translation(Vector3::new(p.x, p.y, p.z));
-        }
-        if let Some(r) = rot {
-            model = model * Matrix4::from(cgmath::Quaternion::new(r.w, r.x, r.y, r.z));
-        }
-        if let Some(s) = scale {
-            let sx = if s.x.abs() < 1e-4 { 0.001 } else { s.x };
-            let sy = if s.y.abs() < 1e-4 { 0.001 } else { s.y };
-            let sz = if s.z.abs() < 1e-4 { 0.001 } else { s.z };
-            model = model * Matrix4::from_nonuniform_scale(sx, sy, sz);
-        }
-        model
-    }
-}
-
 /// Ray vs Bounding Sphere intersection test for 3D Viewport Billboard Icons.
 ///
 /// Returns closest distance `t` along the ray if ray intersects sphere of `radius` at `center`.
@@ -318,22 +288,6 @@ pub fn compute_camera_ground_fallback(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Tests that compute_model_matrix prioritizes GlobalTransform over local position/rotation/scale.
-    #[test]
-    fn test_compute_model_matrix_global_transform_priority() {
-        let gt_matrix = cgmath::Matrix4::from_translation(cgmath::Vector3::new(100.0, 50.0, 0.0));
-        let gt = ae_plugin_api::GlobalTransform(gt_matrix);
-        let pos = ae_plugin_api::Position {
-            x: 1.0,
-            y: 2.0,
-            z: 3.0,
-        };
-
-        let result = compute_model_matrix(Some(&gt), Some(&pos), None, None);
-        assert_eq!(result.w.x, 100.0);
-        assert_eq!(result.w.y, 50.0);
-    }
 
     /// Tests that intersect_aabb returns a non-negative distance (0.0) when the ray origin is inside the box.
     #[test]

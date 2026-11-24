@@ -72,7 +72,7 @@ impl AeEngine {
         if render_enabled && !is_2d {
             self.spatial_grid.sync(&self.world); // Lazy sync SpatialGrid if entity count changed
         }
-        ae_core::transform::update_hierarchy_transforms(&mut self.world);
+        ae_transform::update_hierarchy_transforms(&mut self.world);
         // Compute FPS by subtracting VSync presentation wait from raw delta time.
         // This is only applied in Uncapped mode to reveal the true compute throughput of the engine,
         // without distorting the frame pacing of limited modes (which are capped at 60/120 FPS).
@@ -151,20 +151,7 @@ impl AeEngine {
         let overlay: Option<&dyn ae_renderer::render::OverlayRenderer> =
             if render_enabled && self.mode == EngineMode::Edit && !is_2d {
                 if let Some(ent) = self.editor.primary_selected() {
-                    let gizmo_pos = self
-                        .world
-                        .inspect::<ae_plugin_api::GlobalTransform, _>(ent, |gt| {
-                            let mat = gt.0;
-                            cgmath::Vector3::new(mat.w.x, mat.w.y, mat.w.z)
-                        })
-                        .ok()
-                        .or_else(|| {
-                            self.world
-                                .inspect::<ae_plugin_api::Position, _>(ent, |pos| {
-                                    cgmath::Vector3::new(pos.x, pos.y, pos.z)
-                                })
-                                .ok()
-                        });
+                    let gizmo_pos = ae_transform::world_translation_for_entity(&self.world, ent);
 
                     if let Some(p) = gizmo_pos {
                         let cam_pos = cgmath::Vector3::new(
@@ -291,9 +278,7 @@ impl AeEngine {
                     sprite.order_in_layer,
                     tex_id,
                 );
-                let model =
-                    cgmath::Matrix4::from_translation(cgmath::Vector3::new(pos.x, pos.y, pos.z))
-                        * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, 1.0);
+                let model = ae_transform::compose_2d_model_matrix(*pos, scale.x, scale.y);
                 let instance = ae_2d::renderer::SpriteInstance {
                     model_matrix: model.into(),
                     uv_rect: sprite.uv_rect,

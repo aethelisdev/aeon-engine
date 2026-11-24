@@ -4,8 +4,8 @@ use super::gizmo_drag::handle_gizmo_drag;
 use super::selection::{on_left_click_pressed, on_left_click_released};
 use crate::editor_state::EditorState;
 use ae_input::InputManager;
-use ae_plugin_api::{GlobalTransform, Position, Rotation};
-use cgmath::{EuclideanSpace, Quaternion, Vector3};
+use ae_plugin_api::Rotation;
+use cgmath::{EuclideanSpace, Quaternion};
 
 /// Parameters for handling cursor movement in the viewport.
 pub struct CursorMoveParams<'a> {
@@ -75,14 +75,7 @@ pub fn handle_cursor_moved(
                     super::selection::create_ray(camera, local_size, local_x, local_y)
             {
                 let gizmo_world_pos =
-                    if let Ok(gt) = world.get_copied::<GlobalTransform>(selected_ent) {
-                        let mat = gt.0;
-                        Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
-                    } else if let Ok(pos0) = world.get_copied::<Position>(selected_ent) {
-                        Some(Vector3::new(pos0.x, pos0.y, pos0.z))
-                    } else {
-                        None
-                    };
+                    ae_transform::world_translation_for_entity(world, selected_ent);
 
                 if let Some(pos) = gizmo_world_pos {
                     let camera_pos = camera.position.to_vec();
@@ -117,15 +110,15 @@ pub fn handle_cursor_moved(
 
 /// Parameters for handling mouse click events in the viewport.
 pub struct MouseClickParams<'a> {
-    pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
+    pub spatial_grid: &'a ae_transform::SpatialGrid,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
     pub is_point_over_ui: &'a dyn Fn([f32; 2]) -> bool,
     pub is_edit_mode: bool,
     pub input: &'a InputManager,
-    pub button: winit::event::MouseButton,
-    pub state: winit::event::ElementState,
+    pub button: ae_input::MouseButton,
+    pub state: ae_input::ElementState,
 }
 
 /// Routes mouse button press/release events to the appropriate handler.

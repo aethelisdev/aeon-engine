@@ -73,10 +73,10 @@ impl PhysicsWorld {
             let (entity, rb_comp, col_comp) = self.scratch_active_entities[i];
             let (world_pos, world_rot, scale_comp) =
                 if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(entity) {
-                    let (trans, rot, scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
+                    let (trans, rot, scale) = ae_transform::matrix4_to_glam_trs(gt.0);
                     (trans, rot, [scale.x, scale.y, scale.z])
                 } else {
-                    use ae_core::math::conversions::ToGlam;
+                    use ae_transform::ToGlam;
                     let pos_comp = world
                         .get_copied::<Position>(entity)
                         .map(|p| p.to_glam())

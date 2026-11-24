@@ -1,0 +1,16 @@
+[package]
+name = "ae_transform"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Aeon Engine - Transform math, TRS composition/decomposition, hierarchy propagation, keep-world-transform reparenting, and spatial grid partitioning"
+
+[dependencies]
+ae_ecs = { workspace = true }
+ae_plugin_api = { path = "../ae_plugin_api" }
+cgmath = "0.18"
+glam = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true

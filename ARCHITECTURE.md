@@ -16,7 +16,7 @@ This document describes the workspace crate topology, binary world and asset per
    `irisui` is a standalone, desktop-grade retained UI framework structured for independent distribution. It maintains zero dependencies on `ae_ecs`, `ae_core`, or engine crates. `ae_editor_ui` operates exclusively as a declarative `UiScope` view consumer.
 
 4. **Decoupled Scene & Simulation Layers (`ae_scene` & `ae_runtime` vs. `ae_engine` Editor Host):**  
-   UI-free scene lifecycle responsibilities (`serialization`, `loader`, `streaming::RuntimeStreamingManager`, `.aeprefab` `Prefab`, `EditorAutosaveState`, entity `spawning`, `hierarchy`, and `migrate_ae_scene`) are consolidated inside `ae_scene` with zero dependencies on `ae_editor`, `irisui`, or `rfd`. Core gameplay execution (`behavior_runner`, `hud`, `world_loader`, `simulation`, `static_plugin`) resides in `ae_runtime` composing `ae_scene`. `ae_engine` composes `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, and `ae_mcp` as the top-level IDE host.
+   UI-free scene lifecycle responsibilities (`serialization`, `loader`, `streaming::RuntimeStreamingManager`, `.aeprefab` `Prefab`, `EditorAutosaveState`, entity `spawning`, and `migrate_ae_scene`) are consolidated inside `ae_scene` with zero dependencies on `ae_editor`, `irisui`, or `rfd`. Transform math, TRS composition/decomposition, `cgmath <-> glam` interop, hierarchy propagation, keep-world reparenting, and `SpatialGrid` live in `ae_transform`. Core gameplay execution (`behavior_runner`, `hud`, `world_loader`, `simulation`, `static_plugin`) resides in `ae_runtime` composing `ae_scene` and `ae_transform`. `ae_engine` composes `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, and `ae_mcp` as the top-level IDE host.
 
 5. **Data-Driven & Explicit Type System:**  
    Subsystem decisions and ECS component serialization operate strictly on deterministic 64-bit type hashes (`component_type_hash`), 128-bit persistent GUIDs (`EntityGuid`, `AssetGuid`), strongly typed Rust enums, and mathematical quantities without string-based heuristics.
@@ -35,7 +35,9 @@ graph TD
         ae_camera --> ae_camera_controller["ae_camera_controller (Free-Fly, Pan/Zoom, Focus, Follow/Orbit)"]
         ae_ecs --> ae_camera_controller
         ae_plugin_api --> ae_camera_controller
-        ae_plugin_api --> ae_core["ae_core (Events, State, Transforms, Spatial, Time, Telemetry, HUD; Zero winit)"]
+        ae_plugin_api --> ae_core["ae_core (Events, State, Time, Telemetry, HUD; Zero winit/cgmath/glam)"]
+        ae_plugin_api --> ae_transform["ae_transform (TRS Matrix, Conversions, Hierarchy, Reparent, SpatialGrid)"]
+        ae_ecs --> ae_transform
         ae_input["ae_input (InputManager, ActionMap, AxisBinding, KeyCode, MouseButton)"]
         ae_ecs --> ae_core
         ae_plugin_api --> ae_world["ae_world (.aeworld, .aechunk, .aepak, .aesave, VFS, Cooked)"]
@@ -85,7 +87,8 @@ graph TD
     end
 
     subgraph SceneLayer["Unified Scene Lifecycle Layer"]
-        ae_assets --> ae_scene["ae_scene (World I/O, Streaming, Prefab, Autosave, Spawning, Hierarchy)"]
+        ae_assets --> ae_scene["ae_scene (World I/O, Streaming, Prefab, Autosave, Spawning)"]
+        ae_transform --> ae_scene
         ae_mesh --> ae_scene
         ae_world --> ae_scene
         ae_2d --> ae_scene

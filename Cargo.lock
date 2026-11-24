@@ -135,9 +135,6 @@ version = "0.9.0"
 dependencies = [
  "ae_ecs",
  "ae_plugin_api",
- "cgmath",
- "glam 0.33.12",
- "log",
  "serde",
  "serde_json",
  "slotmap",
@@ -164,13 +161,13 @@ dependencies = [
  "ae_gizmos",
  "ae_input",
  "ae_plugin_api",
+ "ae_transform",
  "cgmath",
  "chrono",
  "log",
  "postcard",
  "serde",
  "serde_json",
- "winit",
 ]
 
 [[package]]
@@ -232,6 +229,7 @@ dependencies = [
  "ae_runtime",
  "ae_scene",
  "ae_texture",
+ "ae_transform",
  "ae_uidesign",
  "ae_world",
  "bytemuck",
@@ -291,6 +289,7 @@ dependencies = [
  "ae_gizmos",
  "ae_plugin_api",
  "ae_renderer",
+ "ae_transform",
  "bytemuck",
  "cgmath",
  "image",
@@ -355,6 +354,7 @@ dependencies = [
  "ae_core",
  "ae_ecs",
  "ae_plugin_api",
+ "ae_transform",
  "glam 0.33.12",
  "log",
  "rapier3d",
@@ -391,6 +391,7 @@ dependencies = [
  "ae_mesh",
  "ae_plugin_api",
  "ae_texture",
+ "ae_transform",
  "ae_world",
  "bytemuck",
  "cgmath",
@@ -423,6 +424,7 @@ dependencies = [
  "ae_renderer",
  "ae_scene",
  "ae_texture",
+ "ae_transform",
  "ae_world",
  "bytemuck",
  "cgmath",
@@ -456,6 +458,7 @@ dependencies = [
  "ae_mesh",
  "ae_plugin_api",
  "ae_renderer",
+ "ae_transform",
  "ae_world",
  "cgmath",
  "log",
@@ -475,6 +478,17 @@ dependencies = [
  "image",
  "log",
  "slotmap",
+]
+
+[[package]]
+name = "ae_transform"
+version = "0.1.0"
+dependencies = [
+ "ae_ecs",
+ "ae_plugin_api",
+ "cgmath",
+ "glam 0.33.12",
+ "log",
 ]
 
 [[package]]

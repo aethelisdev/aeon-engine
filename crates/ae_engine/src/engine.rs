@@ -49,7 +49,7 @@ pub struct AeEngine {
     pub debug_renderer: ae_gizmos_render::DebugRenderer,
     pub resources: ae_core::Resources,
     pub event_bus: ae_core::events::DynamicEventBus,
-    pub spatial_grid: ae_core::spatial::SpatialGrid,
+    pub spatial_grid: ae_transform::SpatialGrid,
     pub profiler: crate::profiler::Profiler,
     /// Decoupled Rapier3D physics simulation engine world.
     pub physics_world: PhysicsWorld,
@@ -350,7 +350,7 @@ impl AeEngine {
             debug_renderer,
             resources: ae_core::Resources::new(),
             event_bus: ae_core::events::DynamicEventBus::new(),
-            spatial_grid: ae_core::spatial::SpatialGrid::new(200.0), // 200-unit default cell size for spatial grid culling
+            spatial_grid: ae_transform::SpatialGrid::new(200.0), // 200-unit default cell size for spatial grid culling
             profiler: crate::profiler::Profiler::new(),
             physics_world: PhysicsWorld::new(),
             audio_manager,

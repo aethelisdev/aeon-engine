@@ -12,6 +12,7 @@ workspace = true
 ae_ecs = { workspace = true }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_core = { path = "../ae_core" }
+ae_transform = { workspace = true }
 ae_world = { workspace = true }
 ae_assets = { workspace = true }
 ae_mesh = { workspace = true }

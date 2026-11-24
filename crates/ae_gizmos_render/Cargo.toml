@@ -9,6 +9,7 @@ ae_gizmos = { workspace = true }
 ae_ecs = { workspace = true }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_renderer = { path = "../ae_renderer" }
+ae_transform = { workspace = true }
 ae_audio = { path = "../ae_audio" }
 wgpu = { workspace = true }
 cgmath = "0.18"

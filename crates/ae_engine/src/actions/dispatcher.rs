@@ -159,11 +159,15 @@ pub fn process_ui_actions(engine: &mut AeEngine, actions: Vec<EngineUiAction>) {
 
             // --- PARENTING & HIERARCHY ACTIONS ---
             EngineUiAction::ParentEntity(child, parent) => {
-                let _ =
-                    ae_scene::parent_entity_keep_world_transform(&mut engine.world, child, parent);
+                let _ = ae_transform::parent_entity_keep_world_transform(
+                    &mut engine.world,
+                    child,
+                    parent,
+                );
             }
             EngineUiAction::UnparentEntity(child) => {
-                let _ = ae_scene::unparent_entity_keep_world_transform(&mut engine.world, child);
+                let _ =
+                    ae_transform::unparent_entity_keep_world_transform(&mut engine.world, child);
             }
             EngineUiAction::ToggleVisibility(ent) => {
                 components::handle_toggle_visibility(&mut engine.world, ent);

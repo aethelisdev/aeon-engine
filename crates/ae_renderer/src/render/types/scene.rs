@@ -38,7 +38,7 @@ impl RenderScene {
         world: &ae_ecs::World,
         camera: &ae_camera::Camera,
         selected_entities: &std::collections::HashSet<ae_ecs::Entity>,
-        spatial_grid: &ae_core::spatial::SpatialGrid,
+        spatial_grid: &ae_transform::SpatialGrid,
         frustum: &ae_camera::Frustum,
     ) -> Vec<ae_ecs::Entity> {
         let mut visible_entities = Vec::new();
@@ -144,7 +144,7 @@ impl RenderScene {
         _asset_manager: &crate::asset::AssetManager,
         selected_entities: &std::collections::HashSet<ae_ecs::Entity>,
         active_entity: Option<ae_ecs::Entity>,
-        spatial_grid: &ae_core::spatial::SpatialGrid,
+        spatial_grid: &ae_transform::SpatialGrid,
     ) -> Self {
         // Will be overwritten by GraphicsSettings global sun state during Main Pass
         let light_uniform = LightUniform {
@@ -213,23 +213,11 @@ impl RenderScene {
                     continue;
                 }
 
-                let p_world = if let Some(gt) = global_transform {
-                    cgmath::Vector3::new(gt.0.w.x, gt.0.w.y, gt.0.w.z)
-                } else {
-                    cgmath::Vector3::new(pos.x, pos.y, pos.z)
-                };
-
-                let (sx, sy, sz) = if let Some(s) = scale {
-                    (s.x.abs(), s.y.abs(), s.z.abs())
-                } else if let Some(gt) = global_transform {
-                    use cgmath::InnerSpace;
-                    let sx = cgmath::Vector3::new(gt.0.x.x, gt.0.x.y, gt.0.x.z).magnitude();
-                    let sy = cgmath::Vector3::new(gt.0.y.x, gt.0.y.y, gt.0.y.z).magnitude();
-                    let sz = cgmath::Vector3::new(gt.0.z.x, gt.0.z.y, gt.0.z.z).magnitude();
-                    (sx, sy, sz)
-                } else {
-                    (1.0, 1.0, 1.0)
-                };
+                let (p_world, [sx, sy, sz]) = ae_transform::extract_world_position_and_scale(
+                    global_transform,
+                    Some(pos),
+                    scale,
+                );
 
                 let is_exempt = kcc.is_some() || player_tag.is_some() || sx > 10.0 || sz > 10.0;
 
@@ -294,53 +282,10 @@ impl RenderScene {
                 _player_tag,
             )) = q.get()
             {
-                let p_world = if let Some(gt) = global_transform {
-                    cgmath::Vector3::new(gt.0.w.x, gt.0.w.y, gt.0.w.z)
-                } else {
-                    cgmath::Vector3::new(pos.x, pos.y, pos.z)
-                };
-
-                let model_matrix = if let Some(gt) = global_transform {
-                    gt.0
-                } else {
-                    cgmath::Matrix4::from_translation(p_world)
-                        * cgmath::Matrix4::from(
-                            rot.map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                                .unwrap_or(cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0)),
-                        )
-                        * cgmath::Matrix4::from_nonuniform_scale(
-                            scale
-                                .map(|s| {
-                                    let min = 1e-4;
-                                    if s.x.abs() < min {
-                                        f32::copysign(min, s.x)
-                                    } else {
-                                        s.x
-                                    }
-                                })
-                                .unwrap_or(1.0),
-                            scale
-                                .map(|s| {
-                                    let min = 1e-4;
-                                    if s.y.abs() < min {
-                                        f32::copysign(min, s.y)
-                                    } else {
-                                        s.y
-                                    }
-                                })
-                                .unwrap_or(1.0),
-                            scale
-                                .map(|s| {
-                                    let min = 1e-4;
-                                    if s.z.abs() < min {
-                                        f32::copysign(min, s.z)
-                                    } else {
-                                        s.z
-                                    }
-                                })
-                                .unwrap_or(1.0),
-                        )
-                };
+                let model_matrix =
+                    ae_transform::resolve_world_matrix(global_transform, Some(pos), rot, scale);
+                let p_world =
+                    cgmath::Vector3::new(model_matrix.w.x, model_matrix.w.y, model_matrix.w.z);
 
                 let base_color = color
                     .map(|c| [c.r, c.g, c.b, c.a])

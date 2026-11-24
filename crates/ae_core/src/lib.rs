@@ -2,18 +2,14 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 pub mod behavior;
 pub mod events;
-pub mod math;
 pub mod modules;
-pub mod spatial;
 pub mod state;
 pub mod telemetry;
 pub mod time;
-pub mod transform;
 pub mod ui;
 
 pub use ae_plugin_api::Resources;
 pub use behavior::{Behavior, BehaviorContext, NativeBehavior};
-pub use cgmath;
 pub use state::{
     DefaultPausedState, DefaultPlayingState, GameState, StateContext, StateManager, StateTransition,
 };

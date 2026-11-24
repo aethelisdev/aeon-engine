@@ -140,7 +140,7 @@ impl PhysicsWorld {
         self.integration_parameters.dt = delta_time;
 
         // Update hierarchy transforms so GlobalTransform is 100% current for all parent-child entities
-        ae_core::transform::update_hierarchy_transforms(world);
+        ae_transform::update_hierarchy_transforms(world);
 
         // 1. Sync ECS state to simulator
         self.sync_ecs_to_physics(world, get_mesh_data);

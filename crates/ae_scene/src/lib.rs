@@ -6,7 +6,6 @@
 //! transform reparenting, and background Edit-mode autosave.
 
 pub mod autosave;
-pub mod hierarchy;
 pub mod loader;
 pub mod prefab;
 pub mod serialization;
@@ -16,10 +15,6 @@ pub mod streaming;
 pub use autosave::{
     AUTOSAVE_ROTATING_SLOTS, AutosavePollContext, DEFAULT_AUTOSAVE_INTERVAL_SECS,
     EditorAutosaveState, resolve_autosave_target, write_autosave_if_changed,
-};
-pub use hierarchy::{
-    decompose_matrix, get_world_matrix, parent_entity_keep_world_transform,
-    unparent_entity_keep_world_transform,
 };
 pub use loader::{
     AppliedWorldLoad, PrefixedWorldVfs, apply_loaded_scene_data, begin_async_scene_load,

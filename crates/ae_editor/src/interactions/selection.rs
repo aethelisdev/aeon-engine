@@ -25,7 +25,7 @@ pub fn create_ray(
 
 /// Parameters for processing left-click press events in the viewport.
 pub struct LeftClickPressParams<'a> {
-    pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
+    pub spatial_grid: &'a ae_transform::SpatialGrid,
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_camera::ViewportRect,
     pub scale_factor: f32,
@@ -69,15 +69,7 @@ pub fn on_left_click_pressed(
 
     let mut gizmo_drag_started = false;
     if let Some(&selected_ent) = editor.selected_entities.first() {
-        let gizmo_world_pos =
-            if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(selected_ent) {
-                let mat = gt.0;
-                Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
-            } else if let Ok(pos0) = world.get_copied::<Position>(selected_ent) {
-                Some(Vector3::new(pos0.x, pos0.y, pos0.z))
-            } else {
-                None
-            };
+        let gizmo_world_pos = ae_transform::world_translation_for_entity(world, selected_ent);
 
         if let Some(pos) = gizmo_world_pos {
             let camera_pos = camera.position.to_vec();
@@ -145,7 +137,7 @@ pub fn on_left_click_pressed(
 pub fn try_select_entity(
     editor: &mut EditorState,
     world: &mut ae_ecs::World,
-    spatial_grid: &ae_core::spatial::SpatialGrid,
+    spatial_grid: &ae_transform::SpatialGrid,
     input: &InputManager,
     ray: &picking::Ray,
 ) {
@@ -187,7 +179,7 @@ pub fn try_select_entity(
             )>(ent);
 
             if let Ok((gt, pos, rot, scale, bbox)) = q.get() {
-                let model = picking::compute_model_matrix(gt, pos, rot, scale);
+                let model = ae_transform::resolve_world_matrix(gt, pos, rot, scale);
 
                 let inv_model = model.invert().unwrap_or_else(|| {
                     cgmath::Matrix4::from_translation(Vector3::new(model.w.x, model.w.y, model.w.z))
@@ -242,7 +234,7 @@ pub fn try_select_entity(
         )>();
 
         for (ent, gt, pos, rot, scale, shape_opt, col_opt, bbox) in query.iter() {
-            let model = picking::compute_model_matrix(gt, pos, rot, scale);
+            let model = ae_transform::resolve_world_matrix(gt, pos, rot, scale);
 
             let inv_model = model.invert().unwrap_or_else(|| {
                 cgmath::Matrix4::from_translation(Vector3::new(model.w.x, model.w.y, model.w.z))

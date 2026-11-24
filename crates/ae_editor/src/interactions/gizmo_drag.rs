@@ -30,13 +30,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         None => return,
     };
 
-    let gizmo_pos = if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(selected_ent)
-    {
-        let mat = gt.0;
-        Vector3::new(mat.w.x, mat.w.y, mat.w.z)
-    } else if let Ok(p) = world.get_copied::<Position>(selected_ent) {
-        Vector3::new(p.x, p.y, p.z)
-    } else {
+    let Some(gizmo_pos) = ae_transform::world_translation_for_entity(world, selected_ent) else {
         return;
     };
 

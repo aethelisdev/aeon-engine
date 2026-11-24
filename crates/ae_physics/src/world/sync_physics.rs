@@ -27,35 +27,35 @@ impl PhysicsWorld {
                     let translation = pose.translation;
                     let rotation = pose.rotation;
 
-                    let (local_translation, local_rotation) =
-                        if let Ok(parent_ref) = world.get_copied::<ae_plugin_api::Parent>(entity) {
-                            if let Ok(parent_gt) =
-                                world.get_copied::<ae_plugin_api::GlobalTransform>(parent_ref.0)
-                            {
-                                use ae_core::cgmath::SquareMatrix;
-                                if let Some(inv_parent) = parent_gt.0.invert() {
-                                    let p_world = ae_core::cgmath::Vector4::new(
-                                        translation.x,
-                                        translation.y,
-                                        translation.z,
-                                        1.0,
-                                    );
-                                    let p_local = inv_parent * p_world;
-                                    let (_, inv_r, _) =
-                                        ae_core::math::conversions::matrix4_to_glam_trs(inv_parent);
-                                    (
-                                        glam::Vec3::new(p_local.x, p_local.y, p_local.z),
-                                        inv_r * rotation,
-                                    )
-                                } else {
-                                    (translation, rotation)
-                                }
+                    let (local_translation, local_rotation) = if let Ok(parent_ref) =
+                        world.get_copied::<ae_plugin_api::Parent>(entity)
+                    {
+                        if let Ok(parent_gt) =
+                            world.get_copied::<ae_plugin_api::GlobalTransform>(parent_ref.0)
+                        {
+                            use ae_transform::cgmath::SquareMatrix;
+                            if let Some(inv_parent) = parent_gt.0.invert() {
+                                let p_world = ae_transform::cgmath::Vector4::new(
+                                    translation.x,
+                                    translation.y,
+                                    translation.z,
+                                    1.0,
+                                );
+                                let p_local = inv_parent * p_world;
+                                let (_, inv_r, _) = ae_transform::matrix4_to_glam_trs(inv_parent);
+                                (
+                                    glam::Vec3::new(p_local.x, p_local.y, p_local.z),
+                                    inv_r * rotation,
+                                )
                             } else {
                                 (translation, rotation)
                             }
                         } else {
                             (translation, rotation)
-                        };
+                        }
+                    } else {
+                        (translation, rotation)
+                    };
 
                     if let Ok(pos) = world.get_mut::<Position>(entity) {
                         pos.x = local_translation.x;
@@ -78,7 +78,7 @@ impl PhysicsWorld {
                             glam::Quat::from_xyzw(rotation.x, rotation.y, rotation.z, rotation.w),
                             glam::Vec3::new(translation.x, translation.y, translation.z),
                         );
-                        gt.0 = ae_core::cgmath::Matrix4::from(glam_mat.to_cols_array_2d());
+                        gt.0 = ae_transform::cgmath::Matrix4::from(glam_mat.to_cols_array_2d());
                     }
                     if body.is_dynamic()
                         && let Ok(vel) = world.get_mut::<Velocity>(entity)
@@ -101,26 +101,25 @@ impl PhysicsWorld {
         use rapier3d::math::Pose;
 
         // Recompute world-space transforms for all entities in scene before resetting physics poses
-        ae_core::transform::update_hierarchy_transforms(world);
+        ae_transform::update_hierarchy_transforms(world);
 
         for (&entity, &handle) in &self.entity_to_body {
-            let (world_pos, world_rot) = if let Ok(gt) =
-                world.get_copied::<ae_plugin_api::GlobalTransform>(entity)
-            {
-                let (trans, rot, _scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
-                (trans, rot)
-            } else {
-                use ae_core::math::conversions::ToGlam;
-                let pos_comp = world
-                    .get_copied::<Position>(entity)
-                    .map(|p| p.to_glam())
-                    .unwrap_or(glam::Vec3::ZERO);
-                let rot_comp = world
-                    .get_copied::<Rotation>(entity)
-                    .map(|r| r.to_glam())
-                    .unwrap_or(glam::Quat::IDENTITY);
-                (pos_comp, rot_comp)
-            };
+            let (world_pos, world_rot) =
+                if let Ok(gt) = world.get_copied::<ae_plugin_api::GlobalTransform>(entity) {
+                    let (trans, rot, _scale) = ae_transform::matrix4_to_glam_trs(gt.0);
+                    (trans, rot)
+                } else {
+                    use ae_transform::ToGlam;
+                    let pos_comp = world
+                        .get_copied::<Position>(entity)
+                        .map(|p| p.to_glam())
+                        .unwrap_or(glam::Vec3::ZERO);
+                    let rot_comp = world
+                        .get_copied::<Rotation>(entity)
+                        .map(|r| r.to_glam())
+                        .unwrap_or(glam::Quat::IDENTITY);
+                    (pos_comp, rot_comp)
+                };
 
             let vel_comp = world.get_copied::<Velocity>(entity).unwrap_or(Velocity {
                 x: 0.0,

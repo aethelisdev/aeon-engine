@@ -20,10 +20,8 @@ use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use ae_camera_controller::{FollowCameraConfig, update_follow_camera};
 use ae_core::events::DynamicEventBus;
 use ae_core::modules::EngineModule;
-use ae_core::spatial::SpatialGrid;
 use ae_core::state::StateManager;
 use ae_core::time::Time;
-use ae_core::transform::update_hierarchy_transforms;
 use ae_input::{ActionMap, InputManager, KeyCode};
 use ae_physics::PhysicsWorld;
 use ae_plugin_api::{Position, Scale};
@@ -34,6 +32,10 @@ use ae_renderer::render::{
     OverlayRenderer, RenderFrameParams, RenderOptions, RenderState, TextureAsset,
 };
 use ae_scene::{RuntimeStreamingManager, bind_entity_assets_from_binding};
+use ae_transform::{
+    SpatialGrid, compose_2d_model_matrix, integrate_unconstrained_velocities,
+    update_hierarchy_transforms,
+};
 use std::collections::HashSet;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -237,10 +239,7 @@ impl RuntimeSession {
         if self.event_bus.is_module_enabled(EngineModule::Physics) {
             while self.time.consume_fixed_step() {
                 if !self.state_manager.is_paused() {
-                    ae_core::transform::integrate_unconstrained_velocities(
-                        &mut self.world,
-                        self.time.fixed_time_step,
-                    );
+                    integrate_unconstrained_velocities(&mut self.world, self.time.fixed_time_step);
                     crate::simulation::step_player_movement(
                         &self.input,
                         &mut self.world,
@@ -457,9 +456,7 @@ impl RuntimeSession {
                     sprite.order_in_layer,
                     tex_id,
                 );
-                let model =
-                    cgmath::Matrix4::from_translation(cgmath::Vector3::new(pos.x, pos.y, pos.z))
-                        * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, 1.0);
+                let model = compose_2d_model_matrix(*pos, scale.x, scale.y);
                 let instance = ae_2d::renderer::SpriteInstance {
                     model_matrix: model.into(),
                     uv_rect: sprite.uv_rect,
