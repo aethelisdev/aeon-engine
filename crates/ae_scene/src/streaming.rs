@@ -5,15 +5,14 @@
 //! `.aesave` deltas, cross-cell [`PendingGuidResolver`], `AssetManager` reference counting,
 //! and floating-origin camera-relative stability.
 
-use ae_ecs::EntityCommandBuffer;
-use ae_ecs::component_type_hash;
-use ae_ecs::{Entity, World};
+use ae_ecs::{Entity, EntityCommandBuffer, World, component_type_hash};
 use ae_plugin_api::{
     BoundingRadius, Children, EntityGuid, LodGroup, ModelId, Parent, Position, SpriteId,
     TransformDirty,
 };
 use ae_renderer::asset::AssetManager;
 use ae_renderer::camera::FloatingOrigin;
+use ae_renderer::render::RenderState;
 use ae_world::{
     CellDelta, CellStreamingPlanner, DiskVfsProvider, EntityRecord, GuidGenerator, PartitionCell,
     PendingGuidLink, PendingGuidResolver, ResolvedGuidLink, SCENE_ASSET_BINDING_TYPE,
@@ -51,8 +50,8 @@ pub struct RuntimeStreamingManager {
     guid_resolver: PendingGuidResolver,
     available_cells: HashSet<SpatialCellCoord>,
     loaded_cells: HashSet<SpatialCellCoord>,
-    entity_to_hecs: HashMap<EntityGuid, Entity>,
-    hecs_to_guid: HashMap<Entity, EntityGuid>,
+    guid_to_entity: HashMap<EntityGuid, Entity>,
+    entity_to_guid: HashMap<Entity, EntityGuid>,
     floating_origin: FloatingOrigin,
     vfs: Arc<dyn VfsProvider>,
     save_delta: Option<WorldDeltaSnapshot>,
@@ -77,8 +76,8 @@ impl RuntimeStreamingManager {
             guid_resolver: PendingGuidResolver::new(),
             available_cells,
             loaded_cells: HashSet::new(),
-            entity_to_hecs: HashMap::new(),
-            hecs_to_guid: HashMap::new(),
+            guid_to_entity: HashMap::new(),
+            entity_to_guid: HashMap::new(),
             floating_origin: FloatingOrigin::new(SpatialCellCoord::ZERO, cell_size),
             vfs,
             save_delta: None,
@@ -128,8 +127,8 @@ impl RuntimeStreamingManager {
             if !self.loaded_cells.contains(&cell) {
                 continue;
             }
-            self.entity_to_hecs.insert(guid, entity_ref.entity());
-            self.hecs_to_guid.insert(entity_ref.entity(), guid);
+            self.guid_to_entity.insert(guid, entity_ref.entity());
+            self.entity_to_guid.insert(entity_ref.entity(), guid);
             self.guid_resolver.on_entity_spawned(cell, guid);
         }
     }
@@ -166,7 +165,7 @@ impl RuntimeStreamingManager {
     /// Resolves a live [`Entity`] handle by persistent [`EntityGuid`], if currently streamed in.
     #[must_use]
     pub fn resolve_entity(&self, guid: EntityGuid) -> Option<Entity> {
-        self.entity_to_hecs.get(&guid).copied()
+        self.guid_to_entity.get(&guid).copied()
     }
 
     /// Registers a cross-cell [`EntityGuid`] dependency; resolves immediately when present or queues
@@ -215,7 +214,7 @@ impl RuntimeStreamingManager {
                 &mut on_asset_binding,
                 &mut report,
             ) {
-                log::warn!("Streaming load failed for cell {:?}: {err}", cell_coord);
+                log::warn!("Streaming load failed for cell {cell_coord:?}: {err}");
             }
         }
 
@@ -224,7 +223,7 @@ impl RuntimeStreamingManager {
 
     fn sync_entity_cell_migrations(&mut self, world: &World) {
         let mut moved: Vec<(EntityGuid, SpatialCellCoord)> = Vec::new();
-        for (&guid, &ent) in &self.entity_to_hecs {
+        for (&guid, &ent) in &self.guid_to_entity {
             if let Ok(pos) = world.get_copied::<Position>(ent) {
                 let current_cell =
                     SpatialCellCoord::from_world_pos([pos.x, pos.y, pos.z], self.planner.cell_size);
@@ -256,8 +255,8 @@ impl RuntimeStreamingManager {
             let despawn_guids = self.guid_resolver.on_cell_unloaded(cell);
             for guid in despawn_guids {
                 self.pending_parent_links.remove(&guid);
-                if let Some(entity) = self.entity_to_hecs.remove(&guid) {
-                    self.hecs_to_guid.remove(&entity);
+                if let Some(entity) = self.guid_to_entity.remove(&guid) {
+                    self.entity_to_guid.remove(&entity);
                     release_entity_assets(world, asset_manager, entity);
                     cmd.despawn(entity);
                     report.despawned_entities += 1;
@@ -316,7 +315,7 @@ impl RuntimeStreamingManager {
         let mut spawned_guids = Vec::with_capacity(records.len());
 
         for rec in records {
-            if !rec.guid.is_nil() && self.entity_to_hecs.contains_key(&rec.guid) {
+            if !rec.guid.is_nil() && self.guid_to_entity.contains_key(&rec.guid) {
                 continue;
             }
             let entity_guid = if rec.guid.is_nil() {
@@ -325,8 +324,8 @@ impl RuntimeStreamingManager {
                 rec.guid
             };
             let entity = world.spawn((entity_guid,));
-            self.entity_to_hecs.insert(entity_guid, entity);
-            self.hecs_to_guid.insert(entity, entity_guid);
+            self.guid_to_entity.insert(entity_guid, entity);
+            self.entity_to_guid.insert(entity, entity_guid);
             spawned_guids.push(entity_guid);
 
             let mut has_physics = false;
@@ -367,7 +366,7 @@ impl RuntimeStreamingManager {
         child: Entity,
         parent_guid: EntityGuid,
     ) {
-        if let Some(&parent_ent) = self.entity_to_hecs.get(&parent_guid) {
+        if let Some(&parent_ent) = self.guid_to_entity.get(&parent_guid) {
             link_parent_child(world, child, parent_ent);
         } else {
             self.pending_parent_links
@@ -448,7 +447,7 @@ fn collect_effective_cell_records(
 /// via canonical cache or `VfsProvider` and incrementing asset reference counts.
 pub fn bind_entity_assets_from_binding(
     world: &mut World,
-    render_state: &ae_renderer::render::RenderState,
+    render_state: &RenderState,
     asset_manager: &mut AssetManager,
     vfs: Option<&dyn VfsProvider>,
     entity: Entity,
@@ -565,7 +564,6 @@ mod tests {
         let cell_1 = SpatialCellCoord::new(1, 0, 0);
         let cell_2 = SpatialCellCoord::new(3, 0, 0);
 
-        // Cell 0 contains walker + switch; Cell 1 contains door (parent = switch across chunk boundary!)
         let chunk_0 = PartitionCell {
             coord: cell_0,
             revision: 1,
@@ -604,7 +602,6 @@ mod tests {
         let available: HashSet<_> = [cell_0, cell_1, cell_2].into_iter().collect();
         let mut mgr = RuntimeStreamingManager::new(vfs, 128.0, 0, 1, available);
 
-        // Relocate walker from cell_0 into cell_2 via savegame before either loads
         let mut save = WorldDeltaSnapshot::new(SaveSlotMetadata {
             slot_index: 1,
             world_guid,
@@ -622,7 +619,6 @@ mod tests {
         let mut world = World::new();
         let mut assets = AssetManager::new();
 
-        // Start player inside cell_2 (390.0) BEFORE cell_0 has ever loaded: relocated walker spawns immediately
         let step_2 = mgr.step(
             &mut world,
             &mut assets,
@@ -635,7 +631,6 @@ mod tests {
             .resolve_entity(walker_guid)
             .expect("walker present in cell_2");
 
-        // Now move to cell_1 (135.0): register deferred cross-cell link from cell_1 -> switch in cell_0
         let step_1 = mgr.step(
             &mut world,
             &mut assets,
@@ -659,8 +654,6 @@ mod tests {
         };
         assert!(mgr.register_cross_cell_link(link).is_none());
 
-        // Move to cell_0 (15.0): cell_0 loads switch (resolves PendingGuidLink + Parent link cleanly)
-        // AND skips base walker_guid because cell_0 delta suppressed it.
         let step_0 = mgr.step(
             &mut world,
             &mut assets,
@@ -682,9 +675,6 @@ mod tests {
             switch_ent
         );
 
-        // Move door entity at runtime from cell_1 into cell_0, then move camera to cell (-1, 0, 0)
-        // at x = -15.0 so dist(cell_1) = 2 > unload_radius(1) while dist(cell_0) = 1 <= 1:
-        // cell_1 unloads cleanly WITHOUT despawning moved door_ent!
         if let Ok(pos) = world.get_mut::<Position>(door_ent) {
             pos.x = 12.0;
         }

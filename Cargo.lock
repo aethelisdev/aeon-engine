@@ -157,13 +157,11 @@ dependencies = [
  "ae_ecs",
  "ae_plugin_api",
  "ae_renderer",
- "ae_world",
  "bytemuck",
  "cgmath",
  "chrono",
  "image",
  "log",
- "lz4_flex",
  "postcard",
  "serde",
  "serde_json",
@@ -186,6 +184,7 @@ dependencies = [
  "ae_plugin_api",
  "ae_renderer",
  "ae_runtime",
+ "ae_scene",
  "ae_uidesign",
  "ae_world",
  "cgmath",
@@ -220,6 +219,7 @@ dependencies = [
  "ae_plugin_host",
  "ae_renderer",
  "ae_runtime",
+ "ae_scene",
  "ae_texture",
  "ae_world",
  "bytemuck",
@@ -360,6 +360,7 @@ dependencies = [
  "ae_plugin_api",
  "ae_plugin_host",
  "ae_renderer",
+ "ae_scene",
  "ae_texture",
  "ae_world",
  "bytemuck",
@@ -380,6 +381,27 @@ dependencies = [
  "spin_sleep",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "ae_scene"
+version = "0.1.0"
+dependencies = [
+ "ae_2d",
+ "ae_animation",
+ "ae_assets",
+ "ae_core",
+ "ae_ecs",
+ "ae_plugin_api",
+ "ae_renderer",
+ "ae_world",
+ "cgmath",
+ "log",
+ "lz4_flex",
+ "postcard",
+ "rayon",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

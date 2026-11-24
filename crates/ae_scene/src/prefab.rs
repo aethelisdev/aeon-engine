@@ -3,6 +3,7 @@
 
 //! Binary hierarchical prefab template system (`.aeprefab`) backed by `ae_world`.
 
+use ae_ecs::{Entity, World};
 use ae_plugin_api::{Children, EntityGuid, Name, Parent, Position, TransformDirty};
 use ae_world::{
     ComponentRecord, EntityRecord, GuidGenerator, decode_checksummed_envelope,
@@ -35,13 +36,13 @@ impl Prefab {
     /// Creates a hierarchical [`Prefab`] starting at `root_entity` and collecting all
     /// reachable descendants via `Children` components.
     #[must_use]
-    pub fn create_from_entity(world: &ae_ecs::World, root_entity: ae_ecs::Entity) -> Self {
+    pub fn create_from_entity(world: &World, root_entity: Entity) -> Self {
         let registry = ae_plugin_api::engine_component_registry();
         let mut guid_gen = GuidGenerator::new();
-        let mut entity_to_guid: HashMap<ae_ecs::Entity, EntityGuid> = HashMap::new();
-        let mut ordered: Vec<(ae_ecs::Entity, Option<ae_ecs::Entity>)> = Vec::new();
-        let mut visited: HashSet<ae_ecs::Entity> = HashSet::new();
-        let mut queue: VecDeque<(ae_ecs::Entity, Option<ae_ecs::Entity>)> = VecDeque::new();
+        let mut entity_to_guid: HashMap<Entity, EntityGuid> = HashMap::new();
+        let mut ordered: Vec<(Entity, Option<Entity>)> = Vec::new();
+        let mut visited: HashSet<Entity> = HashSet::new();
+        let mut queue: VecDeque<(Entity, Option<Entity>)> = VecDeque::new();
 
         queue.push_back((root_entity, None));
         while let Some((ent, parent_ent)) = queue.pop_front() {
@@ -116,16 +117,12 @@ impl Prefab {
 
     /// Spawns all entities of this prefab into `world` with fresh [`EntityGuid`]s,
     /// reconstructing `Parent`/`Children` links and optionally overriding the root's `Position`.
-    pub fn instantiate(
-        &self,
-        world: &mut ae_ecs::World,
-        target_pos: Option<Position>,
-    ) -> ae_ecs::Entity {
+    pub fn instantiate(&self, world: &mut World, target_pos: Option<Position>) -> Entity {
         let registry = ae_plugin_api::engine_component_registry();
         let mut guid_gen = GuidGenerator::new();
-        let mut old_to_new_ent: HashMap<EntityGuid, ae_ecs::Entity> =
+        let mut old_to_new_ent: HashMap<EntityGuid, Entity> =
             HashMap::with_capacity(self.entities.len());
-        let mut spawned_order: Vec<(ae_ecs::Entity, EntityRecord)> =
+        let mut spawned_order: Vec<(Entity, EntityRecord)> =
             Vec::with_capacity(self.entities.len());
 
         for rec in &self.entities {
@@ -243,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_prefab_binary_roundtrip_and_hierarchy_instantiation() {
-        let mut world = ae_ecs::World::new();
+        let mut world = World::new();
 
         let original_root = world.spawn((
             Name("TestBarrel".to_string()),
@@ -302,19 +299,17 @@ mod tests {
             *last ^= 0xff;
         }
         assert!(Prefab::from_bytes(&corrupted).is_err());
+        assert!(Prefab::from_bytes(&[]).is_err());
     }
 
     #[test]
     fn test_prefab_save_creates_parent_directories() {
-        let mut world = ae_ecs::World::new();
+        let mut world = World::new();
         let entity = world.spawn((Name("TreePrefab".to_string()),));
         let prefab = Prefab::create_from_entity(&world, entity);
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(12345);
-        let temp_dir = std::env::temp_dir().join(format!("ae_test_prefabs_{nanos}"));
+        let temp_dir = std::env::temp_dir().join("ae_scene_test_prefabs_deterministic");
+        let _ = std::fs::remove_dir_all(&temp_dir);
         let nested_file = temp_dir.join("subfolder").join("tree.aeprefab");
 
         assert!(!nested_file.exists());

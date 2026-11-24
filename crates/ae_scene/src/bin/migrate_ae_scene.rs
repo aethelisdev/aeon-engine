@@ -5,10 +5,11 @@
 //! into partitioned binary `.aeworld` archives (`ae_world`).
 //!
 //! Usage:
-//! `cargo run -p ae_engine --bin migrate_ae_scene -- <input.ae3d|.ae2d> <output.aeworld>`
+//! `cargo run -p ae_scene --bin migrate_ae_scene -- <input.ae3d|.ae2d> <output.aeworld>`
 
 use ae_ecs::{ComponentHandler, ComponentRegistry};
 use ae_plugin_api::EntityGuid;
+use ae_scene::DEFAULT_WORLD_CELL_SIZE;
 use ae_world::{
     AssetKind, ComponentRecord, EntityRecord, GuidGenerator, SCENE_ASSET_BINDING_TYPE,
     SavedLodPaths, SceneAssetBinding, WorldDocument, asset_guid_from_virtual_path,
@@ -129,7 +130,7 @@ fn convert_legacy_scene(input: &Path, output: &Path) -> Result<usize, String> {
     let is_2d = !detect_is_3d(&legacy_entities, input);
     let registry = ae_plugin_api::engine_component_registry();
     let mut guid_gen = GuidGenerator::new();
-    let mut doc = WorldDocument::new(guid_gen.next_entity_guid(), is_2d, 128.0);
+    let mut doc = WorldDocument::new(guid_gen.next_entity_guid(), is_2d, DEFAULT_WORLD_CELL_SIZE);
 
     let mut assigned_guids: Vec<EntityGuid> = Vec::with_capacity(legacy_entities.len());
     let mut name_to_guid: HashMap<String, EntityGuid> = HashMap::new();

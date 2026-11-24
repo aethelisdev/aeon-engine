@@ -20,9 +20,9 @@ pub const AUTOSAVE_ROTATING_SLOTS: usize = 3;
 pub struct AutosavePollContext<'a> {
     /// Current engine execution mode (`Edit` vs `Play`).
     pub mode: EngineMode,
-    /// Whether periodic background autosaves are enabled in `EditorConfig`.
+    /// Whether periodic background autosaves are enabled in editor configuration.
     pub enabled: bool,
-    /// Seconds between periodic autosaves configured in `EditorConfig`.
+    /// Seconds between periodic autosaves configured in editor configuration.
     pub interval_secs: f32,
     /// Frame delta time in seconds.
     pub dt: f32,
@@ -36,11 +36,10 @@ pub struct AutosavePollContext<'a> {
     pub active_scene_path: Option<&'a Path>,
 }
 
-/// Tracks edit-mode frame elapsed time and dispatches non-blocking background autosaves
+/// Tracks Edit-mode frame elapsed time and dispatches non-blocking background autosaves
 /// to rotating `Saved/Autosaves/<world>_autosave_<slot>.aeworld` recovery archives.
 ///
-/// Enable state and interval are read directly from [`ae_editor::editor_state::EditorConfig`]
-/// as the single source of truth; identical worlds (matching full binary CRC32) skip disk writes.
+/// Identical worlds matching the full binary CRC32 skip disk writes cleanly.
 pub struct EditorAutosaveState {
     elapsed_secs: f32,
     next_slot: usize,
@@ -75,7 +74,8 @@ impl EditorAutosaveState {
     /// when a new autosave snapshot should be captured and flushed in the background.
     ///
     /// Returns `None` during Play mode, when disabled, when an empty world is open, when a prior
-    /// worker is still writing, or before `ctx.interval_secs` has elapsed.
+    /// worker is still writing, when `ctx.dt` is non-finite or non-positive, or before
+    /// `ctx.interval_secs` has elapsed.
     pub fn poll_trigger(&mut self, ctx: AutosavePollContext<'_>) -> Option<PathBuf> {
         if !ctx.enabled || ctx.mode != EngineMode::Edit || ctx.entity_count == 0 {
             return None;
@@ -116,10 +116,10 @@ impl EditorAutosaveState {
             let result = write_autosave_if_changed(&doc, &target_path, &last_crc);
             in_flight.store(false, Ordering::Release);
             match result {
-                Ok(true) => log::info!("Auto-saved recovery snapshot to {:?}", target_path),
+                Ok(true) => log::info!("Auto-saved recovery snapshot to {target_path:?}"),
                 Ok(false) => log::debug!("Skipped auto-save: world snapshot unchanged"),
                 Err(err) => {
-                    log::warn!("Background auto-save failed for {:?}: {}", target_path, err)
+                    log::warn!("Background auto-save failed for {target_path:?}: {err}");
                 }
             }
         });
@@ -197,10 +197,7 @@ mod tests {
 
     #[test]
     fn test_autosave_skips_play_mode_rotates_slots_and_skips_unchanged_crc() {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let root = std::env::temp_dir().join(format!("ae_engine_autosave_{nanos}"));
+        let root = std::env::temp_dir().join("ae_scene_test_autosave_deterministic");
         let autosaves_dir = root.join("Saved/Autosaves");
         let _ = std::fs::remove_dir_all(&root);
 
@@ -215,7 +212,7 @@ mod tests {
             saved_world_dir: world_dir,
             active_scene_path: None,
         };
-        // Never triggers in Play mode, when disabled, or on empty worlds
+        // Never triggers in Play mode, when disabled, on empty worlds, or non-finite/negative dt
         assert!(
             state
                 .poll_trigger(make_ctx(EngineMode::Play, true, 60.0, 10, None))
@@ -229,6 +226,16 @@ mod tests {
         assert!(
             state
                 .poll_trigger(make_ctx(EngineMode::Edit, true, 60.0, 0, None))
+                .is_none()
+        );
+        assert!(
+            state
+                .poll_trigger(make_ctx(EngineMode::Edit, true, f32::NAN, 10, None))
+                .is_none()
+        );
+        assert!(
+            state
+                .poll_trigger(make_ctx(EngineMode::Edit, true, -5.0, 10, None))
                 .is_none()
         );
         // Before interval expires -> None
@@ -249,7 +256,6 @@ mod tests {
             ))
             .expect("slot 0 triggers");
         assert!(slot0.ends_with("Frontier_autosave_0.aeworld"));
-        // Simulate worker finishing so slot 1 can trigger next
         state.in_flight.store(false, Ordering::Release);
 
         let slot1 = state
