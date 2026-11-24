@@ -75,3 +75,38 @@ pub fn compute_aabb_bounding_radius(min: [f32; 3], max: [f32; 3]) -> f32 {
     let center_dist = (cx * cx + cy * cy + cz * cz).sqrt();
     (center_dist + r_half_diag).max(1.0)
 }
+
+/// Computes unit-normalization scale factor for newly imported models with miniature AABBs.
+///
+/// Scales centimeter/millimeter-authored models (`max_dim < 0.05` by `100.0`,
+/// `max_dim < 0.005` by `1000.0`) up to meter scale, and returns `1.0` for normal,
+/// negative, or non-finite bounds.
+#[must_use]
+pub fn compute_model_auto_scale(min: [f32; 3], max: [f32; 3]) -> f32 {
+    if !min.iter().chain(max.iter()).all(|v| v.is_finite()) {
+        return 1.0;
+    }
+    let size_x = max[0] - min[0];
+    let size_y = max[1] - min[1];
+    let size_z = max[2] - min[2];
+    let max_dim = size_x.max(size_y).max(size_z);
+    if max_dim <= 0.0 {
+        return 1.0;
+    }
+    if max_dim < 0.005 {
+        1000.0
+    } else if max_dim < 0.05 {
+        100.0
+    } else {
+        1.0
+    }
+}
+
+/// Returns `true` when `path_str` ends with `.fbx` (case-insensitive) for axis orientation correction.
+#[must_use]
+pub fn is_fbx_model_path(path_str: &str) -> bool {
+    std::path::Path::new(path_str)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("fbx"))
+}

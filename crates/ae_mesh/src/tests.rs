@@ -3,9 +3,10 @@
 
 use crate::{
     CUBE_VERTICES, GRID_QUAD_VERTICES, PYRAMID_VERTICES, QUAD_VERTICES, SkinVertex,
-    SubmeshAlphaMode, Vertex, apply_skinning_palette, compute_aabb_bounding_radius,
-    generate_capsule, generate_cylinder, generate_sphere, generate_torus, is_safe_path,
-    parse_gltf_bytes, parse_gltf_file, parse_gltf_raw_geometry,
+    SubmeshAlphaMode, Vertex, apply_skinning_palette, collect_gltf_external_uris,
+    compute_aabb_bounding_radius, compute_model_auto_scale, generate_capsule, generate_cylinder,
+    generate_sphere, generate_torus, is_fbx_model_path, is_safe_path, parse_gltf_bytes,
+    parse_gltf_file, parse_gltf_raw_geometry,
 };
 use std::path::{Path, PathBuf};
 
@@ -249,4 +250,42 @@ fn test_parse_gltf_bytes_embedded_triangle() {
     assert_eq!(parsed.submeshes[0].alpha_mode, SubmeshAlphaMode::Opaque);
     assert_eq!(parsed.min, [0.0, 0.0, 0.0]);
     assert_eq!(parsed.max, [1.0, 1.0, 0.0]);
+}
+
+#[test]
+fn test_model_auto_scale_fbx_helper_and_external_uri_collection() {
+    assert_eq!(
+        compute_model_auto_scale([0.0; 3], [0.001, 0.002, 0.001]),
+        1000.0
+    );
+    assert_eq!(
+        compute_model_auto_scale([0.0; 3], [0.02, 0.01, 0.01]),
+        100.0
+    );
+    assert_eq!(compute_model_auto_scale([-1.0; 3], [1.0; 3]), 1.0);
+    assert_eq!(compute_model_auto_scale([f32::NAN; 3], [1.0; 3]), 1.0);
+    assert_eq!(compute_model_auto_scale([2.0; 3], [1.0; 3]), 1.0);
+
+    assert!(is_fbx_model_path("assets/models/character.fbx"));
+    assert!(is_fbx_model_path("MODEL.FBX"));
+    assert!(!is_fbx_model_path("assets/models/character.glb"));
+
+    assert!(collect_gltf_external_uris(Path::new("/nonexistent/scene.gltf")).is_none());
+
+    let dir = std::env::temp_dir().join(format!("ae_mesh_uris_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let gltf_path = dir.join("scene.gltf");
+    let manifest = r#"{
+      "asset": { "version": "2.0" },
+      "buffers": [{ "uri": "scene.bin", "byteLength": 12 }],
+      "images": [{ "uri": "textures/albedo.png" }]
+    }"#;
+    std::fs::write(&gltf_path, manifest).expect("write manifest");
+
+    let uris = collect_gltf_external_uris(&gltf_path).expect("collect uris");
+    assert_eq!(uris.buffers, vec!["scene.bin".to_string()]);
+    assert_eq!(uris.images, vec!["textures/albedo.png".to_string()]);
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

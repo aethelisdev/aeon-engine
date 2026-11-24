@@ -153,16 +153,12 @@ pub fn import_asset_path(src: &Path, target_dir: &Path) -> PathBuf {
         log::info!("📁 Copied glTF file {:?} -> {:?}", src, dest_gltf);
 
         let parent_dir = src.parent().unwrap_or(Path::new(""));
-        if let Ok(gltf) = gltf::Gltf::open(src) {
-            for buffer in gltf.buffers() {
-                if let gltf::buffer::Source::Uri(uri) = buffer.source() {
-                    copy_gltf_uri(uri, parent_dir, &dest_folder, "buffer");
-                }
+        if let Some(uris) = ae_mesh::collect_gltf_external_uris(src) {
+            for uri in &uris.buffers {
+                copy_gltf_uri(uri, parent_dir, &dest_folder, "buffer");
             }
-            for image in gltf.images() {
-                if let gltf::image::Source::Uri { uri, .. } = image.source() {
-                    copy_gltf_uri(uri, parent_dir, &dest_folder, "texture");
-                }
+            for uri in &uris.images {
+                copy_gltf_uri(uri, parent_dir, &dest_folder, "texture");
             }
         }
 

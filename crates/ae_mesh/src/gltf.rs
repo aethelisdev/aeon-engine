@@ -16,5 +16,7 @@ pub use animation::parse_gltf_skin_and_animations;
 pub use geometry::{
     ParsedGltfGeometry, RawMeshGeometry, parse_gltf_raw_geometry, parse_gltf_scene_geometry,
 };
-pub use parser::{is_safe_path, parse_gltf_bytes, parse_gltf_file};
+pub use parser::{
+    GltfExternalUris, collect_gltf_external_uris, is_safe_path, parse_gltf_bytes, parse_gltf_file,
+};
 pub use textures::{extract_gltf_all_embedded_textures, extract_gltf_embedded_texture};

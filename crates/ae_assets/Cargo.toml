@@ -14,7 +14,6 @@ ae_plugin_api = { path = "../ae_plugin_api" }
 ae_renderer = { path = "../ae_renderer" }
 ae_texture = { path = "../ae_texture" }
 ae_world = { workspace = true }
-gltf = "1.4.1"
 image = "0.25.10"
 log = "0.4.33"
 rayon = "1.12.0"

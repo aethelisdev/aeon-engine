@@ -9,6 +9,40 @@ use super::textures::extract_gltf_all_embedded_textures;
 use crate::model::ParsedModelData;
 use std::path::{Path, PathBuf};
 
+/// External buffer and image URIs declared inside a `.gltf` JSON manifest.
+///
+/// Embedded data URIs are omitted automatically because they require no sidecar file copy.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GltfExternalUris {
+    /// Relative external buffer URIs referenced by `buffers[].uri`.
+    pub buffers: Vec<String>,
+    /// Relative external image URIs referenced by `images[].uri`.
+    pub images: Vec<String>,
+}
+
+/// Inspects a `.gltf` manifest on disk and returns all external buffer and image URIs.
+///
+/// Returns `None` if opening or parsing the manifest fails.
+#[must_use]
+pub fn collect_gltf_external_uris(path: &Path) -> Option<GltfExternalUris> {
+    let doc = gltf::Gltf::open(path).ok()?;
+    let buffers = doc
+        .buffers()
+        .filter_map(|buffer| match buffer.source() {
+            gltf::buffer::Source::Uri(uri) => Some(uri.to_owned()),
+            gltf::buffer::Source::Bin => None,
+        })
+        .collect();
+    let images = doc
+        .images()
+        .filter_map(|image| match image.source() {
+            gltf::image::Source::Uri { uri, .. } => Some(uri.to_owned()),
+            gltf::image::Source::View { .. } => None,
+        })
+        .collect();
+    Some(GltfExternalUris { buffers, images })
+}
+
 /// Verifies whether `path` is safe for asset loading by rejecting parent directory
 /// traversal (`..`), UNC network prefixes (`\\`), URI protocol schemes (`://`), and NUL bytes.
 #[must_use]

@@ -18,11 +18,14 @@ pub mod submesh;
 pub mod vertex;
 
 pub use gltf::{
-    ParsedGltfGeometry, RawMeshGeometry, extract_gltf_all_embedded_textures,
-    extract_gltf_embedded_texture, is_safe_path, parse_gltf_bytes, parse_gltf_file,
-    parse_gltf_raw_geometry, parse_gltf_scene_geometry, parse_gltf_skin_and_animations,
+    GltfExternalUris, ParsedGltfGeometry, RawMeshGeometry, collect_gltf_external_uris,
+    extract_gltf_all_embedded_textures, extract_gltf_embedded_texture, is_safe_path,
+    parse_gltf_bytes, parse_gltf_file, parse_gltf_raw_geometry, parse_gltf_scene_geometry,
+    parse_gltf_skin_and_animations,
 };
-pub use model::{ParsedModelData, compute_aabb_bounding_radius};
+pub use model::{
+    ParsedModelData, compute_aabb_bounding_radius, compute_model_auto_scale, is_fbx_model_path,
+};
 pub use primitives::{
     CUBE_VERTICES, GRID_QUAD_VERTICES, PYRAMID_VERTICES, QUAD_VERTICES, VERTICES, generate_capsule,
     generate_cylinder, generate_sphere, generate_torus,

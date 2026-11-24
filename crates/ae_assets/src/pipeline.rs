@@ -149,54 +149,9 @@ pub fn spawn_fbx_convert(path: &Path) -> Receiver<Result<PathBuf, String>> {
     rx
 }
 
-/// Computes unit-normalization scale factor for newly imported models with miniature AABBs.
-#[must_use]
-pub fn compute_model_auto_scale(min: [f32; 3], max: [f32; 3]) -> f32 {
-    let size_x = max[0] - min[0];
-    let size_y = max[1] - min[1];
-    let size_z = max[2] - min[2];
-    let max_dim = size_x.max(size_y).max(size_z);
-    if max_dim < 0.005 {
-        1000.0
-    } else if max_dim < 0.05 {
-        100.0
-    } else {
-        1.0
-    }
-}
-
-/// Returns `true` when `path_str` ends with `.fbx` (case-insensitive) for axis orientation correction.
-#[must_use]
-pub fn is_fbx_model_path(path_str: &str) -> bool {
-    Path::new(path_str)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("fbx"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_compute_model_auto_scale_thresholds() {
-        assert_eq!(
-            compute_model_auto_scale([0.0; 3], [0.001, 0.002, 0.001]),
-            1000.0
-        );
-        assert_eq!(
-            compute_model_auto_scale([0.0; 3], [0.02, 0.01, 0.01]),
-            100.0
-        );
-        assert_eq!(compute_model_auto_scale([-1.0; 3], [1.0; 3]), 1.0);
-    }
-
-    #[test]
-    fn test_is_fbx_model_path() {
-        assert!(is_fbx_model_path("assets/models/character.fbx"));
-        assert!(is_fbx_model_path("MODEL.FBX"));
-        assert!(!is_fbx_model_path("assets/models/character.glb"));
-    }
 
     #[test]
     fn test_validate_asset_drop_for_dimension() {

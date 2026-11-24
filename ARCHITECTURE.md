@@ -85,6 +85,7 @@ graph TD
 
     subgraph SceneLayer["Unified Scene Lifecycle Layer"]
         ae_assets --> ae_scene["ae_scene (World I/O, Streaming, Prefab, Autosave, Spawning, Hierarchy)"]
+        ae_mesh --> ae_scene
         ae_world --> ae_scene
         ae_2d --> ae_scene
     end

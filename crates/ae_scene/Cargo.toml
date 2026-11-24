@@ -14,6 +14,7 @@ ae_plugin_api = { path = "../ae_plugin_api" }
 ae_core = { path = "../ae_core" }
 ae_world = { workspace = true }
 ae_assets = { workspace = true }
+ae_mesh = { workspace = true }
 ae_renderer = { path = "../ae_renderer" }
 ae_animation = { path = "../ae_animation" }
 ae_2d = { workspace = true }

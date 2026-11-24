@@ -7,8 +7,8 @@
 //! UI context, file dialogs, or editor undo/selection side effects.
 
 use ae_animation::AnimationPlayer;
-use ae_assets::{compute_model_auto_scale, is_fbx_model_path};
 use ae_ecs::{Entity, World};
+use ae_mesh::{compute_model_auto_scale, is_fbx_model_path};
 use ae_plugin_api::{
     BoundingBox, CharacterAction, CharacterController, Collider, ColliderShape, Color,
     DestructibleTarget, LodGroup, ModelId, MovingPlatform, Name, PhysicsMaterial, PlayerTag,
