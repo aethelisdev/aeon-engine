@@ -83,8 +83,10 @@ pub struct EditorHostIo {
     pub active_vfs: Option<Arc<dyn ae_world::VfsProvider>>,
 }
 
-/// Platform window arbitration, telemetry profiling, mode transitions, and optional MCP inspection.
+/// Platform window handle, input arbitration, telemetry profiling, mode transitions, and optional MCP inspection.
 pub struct EditorWindowState {
+    /// Host OS window managed directly by the editor application shell.
+    pub window: Arc<Window>,
     /// Current Edit / Play / Pause execution mode.
     pub mode: EngineMode,
     /// Previous frame mode for detecting clean Edit ↔ Play transitions.
@@ -143,13 +145,14 @@ impl EditorSession {
     /// # Errors
     /// Returns a diagnostic string when GPU initialization or `--inspect` setup fails.
     pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Result<Self, String> {
-        let (render_state, camera) = RenderState::new(Arc::clone(&window)).await?;
+        let init_size = window.inner_size();
+        let (render_state, camera) =
+            RenderState::new(Arc::clone(&window), init_size.width, init_size.height).await?;
         let mut ui = ae_editor_ui::ui::EngineUi::new(
             &render_state.device,
             render_state.config.format,
             &window,
         );
-        let init_size = window.inner_size();
         ui.on_window_resized(init_size.width, init_size.height);
 
         let gizmos = EditorGizmos::new(
@@ -233,10 +236,11 @@ impl EditorSession {
                 active_vfs: Some(active_vfs),
             },
             window: EditorWindowState {
+                winit_state: irisui::winit::WinitState::new(window.scale_factor()),
+                window,
                 mode: EngineMode::Edit,
                 previous_mode: EngineMode::Edit,
                 input_arbiter: crate::events::InputArbiter::new(),
-                winit_state: irisui::winit::WinitState::new(window.scale_factor()),
                 profiler: ae_diagnostic::Profiler::new(),
                 is_cursor_grabbed: false,
                 #[cfg(feature = "mcp")]

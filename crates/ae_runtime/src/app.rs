@@ -53,8 +53,9 @@ impl RuntimeSession {
         args: &RuntimeLaunchArgs,
         embedded_pak: Option<&'static [u8]>,
     ) -> Result<Self, String> {
-        let (mut render_state, camera) = RenderState::new(Arc::clone(&window)).await?;
         let win_size = window.inner_size();
+        let (mut render_state, camera) =
+            RenderState::new(Arc::clone(&window), win_size.width, win_size.height).await?;
         let scale = window.scale_factor() as f32;
         render_state.graphics_settings.fps_limit =
             ae_renderer::graphics_settings::FpsLimit::Limit60;
@@ -185,6 +186,15 @@ impl RuntimeSession {
     }
 
     fn render_frame(&mut self) {
+        let live_size = self.window.inner_size();
+        if live_size.width > 0
+            && live_size.height > 0
+            && (live_size.width != self.render.render_state.size.width
+                || live_size.height != self.render.render_state.size.height)
+        {
+            self.render
+                .resize_dimensions(live_size.width, live_size.height);
+        }
         let empty_selected = HashSet::new();
         let prepared = self.render.prepare_scene(
             &mut self.core.world,
@@ -229,7 +239,6 @@ impl RuntimeSession {
         let mut ui_cb = |device: &wgpu::Device,
                          queue: &wgpu::Queue,
                          encoder: &mut wgpu::CommandEncoder,
-                         _window: &Window,
                          surface_view: &wgpu::TextureView,
                          _viewport_view: Option<&wgpu::TextureView>,
                          _surface_size: (u32, u32)| {

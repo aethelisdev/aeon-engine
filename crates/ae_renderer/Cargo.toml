@@ -12,7 +12,6 @@ ae_mesh = { workspace = true }
 ae_pbr = { workspace = true }
 ae_post_process = { workspace = true }
 ae_transform = { workspace = true }
-winit = "0.30.13"
 wgpu = "30.0.2"
 log = "0.4.33"
 bytemuck = { version = "1.25.0", features = ["derive"] }
@@ -28,7 +27,6 @@ ae_plugin_api = { path = "../ae_plugin_api" }
 ae_texture = { path = "../ae_texture" }
 ae_animation = { path = "../ae_animation" }
 ae_world = { workspace = true }
-irisui = { workspace = true }
 
 [lints]
 workspace = true

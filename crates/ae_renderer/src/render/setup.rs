@@ -4,8 +4,6 @@ use super::RenderState;
 use crate::graphics_settings::{FpsLimit, GraphicsSettings};
 use ae_camera::{Camera, ProjectionMode, ViewportRect};
 use cgmath::InnerSpace;
-use std::sync::Arc;
-use winit::window::Window;
 
 /// Helper function to choose the optimal WGPU `PresentMode` based on the requested `FpsLimit` and GPU capabilities.
 ///
@@ -53,9 +51,13 @@ pub(crate) fn choose_frame_latency(_limit: FpsLimit) -> u32 {
 
 impl RenderState {
     /// Initializes the full WGPU backend: adapter, device, surface, pipelines,
-    /// shadow system, post-processing, and camera.
-    pub async fn new(window: Arc<Window>) -> Result<(Self, Camera), String> {
-        let size = window.inner_size();
+    /// shadow system, post-processing, and camera from any `wgpu::SurfaceTarget<'static>`.
+    pub async fn new(
+        target: impl Into<wgpu::SurfaceTarget<'static>>,
+        width: u32,
+        height: u32,
+    ) -> Result<(Self, Camera), String> {
+        let size = super::engine::RenderSurfaceSize::new(width, height);
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -66,7 +68,7 @@ impl RenderState {
         });
 
         let surface = instance
-            .create_surface(std::sync::Arc::clone(&window))
+            .create_surface(target)
             .expect("Failed to create surface");
 
         let adapter_opt = instance
@@ -217,7 +219,6 @@ impl RenderState {
             queue,
             config,
             size,
-            window,
             viewport_texture: None,
             pipelines,
             uniforms,
@@ -241,15 +242,15 @@ impl RenderState {
     /// Reconfigures the surface and resizes all render targets (MSAA, depth, bloom)
     /// from raw `(width, height)` dimensions without requiring `winit` types in callers.
     pub fn resize_dimensions(&mut self, width: u32, height: u32) {
-        self.resize(winit::dpi::PhysicalSize::new(width, height));
+        self.resize(width, height);
     }
 
     /// Reconfigures the surface and resizes all render targets (MSAA, depth, bloom).
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        self.size = new_size;
-        if new_size.width > 0 && new_size.height > 0 {
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.size = super::engine::RenderSurfaceSize::new(width, height);
+        if width > 0 && height > 0 {
+            self.config.width = width;
+            self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.post_process
                 .resize(&self.device, &self.config, self.post_process.msaa_samples);

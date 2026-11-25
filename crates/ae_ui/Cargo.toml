@@ -9,7 +9,6 @@ description = "Aeon Engine - In-game ECS UI layout resolver, gameplay HUD, pause
 ae_core = { path = "../ae_core" }
 ae_ecs = { workspace = true }
 ae_plugin_api = { path = "../ae_plugin_api" }
-ae_renderer = { path = "../ae_renderer" }
 ae_state = { workspace = true }
 irisui-core = { workspace = true }
 irisui-layout = { workspace = true }

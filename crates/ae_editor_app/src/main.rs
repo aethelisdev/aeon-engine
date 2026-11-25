@@ -78,7 +78,7 @@ impl EditorAppRunner {
             Err(ae_renderer::render::RenderError::SurfaceLost) => {
                 std::hint::cold_path();
                 let size = session.render.render_state.size;
-                session.resize(size);
+                session.resize(winit::dpi::PhysicalSize::new(size.width, size.height));
             }
             Err(ae_renderer::render::RenderError::OutOfMemory) => {
                 std::hint::cold_path();

@@ -9,7 +9,7 @@
 use crate::iris_builder::{
     TAG_PLAY_EXIT, TAG_PLAY_RESUME, build_in_game_pause_menu, build_ingame_ecs_ui,
 };
-use ae_renderer::render::{IrisRenderPassParams, iris_render_pass};
+use crate::iris_pass::{IrisRenderPassParams, iris_render_pass};
 use irisui_core::{MouseButton, Point, Rect, Size, UiEvent, UiTree};
 use irisui_layout::LayoutEngine;
 use irisui_text::{

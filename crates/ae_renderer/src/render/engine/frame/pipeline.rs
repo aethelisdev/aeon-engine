@@ -8,7 +8,6 @@ use crate::render::engine::state::{RenderOptions, RenderState};
 use crate::render::types::{FrameRenderStats, OverlayRenderer, RenderError};
 use crate::render::viewport_texture::ViewportTexture;
 use ae_camera::{Camera, ViewportRect};
-use winit::window::Window;
 
 /// Granularity in pixels for viewport texture bucket allocation to prevent GPU target thrashing during interactive resizing.
 pub const VIEWPORT_BUCKET_SIZE: u32 = 64;
@@ -26,13 +25,12 @@ pub fn quantize_dimension(dim: u32, bucket_size: u32) -> u32 {
 
 /// Type alias for the UI render callback to reduce type complexity.
 ///
-/// The seventh argument `(u32, u32)` provides the authoritative physical pixel dimensions
+/// The sixth argument `(u32, u32)` provides the authoritative physical pixel dimensions
 /// `(width, height)` of the acquired swapchain surface texture for the current frame.
 pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
     &wgpu::Device,
     &wgpu::Queue,
     &mut wgpu::CommandEncoder,
-    &Window,
     &wgpu::TextureView,
     Option<&wgpu::TextureView>,
     (u32, u32),
@@ -84,17 +82,6 @@ pub const fn resolve_surface_target_size(
 }
 
 impl RenderState {
-    /// Synchronizes swapchain surface and post-process targets if the OS window inner dimensions
-    /// changed asynchronously (e.g. during window manager maximize/restore transitions) before
-    /// `WindowEvent::Resized` was dispatched.
-    #[inline]
-    pub(crate) fn sync_surface_to_window_size(&mut self) {
-        let live_size = self.window.inner_size();
-        if live_size.width > 0 && live_size.height > 0 && live_size != self.size {
-            self.resize(live_size);
-        }
-    }
-
     /// Evaluates the active environment color converted from sRGB to linear gamma space.
     ///
     /// Avoids repeating redundant perceptual powf(2.2) conversions across render passes.
@@ -192,7 +179,6 @@ impl RenderState {
             options,
             ui_renderer,
         } = params;
-        self.sync_surface_to_window_size();
         if self.size.width == 0 || self.size.height == 0 {
             return Ok(());
         }
@@ -201,7 +187,7 @@ impl RenderState {
         let scale = if options.scale_factor > 0.0 {
             options.scale_factor
         } else {
-            self.window.scale_factor() as f32
+            1.0
         };
         let vp_w = ((self.last_viewport_rect.max_x - self.last_viewport_rect.min_x) * scale)
             .max(0.0) as u32;
@@ -298,7 +284,6 @@ impl RenderState {
                     &self.device,
                     &self.queue,
                     &mut encoder,
-                    &self.window,
                     &surface_view,
                     vt_view,
                     surface_size,
@@ -617,7 +602,6 @@ impl RenderState {
                 &self.device,
                 &self.queue,
                 &mut encoder,
-                &self.window,
                 &surface_view,
                 vt_view,
                 surface_size,
@@ -732,7 +716,6 @@ impl RenderState {
                 &self.device,
                 &self.queue,
                 &mut encoder,
-                &self.window,
                 &surface_view,
                 vt_view,
                 surface_size,

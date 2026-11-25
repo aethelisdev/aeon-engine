@@ -1,11 +1,26 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use std::sync::Arc;
-use winit::window::Window;
-
 use super::frame::forward::{PreparedModelBatch, TransparentSubmeshDraw};
 use crate::render::viewport_texture::ViewportTexture;
 use ae_camera::ViewportRect;
+
+/// Physical pixel extent of the target swapchain surface without `winit` dependency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RenderSurfaceSize {
+    /// Surface width in physical pixels.
+    pub width: u32,
+    /// Surface height in physical pixels.
+    pub height: u32,
+}
+
+impl RenderSurfaceSize {
+    /// Creates a physical surface extent from `(width, height)`.
+    #[inline]
+    #[must_use]
+    pub const fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
+    }
+}
 
 /// Persistent per-frame scratch buffers reused across renders to eliminate heap allocations in the hot path.
 #[derive(Default)]
@@ -68,8 +83,7 @@ pub struct RenderState {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
-    pub window: Arc<Window>,
+    pub size: RenderSurfaceSize,
     pub viewport_texture: Option<ViewportTexture>,
 
     pub pipelines: ae_pbr::PipelineManager,

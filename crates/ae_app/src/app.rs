@@ -5,6 +5,7 @@
 
 use crate::core_world::CoreWorld;
 use crate::plugin::{AppPlugin, PluginRegistry};
+use crate::plugin_group::PluginGroup;
 use crate::schedule::{AppPhase, AppSchedule};
 
 /// Thin application coordinator uniting core ECS state, plugin registration, and frame phases.
@@ -55,6 +56,11 @@ impl AeApp {
         }
         plugin.build(self);
         true
+    }
+
+    /// Installs every enabled plugin from a [`PluginGroup`] or customized [`PluginGroupBuilder`](crate::PluginGroupBuilder).
+    pub fn add_plugins<G: PluginGroup>(&mut self, group: G) {
+        group.build().finish(self);
     }
 
     /// Registers a system closure directly onto `phase`.

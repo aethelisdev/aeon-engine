@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Isolated Iris UI render pass bridge for the Aeon Engine rendering pipeline.
-//!
-//! Provides a non-intrusive, isolated render pass execution entry point
-//! (`iris_render_pass`) overlaying Iris UI SDF elements, text, and dock viewports
-//! directly onto the target framebuffer surface without modifying core 3D passes.
+//! Isolated Iris UI render pass bridge over [`irisui_wgpu`] and [`irisui_text`].
 
-use irisui::text::TextRenderer;
-use irisui::wgpu_backend::{DrawCommandList, IrisRenderer};
+use irisui_core::WidgetId;
+use irisui_text::TextRenderer;
+use irisui_wgpu::{DrawCommandList, IrisRenderer};
+use std::collections::HashSet;
 
 /// Parameters for executing the isolated Iris UI overlay render pass.
 pub struct IrisRenderPassParams<'a> {
@@ -28,16 +26,16 @@ pub struct IrisRenderPassParams<'a> {
     pub text_renderer: Option<&'a TextRenderer>,
     /// Optional isolated GPU text renderer for high-frequency volatile/live HUD & stats labels.
     pub volatile_text_renderer: Option<&'a TextRenderer>,
-    /// Target window resolution in physical pixels.
+    /// Target surface/logical resolution used by Iris UI scissor/viewport scaling.
     pub screen_size: (u32, u32),
     /// Optional invalidation boundaries that mutated this frame for partial GPU buffer uploads.
-    pub dirty_boundaries: Option<&'a std::collections::HashSet<irisui::core::WidgetId>>,
+    pub dirty_boundaries: Option<&'a HashSet<WidgetId>>,
 }
 
 /// Executes an isolated Iris UI render pass on the target surface view.
 ///
-/// Overlays prepared SDF quads, text, and texture viewports on top of the
-/// existing framebuffer (using `wgpu::LoadOp::Load` to preserve underlying 3D scene content).
+/// Overlays prepared SDF quads and text on top of the existing framebuffer
+/// (`wgpu::LoadOp::Load` preserves underlying scene content).
 pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
     let IrisRenderPassParams {
         device,
@@ -58,7 +56,6 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
     }
 
     if has_quads {
-        // Prepare instance and uniform GPU buffers with boundary slicing and partial re-upload
         renderer.prepare_command_list_with_dirty_boundaries(
             device,
             queue,
@@ -68,7 +65,6 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
         );
     }
 
-    // Record isolated UI render pass
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("Iris UI Overlay Render Pass"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {

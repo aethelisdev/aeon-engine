@@ -113,9 +113,7 @@ impl InputArbiter {
         session: &mut EditorSession,
         ui_event: &irisui::prelude::UiEvent,
     ) -> bool {
-        session
-            .ui
-            .handle_ui_event(&session.render.render_state.window, ui_event)
+        session.ui.handle_ui_event(&session.window.window, ui_event)
     }
 
     fn handle_keyboard_input(

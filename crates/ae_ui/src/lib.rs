@@ -6,6 +6,7 @@
 
 pub mod in_game_hud;
 pub mod iris_builder;
+pub mod iris_pass;
 pub mod layout;
 pub mod pause_menu;
 pub mod runtime_overlay;
@@ -19,6 +20,7 @@ pub use in_game_hud::InGameHudState;
 pub use iris_builder::{
     TAG_PLAY_EXIT, TAG_PLAY_RESUME, build_in_game_pause_menu, build_ingame_ecs_ui,
 };
+pub use iris_pass::{IrisRenderPassParams, iris_render_pass};
 pub use layout::{PauseMenuUiTag, UiDrawCommand, UiLayoutResolver};
 pub use pause_menu::InGamePauseState;
 pub use runtime_overlay::{RuntimeHudOverlay, RuntimePauseAction};

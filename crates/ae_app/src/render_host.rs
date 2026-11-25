@@ -6,6 +6,7 @@
 //! Eliminates duplicated `extract_render_scene`, light synchronization, 2D overlay assembly,
 //! and resize logic between the editor host and standalone runtime executable.
 
+#[cfg(feature = "2d")]
 use ae_2d::{ActiveDimensionMode, Sprite2DOverlay, Sprite2DSystem, configure_2d_camera};
 use ae_camera::Camera;
 use ae_core::Resources;
@@ -31,8 +32,10 @@ pub struct RenderHost {
     /// Lazy-synced spatial grid accelerating 3D frustum/distance culling.
     pub spatial_grid: SpatialGrid,
     /// Dimension isolation mode (`Mode2D` vs `Mode3D`).
+    #[cfg(feature = "2d")]
     pub dimension_mode: ActiveDimensionMode,
     /// Optional 2D instanced sprite renderer pair allocated exclusively in `Mode2D`.
+    #[cfg(feature = "2d")]
     pub sprite_2d: Option<Sprite2DSystem>,
 }
 
@@ -50,6 +53,7 @@ pub struct PreparedRenderScene {
 ///
 /// Taking `sprite_2d` separately keeps the mutable borrow disjoint from `render_state`, `camera`,
 /// and `asset_manager` during [`RenderState::render`].
+#[cfg(feature = "2d")]
 #[must_use]
 pub fn prepare_2d_overlay<'a>(
     sprite_2d: Option<&'a mut Sprite2DSystem>,
@@ -76,6 +80,7 @@ pub fn prepare_2d_overlay<'a>(
 impl RenderHost {
     /// Assembles a [`RenderHost`] from pre-initialized GPU and asset components, automatically
     /// provisioning [`Sprite2DSystem`] and configuring the 2D orthographic camera in 2D mode.
+    #[cfg(feature = "2d")]
     #[must_use]
     pub fn new(
         render_state: RenderState,
@@ -102,18 +107,42 @@ impl RenderHost {
         }
     }
 
+    /// Assembles a 3D-only [`RenderHost`] when the `2d` feature is disabled.
+    #[cfg(not(feature = "2d"))]
+    #[must_use]
+    pub fn new(
+        render_state: RenderState,
+        asset_manager: AssetManager,
+        camera: Camera,
+        cell_size: f32,
+    ) -> Self {
+        Self {
+            render_state,
+            asset_manager,
+            camera,
+            spatial_grid: SpatialGrid::new(cell_size.max(128.0)),
+        }
+    }
+
     /// Returns `true` if `dimension_mode` is 2D.
     #[inline]
     #[must_use]
     pub fn is_2d(&self) -> bool {
-        self.dimension_mode.is_2d()
+        #[cfg(feature = "2d")]
+        {
+            self.dimension_mode.is_2d()
+        }
+        #[cfg(not(feature = "2d"))]
+        {
+            false
+        }
     }
 
     /// Queries [`DynamicEventBus`] for whether the active dimension's render module is enabled.
     #[inline]
     #[must_use]
     pub fn is_render_enabled(&self, event_bus: &DynamicEventBus) -> bool {
-        if self.dimension_mode.is_2d() {
+        if self.is_2d() {
             event_bus.is_module_enabled(EngineModule::Render2D)
         } else {
             event_bus.is_module_enabled(EngineModule::Render)
@@ -122,6 +151,7 @@ impl RenderHost {
 
     /// Rebuilds 2D sprite pipelines when swapchain/MSAA settings change.
     pub fn rebuild_sprite_2d(&mut self) {
+        #[cfg(feature = "2d")]
         if let Some(ref mut sprite_sys) = self.sprite_2d {
             sprite_sys.rebuild(
                 &self.render_state.device,
@@ -159,7 +189,7 @@ impl RenderHost {
         selected_entities: &HashSet<Entity>,
         primary_selected: Option<Entity>,
     ) -> PreparedRenderScene {
-        let is_2d = self.dimension_mode.is_2d();
+        let is_2d = self.is_2d();
         let render_enabled = self.is_render_enabled(event_bus);
 
         if render_enabled && !is_2d {

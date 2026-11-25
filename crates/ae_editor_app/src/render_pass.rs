@@ -14,6 +14,15 @@ impl EditorSession {
     /// overlays, updates UI telemetry, and renders both viewport and Iris UI workbench.
     pub fn render(&mut self) -> Result<(), ae_renderer::render::RenderError> {
         self.window.profiler.begin_render();
+        let live_size = self.window.window.inner_size();
+        if live_size.width > 0
+            && live_size.height > 0
+            && (live_size.width != self.render.render_state.size.width
+                || live_size.height != self.render.render_state.size.height)
+        {
+            self.render
+                .resize_dimensions(live_size.width, live_size.height);
+        }
 
         let effective_delta = if self.render.render_state.graphics_settings.fps_limit
             == ae_renderer::graphics_settings::FpsLimit::Uncapped
@@ -124,6 +133,7 @@ impl EditorSession {
 
         let mut ui_actions = Vec::new();
         let ui = &mut self.ui;
+        let window_ref = &self.window.window;
         let world = &self.core.world;
         let mode = &self.window.mode;
         let editor = &self.editor;
@@ -139,7 +149,6 @@ impl EditorSession {
             |device: &wgpu::Device,
              queue: &wgpu::Queue,
              encoder: &mut wgpu::CommandEncoder,
-             window: &winit::window::Window,
              surface_view: &wgpu::TextureView,
              viewport_texture_view: Option<&wgpu::TextureView>,
              surface_size: (u32, u32)| {
@@ -149,7 +158,7 @@ impl EditorSession {
                     device,
                     queue,
                     encoder,
-                    window,
+                    window: window_ref,
                     window_surface_view: surface_view,
                     surface_size,
                     viewport_texture_view,

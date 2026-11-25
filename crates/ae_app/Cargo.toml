@@ -3,31 +3,61 @@ name = "ae_app"
 version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
-description = "Modular application lifecycle, schedule phases, plugin registry, and shared headless render/simulation hosts for Aeon Engine apps"
+description = "Modular application lifecycle, schedule phases, plugin registry, and optional runtime subsystem hosts for Aeon Engine apps"
+
+[features]
+default = ["gameplay", "2d"]
+gameplay = [
+    "physics",
+    "audio",
+    "animation",
+    "plugins",
+    "state",
+    "ui",
+    "scene",
+    "dep:ae_camera_controller",
+]
+physics = ["dep:ae_physics", "dep:ae_transform", "dep:ae_camera"]
+audio = ["dep:ae_audio", "dep:ae_camera"]
+animation = ["dep:ae_animation", "rendering"]
+plugins = ["dep:ae_plugin_host"]
+state = ["dep:ae_state"]
+2d = ["dep:ae_2d", "rendering"]
+ui = ["dep:ae_ui", "state"]
+rendering = [
+    "dep:ae_renderer",
+    "dep:ae_light",
+    "dep:ae_camera",
+    "dep:ae_transform",
+    "dep:cgmath",
+    "dep:wgpu",
+]
+scene = ["dep:ae_scene", "rendering"]
 
 [lints]
 workspace = true
 
 [dependencies]
-ae_2d = { workspace = true }
-ae_animation = { path = "../ae_animation" }
-ae_audio = { path = "../ae_audio" }
-ae_camera = { workspace = true }
-ae_camera_controller = { workspace = true }
 ae_core = { path = "../ae_core" }
 ae_ecs = { workspace = true }
 ae_input = { workspace = true }
-ae_light = { workspace = true }
-ae_physics = { path = "../ae_physics" }
 ae_plugin_api = { path = "../ae_plugin_api" }
-ae_plugin_host = { path = "../ae_plugin_host" }
-ae_renderer = { path = "../ae_renderer" }
-ae_scene = { workspace = true }
-ae_state = { workspace = true }
 ae_time = { workspace = true }
-ae_transform = { workspace = true }
-ae_ui = { workspace = true }
 ae_world = { workspace = true }
-cgmath = "0.18"
 log = { workspace = true }
-wgpu = "30.0.2"
+
+ae_2d = { workspace = true, optional = true }
+ae_animation = { path = "../ae_animation", optional = true }
+ae_audio = { path = "../ae_audio", optional = true }
+ae_camera = { workspace = true, optional = true }
+ae_camera_controller = { workspace = true, optional = true }
+ae_light = { workspace = true, optional = true }
+ae_physics = { path = "../ae_physics", optional = true }
+ae_plugin_host = { path = "../ae_plugin_host", optional = true }
+ae_renderer = { path = "../ae_renderer", optional = true }
+ae_scene = { workspace = true, optional = true }
+ae_state = { workspace = true, optional = true }
+ae_transform = { workspace = true, optional = true }
+ae_ui = { workspace = true, optional = true }
+cgmath = { version = "0.18", optional = true }
+wgpu = { version = "30.0.2", optional = true }

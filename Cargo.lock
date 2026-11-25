@@ -473,13 +473,11 @@ dependencies = [
  "cgmath",
  "glam 0.33.12",
  "image",
- "irisui",
  "log",
  "rayon",
  "serde",
  "slotmap",
  "wgpu",
- "winit",
 ]
 
 [[package]]
@@ -580,7 +578,6 @@ dependencies = [
  "ae_core",
  "ae_ecs",
  "ae_plugin_api",
- "ae_renderer",
  "ae_state",
  "irisui-core",
  "irisui-layout",

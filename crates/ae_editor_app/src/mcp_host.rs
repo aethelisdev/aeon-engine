@@ -84,11 +84,11 @@ impl McpHost for EditorSession {
         if mark_all {
             self.ui.invalidate_all();
         }
-        self.render.render_state.window.request_redraw();
+        self.window.window.request_redraw();
     }
 
     fn request_redraw(&self) {
-        self.render.render_state.window.request_redraw();
+        self.window.window.request_redraw();
     }
 
     fn gpu_handles(&self) -> McpGpuHandles<'_> {
@@ -140,7 +140,7 @@ impl McpHost for EditorSession {
         let entity = resolve_ecs_entity(self, id_bits, name)?;
         self.editor.select_single(Some(entity));
         self.ui.refresh_selection_panels();
-        self.render.render_state.window.request_redraw();
+        self.window.window.request_redraw();
         Ok(entity.to_bits().get())
     }
 

@@ -90,7 +90,7 @@ impl EditorSession {
 
     /// Locks or releases hardware cursor visibility for Play mode FPS/TPS look.
     pub fn set_cursor_grab(&mut self, grabbed: bool) {
-        let window = &self.render.render_state.window;
+        let window = &self.window.window;
         if grabbed {
             if !self.window.is_cursor_grabbed {
                 self.window.is_cursor_grabbed = true;
