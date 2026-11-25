@@ -59,30 +59,84 @@ pub fn remove_comp<T: ae_ecs::Component>(
         .is_some()
 }
 
-/// Attaches [`ae_plugin_api::RigidBody`], ensuring a paired default [`ae_plugin_api::Collider`].
+/// Attaches [`ae_plugin_api::RigidBody`], ensuring a paired [`ae_plugin_api::Collider`] fitted to
+/// any existing [`ae_plugin_api::BoundingBox`] or [`ae_plugin_api::CharacterController`].
 #[inline]
 pub fn spawn_rigidbody(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
     world
         .insert_one(entity, ae_plugin_api::RigidBody::default())
         .ok();
     if !world.has::<ae_plugin_api::Collider>(entity) {
+        spawn_collider_only(world, entity);
+    }
+    world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
+}
+
+fn fitted_default_collider(
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+) -> ae_plugin_api::Collider {
+    if let Ok(ctrl) = world.get_copied::<ae_plugin_api::CharacterController>(entity) {
+        return ae_plugin_api::Collider {
+            shape: ae_plugin_api::ColliderShape::Capsule {
+                half_height: ctrl.capsule_half_height(),
+                radius: ctrl.radius,
+                center_y: ctrl.center_y,
+            },
+            ..Default::default()
+        };
+    }
+    let shape = world
+        .get_copied::<ae_plugin_api::BoundingBox>(entity)
+        .map_or_else(
+            |_| ae_plugin_api::Collider::default().shape,
+            |b| ae_plugin_api::ColliderShape::fit_box_from_bounds(&b),
+        );
+    ae_plugin_api::Collider {
+        shape,
+        ..Default::default()
+    }
+}
+
+fn spawn_collider_only(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    let collider = fitted_default_collider(world, entity);
+    world.insert_one(entity, collider).ok();
+}
+
+/// Attaches [`ae_plugin_api::Collider`] fitted to any [`ae_plugin_api::BoundingBox`], ensuring a
+/// paired default [`ae_plugin_api::RigidBody`].
+#[inline]
+pub fn spawn_collider(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    spawn_collider_only(world, entity);
+    if !world.has::<ae_plugin_api::RigidBody>(entity) {
         world
-            .insert_one(entity, ae_plugin_api::Collider::default())
+            .insert_one(entity, ae_plugin_api::RigidBody::default())
             .ok();
     }
     world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
 }
 
-/// Attaches [`ae_plugin_api::Collider`], ensuring a paired default [`ae_plugin_api::RigidBody`].
+/// Attaches [`ae_plugin_api::CharacterController`] auto-fitted to any existing
+/// [`ae_plugin_api::BoundingBox`] and synchronizes a paired capsule collider if present.
 #[inline]
-pub fn spawn_collider(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
-    world
-        .insert_one(entity, ae_plugin_api::Collider::default())
-        .ok();
-    if !world.has::<ae_plugin_api::RigidBody>(entity) {
-        world
-            .insert_one(entity, ae_plugin_api::RigidBody::default())
-            .ok();
+pub fn spawn_character_controller(world: &mut ae_ecs::World, entity: ae_ecs::Entity) {
+    let ctrl = world
+        .get_copied::<ae_plugin_api::BoundingBox>(entity)
+        .map_or_else(
+            |_| ae_plugin_api::CharacterController::default(),
+            |b| ae_plugin_api::CharacterController::from_bounds(&b),
+        );
+    world.insert_one(entity, ctrl).ok();
+    if let Ok(col) = world.get_mut::<ae_plugin_api::Collider>(entity)
+        && let ae_plugin_api::ColliderShape::Capsule {
+            ref mut half_height,
+            ref mut radius,
+            ref mut center_y,
+        } = col.shape
+    {
+        *half_height = ctrl.capsule_half_height();
+        *radius = ctrl.radius;
+        *center_y = ctrl.center_y;
     }
     world.insert_one(entity, ae_plugin_api::TransformDirty).ok();
 }
@@ -154,12 +208,14 @@ pub const BUILTIN_COMPONENTS: &[BuiltinComponentSpec] = &[
         ae_plugin_api::PhysicsMaterial
     ),
     // 2. Character & Gameplay Components
-    builtin_entry!(
-        "CharacterController",
-        "Character Controller",
-        Gameplay,
-        ae_plugin_api::CharacterController
-    ),
+    BuiltinComponentSpec {
+        component_name: "CharacterController",
+        display_title: "Character Controller",
+        category: BuiltinComponentCategory::Gameplay,
+        has_component: has_comp::<ae_plugin_api::CharacterController>,
+        spawn_default: spawn_character_controller,
+        remove_component: remove_comp::<ae_plugin_api::CharacterController>,
+    },
     builtin_entry!(
         "CharacterAction",
         "CharacterAction",
@@ -368,6 +424,40 @@ mod tests {
         spawn_collider(&mut world, entity2);
         assert!(world.has::<ae_plugin_api::Collider>(entity2));
         assert!(world.has::<ae_plugin_api::RigidBody>(entity2));
+    }
+
+    #[test]
+    fn test_spawn_character_controller_and_collider_fit_bounding_box() {
+        let mut world = ae_ecs::World::new();
+        let ent = world.spawn((ae_plugin_api::BoundingBox {
+            min: [-0.8, 0.0, -0.35],
+            max: [0.8, 1.8, 0.35],
+        },));
+
+        spawn_character_controller(&mut world, ent);
+        let ctrl = world
+            .get_copied::<ae_plugin_api::CharacterController>(ent)
+            .expect("CharacterController spawned");
+        assert!((ctrl.center_y - 0.9).abs() < 1e-6);
+        assert!((ctrl.height - 1.8).abs() < 1e-6);
+        assert!((ctrl.radius - 0.35).abs() < 1e-6);
+
+        spawn_collider(&mut world, ent);
+        let col = world
+            .get_copied::<ae_plugin_api::Collider>(ent)
+            .expect("Collider spawned");
+        match col.shape {
+            ae_plugin_api::ColliderShape::Capsule {
+                half_height,
+                radius,
+                center_y,
+            } => {
+                assert!((center_y - 0.9).abs() < 1e-6);
+                assert!((radius - 0.35).abs() < 1e-6);
+                assert!((half_height - 0.55).abs() < 1e-6);
+            }
+            _ => panic!("Expected Capsule fitted to CharacterController"),
+        }
     }
 
     #[test]

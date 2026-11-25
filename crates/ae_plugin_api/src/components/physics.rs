@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::rendering::AssetHandle;
+use super::rendering::{AssetHandle, BoundingBox};
 
 /// Linear velocity component for physics-driven entity movement.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -61,6 +61,78 @@ pub enum ColliderShape {
     },
     Trimesh,
     ConvexHull,
+}
+
+fn valid_box_extents(bounds: &BoundingBox) -> Option<([f32; 3], f32)> {
+    let finite = bounds
+        .min
+        .iter()
+        .chain(bounds.max.iter())
+        .all(|v| v.is_finite());
+    if !finite {
+        return None;
+    }
+    let dx = (bounds.max[0] - bounds.min[0]).abs();
+    let dy = (bounds.max[1] - bounds.min[1]).abs();
+    let dz = (bounds.max[2] - bounds.min[2]).abs();
+    if dx.max(dy).max(dz) <= 1e-4 {
+        return None;
+    }
+    let center_y = (bounds.min[1] + bounds.max[1]) * 0.5;
+    Some(([dx, dy, dz], center_y))
+}
+
+impl ColliderShape {
+    /// Fits a box collider shape's half-extents cleanly to `bounds`, falling back to `0.5` unit cube
+    /// extents if `bounds` is degenerate or contains non-finite coordinates.
+    #[must_use]
+    pub fn fit_box_from_bounds(bounds: &BoundingBox) -> Self {
+        let Some(([dx, dy, dz], _)) = valid_box_extents(bounds) else {
+            return Self::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            };
+        };
+        Self::Box {
+            half_extents: [
+                (dx * 0.5).max(0.01),
+                (dy * 0.5).max(0.01),
+                (dz * 0.5).max(0.01),
+            ],
+        }
+    }
+
+    /// Fits a sphere collider radius from the largest extent of `bounds`, falling back safely to `0.5`
+    /// on degenerate or non-finite inputs.
+    #[must_use]
+    pub fn fit_sphere_from_bounds(bounds: &BoundingBox) -> Self {
+        let Some(([dx, dy, dz], _)) = valid_box_extents(bounds) else {
+            return Self::Sphere { radius: 0.5 };
+        };
+        Self::Sphere {
+            radius: (dx.max(dy).max(dz) * 0.5).max(0.05),
+        }
+    }
+
+    /// Fits an upright capsule collider (`half_height`, `radius`, `center_y`) onto `bounds`, using
+    /// the narrowest horizontal axis (`min(dx, dz)`) so outstretched arms do not inflate radius.
+    #[must_use]
+    pub fn fit_capsule_from_bounds(bounds: &BoundingBox) -> Self {
+        let Some(([dx, dy, dz], center_y)) = valid_box_extents(bounds) else {
+            return Self::Capsule {
+                half_height: 0.5,
+                radius: 0.4,
+                center_y: 0.0,
+            };
+        };
+        let total_height = dy.max(0.2);
+        let radius = (dx.min(dz) * 0.5).clamp(0.05, (total_height * 0.45).max(0.05));
+        let half_height = (total_height * 0.5 - radius).max(0.05);
+        Self::Capsule {
+            half_height,
+            radius,
+            center_y,
+        }
+    }
 }
 
 /// Rigid body physics component attached to simulated entities.
@@ -120,6 +192,23 @@ impl CharacterController {
     /// Returns the computed capsule half-height ensuring a safe positive minimum bound `0.05`.
     pub fn capsule_half_height(&self) -> f32 {
         (self.height * 0.5 - self.radius).max(0.05)
+    }
+
+    /// Constructs a character controller centered and sized around `bounds`, using torso depth
+    /// (`min(dx, dz)`) for radius and `(min.y + max.y) * 0.5` for `center_y` so feet align cleanly.
+    #[must_use]
+    pub fn from_bounds(bounds: &BoundingBox) -> Self {
+        let Some(([dx, dy, dz], center_y)) = valid_box_extents(bounds) else {
+            return Self::default();
+        };
+        let height = dy.max(0.2);
+        let radius = (dx.min(dz) * 0.5).clamp(0.15, (height * 0.45).max(0.15));
+        Self {
+            height,
+            radius,
+            center_y,
+            ..Self::default()
+        }
     }
 }
 
@@ -286,5 +375,72 @@ impl PhysicsMaterial {
 impl Default for PhysicsMaterial {
     fn default() -> Self {
         Self::from_preset(SurfaceType::Default)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fit_character_and_collider_shapes_from_feet_origin_bounds() {
+        let humanoid_bounds = BoundingBox {
+            min: [-0.8, 0.0, -0.35],
+            max: [0.8, 1.8, 0.35],
+        };
+        let ctrl = CharacterController::from_bounds(&humanoid_bounds);
+        assert!((ctrl.height - 1.8).abs() < 1e-6);
+        assert!((ctrl.center_y - 0.9).abs() < 1e-6);
+        assert!((ctrl.radius - 0.35).abs() < 1e-6);
+
+        let ColliderShape::Capsule {
+            half_height,
+            radius,
+            center_y,
+        } = ColliderShape::fit_capsule_from_bounds(&humanoid_bounds)
+        else {
+            panic!("Expected Capsule");
+        };
+        assert!((center_y - 0.9).abs() < 1e-6);
+        assert!((radius - 0.35).abs() < 1e-6);
+        assert!((half_height - 0.55).abs() < 1e-6);
+
+        assert_eq!(
+            ColliderShape::fit_box_from_bounds(&humanoid_bounds),
+            ColliderShape::Box {
+                half_extents: [0.8, 0.9, 0.35]
+            }
+        );
+    }
+
+    #[test]
+    fn test_fit_shapes_reject_nan_and_zero_bounds_safely() {
+        let nan_bounds = BoundingBox {
+            min: [f32::NAN, 0.0, 0.0],
+            max: [1.0, 1.0, 1.0],
+        };
+        assert_eq!(
+            CharacterController::from_bounds(&nan_bounds),
+            CharacterController::default()
+        );
+        assert_eq!(
+            ColliderShape::fit_box_from_bounds(&nan_bounds),
+            ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5]
+            }
+        );
+
+        let zero_bounds = BoundingBox {
+            min: [1.0, 1.0, 1.0],
+            max: [1.0, 1.0, 1.0],
+        };
+        assert_eq!(
+            CharacterController::from_bounds(&zero_bounds),
+            CharacterController::default()
+        );
+        assert_eq!(
+            ColliderShape::fit_sphere_from_bounds(&zero_bounds),
+            ColliderShape::Sphere { radius: 0.5 }
+        );
     }
 }

@@ -83,11 +83,41 @@ fn draw_capsule_collider_fields(
     card.prop_f32("Center Y:", center_y, -10_000.0..=10_000.0, 0.05);
 }
 
-/// Renders the declarative Collider component card into [`UiScope`] if present on [`ae_ecs::Entity`].
-///
-/// Encapsulates the entire component card hierarchy, header descriptor, two-way bound shape dropdown,
-/// dynamic shape dimension scrubbers, friction/restitution controls, and trigger sensor toggle.
-pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+#[must_use]
+fn shape_from_index_for_entity(
+    idx: usize,
+    bounds: Option<ae_plugin_api::BoundingBox>,
+    kcc: Option<ae_plugin_api::CharacterController>,
+) -> ae_plugin_api::ColliderShape {
+    match idx {
+        0 => match (kcc, bounds) {
+            (Some(ctrl), _) => ae_plugin_api::ColliderShape::Capsule {
+                half_height: ctrl.capsule_half_height(),
+                radius: ctrl.radius,
+                center_y: ctrl.center_y,
+            },
+            (None, Some(bbox)) => ae_plugin_api::ColliderShape::fit_capsule_from_bounds(&bbox),
+            (None, None) => index_to_shape(0),
+        },
+        1 => bounds.map_or_else(
+            || index_to_shape(1),
+            |b| ae_plugin_api::ColliderShape::fit_box_from_bounds(&b),
+        ),
+        2 => bounds.map_or_else(
+            || index_to_shape(2),
+            |b| ae_plugin_api::ColliderShape::fit_sphere_from_bounds(&b),
+        ),
+        _ => index_to_shape(idx),
+    }
+}
+
+fn draw_collider_card_with_context(
+    scope: &mut UiScope<'_>,
+    world: &ae_ecs::World,
+    entity: ae_ecs::Entity,
+    bounds: Option<ae_plugin_api::BoundingBox>,
+    kcc: Option<ae_plugin_api::CharacterController>,
+) {
     world
         .mutate::<ae_plugin_api::Collider, _>(entity, |c| {
             scope.card_panel("ColliderCard", |card| {
@@ -103,7 +133,7 @@ pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity
                     shape_to_index(c.shape),
                     &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
                     &mut c.shape,
-                    index_to_shape,
+                    |idx| shape_from_index_for_entity(idx, bounds, kcc),
                 );
 
                 match &mut c.shape {
@@ -134,6 +164,22 @@ pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity
             });
         })
         .ok();
+}
+
+/// Renders the declarative Collider component card into [`UiScope`] if present on [`ae_ecs::Entity`].
+///
+/// Encapsulates the entire component card hierarchy, header descriptor, two-way bound shape dropdown,
+/// dynamic shape dimension scrubbers, friction/restitution controls, and trigger sensor toggle.
+pub fn draw_collider_card(scope: &mut UiScope<'_>, world: &ae_ecs::World, entity: ae_ecs::Entity) {
+    draw_collider_card_with_context(
+        scope,
+        world,
+        entity,
+        world.get_copied::<ae_plugin_api::BoundingBox>(entity).ok(),
+        world
+            .get_copied::<ae_plugin_api::CharacterController>(entity)
+            .ok(),
+    );
 }
 
 #[cfg(test)]
