@@ -109,6 +109,7 @@ fn poll_async_scene_load_result(engine: &mut EditorSession) {
             engine.editor.selected_entities.clear();
             engine.editor.undo_stack.clear();
             engine.editor.redo_stack.clear();
+            engine.ui.clear_interaction_history();
             engine.host_io.autosave.reset_timer();
 
             let applied = ae_scene::apply_loaded_scene_data(

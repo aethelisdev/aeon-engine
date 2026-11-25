@@ -243,6 +243,17 @@ impl EngineUi {
         self.host.scale_factor()
     }
 
+    /// Sets the active UI scale factor on [`WorkbenchHost`] clamped to `[0.6, 2.0]` and returns the resolved factor.
+    pub fn set_ui_scale(&mut self, scale: f32) -> f32 {
+        self.ui_zoom_factor = self.host.set_scale_factor(scale);
+        self.ui_zoom_factor
+    }
+
+    /// Clears transient UI widget undo, text edit, and popup state across scene reloads or mode transitions.
+    pub fn clear_interaction_history(&mut self) {
+        self.host.clear_interaction_history();
+    }
+
     /// Steps the active UI scale preset up or down and returns the updated factor.
     pub fn step_ui_scale(&mut self, increase: bool) -> f32 {
         self.ui_zoom_factor = self.host.step_zoom(increase);

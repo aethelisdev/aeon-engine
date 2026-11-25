@@ -30,6 +30,7 @@ fn change_mode(engine: &mut EditorSession, mode: EngineMode) {
     if engine.window.mode == mode {
         return;
     }
+    engine.ui.clear_interaction_history();
     if mode == EngineMode::Play {
         ae_editor::actions::begin_play_session(
             &mut engine.editor,
@@ -114,7 +115,11 @@ pub fn process_ui_actions(engine: &mut EditorSession, actions: Vec<EngineUiActio
             EngineUiAction::TogglePanel(panel) => engine.ui.toggle_panel(panel),
             EngineUiAction::ResetLayout => engine.ui.reset_dock_layout(),
             EngineUiAction::OpenPreferences => engine.ui.open_or_focus_panel(PanelId::Preferences),
-            EngineUiAction::SetUiScale(scale) => engine.ui.ui_zoom_factor = scale.clamp(0.6, 2.0),
+            EngineUiAction::SetUiScale(scale) => {
+                engine.ui.set_ui_scale(scale);
+                let size = engine.render.render_state.size;
+                engine.ui.on_window_resized(size.width, size.height);
+            }
             EngineUiAction::SetThemePreset(preset) => engine.ui.apply_theme_preset(preset),
             EngineUiAction::SetWireframe(enabled) => {
                 engine.editor.wireframe_enabled = enabled;
