@@ -238,6 +238,12 @@ impl RenderState {
         Ok((state, camera))
     }
 
+    /// Reconfigures the surface and resizes all render targets (MSAA, depth, bloom)
+    /// from raw `(width, height)` dimensions without requiring `winit` types in callers.
+    pub fn resize_dimensions(&mut self, width: u32, height: u32) {
+        self.resize(winit::dpi::PhysicalSize::new(width, height));
+    }
+
     /// Reconfigures the surface and resizes all render targets (MSAA, depth, bloom).
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;

@@ -74,6 +74,41 @@ impl Camera {
     pub fn get_up(&self) -> Vector3<f32> {
         self.get_right().cross(self.get_forward()).normalize()
     }
+
+    /// Toggles between [`ProjectionMode::Perspective`] and [`ProjectionMode::Orthographic`],
+    /// snapping orthographic orientation to a front view and restoring default perspective angles if flat.
+    pub fn toggle_projection(&mut self) {
+        match self.mode {
+            ProjectionMode::Perspective => {
+                self.mode = ProjectionMode::Orthographic;
+                self.pitch = Rad(0.0);
+                self.yaw = Rad(-std::f32::consts::FRAC_PI_2);
+            }
+            ProjectionMode::Orthographic => {
+                self.mode = ProjectionMode::Perspective;
+                if self.pitch.0.abs() < 0.05 {
+                    self.pitch = Rad(-0.35);
+                    self.yaw = Rad(-0.60);
+                }
+            }
+        }
+    }
+
+    /// Applies explicit pitch, yaw, world eye position, and optional projection mode.
+    pub fn set_pose(
+        &mut self,
+        pitch: Rad<f32>,
+        yaw: Rad<f32>,
+        position: Point3<f32>,
+        mode: Option<ProjectionMode>,
+    ) {
+        self.pitch = pitch;
+        self.yaw = yaw;
+        self.position = position;
+        if let Some(m) = mode {
+            self.mode = m;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -104,5 +139,30 @@ mod tests {
         assert!(f.dot(r).abs() < 1e-5);
         assert!(f.dot(u).abs() < 1e-5);
         assert!(r.dot(u).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_toggle_projection_switches_mode_and_restores_angles() {
+        let mut cam = Camera {
+            position: Point3::new(0.0, 2.0, 5.0),
+            yaw: Rad(-std::f32::consts::FRAC_PI_2),
+            pitch: Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: Point3::new(0.0, 0.0, 0.0),
+        };
+
+        cam.toggle_projection();
+        assert_eq!(cam.mode, ProjectionMode::Orthographic);
+        assert_eq!(cam.pitch, Rad(0.0));
+
+        cam.toggle_projection();
+        assert_eq!(cam.mode, ProjectionMode::Perspective);
+        assert!((cam.pitch.0 - (-0.35)).abs() < 1e-5);
+        assert!((cam.yaw.0 - (-0.60)).abs() < 1e-5);
     }
 }

@@ -5,8 +5,10 @@
 //! loading, runtime chunk streaming, hierarchical prefabs, entity spawning, hierarchy
 //! transform reparenting, and background Edit-mode autosave.
 
+pub mod asset_spawning;
 pub mod autosave;
 pub mod builtin_components;
+pub mod components;
 pub mod defaults;
 pub mod loader;
 pub mod prefab;
@@ -14,6 +16,7 @@ pub mod serialization;
 pub mod spawning;
 pub mod streaming;
 
+pub use asset_spawning::{spawn_model_from_path, spawn_parsed_model_at, spawn_sprite_from_path};
 pub use autosave::{
     AUTOSAVE_ROTATING_SLOTS, AutosavePollContext, DEFAULT_AUTOSAVE_INTERVAL_SECS,
     EditorAutosaveState, resolve_autosave_target, write_autosave_if_changed,

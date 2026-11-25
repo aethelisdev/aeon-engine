@@ -162,3 +162,39 @@ pub fn duplicate_selected(world: &mut ae_ecs::World, editor: &mut EditorState) {
 
     log::info!("Duplicated {} entities.", editor.selected_entities.len());
 }
+
+/// Captures a spawn undo command for `entity`, clears redo history, and selects `entity`.
+pub fn record_spawn(world: &ae_ecs::World, editor: &mut EditorState, entity: ae_ecs::Entity) {
+    let snap = EntitySnapshot::capture(world, entity);
+    crate::history::push_undo(editor, Command::Spawn(entity, snap));
+    editor.redo_stack.clear();
+    editor.select_single(Some(entity));
+}
+
+/// Pushes an atomic command batch and immediately undoes it against `world`.
+pub fn undo_batch(editor: &mut EditorState, world: &mut ae_ecs::World, batch: Vec<Command>) {
+    crate::history::push_undo(editor, Command::Batch(batch));
+    crate::history::undo(editor, world);
+}
+
+/// Captures world and camera snapshots prior to entering Play mode.
+pub fn begin_play_session(
+    editor: &mut EditorState,
+    world: &ae_ecs::World,
+    camera: &ae_camera::Camera,
+) {
+    editor.backup_scene(world);
+    editor.camera_backup = Some(camera.clone());
+}
+
+/// Restores the backed-up Edit scene and viewport camera when exiting Play mode.
+pub fn end_play_session(
+    editor: &mut EditorState,
+    world: &mut ae_ecs::World,
+    camera: &mut ae_camera::Camera,
+) {
+    editor.restore_scene(world);
+    if let Some(cam_backup) = editor.camera_backup.take() {
+        *camera = cam_backup;
+    }
+}

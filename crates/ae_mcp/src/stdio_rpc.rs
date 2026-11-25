@@ -170,7 +170,7 @@ impl McpServerRuntime {
 
         if build {
             let output = Command::new("cargo")
-                .args(["build", "-p", "ae_engine"])
+                .args(["build", "-p", "ae_editor_app"])
                 .current_dir(&self.workspace_root)
                 .output();
             match output {
@@ -185,7 +185,7 @@ impl McpServerRuntime {
             }
         }
 
-        let exe = self.workspace_root.join("target/debug/ae_engine");
+        let exe = self.workspace_root.join("target/debug/ae_editor_app");
         if !exe.is_file() {
             return json!({
                 "ok": false,

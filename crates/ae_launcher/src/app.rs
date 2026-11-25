@@ -425,7 +425,7 @@ impl ApplicationHandler for LauncherApp {
             return;
         }
 
-        const AEON_ICON_BYTES: &[u8] = include_bytes!("../../ae_engine/assets/icon/aeicon.png");
+        const AEON_ICON_BYTES: &[u8] = include_bytes!("../../ae_editor_app/assets/icon/aeicon.png");
         let icon = crate::icon::load_icon_from_memory(AEON_ICON_BYTES);
 
         #[cfg(target_os = "linux")]

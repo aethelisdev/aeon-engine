@@ -55,7 +55,7 @@ cd aeon-engine
 cargo run --release
 
 # or launch the Editor directly:
-cargo run -p ae_engine --release
+cargo run -p ae_editor_app --release
 ```
 
 ## Design Philosophy

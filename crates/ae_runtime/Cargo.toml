@@ -3,7 +3,7 @@ name = "ae_runtime"
 version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
-description = "Editor-free shared game simulation core and standalone runtime player for Aeon Engine"
+description = "Editor-free standalone runtime player shell for Aeon Engine"
 
 [lints]
 workspace = true
@@ -13,26 +13,21 @@ default = []
 static-game-logic = ["dep:game_logic"]
 
 [dependencies]
+ae_app = { workspace = true }
 winit = "0.30.13"
 wgpu = "30.0.2"
 pollster = { workspace = true }
 env_logger = "0.11.11"
 log = "0.4.33"
 ae_camera = { workspace = true }
-ae_camera_controller = { workspace = true }
 ae_ecs = { workspace = true }
 ae_input = { workspace = true }
-ae_light = { workspace = true }
 ae_scene = { workspace = true }
-ae_state = { workspace = true }
 ae_time = { workspace = true }
 ae_transform = { workspace = true }
 ae_ui = { workspace = true }
-bytemuck = { workspace = true }
-cgmath = "0.18"
 serde = { workspace = true }
 serde_json = { workspace = true }
-slotmap = { version = "1.1.1", features = ["serde"] }
 spin_sleep = "1.3.3"
 
 ae_plugin_api = { path = "../ae_plugin_api" }
@@ -41,8 +36,6 @@ ae_core = { path = "../ae_core" }
 ae_2d = { workspace = true }
 ae_physics = { path = "../ae_physics" }
 ae_audio = { path = "../ae_audio" }
-ae_animation = { path = "../ae_animation" }
-ae_texture = { path = "../ae_texture" }
 ae_renderer = { path = "../ae_renderer" }
 ae_world = { workspace = true }
 game_logic = { path = "../game_logic", optional = true }

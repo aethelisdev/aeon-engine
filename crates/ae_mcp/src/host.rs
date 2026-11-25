@@ -70,7 +70,7 @@ pub struct McpGpuHandles<'a> {
     pub physical_size: (u32, u32),
 }
 
-/// Host application contract implemented by `ae_engine` (or any Iris UI desktop host)
+/// Host application contract implemented by `ae_editor_app` (or any Iris UI desktop host)
 /// to expose live UI inspection, input injection, GPU readback, and scene queries to [`crate::McpSession`].
 ///
 /// Keeping all engine/ECS concrete types behind this trait allows `ae_mcp` to remain 100%

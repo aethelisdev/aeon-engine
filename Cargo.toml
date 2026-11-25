@@ -29,6 +29,7 @@ members = [
     "crates/ae_audio",
     "crates/ae_texture",
     "crates/ae_animation",
+    "crates/ae_app",
     "crates/ae_uidesign",
     "crates/ae_2d/ae-2d-core",
     "crates/ae_2d/ae-2d-render",
@@ -39,7 +40,7 @@ members = [
     "crates/ae_mcp",
     "crates/ae_export",
     "crates/ae_runtime",
-    "crates/ae_engine",
+    "crates/ae_editor_app",
     "crates/irisui/irisui-core",
     "crates/irisui/irisui-dock",
     "crates/irisui/irisui-layout",
@@ -96,6 +97,7 @@ disallowed_methods = "warn"
 
 [workspace.dependencies]
 ae-2d-core = { path = "crates/ae_2d/ae-2d-core" }
+ae_app = { path = "crates/ae_app" }
 ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }
 ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
 ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
@@ -119,7 +121,6 @@ ae_ui = { path = "crates/ae_ui" }
 ae_assets = { path = "crates/ae_assets" }
 ae_mcp = { path = "crates/ae_mcp" }
 ae_export = { path = "crates/ae_export" }
-ae_runtime = { path = "crates/ae_runtime" }
 ae_world = { path = "crates/ae_world" }
 
 irisui-core = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-core" }

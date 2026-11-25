@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Locates the `ae_engine` binary in the filesystem.
+/// Locates the `ae_editor_app` binary in the filesystem.
 ///
 /// Searches relative to the current executable directory, then checks `target/release` and `target/debug`.
 pub fn find_engine_binary() -> Option<PathBuf> {
@@ -12,15 +12,15 @@ pub fn find_engine_binary() -> Option<PathBuf> {
         && let Some(parent) = current_exe.parent()
     {
         let immediate_candidates = [
-            parent.join("ae_engine"),
-            parent.join("ae_engine.exe"),
+            parent.join("ae_editor_app"),
+            parent.join("ae_editor_app.exe"),
             parent
                 .parent()
-                .map(|p| p.join("ae_engine"))
+                .map(|p| p.join("ae_editor_app"))
                 .unwrap_or_default(),
             parent
                 .parent()
-                .map(|p| p.join("ae_engine.exe"))
+                .map(|p| p.join("ae_editor_app.exe"))
                 .unwrap_or_default(),
         ];
         for cand in &immediate_candidates {
@@ -32,19 +32,19 @@ pub fn find_engine_binary() -> Option<PathBuf> {
 
     // Check workspace target directories — select the most recently built binary
     let mut candidates = vec![
-        PathBuf::from("target/release/ae_engine"),
-        PathBuf::from("target/release/ae_engine.exe"),
-        PathBuf::from("target/debug/ae_engine"),
-        PathBuf::from("target/debug/ae_engine.exe"),
+        PathBuf::from("target/release/ae_editor_app"),
+        PathBuf::from("target/release/ae_editor_app.exe"),
+        PathBuf::from("target/debug/ae_editor_app"),
+        PathBuf::from("target/debug/ae_editor_app.exe"),
     ];
 
     if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
         let manifest_path = PathBuf::from(manifest);
         if let Some(ws_root) = manifest_path.parent().and_then(|p| p.parent()) {
-            candidates.push(ws_root.join("target/release/ae_engine"));
-            candidates.push(ws_root.join("target/release/ae_engine.exe"));
-            candidates.push(ws_root.join("target/debug/ae_engine"));
-            candidates.push(ws_root.join("target/debug/ae_engine.exe"));
+            candidates.push(ws_root.join("target/release/ae_editor_app"));
+            candidates.push(ws_root.join("target/release/ae_editor_app.exe"));
+            candidates.push(ws_root.join("target/debug/ae_editor_app"));
+            candidates.push(ws_root.join("target/debug/ae_editor_app.exe"));
         }
     }
 
@@ -111,23 +111,23 @@ pub fn detect_dev_workspace_root() -> Option<PathBuf> {
     None
 }
 
-/// Spawns the Aeon Engine process for a project and terminates the launcher process immediately.
+/// Spawns the Aeon Studio Editor process for a project and terminates the launcher process immediately.
 ///
 /// In development environments (when running within a Cargo workspace), it automatically invokes
-/// `cargo run` targeting `ae_engine` with matching build profile (`--release` or debug) to guarantee
-/// that any modified engine code is incrementally recompiled before launching.
+/// `cargo run` targeting `ae_editor_app` with matching build profile (`--release` or debug) to guarantee
+/// that any modified editor/app code is incrementally recompiled before launching.
 ///
-/// In standalone production deployments, it directly executes the precompiled `ae_engine` binary
+/// In standalone production deployments, it directly executes the precompiled `ae_editor_app` binary
 /// with zero cargo overhead.
 pub fn launch_engine_and_exit(project_path: &Path, dimension_mode: &str) -> std::io::Result<()> {
     log::info!(
-        "Launching Aeon Engine for project: {:?} in {} mode",
+        "Launching Aeon Studio Editor for project: {:?} in {} mode",
         project_path,
         dimension_mode
     );
 
     // If running in a development workspace tree, force incremental build & launch via Cargo
-    // to guarantee the engine binary is always 100% fresh and up to date.
+    // to guarantee the editor binary is always 100% fresh and up to date.
     if let Some(ws_root) = detect_dev_workspace_root() {
         let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
         let mut cmd = Command::new(cargo_bin);
@@ -137,18 +137,18 @@ pub fn launch_engine_and_exit(project_path: &Path, dimension_mode: &str) -> std:
             cmd.arg("--release");
         }
         cmd.arg("-p")
-            .arg("ae_engine")
+            .arg("ae_editor_app")
             .arg("--bin")
-            .arg("ae_engine")
+            .arg("ae_editor_app")
             .arg("--")
             .arg("--project")
             .arg(project_path)
             .arg("--mode")
             .arg(dimension_mode);
 
-        log::info!("Executing Cargo build & run pipeline for ae_engine...");
+        log::info!("Executing Cargo build & run pipeline for ae_editor_app...");
         if let Ok(status) = cmd.status() {
-            log::info!("Aeon Engine process terminated with status: {status:?}. Exiting launcher.");
+            log::info!("Aeon Studio process terminated with status: {status:?}. Exiting launcher.");
             std::process::exit(status.code().unwrap_or(0));
         }
         log::warn!("Cargo invocation failed; falling back to direct binary resolution.");
@@ -164,7 +164,7 @@ pub fn launch_engine_and_exit(project_path: &Path, dimension_mode: &str) -> std:
         let mut cmd = Command::new("cargo");
         cmd.arg("run")
             .arg("--bin")
-            .arg("ae_engine")
+            .arg("ae_editor_app")
             .arg("--")
             .arg("--project")
             .arg(project_path)
@@ -197,7 +197,7 @@ mod tests {
         if let Some(path) = find_engine_binary() {
             assert!(path.exists(), "Located binary path must exist on disk");
         } else {
-            // In a clean environment where ae_engine binary has not yet been compiled,
+            // In a clean environment where ae_editor_app binary has not yet been compiled,
             // find_engine_binary safely returns None, and the launcher relies on workspace detection.
             assert!(
                 detect_dev_workspace_root().is_some(),

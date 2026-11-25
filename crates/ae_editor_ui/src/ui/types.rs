@@ -258,7 +258,7 @@ pub struct ConsoleEntry {
     pub timestamp: String,
 }
 
-/// Batched per-frame performance and rendering telemetry passed from `ae_engine` into `EngineUi`.
+/// Batched per-frame performance and rendering telemetry passed from `ae_editor_app` into `EngineUi`.
 ///
 /// Copying one plain-data snapshot replaces scattered per-field telemetry mutations without heap allocation.
 #[derive(Debug, Default, Clone, Copy)]

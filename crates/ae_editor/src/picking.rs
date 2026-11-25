@@ -285,6 +285,57 @@ pub fn compute_camera_ground_fallback(
     ]
 }
 
+/// Resolves a world ground-plane spawn coordinate for a drop inside `viewport_rect` (`[x, y, w, h]`).
+///
+/// When `drop_screen_pos` is `Some([x, y])`, validates finite bounds inside `viewport_rect`; when `None`,
+/// uses the viewport center. Rejects degenerate/non-finite rects (`width <= 20` or `height <= 20`) and
+/// points outside the viewport by returning `None`.
+#[must_use]
+pub fn resolve_ground_drop_world_pos(
+    drop_screen_pos: Option<[f32; 2]>,
+    viewport_rect: [f32; 4],
+    camera: &ae_camera::Camera,
+) -> Option<[f32; 3]> {
+    let [vx, vy, vw, vh] = viewport_rect;
+    if !vx.is_finite() || !vy.is_finite() || !vw.is_finite() || !vh.is_finite() {
+        return None;
+    }
+    if vw <= 20.0 || vh <= 20.0 {
+        return None;
+    }
+
+    let screen_pos = match drop_screen_pos {
+        Some([px, py]) => {
+            if !px.is_finite()
+                || !py.is_finite()
+                || px < vx
+                || px > vx + vw
+                || py < vy
+                || py > vy + vh
+            {
+                return None;
+            }
+            [px, py]
+        }
+        None => [vx + vw * 0.5, vy + vh * 0.5],
+    };
+
+    Some(
+        compute_ground_intersection(
+            screen_pos,
+            viewport_rect,
+            &camera.build_view_projection_matrix(),
+        )
+        .unwrap_or_else(|| {
+            compute_camera_ground_fallback(
+                [camera.position.x, camera.position.y, camera.position.z],
+                [camera.target.x, camera.target.y, camera.target.z],
+                3.0,
+            )
+        }),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,5 +387,38 @@ mod tests {
         assert!((pt[0] - 0.0).abs() < 1e-4);
         assert_eq!(pt[1], 0.0);
         assert!((pt[2] - 7.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_resolve_ground_drop_world_pos_accepts_center_and_rejects_invalid_bounds() {
+        let camera = ae_camera::Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 5.0),
+            yaw: cgmath::Rad::from(cgmath::Deg(-90.0)),
+            pitch: cgmath::Rad::from(cgmath::Deg(-45.0)),
+            aspect: 900.0 / 600.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ae_camera::ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let viewport = [300.0, 60.0, 900.0, 600.0];
+
+        let center_pos = resolve_ground_drop_world_pos(Some([750.0, 360.0]), viewport, &camera)
+            .expect("Inside viewport drop must resolve spawn point");
+        assert!(center_pos[0].abs() < 1e-3);
+        assert!(center_pos[1].abs() < 1e-3);
+        assert!(center_pos[2].abs() < 1e-3);
+
+        let fallback_pos = resolve_ground_drop_world_pos(None, viewport, &camera)
+            .expect("Unpositioned drop resolves viewport center");
+        assert!((fallback_pos[0] - center_pos[0]).abs() < 1e-3);
+
+        assert!(resolve_ground_drop_world_pos(Some([10.0, 10.0]), viewport, &camera).is_none());
+        assert!(resolve_ground_drop_world_pos(None, [0.0, 0.0, 0.0, 0.0], &camera).is_none());
+        assert!(
+            resolve_ground_drop_world_pos(Some([f32::NAN, 300.0]), viewport, &camera).is_none()
+        );
     }
 }

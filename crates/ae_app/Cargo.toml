@@ -1,0 +1,33 @@
+[package]
+name = "ae_app"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Modular application lifecycle, schedule phases, plugin registry, and shared headless render/simulation hosts for Aeon Engine apps"
+
+[lints]
+workspace = true
+
+[dependencies]
+ae_2d = { workspace = true }
+ae_animation = { path = "../ae_animation" }
+ae_audio = { path = "../ae_audio" }
+ae_camera = { workspace = true }
+ae_camera_controller = { workspace = true }
+ae_core = { path = "../ae_core" }
+ae_ecs = { workspace = true }
+ae_input = { workspace = true }
+ae_light = { workspace = true }
+ae_physics = { path = "../ae_physics" }
+ae_plugin_api = { path = "../ae_plugin_api" }
+ae_plugin_host = { path = "../ae_plugin_host" }
+ae_renderer = { path = "../ae_renderer" }
+ae_scene = { workspace = true }
+ae_state = { workspace = true }
+ae_time = { workspace = true }
+ae_transform = { workspace = true }
+ae_ui = { workspace = true }
+ae_world = { workspace = true }
+cgmath = "0.18"
+log = { workspace = true }
+wgpu = "30.0.2"

@@ -15,8 +15,8 @@ This document describes the workspace crate topology, binary world and asset per
 3. **Strict Domain Separation (Engine vs. Iris UI Framework):**  
    `irisui` is a standalone, desktop-grade retained UI framework structured for independent distribution. It maintains zero dependencies on `ae_ecs`, `ae_core`, or engine crates. `ae_editor_ui` operates exclusively as a declarative `UiScope` view consumer.
 
-4. **Decoupled Scene & Simulation Layers (`ae_scene` & `ae_runtime` vs. `ae_engine` Editor Host):**  
-   UI-free scene lifecycle responsibilities (`serialization`, `loader`, `streaming::RuntimeStreamingManager`, `.aeprefab` `Prefab`, `EditorAutosaveState`, entity `spawning`, and `migrate_ae_scene`) are consolidated inside `ae_scene` with zero dependencies on `ae_editor`, `irisui`, or `rfd`. Transform math, TRS composition/decomposition, `cgmath <-> glam` interop, hierarchy propagation, keep-world reparenting, and `SpatialGrid` live in `ae_transform`. Core gameplay execution (`behavior_runner`, `hud`, `world_loader`, `simulation`, `static_plugin`) resides in `ae_runtime` composing `ae_scene` and `ae_transform`. `ae_engine` composes `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, and `ae_mcp` as the top-level IDE host.
+4. **Decoupled Scene, App & Host Layers (`ae_scene` & `ae_app` vs. `ae_runtime` & `ae_editor_app`):**  
+   UI-free scene lifecycle responsibilities (`serialization`, `loader`, `streaming::RuntimeStreamingManager`, `.aeprefab` `Prefab`, `EditorAutosaveState`, entity `spawning`, `builtin_components`, and `migrate_ae_scene`) are consolidated inside `ae_scene` with zero dependencies on `ae_editor`, `irisui`, or `rfd`. Transform math, TRS composition/decomposition, `cgmath <-> glam` interop, hierarchy propagation, keep-world reparenting, and `SpatialGrid` live in `ae_transform`. Shared headless application orchestration (`AeApp`, `AppPhase`, `AppSchedule`, `AppPlugin`, `PluginRegistry`, `CoreWorld`, `RenderHost`, `SimulationHost`, `behavior_runner`, `simulation`) resides in `ae_app` with zero `winit`, `ae_editor*`, `irisui`, `rfd`, `ae_export`, or `ae_mcp` dependencies. `ae_runtime` (`world_loader`, `static_plugin`) packages the editor-free exported player binary on top of `ae_app`, while `ae_editor_app` (`EditorSession`) composes `ae_app`, `ae_editor`, `ae_editor_ui`, `ae_export`, and `ae_mcp` as the desktop studio IDE host.
 
 5. **Data-Driven & Explicit Type System:**  
    Subsystem decisions and ECS component serialization operate strictly on deterministic 64-bit type hashes (`component_type_hash`), 128-bit persistent GUIDs (`EntityGuid`, `AssetGuid`), strongly typed Rust enums, and mathematical quantities without string-based heuristics.
@@ -124,21 +124,27 @@ graph TD
         irisui --> ae_launcher
     end
 
-    subgraph Runtime_And_Hosts["Runtime Core & Application Hosts"]
-        ae_scene --> ae_runtime["ae_runtime (Editor-Free Player & Simulation Core; Zero irisui)"]
-        ae_ui["ae_ui (In-Game UI Layout, HUD State, Pause Menu, RuntimeHudOverlay; Zero winit)"] --> ae_runtime
+    subgraph Runtime_And_Hosts["App Core, Runtime & Application Hosts"]
+        ae_ui["ae_ui (In-Game UI Layout, HUD State, Pause Menu, RuntimeHudOverlay; Zero winit)"]
         ae_core --> ae_ui
         ae_state --> ae_ui
         ae_renderer --> ae_ui
         irisui --> ae_ui
-        ae_state --> ae_runtime
-        ae_time --> ae_runtime
-        ae_camera --> ae_runtime
-        ae_camera_controller --> ae_runtime
-        ae_input --> ae_runtime
-        ae_physics --> ae_runtime
-        ae_audio --> ae_runtime
-        ae_plugin_host --> ae_runtime
+
+        ae_scene --> ae_app["ae_app (AeApp, Schedules, Plugins, CoreWorld, RenderHost, SimulationHost, BehaviorRunner; Zero winit/irisui)"]
+        ae_ui --> ae_app
+        ae_state --> ae_app
+        ae_time --> ae_app
+        ae_camera --> ae_app
+        ae_camera_controller --> ae_app
+        ae_input --> ae_app
+        ae_physics --> ae_app
+        ae_audio --> ae_app
+        ae_plugin_host --> ae_app
+        ae_transform --> ae_app
+
+        ae_app --> ae_runtime["ae_runtime (Editor-Free Standalone Player Executable; Zero irisui/ae_editor)"]
+        ae_ui --> ae_runtime
 
         ae_camera --> ae_editor["ae_editor (Picking, Selection, Snapping, Undo/Redo; Zero wgpu/winit)"]
         ae_camera_controller --> ae_editor
@@ -154,21 +160,13 @@ graph TD
         ae_diagnostic --> ae_editor_ui
         irisui --> ae_editor_ui
 
-        ae_runtime --> ae_engine["ae_engine (Full IDE Host & Action Execution)"]
-        ae_ui --> ae_engine
-        ae_state --> ae_engine
-        ae_time --> ae_engine
-        ae_diagnostic --> ae_engine
-        ae_camera --> ae_engine
-        ae_camera_controller --> ae_engine
-        ae_input --> ae_engine
-        ae_scene --> ae_engine
-        ae_gizmos --> ae_engine
-        ae_gizmos_render --> ae_engine
-        ae_export --> ae_engine
-        ae_editor_ui --> ae_engine
-        ae_uidesign --> ae_engine
-        ae_mcp --> ae_engine
+        ae_app --> ae_editor_app["ae_editor_app (Desktop Studio IDE Executable & EditorSession)"]
+        ae_diagnostic --> ae_editor_app
+        ae_gizmos_render --> ae_editor_app
+        ae_export --> ae_editor_app
+        ae_editor_ui --> ae_editor_app
+        ae_uidesign --> ae_editor_app
+        ae_mcp --> ae_editor_app
     end
 ```
 
@@ -209,7 +207,7 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 ### 4.1. `ae_ecs`, `ae_plugin_api`, `ae_core` & `ae_plugin_host`
 * **`ae_ecs`:** Encapsulates the workspace ECS backend (`hecs` isolated inside this single crate), exposing `World`, `Entity`, `EntityBuilder`, `EntityCommandBuffer`, `EcsQuery`, scoped `inspect`/`mutate` access without `Ref<'_, T>` borrow guards, `ComponentRegistry` (`ComponentHandler`, `TypedComponentHandler`), and FNV-1a `component_type_hash`.
 * **`ae_plugin_api`:** Defines `EntityGuid`, `AssetGuid`, POD gameplay components (`LodGroup`, transform/physics/gameplay types), `engine_component_registry()`, `Resources`, `PluginContext` / `PluginContextFFI`, and standard events including `SaveGameRequest` / `LoadGameRequest` (`DynamicEventBus::{save_slot, load_slot}`).
-* **`ae_core`:** Houses pushdown `StateManager`, `SpatialGrid`, transform hierarchy propagation (`update_hierarchy_transforms`), `DynamicEventBus`, `Time`, telemetry, and runtime HUD types without any `winit` dependency.
+* **`ae_core`, `ae_state`, `ae_time`, `ae_diagnostic`, `ae_transform`, `ae_ui`:** `ae_core` holds `DynamicEventBus`, `EngineMode`, `EngineModule`, and `Behavior` traits with zero `winit`/`cgmath`/`glam` dependencies. Pushdown `StateManager` lives in `ae_state`; frame clock & `FramePacer` live in `ae_time`; CPU/GPU profiler metrics live in `ae_diagnostic`; TRS matrices, `SpatialGrid`, and hierarchy propagation live in `ae_transform`; ECS HUD layout & `RuntimeHudOverlay` live in `ae_ui`.
 * **`ae_input`:** Standalone input crate (`[lints] workspace = true`) owning the three-state `InputManager` (`pressed`, `just_pressed`, `just_released`) for keyboard keys and mouse buttons alongside serializable `ActionMap` / `AxisBinding` (`Config/input.json`).
 * **`ae_camera` & `ae_camera_controller`:** `ae_camera` (free of `wgpu`, `ae_core`, `ae_ecs`, `ae_world`) owns `Camera`, `ProjectionMode`, `PerspectiveProjection`, `OrthographicProjection`, `OPENGL_TO_WGPU_MATRIX`, `Frustum`, POD `CameraUniform`, and `ViewportRect`/`Viewport`; `ae_camera_controller` unifies free-fly WASD/QE navigation, orthographic pan/zoom, target focus, and Play-mode orbit/follow tracking.
 * **`ae_plugin_host` & `game_logic`:** Supports hot-reloadable dynamic `cdylib` plugins in Editor workflows (`NativePluginBackend` via `libloading`) and dual `cdylib` + `rlib` compilation for static linkage in exported runtimes.
@@ -218,9 +216,10 @@ Every project initialized by `ae_launcher` or opened via `--project` follows a p
 * **`ae_world`:** Abstracts file access across editor folders (`DiskVfsProvider`), in-memory bundles (`PakMemoryVfsProvider`), file-backed archives (`PakFileVfsProvider`), and layered mount stacks (`CompositeVfs`), plus `CellStreamingPlanner` (cubic hysteresis streaming), `PendingGuidResolver`, `AlignedBuffer`, and `CookedMesh`/`CookedTexture`/`CookedAudio`.
 * **`ae_assets`:** Headless, UI-free asset subsystem owning directory scanning (`scanner`), safe filesystem operations (`file_ops`), glTF dependency copy & URI decoding (`ingestion`), software 64x64 RGBA thumbnails (`thumbnails`), background `rayon` glTF/`FBX2glTF` import pipelines (`pipeline`), and parallel `.aeworld` asset parsing (`scene_assets`).
 
-### 4.3. `ae_scene` & `ae_runtime`
-* **`ae_scene`:** UI-free, editor-free scene lifecycle crate unifying world capture & CRC32 dirty-chunk saving (`serialization`), async & VFS `.aeworld` decoding (`loader` + unified `spawn_world_records`), `RuntimeStreamingManager` (`streaming`), LZ4+CRC32 binary prefabs (`prefab`), Edit-mode background auto-save (`autosave`), pure ECS spawning (`spawning`), keep-world-transform reparenting (`hierarchy`), and the `migrate_ae_scene` CLI tool.
-* **`ae_runtime`:** Owns the shared runtime simulation core (`behavior_runner`, `hud`, `world_loader`, `simulation`, `static_plugin`) and the standalone `ae_runtime` desktop binary (`--pak`, `--world`, `--save-dir`, neighboring `game.aepak`, or embedded pak bytes), composing `ae_scene` without any editor/UI host crates.
+### 4.3. `ae_scene`, `ae_app` & `ae_runtime`
+* **`ae_scene`:** UI-free, editor-free scene lifecycle crate unifying world capture & CRC32 dirty-chunk saving (`serialization`), async & VFS `.aeworld` decoding (`loader` + unified `spawn_world_records`), `RuntimeStreamingManager` (`streaming`), LZ4+CRC32 binary prefabs (`prefab`), Edit-mode background auto-save (`autosave`), pure ECS spawning (`spawning`), starter defaults (`defaults`), authoritative 31-component catalog (`builtin_components`), and the `migrate_ae_scene` CLI tool.
+* **`ae_app`:** Headless application host and lifecycle layer (`[lints] workspace = true`, zero `winit`, `ae_editor*`, `irisui`, `rfd`, `ae_export`, `ae_mcp`) providing `AppPhase`/`AppSchedule`, `AppPlugin`/`PluginRegistry`, `AeApp`, `CoreWorld`, `RenderHost` (shared `prepare_scene` + `prepare_2d_overlay`), `SimulationHost` (unified `step_fixed_physics` + `step_play_frame`), `behavior_runner`, and `simulation`.
+* **`ae_runtime`:** Standalone editor-free desktop player executable (`world_loader`, `static_plugin`, `app`, `--pak`, `--world`, `--save-dir`, neighboring `game.aepak`, or embedded pak bytes) layered directly on `ae_app` and `ae_ui`.
 
 ### 4.4. `ae_physics` & `ae_audio`
 * **`ae_physics`:** Wraps Rapier3D with retained collider scale mapping (`entity_to_collider_scale`), kinematic character control (KCC), and collision/trigger event emission.
@@ -240,11 +239,11 @@ Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-anima
 * **`irisui` (`crates/irisui/*`):** Standalone retained-mode UI framework with Taffy layout, GPU SDF shaders, `DualLayoutEliminator` $O(M)$ partial leaf invalidation, `WindowDragHost`, dock trees, and optional desktop clipboard (`clipboard-os` feature isolating `arboard` off mobile targets).
 * **`ae_editor` & `ae_editor_ui`:** `ae_editor` (free of `wgpu` and `ae_renderer`) owns raycast/ground picking (`picking`), selection, grid snapping, and Undo/Redo snapshots; `ae_editor_ui` owns strictly pure declarative `UiScope` panel views and `EngineUiAction` emission with zero `UiContext` mutation processors.
 
-### 4.8. `ae_mcp` & `ae_export` & `ae_engine` & `ae_launcher`
-* **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_engine --inspect <HOST:PORT>` (`feature = "mcp"`).
+### 4.8. `ae_mcp`, `ae_export`, `ae_launcher` & `ae_editor_app`
+* **`ae_mcp`:** Live UI tree inspection server (`ae_mcp_server`) and visual feedback overlay attached optionally via `ae_editor_app --inspect <HOST:PORT>` (`feature = "mcp"`).
 * **`ae_export`:** Dependency graph scanner (`dependency_graph`), parallel `Intermediate/<target>/` cooker (`CookedMesh`, `CookedTexture`, `CookedAudio`), `16`-byte aligned `game.aepak` packer, and Linux/Windows `ae_runtime` standalone bundler (`ae_export_cli` + Editor `File -> Export Project...` modal).
-* **`ae_launcher`:** Project hub creating and opening modular workspaces.
-* **`ae_engine`:** Full editor IDE host composing `ae_scene`, `ae_runtime`, `ae_export`, `ae_editor_ui`, `ae_uidesign`, optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), host action dispatching (`actions`), and orchestrating world save/load and Edit-mode `ae_scene::EditorAutosaveState` recovery writes.
+* **`ae_launcher`:** Project hub creating and opening modular workspaces and launching `ae_editor_app`.
+* **`ae_editor_app`:** Desktop studio IDE executable organized around cohesive `EditorSession` groups (`core: CoreWorld`, `render: RenderHost`, `sim: SimulationHost`, `editor`, `ui`, `gizmos: EditorGizmos`, `host_io: EditorHostIo`, `window: EditorWindowState`), optional `rfd` dialogs (`feature = "editor-dialogs"`), Linux `jemallocator` isolation (`not(target_os = "android")`), host action dispatching (`actions`), input arbitration (`events`), and Edit-mode autosave coordination.
 
 ---
 
@@ -254,43 +253,43 @@ Five-crate 2D suite (`ae-2d-core`, `ae-2d-render`, `ae-2d-physics`, `ae-2d-anima
 sequenceDiagram
     autonumber
     actor OS as Operating System / Winit
-    participant Host as ae_engine / ae_runtime
-    participant UI as irisui (ae_engine only)
+    participant Host as ae_editor_app / ae_runtime
+    participant UI as irisui (ae_editor_app only)
     participant Stream as RuntimeStreamingManager (ae_scene + ae_world)
     participant Sim as Physics (Rapier3D or Rapier2D)
-    participant ECS as ae_ecs & ae_core & ae_runtime
+    participant ECS as ae_ecs & ae_core & ae_app
     participant Render as ae_renderer / ae-2d-render
     participant GPU as WGPU Surface
 
     OS->>Host: WindowEvent & DeviceEvent
-    opt Editor Host (ae_engine)
+    opt Editor Host (ae_editor_app)
         Host->>UI: Route Frameless Drag, Focus & Pointer Events
         UI-->>Host: Event Consumption State
     end
 
     loop Fixed Timestep Accumulator
-        Host->>Sim: PhysicsWorld / Physics2DWorld step(fixed_dt)
+        Host->>Sim: SimulationHost::step_fixed_physics(fixed_dt)
         Sim->>ECS: Synchronize Transforms
     end
 
     opt Play Mode
         Host->>Stream: Check Camera Cell & Boundary Migrations
         Stream->>ECS: Load Dirty/Save-Indexed Chunks & Unload Distant Cells
-        Host->>ECS: Run behavior_runner, Scripting (Static/FFI), Audio & Skinning
+        Host->>ECS: SimulationHost::step_play_frame (behavior_runner, Plugins, Audio & Skinning)
         Host->>Stream: Process SaveGameRequest / LoadGameRequest (.aesave)
     end
 
-    opt Edit Mode Periodic Timer (ae_engine)
+    opt Edit Mode Periodic Timer (ae_editor_app)
         Host->>Stream: Async CRC32-Filtered Snapshot -> Saved/Autosaves/
     end
 
-    opt Editor Host (ae_engine)
+    opt Editor Host (ae_editor_app)
         Host->>UI: DualLayoutEliminator::rebuild_dirty_panels()
     end
 
-    Host->>Render: Extract Visible Scene & Build GPU Batches
+    Host->>Render: RenderHost::prepare_scene + prepare_2d_overlay
     Render->>GPU: 3D (CSM -> PBR/Sky -> Gizmos) or 2D SpriteBatcher Pass
-    opt Editor Host (ae_engine)
+    opt Editor Host (ae_editor_app)
         Host->>GPU: Iris UI SDF & Text Pass + Optional MCP Overlay
     end
     Host->>GPU: Present Swapchain

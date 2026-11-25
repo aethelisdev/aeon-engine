@@ -197,6 +197,28 @@ pub fn import_asset_path(src: &Path, target_dir: &Path) -> PathBuf {
     }
 }
 
+/// Ensures `target_dir` exists and copies any external files in `paths` into it,
+/// returning `(resolved_paths, copied_count)`.
+#[must_use]
+pub fn import_dropped_paths(paths: &[PathBuf], target_dir: &Path) -> (Vec<PathBuf>, usize) {
+    if !target_dir.exists() {
+        let _ = std::fs::create_dir_all(target_dir);
+    }
+
+    let mut imported_paths = Vec::with_capacity(paths.len());
+    let mut imported_count = 0;
+
+    for path in paths {
+        let import_path = import_asset_path(path, target_dir);
+        if import_path != *path {
+            imported_count += 1;
+        }
+        imported_paths.push(import_path);
+    }
+
+    (imported_paths, imported_count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

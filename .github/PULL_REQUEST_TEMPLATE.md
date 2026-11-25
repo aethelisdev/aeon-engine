@@ -25,7 +25,7 @@ Fixes / Relates to: #<!-- Issue number if applicable -->
 - [ ] `ae_physics` (3D Rapier3D integration, Kinematic Character Controller, Colliders)
 - [ ] `ae_animation` / `ae_audio` (3D Skeletal animation, Audio playback)
 - [ ] `ae_editor` / `ae_editor_ui` (3D/2D Gizmos, Editor Views, Declarative Tooling)
-- [ ] `ae_engine` / `ae_launcher` (Application runtime, Dimension Coordinator, Aeon Hub)
+- [ ] `ae_app` / `ae_editor_app` / `ae_runtime` / `ae_launcher` (Application host layer, Editor Studio, Exported Runtime, Aeon Hub)
 - [ ] Build & Tooling (Cargo configs, CI/CD, Scripts)
 
 ---

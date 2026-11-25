@@ -16,7 +16,7 @@ pub mod scene_assets;
 pub mod thumbnails;
 pub mod types;
 
-pub use ingestion::import_asset_path;
+pub use ingestion::{import_asset_path, import_dropped_paths};
 pub use pipeline::{
     AsyncImportResult, ImportAssetKind, resolve_fbx2gltf_tool_path, spawn_fbx_import,
     spawn_gltf_import, validate_asset_drop_for_dimension,

@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 /// Tracks frame-to-frame wall-clock elapsed time and computes remaining FPS cap sleep budgets.
 ///
-/// Used by windowed host event loops (`ae_engine` and `ae_runtime`) so capped 60 Hz / 120 Hz
+/// Used by windowed host event loops (`ae_editor_app` and `ae_runtime`) so capped 60 Hz / 120 Hz
 /// modes do not unlock and busy-spin under continuous polling.
 pub struct FramePacer {
     last_frame_time: Instant,
