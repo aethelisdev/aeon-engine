@@ -171,7 +171,7 @@ pub fn load_world_into_runtime(
     world: &mut ae_ecs::World,
     physics_world: &mut PhysicsWorld,
 ) -> Result<(LoadedRuntimeWorld, RuntimeStreamingManager), String> {
-    let mut allowed = ae_plugin_api::engine_component_registry().known_type_hashes();
+    let mut allowed = ae_scene::scene_component_registry().known_type_hashes();
     allowed.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
 
     let (doc, is_partitioned) =

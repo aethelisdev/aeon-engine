@@ -37,7 +37,7 @@ impl Prefab {
     /// reachable descendants via `Children` components.
     #[must_use]
     pub fn create_from_entity(world: &World, root_entity: Entity) -> Self {
-        let registry = ae_plugin_api::engine_component_registry();
+        let registry = crate::scene_component_registry();
         let mut guid_gen = GuidGenerator::new();
         let mut entity_to_guid: HashMap<Entity, EntityGuid> = HashMap::new();
         let mut ordered: Vec<(Entity, Option<Entity>)> = Vec::new();
@@ -118,7 +118,7 @@ impl Prefab {
     /// Spawns all entities of this prefab into `world` with fresh [`EntityGuid`]s,
     /// reconstructing `Parent`/`Children` links and optionally overriding the root's `Position`.
     pub fn instantiate(&self, world: &mut World, target_pos: Option<Position>) -> Entity {
-        let registry = ae_plugin_api::engine_component_registry();
+        let registry = crate::scene_component_registry();
         let mut guid_gen = GuidGenerator::new();
         let mut old_to_new_ent: HashMap<EntityGuid, Entity> =
             HashMap::with_capacity(self.entities.len());

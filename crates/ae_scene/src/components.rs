@@ -7,33 +7,21 @@
 //! [`ae_renderer::asset::AssetManager`] without editor UI, file dialogs, or undo stack side effects.
 
 use crate::builtin_components::find_builtin_component;
-use ae_ecs::{Component, Entity, World};
+use ae_ecs::{Entity, World};
 use ae_light::Light;
 use ae_mesh::SubmeshAlphaMode;
 use ae_plugin_api::{
     CharacterController, Collider, ColliderShape, Color, Hidden, LodGroup, Name, Position,
-    Rotation, Scale, SpriteId, TransformDirty, Velocity, engine_component_registry,
+    Rotation, Scale, SpriteId, TransformDirty, Velocity,
 };
 use ae_renderer::asset::{AssetHandle, AssetManager};
 use ae_renderer::render::RenderState;
-use serde::de::DeserializeOwned;
 
 fn reset_entity_velocity(world: &mut World, entity: Entity) {
     if let Ok(vel) = world.get_mut::<Velocity>(entity) {
         vel.x = 0.0;
         vel.y = 0.0;
         vel.z = 0.0;
-    }
-}
-
-fn apply_postcard_component<T: Component + DeserializeOwned>(
-    world: &mut World,
-    entity: Entity,
-    data: &[u8],
-) {
-    if let Ok(comp) = postcard::from_bytes::<T>(data) {
-        let _ = world.insert_one(entity, comp);
-        let _ = world.insert_one(entity, TransformDirty);
     }
 }
 
@@ -67,7 +55,7 @@ pub fn add_component(world: &mut World, entity: Entity, type_name: &str) {
         return;
     }
 
-    if let Some(handler) = engine_component_registry().get_by_name(type_name) {
+    if let Some(handler) = crate::scene_component_registry().get_by_name(type_name) {
         if let Err(e) = handler.add_default(world, entity) {
             log::error!(
                 "Failed to add dynamic component '{}' to entity {:?}: {}",
@@ -105,7 +93,7 @@ pub fn remove_component(world: &mut World, entity: Entity, type_name: &str) {
         return;
     }
 
-    if let Some(handler) = engine_component_registry().get_by_name(type_name) {
+    if let Some(handler) = crate::scene_component_registry().get_by_name(type_name) {
         if handler.remove_component(world, entity) {
             let _ = world.insert_one(entity, TransformDirty);
             log::info!(
@@ -125,23 +113,7 @@ pub fn remove_component(world: &mut World, entity: Entity, type_name: &str) {
 
 /// Applies serialized `postcard` component data onto `entity` and marks transform dirty.
 pub fn modify_component(world: &mut World, entity: Entity, type_name: &str, data: &[u8]) {
-    match type_name {
-        "AudioSource" => {
-            apply_postcard_component::<ae_audio::AudioSource>(world, entity, data);
-            return;
-        }
-        "AudioListener" => {
-            apply_postcard_component::<ae_audio::AudioListener>(world, entity, data);
-            return;
-        }
-        "AnimationPlayer" => {
-            apply_postcard_component::<ae_animation::AnimationPlayer>(world, entity, data);
-            return;
-        }
-        _ => {}
-    }
-
-    let registry = engine_component_registry();
+    let registry = crate::scene_component_registry();
     if let Some(handler) = registry.get_by_name(type_name) {
         if let Err(e) = handler.apply(world, entity, data) {
             log::error!(

@@ -217,7 +217,7 @@ pub fn capture_runtime_save_snapshot(
     cell_size: f32,
 ) -> WorldDeltaSnapshot {
     let mut snapshot = WorldDeltaSnapshot::new(metadata);
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = ae_scene::scene_component_registry();
 
     let mut entity_to_guid = HashMap::new();
     for entity_ref in world.iter() {
@@ -270,7 +270,7 @@ pub fn apply_runtime_save_snapshot(
     snapshot: &WorldDeltaSnapshot,
     mut streaming: Option<&mut RuntimeStreamingManager>,
 ) {
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = ae_scene::scene_component_registry();
     let mut guid_to_entity = HashMap::new();
     for entity_ref in world.iter() {
         if let Some(guid) = entity_ref.get_copied::<EntityGuid>()
@@ -361,7 +361,7 @@ pub fn process_save_load_requests(ctx: &mut SaveLoadDispatchContext<'_>) -> bool
     }
 
     if let Some(load_reqs) = ctx.event_bus.receive::<LoadGameRequest>() {
-        let known_hashes = ae_plugin_api::engine_component_registry().known_type_hashes();
+        let known_hashes = ae_scene::scene_component_registry().known_type_hashes();
         for req in load_reqs {
             let target_path = save_slot_path(ctx.save_games_dir, req.slot_index);
             match load_save_with_fallback(&target_path, Some(&known_hashes)) {

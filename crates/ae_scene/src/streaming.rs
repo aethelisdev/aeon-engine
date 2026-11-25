@@ -69,7 +69,7 @@ impl RuntimeStreamingManager {
         unload_radius: i32,
         available_cells: HashSet<SpatialCellCoord>,
     ) -> Self {
-        let mut known_hashes = ae_plugin_api::engine_component_registry().known_type_hashes();
+        let mut known_hashes = crate::scene_component_registry().known_type_hashes();
         known_hashes.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
         Self {
             planner: CellStreamingPlanner::new(cell_size, load_radius, unload_radius),
@@ -309,7 +309,7 @@ impl RuntimeStreamingManager {
     where
         F: FnMut(&mut World, &mut AssetManager, Entity, &SceneAssetBinding),
     {
-        let registry = ae_plugin_api::engine_component_registry();
+        let registry = crate::scene_component_registry();
         let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
         let mut guid_gen = GuidGenerator::new();
         let mut spawned_guids = Vec::with_capacity(records.len());
@@ -505,13 +505,23 @@ pub fn bind_entity_assets_from_binding(
     {
         asset_manager.retain_model(mid);
         let _ = world.insert_one(entity, ModelId(mid));
-        if !world.has::<BoundingRadius>(entity)
-            && let Some(m) = asset_manager.models.get(mid)
-        {
-            let max_dim = (m.max[0] - m.min[0])
-                .max(m.max[1] - m.min[1])
-                .max(m.max[2] - m.min[2]);
-            let _ = world.insert_one(entity, BoundingRadius(max_dim * 0.5));
+        if let Some(m) = asset_manager.models.get(mid) {
+            if !world.has::<BoundingRadius>(entity) {
+                let max_dim = (m.max[0] - m.min[0])
+                    .max(m.max[1] - m.min[1])
+                    .max(m.max[2] - m.min[2]);
+                let _ = world.insert_one(entity, BoundingRadius(max_dim * 0.5));
+            }
+            if let Some(ref skel) = m.skeleton
+                && !world.has::<ae_animation::Skeleton>(entity)
+            {
+                let _ = world.insert_one(entity, skel.clone());
+            }
+            if !m.animations.is_empty() && !world.has::<ae_animation::AnimationPlayer>(entity) {
+                let mut player = ae_animation::AnimationPlayer::default();
+                player.play(m.animations[0].clone());
+                let _ = world.insert_one(entity, player);
+            }
         }
     }
 

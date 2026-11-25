@@ -12,6 +12,7 @@ pub mod components;
 pub mod defaults;
 pub mod loader;
 pub mod prefab;
+pub mod registry;
 pub mod serialization;
 pub mod spawning;
 pub mod streaming;
@@ -30,6 +31,7 @@ pub use loader::{
     decode_world_document_from_vfs, prepare_world_load_request, spawn_world_records,
 };
 pub use prefab::{PREFAB_FORMAT_VERSION, PREFAB_MAGIC, Prefab};
+pub use registry::scene_component_registry;
 pub use serialization::{
     DEFAULT_WORLD_CELL_SIZE, SavedWorldOutcome, WorldSaveRequest, capture_world_document,
     ensure_world_entity_guids, save_partitioned_world,

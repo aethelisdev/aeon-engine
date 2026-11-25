@@ -233,7 +233,7 @@ pub fn capture_world_document(
     is_2d: bool,
 ) -> std::io::Result<WorldDocument> {
     let entity_to_guid = ensure_world_entity_guids(world);
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = crate::scene_component_registry();
     let world_guid = if active_world_guid.is_nil() {
         let fresh = GuidGenerator::new().next_entity_guid();
         *active_world_guid = fresh;
@@ -351,6 +351,74 @@ mod tests {
             .find(|r| r.guid == child_guid)
             .expect("child record present");
         assert_eq!(restored_child.parent_guid, Some(parent_guid));
+    }
+
+    #[test]
+    fn test_capture_and_restore_preserves_animation_player_and_skeleton() {
+        let mut ids = GuidGenerator::from_seed(777);
+        let guid = ids.next_entity_guid();
+        let mut world = World::new();
+        let clip = ae_animation::clip::AnimationClip::new("FlyCycle", 2.0);
+        let mut player = ae_animation::AnimationPlayer {
+            speed: 1.75,
+            ..Default::default()
+        };
+        player.play(clip);
+        let skeleton = ae_animation::Skeleton::from_joints(vec![ae_animation::Joint::new(
+            "Propeller",
+            None,
+            Default::default(),
+            Default::default(),
+        )]);
+        world.spawn((
+            guid,
+            Name("AnimatedPlane".to_string()),
+            Position::new(0.0, 4.0, 0.0),
+            player,
+            skeleton,
+        ));
+
+        let mut world_guid = ids.next_entity_guid();
+        let assets = AssetManager::new();
+        let doc = capture_world_document(&mut world, &assets, &mut world_guid, false)
+            .expect("capture animated world");
+
+        let allowed = crate::scene_component_registry().known_type_hashes();
+        let encoded = doc.encode_full().expect("encode world");
+        let decoded = WorldDocument::decode_full(&encoded, Some(&allowed))
+            .expect("decode with scene_component_registry hashes");
+
+        let rec = decoded
+            .into_all_entities()
+            .into_iter()
+            .find(|r| r.guid == guid)
+            .expect("animated record");
+
+        let mut restored_world = World::new();
+        let dst = restored_world.spawn(());
+        let registry = crate::scene_component_registry();
+        for comp in &rec.components {
+            if let Some(handler) = registry.get_by_type_hash(comp.type_hash) {
+                handler
+                    .apply_versioned(&mut restored_world, dst, comp.schema_ver, &comp.payload)
+                    .expect("apply component");
+            }
+        }
+
+        let restored_clip = restored_world
+            .inspect::<ae_animation::AnimationPlayer, _>(dst, |p| {
+                (p.clip_name().to_string(), p.speed, p.state)
+            })
+            .expect("AnimationPlayer must be restored from .aeworld");
+        assert_eq!(restored_clip.0, "FlyCycle");
+        assert!((restored_clip.1 - 1.75).abs() < 1e-6);
+        assert_eq!(restored_clip.2, ae_animation::AnimationState::Playing);
+        assert_eq!(
+            restored_world
+                .inspect::<ae_animation::Skeleton, _>(dst, |s| s.len())
+                .expect("Skeleton must be restored from .aeworld"),
+            1
+        );
     }
 
     #[test]

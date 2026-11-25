@@ -177,7 +177,7 @@ pub fn prepare_world_load_request(
         ));
     }
 
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = crate::scene_component_registry();
     let mut allowed_hashes = registry.known_type_hashes();
     allowed_hashes.insert(component_type_hash(SCENE_ASSET_BINDING_TYPE));
 
@@ -241,7 +241,7 @@ pub fn spawn_world_records(
     asset_manager: &mut AssetManager,
     world: &mut World,
 ) {
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = crate::scene_component_registry();
     let binding_hash = component_type_hash(SCENE_ASSET_BINDING_TYPE);
     let mut guid_to_entity: HashMap<EntityGuid, Entity> = HashMap::with_capacity(records.len());
     let mut pending_parents: Vec<(Entity, EntityGuid)> = Vec::new();

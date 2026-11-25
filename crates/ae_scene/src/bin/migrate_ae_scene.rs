@@ -128,7 +128,7 @@ fn convert_legacy_scene(input: &Path, output: &Path) -> Result<usize, String> {
         .map_err(|e| format!("Failed to parse legacy JSON {input:?}: {e}"))?;
 
     let is_2d = !detect_is_3d(&legacy_entities, input);
-    let registry = ae_plugin_api::engine_component_registry();
+    let registry = ae_scene::scene_component_registry();
     let mut guid_gen = GuidGenerator::new();
     let mut doc = WorldDocument::new(guid_gen.next_entity_guid(), is_2d, DEFAULT_WORLD_CELL_SIZE);
 
