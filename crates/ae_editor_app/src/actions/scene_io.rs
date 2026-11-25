@@ -67,6 +67,7 @@ fn poll_pending_scene_load(engine: &mut EditorSession) {
     );
     match ae_scene::begin_async_scene_load(&path, engine.render.dimension_mode.is_2d()) {
         Ok(rx) => {
+            engine.editor.pending_load_path = Some(path);
             engine.editor.is_loading_assets = true;
             engine.host_io.scene_rx = Some(rx);
             engine.ui.set_status_message(
@@ -103,10 +104,16 @@ fn poll_async_scene_load_result(engine: &mut EditorSession) {
         return;
     };
     engine.host_io.scene_rx = None;
+    let requested_path = engine.editor.pending_load_path.take();
     match result {
         Ok(scene_data) => {
             engine.sim.physics_world.clear();
-            engine.editor.selected_entities.clear();
+            engine.editor.select_single(None);
+            engine.editor.current_edit_snapshots.clear();
+            engine.editor.multi_start_positions.clear();
+            engine.editor.multi_start_rotations.clear();
+            engine.editor.multi_start_scales.clear();
+            engine.editor.gizmo_dragging = false;
             engine.editor.undo_stack.clear();
             engine.editor.redo_stack.clear();
             engine.ui.clear_interaction_history();
@@ -119,6 +126,11 @@ fn poll_async_scene_load_result(engine: &mut EditorSession) {
                 &mut engine.render.asset_manager,
                 engine.host_io.active_vfs.as_deref(),
             );
+            engine.editor.active_scene_path = applied
+                .saved_world_dir
+                .as_ref()
+                .map(|dir| dir.join("world.aeworld"))
+                .or(requested_path);
             engine.host_io.saved_world_dir = applied.saved_world_dir;
             engine.core.active_world_guid = applied.world_guid;
             engine.host_io.last_saved_cell_crcs = applied.cell_crcs;
@@ -221,19 +233,17 @@ pub fn handle_open_load_scene_dialog(engine: &mut EditorSession) {
 
 /// Queues a synchronous save trigger on editor state targeting `path`.
 pub fn handle_save_scene_to_path(engine: &mut EditorSession, path: std::path::PathBuf) {
-    engine.editor.pending_save_path = Some(path.clone());
-    engine.editor.should_save_scene = true;
-    engine.editor.active_scene_path = Some(path.clone());
     log::info!("💾 Scene save request queued for path {:?}", path);
+    engine.editor.pending_save_path = Some(path);
+    engine.editor.should_save_scene = true;
 }
 
 /// Queues an asynchronous scene load request targeting `path`.
 pub fn handle_load_scene_from_path(engine: &mut EditorSession, path: std::path::PathBuf) {
-    engine.editor.pending_load_path = Some(path.clone());
+    log::info!("📂 Scene load request queued for path {:?}", path);
+    engine.editor.pending_load_path = Some(path);
     engine.editor.should_load_scene = true;
     engine.editor.is_loading_assets = true;
-    engine.editor.active_scene_path = Some(path.clone());
-    log::info!("📂 Scene load request queued for path {:?}", path);
 }
 
 /// Captures `entity` into an `.aeprefab` archive via [`ae_scene::Prefab`] and writes it to `path`.
@@ -278,5 +288,61 @@ pub fn handle_instantiate_prefab(engine: &mut EditorSession, path: std::path::Pa
                 irisui::prelude::Color::RED,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ae_editor::editor_state::{EditorState, SceneDialogAction};
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_resolve_pending_world_path_priority_and_default_fallback() {
+        let mut pending = Some(PathBuf::from("Worlds/Pending/world.aeworld"));
+        let active = PathBuf::from("Worlds/Active/world.aeworld");
+
+        assert_eq!(
+            resolve_pending_world_path(&mut pending, Some(&active)),
+            PathBuf::from("Worlds/Pending/world.aeworld")
+        );
+        assert!(pending.is_none());
+
+        assert_eq!(
+            resolve_pending_world_path(&mut pending, Some(&active)),
+            active
+        );
+
+        assert_eq!(
+            resolve_pending_world_path(&mut pending, None),
+            PathBuf::from(ae_world::ProjectWorkspaceLayout::DEFAULT_ENTRY_WORLD_REL)
+        );
+    }
+
+    #[test]
+    fn test_poll_scene_dialogs_preserves_active_scene_path_until_io_completes() {
+        let mut editor = EditorState {
+            active_scene_path: Some(PathBuf::from("Worlds/Working/world.aeworld")),
+            ..EditorState::default()
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        editor.scene_dialog_receivers.push(rx);
+        tx.send(SceneDialogAction::LoadFrom(PathBuf::from(
+            "Worlds/UnloadedOrInvalid/world.aeworld",
+        )))
+        .expect("channel send must succeed");
+
+        editor.poll_scene_dialogs();
+
+        assert!(editor.should_load_scene);
+        assert_eq!(
+            editor.pending_load_path,
+            Some(PathBuf::from("Worlds/UnloadedOrInvalid/world.aeworld"))
+        );
+        // Active scene path must remain unchanged until async load actually succeeds.
+        assert_eq!(
+            editor.active_scene_path,
+            Some(PathBuf::from("Worlds/Working/world.aeworld"))
+        );
     }
 }

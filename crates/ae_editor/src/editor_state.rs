@@ -180,12 +180,10 @@ impl EditorState {
             .into_iter()
             .for_each(|rx| match rx.try_recv() {
                 Ok(SceneDialogAction::SaveTo(path)) => {
-                    self.active_scene_path = Some(path.clone());
                     self.pending_save_path = Some(path);
                     self.should_save_scene = true;
                 }
                 Ok(SceneDialogAction::LoadFrom(path)) => {
-                    self.active_scene_path = Some(path.clone());
                     self.pending_load_path = Some(path);
                     self.should_load_scene = true;
                     self.is_loading_assets = true;
