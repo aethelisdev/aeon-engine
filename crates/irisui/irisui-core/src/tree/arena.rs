@@ -75,7 +75,7 @@ pub struct UiTree {
     pub pending_static_text_sync: bool,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
-    /// Current text input caret blink visibility synced into declarative [`UiScope`] instances.
+    /// Current text input caret blink visibility synced into declarative `UiScope` instances.
     pub caret_blink: bool,
     /// Retained tree expansion, selection, and flattened DFS row caches keyed by tree tag.
     pub retained_trees: HashMap<u64, super::retained_tree::RetainedTreeState>,

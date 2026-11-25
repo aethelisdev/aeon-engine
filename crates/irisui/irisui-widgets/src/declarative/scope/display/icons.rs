@@ -65,7 +65,7 @@ impl<'a> UiScope<'a> {
     /// Emits an icon quad with reactive parent hover texture tinting.
     ///
     /// Combines icon quad creation and hover tint reactivity in a single fluent call,
-    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    /// eliminating intermediate [`irisui_core::WidgetId`] tracking bindings.
     ///
     /// # Arguments
     /// * `icon_uv` - Normalized atlas UV bounds `[u_min, v_min, u_max, v_max]`.
@@ -87,7 +87,7 @@ impl<'a> UiScope<'a> {
     /// Emits a named icon quad with reactive parent hover texture tinting and a debug identifier.
     ///
     /// Combines icon quad creation and hover tint reactivity in a single fluent call,
-    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    /// eliminating intermediate [`irisui_core::WidgetId`] tracking bindings.
     ///
     /// # Arguments
     /// * `name` - Static debug identifier assigned to the UI node.

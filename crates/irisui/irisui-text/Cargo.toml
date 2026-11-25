@@ -1,9 +1,33 @@
 [package]
 name = "irisui-text"
 description = "GPU typography, font shaping, and glyph caching engine for Iris UI"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition.workspace = true
-license.workspace = true
+rust-version = "1.93"
+authors.workspace = true
+# Source code is MPL-2.0; bundled Noto font binaries under assets/fonts/ are SIL OFL-1.1.
+license = "MPL-2.0 AND OFL-1.1"
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-text"
+readme = "README.md"
+keywords = ["gui", "text", "typography", "glyphon", "wgpu"]
+categories = ["gui", "text-processing", "rendering"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "assets/fonts/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
+
+[features]
+default = ["bundled-fonts"]
+## Embeds all five bundled Google Noto TTF fonts (~3.9 MB total).
+bundled-fonts = ["bundled-sans", "bundled-symbols", "bundled-emoji"]
+## Embeds `NotoSans-Regular.ttf` (~556 KB) as the default sans-serif UI font.
+bundled-sans = []
+## Embeds `NotoSansSymbols-Regular.ttf`, `NotoSansSymbols2-Regular.ttf`, and `NotoSansMath-Regular.ttf` (~1.48 MB).
+bundled-symbols = []
+## Embeds `NotoEmoji-Regular.ttf` (~1.9 MB) for monochrome emoji fallback glyphs.
+bundled-emoji = []
 
 [lints]
 workspace = true

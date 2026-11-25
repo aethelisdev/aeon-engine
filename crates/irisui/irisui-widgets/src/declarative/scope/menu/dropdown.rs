@@ -343,7 +343,7 @@ impl<'a> UiScope<'a> {
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
 
-    /// Emits a standard dropdown menu item row from a [`CascadingMenuItem`].
+    /// Emits a standard dropdown menu item row from a [`crate::cascading_menu::CascadingMenuItem`].
     #[inline]
     pub fn dropdown_menu_item(
         &mut self,
@@ -379,7 +379,7 @@ impl<'a> UiScope<'a> {
         resp
     }
 
-    /// Emits a [`CascadingMenuItem`] row that autonomously closes all open popups when clicked.
+    /// Emits a [`crate::cascading_menu::CascadingMenuItem`] row that autonomously closes all open popups when clicked.
     ///
     /// Preserves the returned [`WidgetResponse`] (including `clicked() == true`) so consumers can
     /// attach fluent action handlers with zero manual boolean popup flags.

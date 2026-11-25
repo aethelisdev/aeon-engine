@@ -291,7 +291,7 @@ where
         }
     }
 
-    /// Focuses `tab` if open, or opens it according to the registered [`PanelMetadata::placement`]
+    /// Focuses `tab` if open, or opens it according to the registered [`crate::descriptors::panel::PanelMetadata::placement`]
     /// rule, marking all panels for redraw.
     pub fn open_or_focus_panel(&mut self, tab: TabId) {
         let screen_size = self.screen_size();

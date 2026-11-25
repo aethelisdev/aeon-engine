@@ -4,7 +4,7 @@
 //! # Declarative Layout-Anchored Select Pill (`UiScope::anchored_select_pill`)
 //!
 //! Couples a toolbar trigger button with an elevated anchored dropdown menu card whose
-//! position resolves directly from [`UiTree::resolve_anchor_rect`] without consumer pixel arithmetic.
+//! position resolves directly from [`irisui_core::UiTree::resolve_anchor_rect`] without consumer pixel arithmetic.
 
 use super::core::UiScope;
 use super::menu::PopupPlacement;

@@ -1,12 +1,25 @@
 [package]
 name = "irisui-widgets"
-description = "Standard widget set and game-engine editor components for Iris UI"
-version = "0.1.0-alpha.1"
+description = "Standard declarative widget library and retained UI controls for Iris UI"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-widgets"
+readme = "README.md"
+keywords = ["gui", "ui", "widgets", "retained-mode", "declarative"]
+categories = ["gui"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [features]
 default = ["clipboard-os"]
+## Enables native desktop clipboard copy/cut/paste integration via `arboard` on non-Android targets.
 clipboard-os = ["dep:arboard"]
 
 [dependencies]
@@ -15,6 +28,7 @@ irisui-layout = { workspace = true }
 irisui-text = { workspace = true }
 irisui-wgpu = { workspace = true }
 thiserror = { workspace = true }
+wgpu = { workspace = true }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = { workspace = true, optional = true }

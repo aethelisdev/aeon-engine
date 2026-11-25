@@ -172,7 +172,7 @@ impl<'s, 't> VirtualListBuilder<'s, 't> {
 
     /// Explicitly sets the vertical scroll position in logical pixels ($S_y$).
     ///
-    /// When omitted, the builder queries persistent scroll state via [`UiTree::scroll_offset`].
+    /// When omitted, the builder queries persistent scroll state via [`irisui_core::UiTree::scroll_offset`].
     #[inline]
     pub fn scroll_y(mut self, scroll_y: f32) -> Self {
         self.scroll_y = Some(scroll_y);

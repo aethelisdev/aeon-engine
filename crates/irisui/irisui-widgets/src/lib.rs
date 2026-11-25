@@ -25,6 +25,7 @@ pub mod numeric_input;
 pub mod panel;
 pub mod scroll_area;
 pub mod settings;
+pub mod simple_host;
 pub mod tree_view;
 
 // Primary declarative showcase elements re-exported at crate root
@@ -69,6 +70,7 @@ pub use floating_panel::{
 };
 pub use grid_view::ResponsiveGrid;
 pub use scroll_area::ScrollArea;
+pub use simple_host::{SimpleUiContext, SimpleUiHost, SimpleUiState};
 
 /// Declarative widget prelude re-exporting only the core widgets, scope, and response types.
 ///
@@ -123,6 +125,7 @@ pub mod prelude {
     };
     pub use crate::grid_view::ResponsiveGrid;
     pub use crate::scroll_area::ScrollArea;
+    pub use crate::simple_host::{SimpleUiContext, SimpleUiHost, SimpleUiState};
 
     // 3. Extension Traits
     pub use crate::declarative::scope::{

@@ -309,7 +309,7 @@ where
     /// [`DockState`] while borrowing [`Workbench::action_bus`] and [`Workbench::dialog_host`]
     /// directly via [`WorkbenchFrameServices`] without temporary bus swaps or staging hosts.
     ///
-    /// `has_external_live` should come from [`Workbench::has_active_live_panel`] or `false`.
+    /// `has_live_panels` tracks whether any visible live-refresh panel is active (`false` otherwise).
     ///
     /// # Errors
     /// Returns [`LayoutError`] if shell or dirty panel layout solving fails.

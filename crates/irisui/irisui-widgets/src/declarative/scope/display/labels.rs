@@ -413,7 +413,7 @@ impl<'a> UiScope<'a> {
     /// Emits a non-interactive, styled text label with reactive hover text coloring.
     ///
     /// Combines label emission and parent hover reactivity in a single fluent call,
-    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    /// eliminating intermediate [`irisui_core::WidgetId`] tracking bindings.
     ///
     /// # Arguments
     /// * `name` - Descriptive identifier assigned to the label node.

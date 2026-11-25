@@ -4,7 +4,7 @@
 //! # Workbench Event Outcome and Interaction Results
 //!
 //! Encapsulates the complete result of dispatching an interaction event through
-//! the autonomous [`Workbench`] coordinator, including event consumption,
+//! the autonomous [`super::Workbench`] coordinator, including event consumption,
 //! requested platform cursor, and emitted type-safe application actions.
 
 use crate::lifecycle::EventInvalidationRoute;

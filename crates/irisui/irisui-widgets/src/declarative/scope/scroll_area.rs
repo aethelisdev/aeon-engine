@@ -24,7 +24,7 @@ impl<'a> UiScope<'a> {
     /// measures content height, and emits a scrollbar when content overflows the viewport.
     ///
     /// Autonomously determines the visible viewport height via [`Self::resolve_available_height`]
-    /// and retrieves persistent scroll state from [`UiTree::scroll_offset`], completely eliminating
+    /// and retrieves persistent scroll state from [`irisui_core::UiTree::scroll_offset`], completely eliminating
     /// manual height subtraction boilerplate (`let vp_h = panel_rect.height - ...`) and manual
     /// scrollbar construction from callers.
     ///
@@ -278,7 +278,7 @@ impl<'a> UiScope<'a> {
     /// Evaluates:
     /// 1. Active ancestor container bounding geometry (`computed_rect.height` or `style.height`) minus
     ///    height consumed by siblings, padding, and gaps along the container chain.
-    /// 2. Preceding layout calculations cached in [`UiTree::viewport_sizes`] or [`UiTree::tag_rects`].
+    /// 2. Preceding layout calculations cached in [`irisui_core::UiTree::viewport_sizes`] or [`irisui_core::UiTree::tag_rects`].
     /// 3. Active screen bounds height or fallback safe minimum height (`400.0px`).
     pub fn resolve_available_height(&self, tag: u64) -> f32 {
         if let Some(h) = self
@@ -315,7 +315,7 @@ impl<'a> UiScope<'a> {
     /// Emits a high-performance virtualized scrollable container that renders only the visible slice of items.
     ///
     /// Autonomously determines the visible viewport height via [`Self::resolve_available_height`]
-    /// and retrieves persistent scroll state from [`UiTree::scroll_offset`], completely eliminating
+    /// and retrieves persistent scroll state from [`irisui_core::UiTree::scroll_offset`], completely eliminating
     /// manual height subtraction boilerplate (`let vp_h = panel_rect.height - ...`) from callers.
     ///
     /// # Arguments

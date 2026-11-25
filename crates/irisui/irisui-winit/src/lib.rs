@@ -4,7 +4,7 @@
 //! # Iris Winit Adapter (`irisui-winit`)
 //!
 //! Bridges native platform windowing ([`winit`]) with the Iris UI retained-mode
-//! framework ([`irisui-core`]).
+//! framework ([`irisui_core`]).
 //!
 //! Provides hardware-independent event translation, HighDPI scaling, cursor icon mapping,
 //! keyboard modifier tracking, and stateful window event handling.

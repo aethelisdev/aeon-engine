@@ -205,12 +205,9 @@ impl RuntimeSession {
         );
 
         let is_paused = self.sim.state_manager.is_paused();
-        let pause_action = self.hud_overlay.prepare_and_poll_action(
-            &self.core.world,
-            is_paused,
-            &self.render.render_state.device,
-            &self.render.render_state.queue,
-        );
+        let pause_action = self
+            .hud_overlay
+            .prepare_and_poll_action(&self.core.world, is_paused);
 
         let sprite_overlay = prepare_2d_overlay(
             self.render.sprite_2d.as_mut(),

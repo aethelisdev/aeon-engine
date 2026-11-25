@@ -12,7 +12,7 @@ use crate::scroll_area::types::ScrollBarVisibility;
 use irisui_core::color::Color;
 use irisui_core::geometry::{Insets, Point};
 
-/// Declarative viewport configuration options for [`UiScope::scroll_area_configured`] and [`ScrollAreaView`].
+/// Declarative viewport configuration options for [`crate::UiScope::scroll_area_configured`] and [`crate::declarative::widget::scroll_area::ScrollAreaView`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScrollAreaOptions {
     /// Debug identifier assigned to the viewport node in the UI tree.

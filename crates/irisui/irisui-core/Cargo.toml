@@ -1,9 +1,21 @@
 [package]
 name = "irisui-core"
 description = "Core safe arena graph, geometry, and styling data structures for Iris UI"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-core"
+readme = "README.md"
+keywords = ["gui", "ui", "retained-mode", "arena", "geometry"]
+categories = ["gui", "data-structures"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [dependencies]
 slotmap = { workspace = true }

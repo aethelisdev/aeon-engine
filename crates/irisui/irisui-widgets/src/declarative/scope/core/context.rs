@@ -173,7 +173,7 @@ impl<'a> UiScope<'a> {
     /// Creates a child scope for a nested widget container with an explicitly isolated seed.
     ///
     /// Preserves active events, tags, and text input state while establishing a new hierarchical
-    /// namespace seed derived via [`combine_seeds`](crate::declarative::types::combine_seeds).
+    /// namespace seed derived via [`crate::declarative::types::combine_seeds`].
     ///
     /// # Arguments
     /// * `parent` - Target parent widget node receiving emitted children.

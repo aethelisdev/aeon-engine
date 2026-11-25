@@ -3,12 +3,12 @@
 
 //! # Declarative Property Rows & Two-Way Bound Form Primitives
 //!
-//! Provides strongly typed, two-way bound property row components on [`UiScope`]:
+//! Provides strongly typed, two-way bound property row components on [`crate::UiScope`]:
 //! - Structural rows, checkboxes, dropdowns, and section dividers in [`rows`].
 //! - Continuous sliders, scalar inputs, and number boxes in [`sliders`].
 //! - Color-coded 3D/2D vector and RGB channel adjusters in [`vectors`].
 //!
-//! All primitives support the `##` label/tag separator and hierarchical [`UiScope::with_id`]
+//! All primitives support the `##` label/tag separator and hierarchical [`crate::UiScope::with_id`]
 //! seed isolation without per-frame heap allocations.
 
 pub mod action_row;

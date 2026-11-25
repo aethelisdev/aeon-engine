@@ -1,9 +1,21 @@
 [package]
 name = "irisui-workbench"
-description = "Desktop IDE and Professional Workbench Application Shell Framework for Iris UI"
-version = "0.1.0-alpha.1"
+description = "Desktop IDE and Multi-Pane Workbench Application Shell Framework for Iris UI"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-workbench"
+readme = "README.md"
+keywords = ["gui", "workbench", "docking", "ide", "wgpu"]
+categories = ["gui", "rendering"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "tests/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [dependencies]
 irisui-core = { workspace = true }

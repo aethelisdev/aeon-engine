@@ -536,14 +536,14 @@ impl<'a> UiScope<'a> {
         self.tree.event_state.clear_focus();
     }
 
-    /// Returns the persistent keyboard modifier flags (`ctrl` / `shift`) held on the retained [`UiTree`].
+    /// Returns the persistent keyboard modifier flags (`ctrl` / `shift`) held on the retained [`irisui_core::UiTree`].
     #[inline]
     #[must_use]
     pub const fn modifiers(&self) -> irisui_core::event::InputModifiers {
         self.tree.modifiers()
     }
 
-    /// Assigns keyboard focus directly to the widget identified by `tag` on the retained [`UiTree`].
+    /// Assigns keyboard focus directly to the widget identified by `tag` on the retained [`irisui_core::UiTree`].
     ///
     /// Passing `0` clears active focus across the tree.
     #[inline]

@@ -144,7 +144,7 @@ impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
     /// Configures whether individual dirty panel tags automatically escalate to global dirty state.
     ///
     /// When enabled, any invocation of [`Self::tag_redraw`], [`Self::sync_domain_revision`],
-    /// or [`Self::notify_domain_mutation`] sets [`Self::global_dirty`] to `true`.
+    /// or [`Self::notify_domain_mutation`] sets the notifier's internal global dirty flag to `true`.
     #[inline]
     pub fn set_auto_propagate_panels(&mut self, enabled: bool) {
         self.auto_propagate_panels = enabled;

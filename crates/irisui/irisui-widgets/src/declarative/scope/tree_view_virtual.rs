@@ -3,7 +3,7 @@
 
 //! # Declarative Virtualized TreeView Builder Bound to [`TreeModel`]
 //!
-//! Connects [`TreeModel`] and [`TreeState`] directly to [`VirtualList`] frustum culling,
+//! Connects [`TreeModel`] and [`TreeState`] directly to [`crate::VirtualList`] frustum culling,
 //! deterministic [`UiTag`] row/foldout tagging, multi-selection (`Ctrl` / `Shift`),
 //! foldout chevron toggling, and context menus — eliminating per-panel `VirtualList`
 //! and `handle_tree_row_click` boilerplate in consumer applications.
@@ -300,7 +300,7 @@ where
 
 impl<'a> UiScope<'a> {
     /// Creates a fluent [`VirtualTreeBuilder`] rendering an interactive cached [`TreeModel`]
-    /// backed by any [`TreeDataSource`], threading mutable caller context `ctx` cleanly
+    /// backed by any [`crate::tree_view::TreeDataSource`], threading mutable caller context `ctx` cleanly
     /// across row rendering, selection callbacks, and context menus.
     #[inline]
     pub fn virtual_tree<'s, 'm, 't, 'c, Id, Ctx>(

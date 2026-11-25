@@ -43,8 +43,8 @@ where
     /// Handles a global Escape key gesture, dismissing modal dialogues, popovers, and focus traps.
     ///
     /// In accordance with desktop IDE standards, cancellations are resolved in strict priority order:
-    /// 1. Topmost modal dialog in [`DialogHost`]: dismissed if cancellable, or triggers attention animation.
-    /// 2. Contextual overlay popovers in [`OverlayHost`]: dismissed if `dismiss_on_escape` is enabled.
+    /// 1. Topmost modal dialog in [`crate::dialogs::DialogHost`]: dismissed if cancellable, or triggers attention animation.
+    /// 2. Contextual overlay popovers in [`crate::hooks::OverlayHost`]: dismissed if `dismiss_on_escape` is enabled.
     /// 3. Tagged modal dialogues in the retained `UiTree`: closed via `UiTree::close_all_modals`.
     /// 4. Open popups, cascading menus, and tooltips in the retained `UiTree`: closed via `UiTree::close_all_popups`.
     /// 5. Active text input sessions and keyboard focus in the retained `UiTree`: cleared via `UiTree::event_state`.
@@ -123,7 +123,7 @@ where
         None
     }
 
-    /// Intercepts keyboard interaction when an elevated modal dialogue is active in [`DialogHost`].
+    /// Intercepts keyboard interaction when an elevated modal dialogue is active in [`crate::dialogs::DialogHost`].
     ///
     /// Modal dialogues trap keyboard navigation (`Tab`, `Shift+Tab`, `Enter`, `Escape`),
     /// resolving confirmation or cancellation gestures and preventing keystrokes from leaking

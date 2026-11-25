@@ -450,7 +450,7 @@ impl UiTree {
     /// Evaluates the active hardware mouse cursor shape for the widget currently under `point`.
     ///
     /// Resolves the highest-priority interactive widget through [`UiTree::hit_test_layered`].
-    /// If the hit widget has an explicit cursor override ([`WidgetNode::cursor`]), it is returned.
+    /// If the hit widget has an explicit cursor override ([`crate::node::WidgetNode::cursor`]), it is returned.
     /// Otherwise, resolves the role's canonical cursor ([`WidgetRole::default_cursor`]).
     /// If neither is defined, inspects the parent hierarchy until a cursor hint is discovered
     /// or defaults to [`WidgetCursor::Default`].

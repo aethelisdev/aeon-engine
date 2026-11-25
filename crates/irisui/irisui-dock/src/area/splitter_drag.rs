@@ -5,7 +5,7 @@
 //!
 //! Manages continuous splitter drag calculations, division ratio clamping within
 //! strictly enforced industry-standard boundaries (`[0.10, 0.90]`), automatic
-//! structural revision incrementation on the underlying [`DockTree`], and ergonomic
+//! structural revision incrementation on the underlying [`crate::tree::DockTree`], and ergonomic
 //! double-click reset to an even 50/50 partition balance.
 
 use crate::area::splitter::DockSplitterTarget;

@@ -194,7 +194,7 @@ impl<A: WorkbenchAppData> WorkbenchHost<A> {
         self.workbench.clear_status_message();
     }
 
-    /// Emits a custom application action onto the internal [`ActionBus`].
+    /// Emits a custom application action onto the internal [`crate::ActionBus`].
     #[inline]
     pub fn emit_action(&mut self, action: A::Action) {
         self.workbench.action_bus.emit(action);

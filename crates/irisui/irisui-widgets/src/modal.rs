@@ -4,7 +4,7 @@
 //! Generic modal dialogue tags, actions, semantic tag evaluation, and visual styling.
 //!
 //! Declarative modal layouts and backdrop scrims are constructed directly via
-//! [`crate::UiScope::modal_scrim`] and [`crate::UiScope::modal_dialog`].
+//! [`crate::UiScope::modal_scrim`] and [`crate::UiScope::modal`].
 
 use irisui_core::color::Color;
 

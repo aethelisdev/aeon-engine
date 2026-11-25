@@ -3,7 +3,7 @@
 
 //! # Declarative Display, Typography & Visual Decorator Primitives
 //!
-//! Provides text labels, headings, texture atlas icons, carets, and canvas swatches on [`UiScope`]:
+//! Provides text labels, headings, texture atlas icons, carets, and canvas swatches on [`crate::UiScope`]:
 //! - Typography, 1-argument labels, headings, and badges in [`labels`].
 //! - Key-value rows, stack formatted numbers, and telemetry badges in [`key_value`].
 //! - Texture atlas icons and hover reactivity in [`icons`].

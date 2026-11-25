@@ -5,7 +5,7 @@
 //!
 //! Renders an adaptive time-axis ruler bar with a fixed-width sidebar header and a
 //! `flex_grow` canvas track that automatically computes major/minor tick subdivisions
-//! and formats timestamps into stack-allocated [`StackString`](irisui_core::StackString)
+//! and formats timestamps into stack-allocated [`irisui_core::StackString`]
 //! buffers without heap allocation.
 
 use crate::declarative::scope::core::UiScope;

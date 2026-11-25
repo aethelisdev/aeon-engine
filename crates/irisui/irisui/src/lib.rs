@@ -31,7 +31,9 @@ pub use irisui_wgpu::{
     IrisSurfaceFrameFlags, IrisSurfaceHost, IrisSurfaceRenderParams, StaticUiSurfaceCache,
     SurfaceCacheFrameAction, SurfaceCacheState, SurfaceRefreshMode,
 };
-pub use irisui_widgets::{SubtreeSession, rebuild_leaf_subtree};
+pub use irisui_widgets::{
+    SimpleUiContext, SimpleUiHost, SimpleUiState, SubtreeSession, rebuild_leaf_subtree,
+};
 
 /// Fluent, comprehensive umbrella prelude re-exporting all standard Iris UI primitives from subcrates.
 ///

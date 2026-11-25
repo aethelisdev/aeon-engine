@@ -117,7 +117,7 @@ where
         }
     }
 
-    /// Synchronizes retained flattening + search filter caches inside [`UiTree`] and renders
+    /// Synchronizes retained flattening + search filter caches inside [`irisui_core::UiTree`] and renders
     /// visible rows via [`UiScope::virtual_list`].
     pub fn render_row<FRow>(mut self, mut render_content: FRow) -> VirtualTreeResponse
     where

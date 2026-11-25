@@ -51,7 +51,7 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
     }
 
     /// Associates structural and volatile live hashes with this panel's semantic tag
-    /// so [`UiScope::sync_retained_revision`] and [`WorkbenchPanelContext::sync_live_revision`]
+    /// so [`UiScope::sync_retained_revision`] and `WorkbenchPanelContext::sync_live_revision`
     /// can automatically differentiate no-ops, in-place refreshes, and structural rebuilds.
     #[inline]
     #[must_use]

@@ -75,6 +75,7 @@ fn test_text_system_sync_caret_blink_focus_and_keystroke_reset() {
     assert!(s3.needs_redraw());
 }
 
+#[cfg(feature = "bundled-sans")]
 #[test]
 fn test_shape_text_indexed_reuses_buffer_without_cloning() {
     let mut sys = TextSystem::new();
@@ -93,4 +94,36 @@ fn test_shape_text_indexed_reuses_buffer_without_cloning() {
 
     assert_eq!(idx1, idx2);
     assert_eq!(ptr1, ptr2);
+}
+
+#[test]
+fn test_font_loading_clears_measurement_caches_and_tolerates_malformed_bytes() {
+    let mut sys = TextSystem::new();
+    let params = TextShapeParams {
+        font_size: 14.0,
+        line_height: 18.0,
+        bounds_width: 200.0,
+        bounds_height: 40.0,
+        align: TextAlign::Left,
+        wrap: TextWrap::None,
+    };
+    let initial = sys.measure_text("CacheInvalidation", 14.0, 18.0, None);
+    if cfg!(feature = "bundled-sans") {
+        assert!(initial.width > 0.0);
+        assert_eq!(initial.height, 18.0);
+    } else {
+        assert_eq!(initial, Size::ZERO);
+        assert_eq!(sys.measure_advance("CacheInvalidation", 14.0), 0.0);
+        assert_eq!(sys.index_for_position("CacheInvalidation", 14.0, 12.0), 0);
+        let idx = sys.shape_text_indexed("CacheInvalidation", params);
+        assert!(sys.shaped_buffer(idx).is_some());
+    }
+
+    // Negative / malformed font bytes must never panic and must safely invalidate caches.
+    sys.load_font_bytes(b"not-a-valid-ttf-header".to_vec());
+    sys.load_static_font(&[]);
+
+    // Repeated measurement after cache clear must succeed deterministically without panic.
+    let after = sys.measure_text("CacheInvalidation", 14.0, 18.0, None);
+    assert_eq!(after, initial);
 }

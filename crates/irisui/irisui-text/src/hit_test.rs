@@ -225,6 +225,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_hit_test_ascii_basic_in_system() {
         let mut system = TextSystem::new();
@@ -245,6 +246,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_hit_test_turkish_characters_in_system() {
         let mut system = TextSystem::new();

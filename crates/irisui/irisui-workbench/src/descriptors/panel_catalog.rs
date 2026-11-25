@@ -213,7 +213,7 @@ pub trait PanelRegistryTarget<TabId, Ctx> {
         context: &mut Ctx,
     ) -> WorkbenchResult<()>;
 
-    /// Executes [`ScopedWorkbenchPanel::refresh_live`] for `tab` during `InPlaceRefresh`.
+    /// Executes [`super::panel::ScopedWorkbenchPanel::refresh_live`] for `tab` during `InPlaceRefresh`.
     fn refresh_live(&mut self, tab: &TabId, scope: &mut UiScope<'_>, context: &mut Ctx);
 }
 

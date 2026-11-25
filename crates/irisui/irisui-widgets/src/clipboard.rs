@@ -3,7 +3,7 @@
 
 //! Cross-platform system clipboard integration for Iris UI.
 //!
-//! Provides the [`SystemClipboard`] driver implementing [`ClipboardProvider`],
+//! Provides the [`SystemClipboard`] driver implementing [`irisui_core::platform::ClipboardProvider`],
 //! supporting native desktop clipboards (X11, Wayland, Windows, macOS) via safe bindings
 //! with automatic headless in-memory fallback.
 

@@ -20,7 +20,7 @@ use crate::ui::types::{
     EditorFrameData, EditorTelemetrySnapshot, EditorUiRenderParams, EngineUiAction,
     ExportDialogState,
 };
-use irisui::prelude::{Color, Rect};
+use irisui::prelude::Color;
 use irisui::workbench::{ProgressModalDescriptor, WorkbenchHost, WorkbenchHostFrameParams};
 use winit::window::Window;
 
@@ -31,10 +31,6 @@ pub struct EngineUi {
     pub(crate) gpu_backend: String,
     /// Measured engine frames per second displayed in stats and status readouts.
     pub fps: f32,
-    /// Last resolved logical 3D viewport rectangle returned to the renderer.
-    pub last_viewport_rect: Rect,
-    /// Active UI scale factor.
-    pub ui_zoom_factor: f32,
     /// Persistent Content / Asset Browser state.
     pub asset_browser: ae_assets::AssetBrowserState,
     /// Persistent 2D Visual UI Designer canvas state.
@@ -46,19 +42,13 @@ pub struct EngineUi {
 impl EngineUi {
     /// Initializes the editor UI subsystem backed by Iris UI's retained [`WorkbenchHost`].
     #[must_use]
-    pub fn new(
-        device: &wgpu::Device,
-        output_color_format: wgpu::TextureFormat,
-        _window: &Window,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, output_color_format: wgpu::TextureFormat) -> Self {
         Self {
             host: build_editor_workbench_host(device, output_color_format),
             telemetry: EditorTelemetrySnapshot::default(),
             gpu_adapter_name: String::new(),
             gpu_backend: String::new(),
             fps: 60.0,
-            last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
-            ui_zoom_factor: 1.0,
             asset_browser: ae_assets::AssetBrowserState::new(),
             ui_designer_state: ae_uidesign::UiDesignerState::default(),
             export_modal: ExportDialogState::default(),
@@ -165,12 +155,16 @@ impl EngineUi {
         );
         self.host
             .dispatch_actions(|_, action| params.ui_actions.push(action));
-        self.last_viewport_rect = self.host.last_viewport_rect();
+        Self::to_camera_viewport_rect(self.host.last_viewport_rect())
+    }
+
+    #[inline]
+    fn to_camera_viewport_rect(rect: irisui::core::Rect) -> ae_camera::ViewportRect {
         ae_camera::ViewportRect {
-            min_x: self.last_viewport_rect.x,
-            min_y: self.last_viewport_rect.y,
-            max_x: self.last_viewport_rect.right(),
-            max_y: self.last_viewport_rect.bottom(),
+            min_x: rect.x,
+            min_y: rect.y,
+            max_x: rect.right(),
+            max_y: rect.bottom(),
         }
     }
 
@@ -193,10 +187,6 @@ impl EngineUi {
         if result.close_requested {
             ui.host.emit_action(EngineUiAction::Exit);
         }
-        result
-            .zoom_changed
-            .into_iter()
-            .for_each(|zoom| ui.ui_zoom_factor = zoom);
         result.consumed
     }
 
@@ -245,8 +235,7 @@ impl EngineUi {
 
     /// Sets the active UI scale factor on [`WorkbenchHost`] clamped to `[0.6, 2.0]` and returns the resolved factor.
     pub fn set_ui_scale(&mut self, scale: f32) -> f32 {
-        self.ui_zoom_factor = self.host.set_scale_factor(scale);
-        self.ui_zoom_factor
+        self.host.set_scale_factor(scale)
     }
 
     /// Clears transient UI widget undo, text edit, and popup state across scene reloads or mode transitions.
@@ -256,14 +245,12 @@ impl EngineUi {
 
     /// Steps the active UI scale preset up or down and returns the updated factor.
     pub fn step_ui_scale(&mut self, increase: bool) -> f32 {
-        self.ui_zoom_factor = self.host.step_zoom(increase);
-        self.ui_zoom_factor
+        self.host.step_zoom(increase)
     }
 
     /// Resets the UI scale factor back to `1.0`.
     pub fn reset_ui_scale(&mut self) -> f32 {
-        self.ui_zoom_factor = self.host.reset_zoom();
-        self.ui_zoom_factor
+        self.host.reset_zoom()
     }
 
     /// Returns `true` when any modal or focused text field captures keyboard input.

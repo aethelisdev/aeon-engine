@@ -247,7 +247,7 @@ impl From<VirtualScrollResponse> for f32 {
     }
 }
 
-/// Response returned by an autonomous declarative [`scroll_area`] call.
+/// Response returned by an autonomous declarative [`crate::UiScope::scroll_area`] call.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollAreaResponse<R = ()> {
     /// Inner value returned by the scroll area child closure.

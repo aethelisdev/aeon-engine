@@ -1,9 +1,21 @@
 [package]
 name = "irisui-winit"
 description = "Winit platform windowing adapter and event bridge for Iris UI"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-winit"
+readme = "README.md"
+keywords = ["gui", "ui", "winit", "windowing", "hidpi"]
+categories = ["gui"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [lints]
 workspace = true

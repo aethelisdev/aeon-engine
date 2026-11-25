@@ -324,7 +324,7 @@ impl DualLayoutEliminator {
 
     /// Atomically rebuilds an individual registered dock panel in-place under `leaf_id`.
     ///
-    /// Delegates directly to [`Self::rebuild_single_panel_leaf_fallible`] with [`WorkbenchPanelRegistry::draw`].
+    /// Delegates directly to [`Self::rebuild_single_panel_leaf_fallible`] with [`crate::descriptors::panel_registry::WorkbenchPanelRegistry::draw`].
     /// Clears previous children, shapes typography, resolves boundary flexbox geometry, and marks the leaf dirty.
     ///
     /// # Errors
@@ -451,7 +451,7 @@ impl DualLayoutEliminator {
     ///
     /// Evaluates all pending panel redraw tags, resolves each panel's docking leaf container
     /// via `leaf_resolver`, untracks stale child layout nodes, declaratively synthesizes fresh
-    /// widgets via [`WorkbenchPanelRegistry::draw`], shapes typography, and recomputes boundary
+    /// widgets via [`crate::descriptors::panel_registry::WorkbenchPanelRegistry::draw`], shapes typography, and recomputes boundary
     /// Taffy flexbox models in $O(M)$ time.
     ///
     /// Clears processed dirty panel tags in [`UiNotifier`], marks reconstructed leaves as

@@ -28,7 +28,7 @@ pub struct ModalDescriptor {
     pub size: (f32, f32),
 
     /// Semi-transparent fill color for the full-screen backdrop blocker scrim.
-    /// When `None`, derives dynamically from [`Theme::modal_scrim`].
+    /// When `None`, derives dynamically from [`irisui_core::Theme::modal_scrim`].
     pub backdrop_color: Option<Color>,
 
     /// Explicit top-left coordinate `(x, y)` override. If `None`, the card is automatically centered.

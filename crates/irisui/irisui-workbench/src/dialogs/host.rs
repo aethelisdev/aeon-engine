@@ -6,7 +6,7 @@
 //! Autonomous coordinator managing declarative modal dialog state transitions,
 //! multi-modal hierarchical stacking, semi-transparent backdrop scrim occlusion,
 //! keyboard focus traps (Escape to dismiss, Enter to confirm), and automatic routing
-//! of confirm/submit payloads into the [`ActionBus`].
+//! of confirm/submit payloads into the [`crate::ActionBus`].
 
 pub mod active;
 pub mod convert;

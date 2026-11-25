@@ -189,7 +189,7 @@ impl<'a> UiScope<'a> {
 
     /// Declaratively renders an autonomous modal dialog window when the modal with `tag` is open.
     ///
-    /// Automatically manages persistent modal open/closed state on [`UiTree`]. When open, renders
+    /// Automatically manages persistent modal open/closed state on [`irisui_core::UiTree`]. When open, renders
     /// the full-screen backdrop blocker on [`UiLayer::Modal`] and the centered modal card with title,
     /// and invokes the child builder closure `f`. If the user presses Escape, clicks the backdrop scrim,
     /// or clicks the '✕' close button, closes the modal and updates persistent state.

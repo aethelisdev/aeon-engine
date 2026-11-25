@@ -2170,7 +2170,7 @@ dependencies = [
 
 [[package]]
 name = "irisui"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "irisui-core",
  "irisui-dock",
@@ -2180,11 +2180,14 @@ dependencies = [
  "irisui-widgets",
  "irisui-winit",
  "irisui-workbench",
+ "pollster 1.0.1",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]
 name = "irisui-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2194,7 +2197,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-dock"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "irisui-core",
  "irisui-widgets",
@@ -2206,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-layout"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "irisui-core",
  "taffy",
@@ -2215,7 +2218,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-text"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -2228,7 +2231,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-wgpu"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "bytemuck",
  "irisui-core",
@@ -2240,7 +2243,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-widgets"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "arboard",
  "irisui-core",
@@ -2248,11 +2251,12 @@ dependencies = [
  "irisui-text",
  "irisui-wgpu",
  "thiserror 2.0.21",
+ "wgpu",
 ]
 
 [[package]]
 name = "irisui-winit"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "glam 0.33.12",
  "irisui-core",
@@ -2262,7 +2266,7 @@ dependencies = [
 
 [[package]]
 name = "irisui-workbench"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 dependencies = [
  "irisui-core",
  "irisui-dock",

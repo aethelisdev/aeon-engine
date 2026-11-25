@@ -286,7 +286,7 @@ where
     }
 
     /// Executes the full unified per-frame workbench lifecycle using the workbench's own owned
-    /// [`DockState`] and an external [`WorkbenchPanelRegistry`] without exposing [`UiTree`].
+    /// [`DockState`] and an external [`crate::descriptors::panel_registry::WorkbenchPanelRegistry`] without exposing [`UiTree`].
     ///
     /// # Errors
     /// Returns [`LayoutError`] if shell or dirty panel layout solving fails.
@@ -321,7 +321,7 @@ where
     }
 
     /// Executes the full unified per-frame workbench lifecycle using an external
-    /// [`WorkbenchPanelRegistry`] and per-frame context `Ctx` without exposing [`UiTree`].
+    /// [`crate::descriptors::panel_registry::WorkbenchPanelRegistry`] and per-frame context `Ctx` without exposing [`UiTree`].
     ///
     /// # Errors
     /// Returns [`LayoutError`] if shell or dirty panel layout solving fails.

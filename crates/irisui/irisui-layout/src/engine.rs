@@ -84,8 +84,8 @@ impl LayoutEngine {
     /// Recursively untracks and removes all descendant layout nodes of the specified parent from Taffy.
     ///
     /// Preserves the parent node itself in the layout map, while detaching all children in Taffy
-    /// via [`taffy::TaffyTree::set_children`] and purging all descendants from [`self.node_map`]
-    /// and [`self.id_map`]. This prevents dangling layout nodes and memory leaks when a panel subtree
+    /// via [`taffy::TaffyTree::set_children`] and purging all descendants from `self.node_map`
+    /// and `self.id_map`. This prevents dangling layout nodes and memory leaks when a panel subtree
     /// is invalidated and reconstructed in-place.
     ///
     /// # Robustness & Ordering Invariant

@@ -148,11 +148,8 @@ impl EditorSession {
         let init_size = window.inner_size();
         let (render_state, camera) =
             RenderState::new(Arc::clone(&window), init_size.width, init_size.height).await?;
-        let mut ui = ae_editor_ui::ui::EngineUi::new(
-            &render_state.device,
-            render_state.config.format,
-            &window,
-        );
+        let mut ui =
+            ae_editor_ui::ui::EngineUi::new(&render_state.device, render_state.config.format);
         ui.on_window_resized(init_size.width, init_size.height);
 
         let gizmos = EditorGizmos::new(

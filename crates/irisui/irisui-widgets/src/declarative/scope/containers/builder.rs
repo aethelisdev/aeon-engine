@@ -3,8 +3,8 @@
 
 //! # Fluent Container & Layout Builders
 //!
-//! Provides zero-`let` method-chained container builders on [`UiScope`]: [`RowBuilder`],
-//! [`ColumnBuilder`], and [`ContainerBuilder`]. Eliminates intermediate `let ..style = Style::new()`
+//! Provides zero-`let` method-chained container builders on [`UiScope`]: [`RowBuilder`] and
+//! [`ColumnBuilder`]. Eliminates intermediate `let ..style = Style::new()`
 //! assignments across consumer codebases.
 
 use super::super::core::UiScope;

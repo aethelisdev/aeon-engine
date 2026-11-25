@@ -181,8 +181,8 @@ pub trait WorkbenchUiScopeExt {
 
     /// Declaratively renders an informational card dialogue when the modal with `tag` is open.
     ///
-    /// Automatically manages persistent modal open/closed state on [`UiTree`]. If open, renders
-    /// the full-screen backdrop scrim blocker on [`UiLayer::Modal`] and the centered info card.
+    /// Automatically manages persistent modal open/closed state on [`irisui_core::UiTree`]. If open, renders
+    /// the full-screen backdrop scrim blocker on [`irisui_core::UiLayer::Modal`] and the centered info card.
     /// Closes the modal and updates persistent state if dismissed or confirmed.
     fn info_modal_tagged(
         &mut self,
@@ -217,7 +217,7 @@ pub trait WorkbenchUiScopeExt {
     );
 
     /// Declaratively renders the entire application shell chrome (top menubar, bottom statusbar,
-    /// and baseline dividers) in a single unified invocation from [`WorkbenchDescriptor`].
+    /// and baseline dividers) in a single unified invocation from [`crate::WorkbenchDescriptor`].
     ///
     /// # Arguments
     /// * `descriptor` - Configured workbench shell descriptor.

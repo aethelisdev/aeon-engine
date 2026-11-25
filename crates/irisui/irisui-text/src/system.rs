@@ -83,29 +83,17 @@ impl Default for TextSystem {
 }
 
 impl TextSystem {
-    /// Initializes a new `TextSystem` loading embedded fallback typography fonts.
+    /// Initializes a new `TextSystem`, optionally loading bundled Noto fonts enabled by Cargo
+    /// features (`bundled-sans`, `bundled-symbols`, `bundled-emoji`, all active via default
+    /// `bundled-fonts`).
+    ///
+    /// When all `bundled-*` features are disabled (`default-features = false`), callers can
+    /// register fonts dynamically via [`Self::load_static_font`], [`Self::load_font_bytes`],
+    /// or [`Self::load_system_fonts`].
     pub fn new() -> Self {
-        let mut db = cosmic_text::fontdb::Database::new();
-
-        // Load embedded default fonts via zero-copy static binary slices (eliminates 3.9 MB heap copies)
-        const EMBEDDED_FONTS: [&[u8]; 5] = [
-            include_bytes!("../assets/fonts/NotoSans-Regular.ttf"),
-            include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf"),
-            include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf"),
-            include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf"),
-            include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf"),
-        ];
-        for bytes in EMBEDDED_FONTS {
-            db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
-                bytes,
-            )));
-        }
-
-        db.set_sans_serif_family("Noto Sans");
-        db.set_serif_family("Noto Sans");
-        db.set_monospace_family("Noto Sans");
-
-        let font_system = FontSystem::new_with_locale_and_db("en-US".into(), db);
+        let mut font_system =
+            FontSystem::new_with_locale_and_db("en-US".into(), Self::build_bundled_font_db());
+        Self::sync_fallback_family_on_db(font_system.db_mut());
 
         Self {
             font_system,
@@ -120,6 +108,93 @@ impl TextSystem {
             last_blink_focus_key: None,
             caret_blink_enabled: true,
         }
+    }
+
+    #[cfg(any(
+        feature = "bundled-sans",
+        feature = "bundled-symbols",
+        feature = "bundled-emoji"
+    ))]
+    fn build_bundled_font_db() -> cosmic_text::fontdb::Database {
+        let mut db = cosmic_text::fontdb::Database::new();
+
+        #[cfg(feature = "bundled-sans")]
+        db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+            include_bytes!("../assets/fonts/NotoSans-Regular.ttf"),
+        )));
+
+        #[cfg(feature = "bundled-symbols")]
+        for bytes in [
+            include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf") as &[u8],
+            include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf"),
+            include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf"),
+        ] {
+            db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+                bytes,
+            )));
+        }
+
+        #[cfg(feature = "bundled-emoji")]
+        db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+            include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf"),
+        )));
+
+        db
+    }
+
+    #[cfg(not(any(
+        feature = "bundled-sans",
+        feature = "bundled-symbols",
+        feature = "bundled-emoji"
+    )))]
+    fn build_bundled_font_db() -> cosmic_text::fontdb::Database {
+        cosmic_text::fontdb::Database::new()
+    }
+
+    fn sync_fallback_family_on_db(db: &mut cosmic_text::fontdb::Database) {
+        let fallback = if cfg!(feature = "bundled-sans")
+            && db.faces().any(|f| {
+                f.families
+                    .iter()
+                    .any(|(name, _)| name.eq_ignore_ascii_case("Noto Sans"))
+            }) {
+            Some(String::from("Noto Sans"))
+        } else {
+            db.faces()
+                .find_map(|face| face.families.first().map(|(name, _)| name.clone()))
+        };
+
+        if let Some(family) = fallback {
+            db.set_sans_serif_family(family.clone());
+            db.set_serif_family(family.clone());
+            db.set_monospace_family(family);
+        }
+    }
+
+    /// Loads a static font binary slice (TTF/OTF/TTC) into the font database and clears caches.
+    pub fn load_static_font(&mut self, bytes: &'static [u8]) {
+        let db = self.font_system.db_mut();
+        db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+            bytes,
+        )));
+        Self::sync_fallback_family_on_db(db);
+        self.clear_cache();
+    }
+
+    /// Loads an owned font byte buffer (TTF/OTF/TTC) into the font database and clears caches.
+    pub fn load_font_bytes(&mut self, bytes: Vec<u8>) {
+        let db = self.font_system.db_mut();
+        db.load_font_data(bytes);
+        Self::sync_fallback_family_on_db(db);
+        self.clear_cache();
+    }
+
+    /// Discovers installed OS system fonts into the font database and clears caches.
+    pub fn load_system_fonts(&mut self) {
+        let db = self.font_system.db_mut();
+        db.load_system_fonts();
+        Self::sync_fallback_family_on_db(db);
+        self.clear_cache();
     }
 
     /// Resolves the default text styling attributes using the active family or generic sans-serif.
@@ -215,7 +290,7 @@ impl TextSystem {
         line_height: f32,
         max_width: Option<f32>,
     ) -> Size {
-        if text.is_empty() {
+        if text.is_empty() || self.font_system.db().is_empty() {
             return Size::ZERO;
         }
 
@@ -281,7 +356,7 @@ impl TextSystem {
     /// Creates or retrieves a cached shaped `cosmic_text::Buffer`, returning its arena index
     /// without cloning `Buffer` or allocating lookup strings on cache hits.
     ///
-    /// Callers executing within a prepare batch should call [`Self::begin_prepare_frame`] beforehand;
+    /// Callers executing within a prepare batch should call `begin_prepare_frame` beforehand;
     /// this method preserves all existing indices for the active batch.
     pub fn shape_text_indexed(&mut self, text: &str, params: TextShapeParams) -> usize {
         let key = build_shape_cache_key(text, params);
@@ -323,6 +398,9 @@ impl TextSystem {
 
     fn build_shaped_buffer(&mut self, text: &str, params: TextShapeParams) -> Buffer {
         let metrics = Metrics::new(params.font_size, params.line_height);
+        if self.font_system.db().is_empty() {
+            return Buffer::new_empty(metrics);
+        }
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
         buffer.set_size(
@@ -373,7 +451,7 @@ impl TextSystem {
     /// # Returns
     /// Horizontal advance width in pixels. Returns `0.0` if `text` is empty.
     pub fn measure_advance(&mut self, text: &str, font_size: f32) -> f32 {
-        if text.is_empty() {
+        if text.is_empty() || self.font_system.db().is_empty() {
             return 0.0;
         }
 

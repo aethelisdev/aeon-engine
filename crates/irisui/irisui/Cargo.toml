@@ -1,9 +1,32 @@
 [package]
 name = "irisui"
 description = "GPU-accelerated Retained-Mode UI framework for games and creative software"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui"
+readme = "README.md"
+keywords = ["gui", "ui", "retained-mode", "wgpu", "docking"]
+categories = ["gui", "rendering", "game-development"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "examples/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
+
+[features]
+default = ["bundled-fonts"]
+## Embeds all bundled Google Noto fonts (`bundled-sans`, `bundled-symbols`, `bundled-emoji`).
+bundled-fonts = ["irisui-text/bundled-fonts"]
+## Embeds the bundled Noto Sans UI font (~556 KB).
+bundled-sans = ["irisui-text/bundled-sans"]
+## Embeds the bundled Noto Sans Symbols & Math fonts (~1.48 MB).
+bundled-symbols = ["irisui-text/bundled-symbols"]
+## Embeds the bundled monochrome Noto Emoji font (~1.9 MB).
+bundled-emoji = ["irisui-text/bundled-emoji"]
 
 [dependencies]
 irisui-core = { workspace = true }
@@ -14,6 +37,11 @@ irisui-widgets = { workspace = true }
 irisui-dock = { workspace = true }
 irisui-winit = { workspace = true }
 irisui-workbench = { workspace = true }
+
+[dev-dependencies]
+wgpu = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }
 
 [lints]
 workspace = true

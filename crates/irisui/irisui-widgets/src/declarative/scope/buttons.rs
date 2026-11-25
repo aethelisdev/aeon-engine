@@ -4,7 +4,7 @@
 //! # Declarative Buttons & Interactive Clickable Controls
 //!
 //! Provides interactive push buttons, icon buttons, styled variants, and toggle pill
-//! widgets returning immediate [`WidgetResponse`] interaction states.
+//! widgets returning immediate [`irisui_core::WidgetResponse`] interaction states.
 
 pub mod action_bar;
 pub mod icon;

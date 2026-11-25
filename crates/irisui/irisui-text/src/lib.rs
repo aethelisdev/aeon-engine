@@ -71,6 +71,7 @@ mod tests {
     use super::*;
     use irisui_core::{Color, Rect, TextAlign};
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_text_measurement() {
         let mut system = TextSystem::new();
@@ -80,6 +81,7 @@ mod tests {
         assert!(size.height >= 20.0);
     }
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_custom_font_family() {
         let mut system = TextSystem::new();
@@ -97,6 +99,7 @@ mod tests {
         assert!(adv_fallback > 0.0);
     }
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_text_advance_dynamic() {
         let adv_11 = measure_text_advance("Hello World", 11.0);
@@ -123,6 +126,7 @@ mod tests {
         assert_eq!(section.align, TextAlign::Center);
     }
 
+    #[cfg(feature = "bundled-sans")]
     #[test]
     fn test_text_wrapping_modes() {
         use irisui_core::TextWrap;

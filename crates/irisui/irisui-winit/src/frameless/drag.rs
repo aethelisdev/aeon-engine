@@ -478,7 +478,7 @@ impl WindowDragHost {
     ///
     /// # Arguments
     /// * `window` - Target platform window implementation.
-    /// * `response` - Evaluated declarative response from a [`TitleBar`] widget.
+    /// * `response` - Evaluated declarative response from a [`irisui_widgets::TitleBar`] widget.
     /// * `now` - Explicit timestamp of the interaction pass.
     pub fn process_title_bar_response_at<W: WindowInterface>(
         &mut self,

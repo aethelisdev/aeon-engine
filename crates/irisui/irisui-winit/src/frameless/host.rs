@@ -175,7 +175,7 @@ impl FramelessWindowHost {
     /// - Always updates internal HighDPI scale factor on [`WindowEvent::ScaleFactorChanged`],
     ///   clearing cached cursor position and resetting hover cursor to prevent stale coordinates.
     /// - Clears cached cursor coordinate and restores default cursor on [`WindowEvent::CursorLeft`]
-    ///   and [`WindowEvent::Focused(false)`].
+    ///   and [`WindowEvent::Focused`] (`false`).
     /// - Converts physical cursor positions to logical space, rejecting non-finite coordinates.
     /// - When hovering over straight edges or diagonal corners, applies the directional cursor icon
     ///   and consumes the event (`true`).

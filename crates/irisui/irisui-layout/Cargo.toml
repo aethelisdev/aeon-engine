@@ -1,9 +1,21 @@
 [package]
 name = "irisui-layout"
 description = "Taffy-based layout engine adapter and caching subsystem for Iris UI"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition.workspace = true
+rust-version = "1.93"
+authors.workspace = true
 license.workspace = true
+repository = "https://github.com/AethelisDEV/aeon-engine"
+documentation = "https://docs.rs/irisui-layout"
+readme = "README.md"
+keywords = ["gui", "ui", "flexbox", "layout", "taffy"]
+categories = ["gui"]
+include = ["LICENSE-MPL-2.0", "src/**/*", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
 
 [dependencies]
 irisui-core = { workspace = true }

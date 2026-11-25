@@ -56,6 +56,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
+authors = ["AethelisDEV <aethelismedia@gmail.com>"]
 license = "MPL-2.0"
 
 [workspace.lints.rust]
@@ -123,15 +124,15 @@ ae_mcp = { path = "crates/ae_mcp" }
 ae_export = { path = "crates/ae_export" }
 ae_world = { path = "crates/ae_world" }
 
-irisui-core = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-core" }
-irisui-dock = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-dock" }
-irisui-layout = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-layout" }
-irisui-text = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-text" }
-irisui-wgpu = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-wgpu" }
-irisui-widgets = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-widgets" }
-irisui-winit = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-winit" }
-irisui-workbench = { version = "0.1.0-alpha.1", path = "crates/irisui/irisui-workbench" }
-irisui = { path = "crates/irisui/irisui" }
+irisui-core = { version = "0.1.0", path = "crates/irisui/irisui-core" }
+irisui-dock = { version = "0.1.0", path = "crates/irisui/irisui-dock" }
+irisui-layout = { version = "0.1.0", path = "crates/irisui/irisui-layout" }
+irisui-text = { version = "0.1.0", path = "crates/irisui/irisui-text" }
+irisui-wgpu = { version = "0.1.0", path = "crates/irisui/irisui-wgpu" }
+irisui-widgets = { version = "0.1.0", path = "crates/irisui/irisui-widgets" }
+irisui-winit = { version = "0.1.0", path = "crates/irisui/irisui-winit" }
+irisui-workbench = { version = "0.1.0", path = "crates/irisui/irisui-workbench" }
+irisui = { version = "0.1.0", path = "crates/irisui/irisui" }
 
 slotmap = { version = "1.1.1", features = ["serde"] }
 bitflags = "2.8"
