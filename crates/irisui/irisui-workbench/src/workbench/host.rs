@@ -449,6 +449,12 @@ impl<A: WorkbenchAppData> WorkbenchHost<A> {
         self.workbench.scale_factor()
     }
 
+    /// Sets the active clamped UI scale factor (`[0.6, 2.0]`) and marks the shell dirty on change.
+    #[inline]
+    pub fn set_scale_factor(&mut self, scale_factor: f32) -> f32 {
+        self.workbench.set_scale_factor(scale_factor)
+    }
+
     /// Steps UI zoom up or down across predefined scale presets.
     #[inline]
     pub fn step_zoom(&mut self, increase: bool) -> f32 {

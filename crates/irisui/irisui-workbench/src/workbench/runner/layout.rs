@@ -20,6 +20,7 @@ use irisui_dock::{
     UiNotifier, compute_dock_layout_with_viewer,
 };
 use irisui_layout::LayoutError;
+use irisui_winit::frameless::WindowInterface;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -28,6 +29,27 @@ where
     TabId: Clone + Copy + Eq + Hash + Debug + Send + Sync + 'static,
     Action: Send + Sync + 'static,
 {
+    /// Resolves effective logical viewport dimensions scaled by [`Self::scale_factor`] so pointer events,
+    /// splitter hit-testing, frameless window borders, and menubar bounds match rendered UI coordinates.
+    #[inline]
+    #[must_use]
+    pub fn effective_window_logical_size<W: WindowInterface>(&self, window: &W) -> Size {
+        let raw = window.logical_size();
+        let os_scale = window.scale_factor();
+        let os_scale_f32 = if os_scale.is_finite() && os_scale > 0.0 {
+            os_scale as f32
+        } else {
+            1.0
+        };
+        let zoom = self.scale_factor();
+        let phys_w = raw.width * os_scale_f32;
+        let phys_h = raw.height * os_scale_f32;
+        if phys_w.is_finite() && phys_h.is_finite() && phys_w > 0.0 && phys_h > 0.0 {
+            Size::new(phys_w / zoom, phys_h / zoom)
+        } else {
+            self.last_window_size.unwrap_or(raw)
+        }
+    }
     /// Returns `true` if any partial subtree rebuild or layout pass triggered text preparation.
     #[inline]
     #[must_use]

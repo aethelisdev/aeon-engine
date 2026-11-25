@@ -49,6 +49,23 @@ where
         target
     }
 
+    /// Sets the active UI zoom scale factor clamped to `[0.6, 2.0]` (defaulting to `1.0` for
+    /// non-finite or non-positive values) and forces shell/layout invalidation on change.
+    #[inline]
+    pub fn set_scale_factor(&mut self, scale_factor: f32) -> f32 {
+        let clamped = if scale_factor.is_finite() && scale_factor > 0.1 {
+            scale_factor.clamp(0.6, 2.0)
+        } else {
+            1.0
+        };
+        if (self.zoom_factor - clamped).abs() > f32::EPSILON {
+            self.zoom_factor = clamped;
+            self.lifecycle.mark_shell_dirty();
+            self.notifier.tag_all();
+        }
+        self.zoom_factor
+    }
+
     /// Resets the UI zoom factor to default 100% (1.0).
     #[inline]
     pub fn reset_zoom(&mut self) -> f32 {

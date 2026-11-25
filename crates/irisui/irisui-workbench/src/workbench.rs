@@ -38,6 +38,8 @@ mod tests_outside_click;
 #[cfg(test)]
 mod tests_popups;
 #[cfg(test)]
+mod tests_scale_and_undo;
+#[cfg(test)]
 mod tests_theme_screen;
 
 pub use frame::{

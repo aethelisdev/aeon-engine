@@ -369,6 +369,8 @@ where
         self.handle_shell_event_inner(window, event, dock_state, content_consumed, false)
     }
 
+    /// Handles an incoming shell-layer event (resize borders, titlebar drag, modal traps, dock splitters/tabs)
+    /// while skipping content-consumed interactions unless a dock drag is already active.
     fn handle_shell_event_inner<W: WindowInterface>(
         &mut self,
         window: &mut W,
@@ -377,7 +379,7 @@ where
         content_consumed: bool,
         suppress_global_shortcuts: bool,
     ) -> WorkbenchOutcome<Action, TabId> {
-        let logical_size = window.logical_size();
+        let logical_size = self.effective_window_logical_size(window);
         let screen_w = logical_size.width;
         let screen_h = logical_size.height;
         self.last_window_size = Some(logical_size);
@@ -479,6 +481,7 @@ where
                 };
 
                 if let Some(new_zoom) = zoom_target {
+                    self.last_window_size = Some(self.effective_window_logical_size(window));
                     let mut outcome = self.make_outcome(true, None);
                     if let Some(builder) = &self.zoom_action {
                         outcome.actions.push(builder(new_zoom));
@@ -563,7 +566,7 @@ where
         event: &UiEvent,
         dock_state: &mut DockState<TabId>,
     ) -> FloatingInteractionResponse<TabId> {
-        let logical_size = window.logical_size();
+        let logical_size = self.effective_window_logical_size(window);
         let clamp_bounds = self.floating_clamp_bounds(logical_size);
 
         let tab_viewer = self.panel_registry.tab_viewer();
