@@ -430,6 +430,26 @@ impl DebugShapes {
             }
         }
     }
+
+    /// Generates transformed world-space wireframe lines from a precomputed [`ConvexHullWireframe`].
+    pub fn generate_convex_hull_lines(
+        vertices: &mut Vec<DebugLineVertex>,
+        model: &cgmath::Matrix4<f32>,
+        hull: &super::convex_hull::ConvexHullWireframe,
+        color: [f32; 3],
+    ) {
+        vertices.reserve(hull.edges.len() * 2);
+        for &(start, end) in &hull.edges {
+            vertices.push(DebugLineVertex {
+                position: Self::transform_point(model, start),
+                color,
+            });
+            vertices.push(DebugLineVertex {
+                position: Self::transform_point(model, end),
+                color,
+            });
+        }
+    }
 }
 
 #[cfg(test)]

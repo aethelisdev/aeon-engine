@@ -61,6 +61,7 @@ pub enum EngineUiAction {
     SetThemePreset(crate::ui::iris_bridge::theme::ThemePreset),
     SelectEntity(Option<ae_ecs::Entity>),
     SetWireframe(bool),
+    SetShowAllColliders(bool),
     SetGridEnabled(bool),
     SetGizmoMode(ae_gizmos::GizmoMode),
     ToggleGizmoSpace,

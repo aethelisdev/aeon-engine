@@ -192,6 +192,12 @@ fn dispatch_single_action(engine: &mut EditorSession, action: EngineUiAction) ->
             engine.ui.tag_panel_redraw(PanelId::Stats);
             (false, false)
         }
+        EngineUiAction::SetShowAllColliders(enabled) => {
+            engine.editor.show_all_colliders = enabled;
+            engine.ui.tag_panel_redraw(PanelId::Viewport);
+            engine.ui.tag_panel_redraw(PanelId::Stats);
+            (false, false)
+        }
         EngineUiAction::SetGridEnabled(enabled) => {
             engine.editor.grid_enabled = enabled;
             engine.ui.tag_panel_redraw(PanelId::Viewport);

@@ -17,6 +17,9 @@ pub const STATS_TAG_TOGGLE_WIREFRAME: u64 = UiTag::from_str("stats.toggle.wirefr
 /// Semantic tag assigned to the Viewport Coordinate Grid toggle checkbox container.
 pub const STATS_TAG_TOGGLE_GRID: u64 = UiTag::from_str("stats.toggle.grid").raw();
 
+/// Semantic tag assigned to the Show All Colliders toggle checkbox container.
+pub const STATS_TAG_TOGGLE_COLLIDERS: u64 = UiTag::from_str("stats.toggle.colliders").raw();
+
 /// Semantic tag assigned to the Stats Panel root viewport container.
 pub const STATS_TAG_PANEL_ROOT: u64 = UiTag::from_str("stats.panel_root").raw();
 
@@ -68,6 +71,7 @@ pub const STATS_TAG_GPU_TOTAL: u64 = UiTag::from_str("stats.gpu.total").raw();
 const ALL_STATS_TAGS: &[u64] = &[
     STATS_TAG_TOGGLE_WIREFRAME,
     STATS_TAG_TOGGLE_GRID,
+    STATS_TAG_TOGGLE_COLLIDERS,
     STATS_TAG_PANEL_ROOT,
     STATS_TAG_CANVAS,
     STATS_TAG_VIEWPORT,

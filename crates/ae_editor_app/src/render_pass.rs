@@ -72,14 +72,17 @@ impl EditorSession {
 
         let has_gizmo_overlay = self.prepare_edit_gizmo_overlay(render_enabled, is_2d);
         if render_enabled && self.window.mode == EngineMode::Edit {
-            self.gizmos.debug.collect_lines(
-                &self.render.render_state.device,
-                &self.render.render_state.queue,
-                &self.core.world,
-                &self.render.asset_manager,
-                self.render.camera.build_view_projection_matrix(),
-                &self.editor.selected_entities[..],
-            );
+            self.gizmos
+                .debug
+                .collect_lines(ae_gizmos_render::DebugCollectParams {
+                    device: &self.render.render_state.device,
+                    queue: &self.render.render_state.queue,
+                    world: &self.core.world,
+                    asset_manager: &self.render.asset_manager,
+                    view_proj: self.render.camera.build_view_projection_matrix(),
+                    selected_entities: &self.editor.selected_entities[..],
+                    show_all_colliders: self.editor.show_all_colliders,
+                });
             if !is_2d {
                 let vp_rect = self.render.render_state.last_viewport_rect;
                 let vp_w = (vp_rect.max_x - vp_rect.min_x).max(1.0);

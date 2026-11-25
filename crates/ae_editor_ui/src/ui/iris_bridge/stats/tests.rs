@@ -8,11 +8,12 @@
 
 use crate::ui::iris_bridge::stats::cpu_breakdown::update_cpu_breakdown_texts;
 use crate::ui::iris_bridge::stats::graph::update_oscilloscope_texts;
+use crate::ui::iris_bridge::stats::overlays::ViewportOverlaySettings;
 use crate::ui::iris_bridge::stats::panel::build_stats_panel;
 use crate::ui::iris_bridge::stats::types::{
     STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_CPU_BALANCE, STATS_TAG_CPU_TOTAL,
-    STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_VIEWPORT,
-    StatsPanelState, is_stats_tag,
+    STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_COLLIDERS, STATS_TAG_TOGGLE_GRID,
+    STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_VIEWPORT, StatsPanelState, is_stats_tag,
 };
 use crate::ui::types::{EditorTelemetrySnapshot, EngineUiAction};
 use ae_diagnostic::{CpuSyncTimings, FramePacingStats, FrameRingBuffer};
@@ -25,7 +26,9 @@ fn test_stats_tag_invariants() {
     assert!(is_stats_tag(STATS_TAG_CANVAS));
     assert!(is_stats_tag(STATS_TAG_TOGGLE_WIREFRAME));
     assert!(is_stats_tag(STATS_TAG_TOGGLE_GRID));
+    assert!(is_stats_tag(STATS_TAG_TOGGLE_COLLIDERS));
     assert_ne!(STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_TOGGLE_GRID);
+    assert_ne!(STATS_TAG_TOGGLE_COLLIDERS, STATS_TAG_TOGGLE_GRID);
 
     assert!(!is_stats_tag(0));
     assert!(!is_stats_tag(0x1234_5678_0000_0000));
@@ -53,7 +56,11 @@ fn test_build_stats_panel_declarative_structure() {
                 &telemetry,
                 ("Test Adapter", "Vulkan"),
                 42,
-                (true, false),
+                ViewportOverlaySettings {
+                    wireframe_enabled: true,
+                    grid_enabled: false,
+                    show_all_colliders: false,
+                },
                 &mut bus,
             );
         });
@@ -77,6 +84,12 @@ fn test_build_stats_panel_declarative_structure() {
     assert_eq!(
         tree.node_tagged(STATS_TAG_TOGGLE_GRID)
             .expect("STATS_TAG_TOGGLE_GRID must exist in tree")
+            .role,
+        WidgetRole::Checkbox
+    );
+    assert_eq!(
+        tree.node_tagged(STATS_TAG_TOGGLE_COLLIDERS)
+            .expect("STATS_TAG_TOGGLE_COLLIDERS must exist in tree")
             .role,
         WidgetRole::Checkbox
     );
@@ -108,7 +121,11 @@ fn test_stats_panel_state_ring_buffer_snapshot_and_live_text_refresh() {
         &telemetry,
         ("TestGpu", "Vulkan"),
         1,
-        (false, true),
+        ViewportOverlaySettings {
+            wireframe_enabled: false,
+            grid_enabled: true,
+            show_all_colliders: false,
+        },
         &mut bus,
     );
 
@@ -150,7 +167,11 @@ fn test_stats_panel_declarative_action_bus_emission() {
         &telemetry,
         ("MockGPU", "Vulkan"),
         10,
-        (true, false),
+        ViewportOverlaySettings {
+            wireframe_enabled: true,
+            grid_enabled: false,
+            show_all_colliders: false,
+        },
         &mut initial_bus,
     );
     assert!(initial_bus.is_empty());
@@ -162,11 +183,36 @@ fn test_stats_panel_declarative_action_bus_emission() {
         &telemetry,
         ("MockGPU", "Vulkan"),
         10,
-        (true, false),
+        ViewportOverlaySettings {
+            wireframe_enabled: true,
+            grid_enabled: false,
+            show_all_colliders: false,
+        },
         &mut clicked_bus,
     );
 
     let drained: Vec<EngineUiAction> = clicked_bus.drain().collect();
     assert_eq!(drained.len(), 1);
     assert!(matches!(drained[0], EngineUiAction::SetWireframe(false)));
+
+    tree.event_state.frame_clicked_tag = Some(STATS_TAG_TOGGLE_COLLIDERS);
+    let mut colliders_bus = ActionBus::new();
+    build_stats_panel(
+        &mut UiScope::new(&mut tree, root),
+        &telemetry,
+        ("MockGPU", "Vulkan"),
+        10,
+        ViewportOverlaySettings {
+            wireframe_enabled: true,
+            grid_enabled: false,
+            show_all_colliders: false,
+        },
+        &mut colliders_bus,
+    );
+    let collider_actions: Vec<EngineUiAction> = colliders_bus.drain().collect();
+    assert_eq!(collider_actions.len(), 1);
+    assert!(matches!(
+        collider_actions[0],
+        EngineUiAction::SetShowAllColliders(true)
+    ));
 }

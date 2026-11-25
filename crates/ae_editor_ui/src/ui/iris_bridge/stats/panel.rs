@@ -10,7 +10,7 @@ use super::cpu_breakdown::{build_cpu_breakdown_content, update_cpu_breakdown_tex
 use super::gpu_breakdown::build_gpu_breakdown_content;
 use super::graph::{build_frame_pacing_content, refresh_live_oscilloscope};
 use super::metrics::{build_scene_geometry_content, build_vram_breakdown_content};
-use super::overlays::build_viewport_overlays_content;
+use super::overlays::{ViewportOverlaySettings, build_viewport_overlays_content};
 use super::types::{STATS_TAG_VIEWPORT, StatsPanelState};
 use crate::ui::panel_registry::EditorPanelContext;
 use crate::ui::types::{EditorTelemetrySnapshot, EngineUiAction};
@@ -25,10 +25,11 @@ impl StatsPanelState {
             ctx.data.telemetry,
             (ctx.data.gpu_adapter_name, ctx.data.gpu_backend),
             ctx.data.world.len() as usize,
-            (
-                ctx.data.editor_state.wireframe_enabled,
-                ctx.data.editor_state.grid_enabled,
-            ),
+            ViewportOverlaySettings {
+                wireframe_enabled: ctx.data.editor_state.wireframe_enabled,
+                grid_enabled: ctx.data.editor_state.grid_enabled,
+                show_all_colliders: ctx.data.editor_state.show_all_colliders,
+            },
             ctx.action_bus,
         );
         self.frame_ring_buffer = Some(ctx.data.telemetry.frame_pacing);
@@ -57,7 +58,7 @@ pub fn build_stats_panel(
     telemetry: &EditorTelemetrySnapshot,
     (gpu_adapter_name, gpu_backend): (&str, &str),
     active_entities_count: usize,
-    (wireframe_enabled, grid_enabled): (bool, bool),
+    overlays: ViewportOverlaySettings,
     action_bus: &mut ActionBus<EngineUiAction>,
 ) {
     scope.scroll_area("StatsViewport", STATS_TAG_VIEWPORT, None, |vp_scope| {
@@ -92,12 +93,7 @@ pub fn build_stats_panel(
             build_vram_breakdown_content(card_scope, &telemetry.vram_stats);
         });
         vp_scope.telemetry_card("🎛", "Viewport Overlays", |card_scope| {
-            build_viewport_overlays_content(
-                card_scope,
-                wireframe_enabled,
-                grid_enabled,
-                action_bus,
-            );
+            build_viewport_overlays_content(card_scope, overlays, action_bus);
         });
     });
 }

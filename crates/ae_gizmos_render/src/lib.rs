@@ -11,5 +11,5 @@ pub mod debug_renderer;
 pub mod gizmo_renderer;
 
 pub use billboard_renderer::{BillboardPipeline, BillboardPrepareParams, BillboardSystem};
-pub use debug_renderer::DebugRenderer;
+pub use debug_renderer::{DebugCollectParams, DebugRenderer};
 pub use gizmo_renderer::{GizmoOverlayPrepareParams, GizmoRenderer};

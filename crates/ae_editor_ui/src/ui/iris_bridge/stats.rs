@@ -17,8 +17,9 @@ pub mod tests;
 pub mod types;
 
 pub use graph::append_oscilloscope_quads;
+pub use overlays::ViewportOverlaySettings;
 pub use panel::build_stats_panel;
 pub use types::{
-    STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME,
-    STATS_TAG_VIEWPORT, StatsPanelState, StatsState, is_stats_tag,
+    STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_COLLIDERS, STATS_TAG_TOGGLE_GRID,
+    STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_VIEWPORT, StatsPanelState, StatsState, is_stats_tag,
 };

@@ -5,4 +5,4 @@
 
 pub mod renderer;
 
-pub use renderer::{DebugRenderer, debug_line_vertex_layout};
+pub use renderer::{DebugCollectParams, DebugRenderer, debug_line_vertex_layout};

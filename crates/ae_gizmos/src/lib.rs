@@ -13,7 +13,10 @@ pub mod scene_view;
 pub mod transform_gizmo;
 
 pub use billboard::{BillboardIconType, BillboardUniform, BillboardVertex};
-pub use debug_shapes::{DebugArcParams, DebugCircleParams, DebugLineVertex, DebugShapes};
+pub use debug_shapes::{
+    ConvexHullWireframe, DebugArcParams, DebugCircleParams, DebugLineVertex, DebugShapes,
+    build_convex_hull_wireframe,
+};
 pub use scene_view::{SceneNavigationGizmo, SceneViewSnap};
 pub use transform_gizmo::{
     ActiveAxis, GizmoInputParams, GizmoMode, GizmoScreenParams, GizmoSpace, GizmoVertex,

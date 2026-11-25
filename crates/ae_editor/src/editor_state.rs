@@ -110,6 +110,8 @@ pub struct EditorState {
     pub history_revision: u64,
     /// Whether viewport wireframe overlay mode is enabled.
     pub wireframe_enabled: bool,
+    /// Whether all scene collider wireframes are drawn in Edit mode (`false` draws selected only).
+    pub show_all_colliders: bool,
     /// Whether the infinite world grid overlay is enabled in 3D Edit mode.
     pub grid_enabled: bool,
     /// Active viewport transform gizmo manipulation tool.
@@ -156,6 +158,7 @@ impl Default for EditorState {
             is_2d: false,
             history_revision: 0,
             wireframe_enabled: false,
+            show_all_colliders: false,
             grid_enabled: true,
             gizmo_mode: ae_gizmos::GizmoMode::Select,
             gizmo_space: ae_gizmos::GizmoSpace::Local,
