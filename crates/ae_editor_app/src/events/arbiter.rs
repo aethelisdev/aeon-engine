@@ -127,22 +127,11 @@ impl InputArbiter {
         };
         let state = key_event.state;
 
-        if key == KeyCode::F5 && state == ElementState::Pressed {
-            self.pointer_capture = PointerCapture::None;
-            let next_mode = if session.window.mode == EngineMode::Play {
-                EngineMode::Edit
-            } else {
-                EngineMode::Play
-            };
-            session.process_ui_actions(vec![EngineUiAction::ChangeMode(next_mode)]);
-        }
-
-        if key == KeyCode::Escape
-            && state == ElementState::Pressed
-            && session.window.mode == EngineMode::Play
+        if let Some(next_mode) =
+            Self::mode_transition_for_key(session.window.mode, key, state, key_event.repeat)
         {
             self.pointer_capture = PointerCapture::None;
-            session.process_ui_actions(vec![EngineUiAction::ChangeMode(EngineMode::Edit)]);
+            session.process_ui_actions(vec![EngineUiAction::ChangeMode(next_mode)]);
         }
 
         if !consumed
@@ -228,6 +217,28 @@ impl InputArbiter {
                     }
                 }
             },
+        }
+    }
+
+    /// Computes whether a non-repeating key press triggers an Edit ↔ Play mode transition.
+    #[must_use]
+    pub fn mode_transition_for_key(
+        current_mode: EngineMode,
+        key: KeyCode,
+        state: ElementState,
+        is_repeat: bool,
+    ) -> Option<EngineMode> {
+        if is_repeat || state != ElementState::Pressed {
+            return None;
+        }
+        match key {
+            KeyCode::F5 => Some(if current_mode == EngineMode::Play {
+                EngineMode::Edit
+            } else {
+                EngineMode::Play
+            }),
+            KeyCode::Escape if current_mode == EngineMode::Play => Some(EngineMode::Edit),
+            _ => None,
         }
     }
 

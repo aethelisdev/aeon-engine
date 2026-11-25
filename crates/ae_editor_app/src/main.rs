@@ -238,7 +238,12 @@ impl ApplicationHandler for EditorAppRunner {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(session) = self.session.as_mut() {
+        if let Some(session) = self.session.as_ref() {
+            if session.editor.should_exit {
+                self.session = None;
+                event_loop.exit();
+                return;
+            }
             let target_fps = session
                 .render
                 .render_state
@@ -249,7 +254,7 @@ impl ApplicationHandler for EditorAppRunner {
                 spin_sleep::sleep(remaining);
             }
             self.frame_pacer.reset();
-            self.update_and_render(event_loop);
+            session.window.window.request_redraw();
         }
     }
 }

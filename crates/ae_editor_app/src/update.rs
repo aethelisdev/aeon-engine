@@ -30,17 +30,6 @@ impl EditorSession {
 
         self.process_editor_shortcuts();
 
-        if self.window.mode == EngineMode::Play
-            && self.core.input.is_key_just_pressed(KeyCode::Escape)
-        {
-            self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::ChangeMode(
-                EngineMode::Edit,
-            )]);
-            self.set_cursor_grab(false);
-        }
-
-        self.sync_transform_gizmo_orientation();
-
         self.window.profiler.begin_ecs();
         self.window.profiler.begin_physics();
         let is_play = self.window.mode == EngineMode::Play;
@@ -79,38 +68,24 @@ impl EditorSession {
     }
 
     fn poll_texture_hot_reload(&mut self) {
+        if self.core.time.frame_count == 0 || !self.core.time.frame_count.is_multiple_of(15) {
+            return;
+        }
         for path in self.render.asset_manager.texture_path_map.keys() {
             self.host_io.texture_watcher.track_file(path, None);
         }
-        if self.core.time.frame_count > 0 && self.core.time.frame_count.is_multiple_of(15) {
-            let modified_files = self.host_io.texture_watcher.check_modified_files();
-            for path in modified_files {
-                let path_str = path.to_string_lossy();
-                if let Ok(cpu_data) =
-                    ae_texture::parse_texture_file(&path_str, ae_texture::ColorSpace::Srgb)
-                {
-                    self.render.render_state.reload_cpu_texture_data(
-                        &mut self.render.asset_manager,
-                        &path,
-                        cpu_data,
-                    );
-                }
+        let modified_files = self.host_io.texture_watcher.check_modified_files();
+        for path in modified_files {
+            let path_str = path.to_string_lossy();
+            if let Ok(cpu_data) =
+                ae_texture::parse_texture_file(&path_str, ae_texture::ColorSpace::Srgb)
+            {
+                self.render.render_state.reload_cpu_texture_data(
+                    &mut self.render.asset_manager,
+                    &path,
+                    cpu_data,
+                );
             }
-        }
-    }
-
-    fn sync_transform_gizmo_orientation(&mut self) {
-        self.gizmos.transform.mode = self.editor.gizmo_mode;
-        self.gizmos.transform.space = self.editor.gizmo_space;
-        if let Some(ent) = self.editor.primary_selected()
-            && let Ok(rot) = self
-                .core
-                .world
-                .inspect::<ae_plugin_api::Rotation, _>(ent, |r| {
-                    cgmath::Quaternion::new(r.w, r.x, r.y, r.z)
-                })
-        {
-            self.gizmos.transform.entity_rotation = rot;
         }
     }
 
@@ -225,16 +200,20 @@ impl EditorSession {
 
     /// Dispatches queued UI actions and applies physics/HUD resets across Edit ↔ Play transitions.
     pub fn process_ui_actions(&mut self, actions: Vec<ae_editor_ui::ui::EngineUiAction>) {
+        if actions.is_empty() {
+            return;
+        }
         self.window.profiler.begin_ui();
         let old_mode = self.window.previous_mode;
-        crate::actions::process_ui_actions(self, actions);
+        let physics_dirty = crate::actions::process_ui_actions(self, actions);
         if self.window.mode != old_mode {
             self.window.previous_mode = self.window.mode;
             self.sim
                 .reset_for_mode_transition(&mut self.core.world, &self.render.asset_manager);
+        } else if physics_dirty {
+            self.sim.physics_sync_dirty = true;
         }
         self.window.profiler.end_ui();
-        self.sim.physics_sync_dirty = true;
     }
 
     /// Undoes the last editor command and marks physics for resync.

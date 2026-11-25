@@ -42,12 +42,12 @@ pub fn handle_import_dropped_files(
     paths: Vec<PathBuf>,
     target: DroppedFileTarget,
 ) {
-    let vp = engine.ui.last_viewport_rect;
+    let vp = engine.render.render_state.last_viewport_rect;
     let world_spawn_pos = match target {
         DroppedFileTarget::AssetLibrary => None,
         DroppedFileTarget::Workspace(pos) => ae_editor::picking::resolve_ground_drop_world_pos(
             pos,
-            [vp.x, vp.y, vp.width, vp.height],
+            [vp.min_x, vp.min_y, vp.max_x - vp.min_x, vp.max_y - vp.min_y],
             &engine.render.camera,
         ),
     };

@@ -49,14 +49,16 @@ impl EditorSession {
             self.render.rebuild_sprite_2d();
         }
 
-        let empty_set = std::collections::HashSet::new();
+        static EMPTY_SET: std::sync::OnceLock<std::collections::HashSet<ae_ecs::Entity>> =
+            std::sync::OnceLock::new();
+        let empty_set = EMPTY_SET.get_or_init(std::collections::HashSet::new);
         let (selected_set, active_ent) = if self.window.mode == EngineMode::Edit {
             (
                 &self.editor.selected_entities_set,
                 self.editor.primary_selected(),
             )
         } else {
-            (&empty_set, None)
+            (empty_set, None)
         };
         let prepared = self.render.prepare_scene(
             &mut self.core.world,
@@ -79,8 +81,9 @@ impl EditorSession {
                 &self.editor.selected_entities[..],
             );
             if !is_2d {
-                let vp_w = self.ui.last_viewport_rect.width.max(1.0);
-                let vp_h = self.ui.last_viewport_rect.height.max(1.0);
+                let vp_rect = self.render.render_state.last_viewport_rect;
+                let vp_w = (vp_rect.max_x - vp_rect.min_x).max(1.0);
+                let vp_h = (vp_rect.max_y - vp_rect.min_y).max(1.0);
                 self.gizmos
                     .billboards
                     .prepare_overlay(ae_gizmos_render::BillboardPrepareParams {
@@ -180,6 +183,7 @@ impl EditorSession {
                 });
                 if (ui.scale_factor() - prev_scale).abs() > f32::EPSILON {
                     ui.on_window_resized(surface_size.0, surface_size.1);
+                    ui.invalidate_all();
                 }
                 #[cfg(feature = "mcp")]
                 if let Some(session) = mcp.as_mut() {
@@ -215,7 +219,9 @@ impl EditorSession {
             return Err(e);
         }
 
-        self.process_ui_actions(ui_actions);
+        if !ui_actions.is_empty() {
+            self.process_ui_actions(ui_actions);
+        }
         self.sync_play_cursor_grab();
         self.window.profiler.end_render();
         Ok(())
