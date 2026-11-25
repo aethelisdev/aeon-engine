@@ -636,6 +636,21 @@ impl EventState {
         self.text_drag_anchor = None;
     }
 
+    /// Clears retained numeric undo/redo stacks, active/pending inline text edits,
+    /// cached continuous Euler/HSV representations, and focus across context resets.
+    #[inline]
+    pub fn clear_interaction_history(&mut self) {
+        self.numeric_undo.clear();
+        self.active_text_edit = None;
+        self.last_completed_text_edit = None;
+        self.text_drag_anchor = None;
+        self.cached_euler = None;
+        self.cached_color_hsv = None;
+        self.color_edit_origin = None;
+        self.focused = None;
+        self.focused_tag = None;
+    }
+
     /// Returns `true` if any widget node, semantic tag, or text/numeric edit currently holds keyboard focus.
     #[inline]
     #[must_use]

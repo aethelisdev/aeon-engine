@@ -593,6 +593,19 @@ impl UiTree {
         self.event_state.numeric_undo.set_enabled(enabled);
     }
 
+    /// Clears retained numeric undo/redo history and pending restorations on [`EventState`].
+    #[inline]
+    pub fn clear_numeric_undo(&mut self) {
+        self.event_state.numeric_undo.clear();
+    }
+
+    /// Clears all transient interaction history (numeric undo/redo, active text edit, cached Euler/HSV,
+    /// and keyboard focus) when switching scenes or documents.
+    #[inline]
+    pub fn clear_interaction_history(&mut self) {
+        self.event_state.clear_interaction_history();
+    }
+
     /// Registers `tag` as a live/volatile node supporting layout-bypassing in-place refreshes.
     #[inline]
     pub fn register_live_tag(&mut self, tag: u64) {

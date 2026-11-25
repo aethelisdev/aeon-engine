@@ -455,6 +455,13 @@ impl<A: WorkbenchAppData> WorkbenchHost<A> {
         self.workbench.set_scale_factor(scale_factor)
     }
 
+    /// Clears transient widget interaction history (numeric undo/redo, active text edit, focus,
+    /// and popups) across scene or document reloads.
+    #[inline]
+    pub fn clear_interaction_history(&mut self) {
+        self.workbench.clear_interaction_history();
+    }
+
     /// Steps UI zoom up or down across predefined scale presets.
     #[inline]
     pub fn step_zoom(&mut self, increase: bool) -> f32 {

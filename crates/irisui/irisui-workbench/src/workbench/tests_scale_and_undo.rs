@@ -6,7 +6,7 @@
 
 use super::runner::Workbench;
 use crate::descriptors::workbench::WorkbenchDescriptor;
-use irisui_core::event::{MouseButton, UiEvent};
+use irisui_core::event::{KeyCode, MouseButton, UiEvent};
 use irisui_core::geometry::{Point, Size};
 use irisui_dock::state::DockState;
 use irisui_dock::tree::DockTree;
@@ -181,6 +181,91 @@ fn test_splitter_drag_works_at_non_100_percent_ui_scale() {
         ratio > 0.55,
         "Dragging splitter right at 125% zoom must update ratio > 0.55, got {ratio}"
     );
+}
+
+#[test]
+fn test_numeric_undo_cleared_on_selection_or_domain_change_prevents_stale_ctrl_y() {
+    let mut wb = create_test_workbench();
+    wb.set_screen_size((1280.0, 720.0));
+    let mut win = MockWindow {
+        logical_size: Size::new(1280.0, 720.0),
+        ..Default::default()
+    };
+
+    // 1. Entity 100 had Scale reset [60, 1, 60] -> [1, 1, 1] and undone (now waiting on numeric_undo redo_stack)
+    let scale_tag = 0x5CAE_u64;
+    wb.tree
+        .event_state
+        .numeric_undo
+        .push_vec3(scale_tag, [60.0, 1.0, 60.0], [1.0, 1.0, 1.0]);
+    assert_eq!(
+        wb.tree.event_state.numeric_undo.undo(),
+        Some(scale_tag.wrapping_add(1))
+    );
+    let _ = wb
+        .tree
+        .event_state
+        .numeric_undo
+        .take_pending_vec3(scale_tag);
+    assert!(wb.tree.event_state.numeric_undo.can_redo());
+
+    // 2. Switching entity selection clears numeric_undo so Ctrl+Y cannot corrupt the newly selected entity
+    assert!(wb.sync_selection_with_notifier(Some(100)));
+    assert!(wb.sync_selection_with_notifier(Some(200)));
+    assert!(
+        !wb.tree.event_state.numeric_undo.can_redo(),
+        "Selection change must clear stale numeric_undo redo entries"
+    );
+
+    let ctrl_y = UiEvent::KeyboardInput {
+        key: KeyCode::Character('y'),
+        text: Some("y".to_string()),
+        is_pressed: true,
+        ctrl_held: true,
+        shift_held: false,
+    };
+    let out = wb.handle_event(&mut win, &ctrl_y);
+    assert!(
+        !out.consumed,
+        "Ctrl+Y after selection change must not be hijacked by stale numeric_undo"
+    );
+    assert_eq!(
+        wb.tree
+            .event_state
+            .numeric_undo
+            .take_pending_vec3(scale_tag),
+        None
+    );
+
+    // 3. Domain revision advance also invalidates older numeric_undo
+    wb.tree
+        .event_state
+        .numeric_undo
+        .push_vec3(scale_tag, [60.0, 1.0, 60.0], [1.0, 1.0, 1.0]);
+    let _ = wb.tree.event_state.numeric_undo.undo();
+    let _ = wb
+        .tree
+        .event_state
+        .numeric_undo
+        .take_pending_vec3(scale_tag);
+    assert!(wb.sync_domain_revision_with_notifier(1));
+    assert!(
+        !wb.tree.event_state.numeric_undo.can_redo(),
+        "Domain history revision change must clear stale numeric_undo"
+    );
+
+    // 4. Explicit clear_interaction_history wipes numeric_undo and text edit state
+    wb.tree
+        .event_state
+        .numeric_undo
+        .push_vec3(scale_tag, [60.0, 1.0, 60.0], [1.0, 1.0, 1.0]);
+    wb.tree
+        .event_state
+        .start_text_edit(None, 0xBEEF, "OldName", 7, None);
+    wb.clear_interaction_history();
+    assert!(!wb.tree.event_state.numeric_undo.can_undo());
+    assert!(!wb.tree.event_state.numeric_undo.can_redo());
+    assert_eq!(wb.tree.event_state.text_edit_buffer(0xBEEF), None);
 }
 
 #[test]

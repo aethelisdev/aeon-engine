@@ -143,6 +143,15 @@ impl NumericUndoStack {
         }
     }
 
+    /// Clears all undo/redo entries, any active drag baseline, and any pending restore.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+        self.active_drag = None;
+        self.pending = None;
+    }
+
     /// Captures the initial baseline value `current_val` at the start of a pointer drag gesture for `tag`.
     ///
     /// Subsequent calls with the same `tag` during the same drag session are no-ops, preserving the

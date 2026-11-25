@@ -366,23 +366,33 @@ where
         }
     }
 
-    /// Synchronizes an opaque domain selection identifier (`Option<u64>`) against the workbench.
+    fn clear_selection_transient_state(&mut self) {
+        self.tree.event_state.numeric_undo.clear();
+        self.tree.event_state.cached_euler = None;
+        self.tree.event_state.cached_color_hsv = None;
+        self.tree.event_state.color_edit_origin = None;
+    }
+
+    /// Synchronizes an opaque domain selection identifier (`Option<u64>`) against the workbench,
+    /// invalidating entity-bound numeric undo and Euler/HSV transient widget sessions on change.
     pub fn sync_selection(&mut self, selection_id: Option<u64>) -> bool {
         if self.last_selection_id == selection_id {
             return false;
         }
         self.last_selection_id = selection_id;
+        self.clear_selection_transient_state();
         Self::mark_domain_tabs_dirty_with(&self.panel_registry, &mut self.lifecycle, None);
         true
     }
 
-    /// Synchronizes an opaque domain selection identifier (`Option<u64>`) and forwards dirty
-    /// notifications for all registered domain panels into [`Self::notifier`] when selection changes.
+    /// Synchronizes an opaque domain selection identifier (`Option<u64>`), invalidates stale
+    /// entity-bound widget history, and forwards dirty notifications into [`Self::notifier`].
     pub fn sync_selection_with_notifier(&mut self, selection_id: Option<u64>) -> bool {
         if self.last_selection_id == selection_id {
             return false;
         }
         self.last_selection_id = selection_id;
+        self.clear_selection_transient_state();
         Self::mark_domain_tabs_dirty_with(
             &self.panel_registry,
             &mut self.lifecycle,
@@ -391,29 +401,40 @@ where
         true
     }
 
-    /// Synchronizes an external domain/history revision counter (`u64`) against the workbench.
+    /// Synchronizes an external domain/history revision counter (`u64`) against the workbench,
+    /// clearing widget-level numeric undo so domain history owns subsequent undo/redo shortcuts.
     pub fn sync_domain_revision(&mut self, revision: u64) -> bool {
         if self.last_domain_revision == revision {
             return false;
         }
         self.last_domain_revision = revision;
+        self.tree.clear_numeric_undo();
         Self::mark_domain_tabs_dirty_with(&self.panel_registry, &mut self.lifecycle, None);
         true
     }
 
-    /// Synchronizes an external domain/history revision counter (`u64`) and forwards dirty
-    /// notifications for all registered domain panels into [`Self::notifier`] when the revision changes.
+    /// Synchronizes an external domain/history revision counter (`u64`), clears widget-level
+    /// numeric undo, and forwards dirty notifications into [`Self::notifier`].
     pub fn sync_domain_revision_with_notifier(&mut self, revision: u64) -> bool {
         if self.last_domain_revision == revision {
             return false;
         }
         self.last_domain_revision = revision;
+        self.tree.clear_numeric_undo();
         Self::mark_domain_tabs_dirty_with(
             &self.panel_registry,
             &mut self.lifecycle,
             Some(&mut self.notifier),
         );
         true
+    }
+
+    /// Clears transient widget interaction history (numeric undo/redo, active text edit sessions,
+    /// cached Euler/HSV state, focus, and open popups) across document or world reloads.
+    pub fn clear_interaction_history(&mut self) {
+        self.tree.clear_interaction_history();
+        self.tree.close_all_popups();
+        self.notifier.tag_all();
     }
 
     /// Returns the most recently synchronized opaque selection identifier.
