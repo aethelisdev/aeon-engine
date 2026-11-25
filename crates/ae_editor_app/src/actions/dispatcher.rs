@@ -4,7 +4,7 @@
 //! UI-action dispatcher wiring [`EngineUiAction`] onto [`ae_scene`], [`ae_editor`],
 //! [`ae_camera`], [`ae_assets`], and OS dialog handlers.
 
-use super::{asset_import, scene_io, spawning};
+use super::{asset_import, dialogs, scene_io, spawning};
 use crate::session::EditorSession;
 use ae_core::modules::EngineMode;
 use ae_editor_ui::ui::{EngineUiAction, PanelId};
@@ -209,12 +209,7 @@ fn dispatch_single_action(engine: &mut EditorSession, action: EngineUiAction) ->
             (false, false)
         }
         EngineUiAction::PickAndAssignEntityTexture(ent) => {
-            #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
-                .pick_file()
-                .map(|p| p.to_string_lossy().into_owned())
-            {
+            if let Some(path) = dialogs::pick_texture_file_sync() {
                 scene_comp::assign_texture_path(
                     &mut engine.core.world,
                     &engine.render.render_state,
@@ -224,17 +219,10 @@ fn dispatch_single_action(engine: &mut EditorSession, action: EngineUiAction) ->
                 );
                 return (false, true);
             }
-            #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-            let _ = ent;
             (false, false)
         }
         EngineUiAction::PickAndSetSubmeshTexture(model_id, idx) => {
-            #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
-                .pick_file()
-                .map(|p| p.to_string_lossy().into_owned())
-            {
+            if let Some(path) = dialogs::pick_texture_file_sync() {
                 scene_comp::set_model_submesh_texture_path(
                     &engine.render.render_state,
                     &mut engine.render.asset_manager,
@@ -244,8 +232,6 @@ fn dispatch_single_action(engine: &mut EditorSession, action: EngineUiAction) ->
                 );
                 return (false, true);
             }
-            #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-            let _ = (model_id, idx);
             (false, false)
         }
         EngineUiAction::GarbageCollect => {

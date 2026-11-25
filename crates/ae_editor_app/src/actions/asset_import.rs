@@ -12,27 +12,25 @@ use std::path::{Path, PathBuf};
 
 /// Opens an OS model/texture import dialog when `editor-dialogs` is enabled.
 pub fn handle_open_model_dialog(engine: &mut EditorSession) {
-    #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.host_io.import_receivers.push(rx);
-        std::thread::spawn(move || {
-            if let Some(path) = rfd::FileDialog::new()
+    super::dialogs::spawn_file_dialog(&mut engine.host_io.import_receivers, || {
+        #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
+        {
+            rfd::FileDialog::new()
                 .add_filter(
                     "3D Models & Textures",
                     &["gltf", "glb", "obj", "fbx", "png", "jpg", "jpeg"],
                 )
                 .pick_file()
-            {
-                let _ = tx.send(AsyncImportResult::PickedPath {
+                .map(|path| AsyncImportResult::PickedPath {
                     path,
                     spawn_pos: [0.0, 0.0, 0.0],
-                });
-            }
-        });
-    }
-    #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-    let _ = engine;
+                })
+        }
+        #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
+        {
+            None
+        }
+    });
 }
 
 /// Ingests dropped external files into the asset library and routes viewport drops through

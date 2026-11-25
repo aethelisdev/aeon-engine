@@ -172,63 +172,57 @@ pub fn process_pending_scene_io(engine: &mut EditorSession) {
 
 /// Opens an OS file dialog to instantiate an `.aeprefab` archive.
 pub fn handle_open_load_prefab_dialog(engine: &mut EditorSession) {
-    #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.host_io.import_receivers.push(rx);
-        std::thread::spawn(move || {
-            if let Some(path) = rfd::FileDialog::new()
+    super::dialogs::spawn_file_dialog(&mut engine.host_io.import_receivers, || {
+        #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
+        {
+            rfd::FileDialog::new()
                 .add_filter("Aeon Prefab (*.aeprefab)", &["aeprefab"])
                 .pick_file()
-            {
-                let _ = tx.send(ae_assets::AsyncImportResult::PickedPath {
+                .map(|path| ae_assets::AsyncImportResult::PickedPath {
                     path,
                     spawn_pos: [0.0, 0.0, 0.0],
-                });
-            }
-        });
-    }
-    #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-    let _ = engine;
+                })
+        }
+        #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
+        {
+            None
+        }
+    });
 }
 
 /// Opens an OS file dialog to save the active `.aeworld` archive.
 pub fn handle_open_save_scene_dialog(engine: &mut EditorSession) {
-    #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.editor.scene_dialog_receivers.push(rx);
-        std::thread::spawn(move || {
-            if let Some(path) = rfd::FileDialog::new()
+    super::dialogs::spawn_file_dialog(&mut engine.editor.scene_dialog_receivers, || {
+        #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
+        {
+            rfd::FileDialog::new()
                 .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
                 .set_file_name("world.aeworld")
                 .save_file()
-            {
-                let _ = tx.send(ae_editor::editor_state::SceneDialogAction::SaveTo(path));
-            }
-        });
-    }
-    #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-    let _ = engine;
+                .map(ae_editor::editor_state::SceneDialogAction::SaveTo)
+        }
+        #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
+        {
+            None
+        }
+    });
 }
 
 /// Opens an OS file dialog to load an `.aeworld` archive.
 pub fn handle_open_load_scene_dialog(engine: &mut EditorSession) {
-    #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
-    {
-        let (tx, rx) = std::sync::mpsc::channel();
-        engine.editor.scene_dialog_receivers.push(rx);
-        std::thread::spawn(move || {
-            if let Some(path) = rfd::FileDialog::new()
+    super::dialogs::spawn_file_dialog(&mut engine.editor.scene_dialog_receivers, || {
+        #[cfg(all(feature = "editor-dialogs", not(target_os = "android")))]
+        {
+            rfd::FileDialog::new()
                 .add_filter("Aeon Binary World (*.aeworld)", &["aeworld"])
                 .pick_file()
-            {
-                let _ = tx.send(ae_editor::editor_state::SceneDialogAction::LoadFrom(path));
-            }
-        });
-    }
-    #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
-    let _ = engine;
+                .map(ae_editor::editor_state::SceneDialogAction::LoadFrom)
+        }
+        #[cfg(not(all(feature = "editor-dialogs", not(target_os = "android"))))]
+        {
+            None
+        }
+    });
 }
 
 /// Queues a synchronous save trigger on editor state targeting `path`.

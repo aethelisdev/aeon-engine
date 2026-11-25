@@ -7,6 +7,7 @@
 //! [`ae_scene`], [`ae_editor`], [`ae_assets`], and OS dialogs onto [`crate::session::EditorSession`].
 
 pub mod asset_import;
+pub mod dialogs;
 pub mod dispatcher;
 pub mod scene_io;
 pub mod spawning;
